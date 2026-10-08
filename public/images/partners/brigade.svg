@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" width="100%" height="100%">
+  <!-- Golden Sun -->
+  <circle cx="288" cy="98" r="46" fill="#FDB913" />
+
+  <!-- 8 Stepped Blue Slabs with 45-degree angle -->
+  <!-- Top 4 slabs expanding rightward towards the sun -->
+  <polygon points="135,116 250,116 278,88 266,88 135,88" fill="#0066B2" />
+  <polygon points="135,148 265,148 293,120 281,120 135,120" fill="#0066B2" />
+  <polygon points="135,180 278,180 306,152 294,152 135,152" fill="#0066B2" />
+  <polygon points="135,212 288,212 316,184 304,184 135,184" fill="#0066B2" />
+  <!-- Bottom 4 slabs -->
+  <polygon points="135,244 278,244 306,216 294,216 135,216" fill="#0066B2" />
+  <polygon points="135,276 265,276 293,248 281,248 135,248" fill="#0066B2" />
+  <polygon points="135,308 250,308 278,280 266,280 135,280" fill="#0066B2" />
+  <polygon points="135,340 235,340 263,312 251,312 135,312" fill="#0066B2" />
+
+  <!-- BRIGADE (Serif, all caps) -->
+  <text x="200" y="388" font-family="'Times New Roman', 'Baskerville', serif" font-size="44" font-weight="700" text-anchor="middle" fill="#111827" letter-spacing="4">BRIGADE</text>
+  
+  <!-- GROUP (Sans-serif, all caps, wide tracking) -->
+  <text x="200" y="425" font-family="'Plus Jakarta Sans', 'Arial', sans-serif" font-size="22" font-weight="700" text-anchor="middle" fill="#111827" letter-spacing="10">GROUP</text>
+</svg>

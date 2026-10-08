@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <!-- Clean rounded background square in brand Trust Blue -->
+  <rect width="64" height="64" rx="14" fill="#244B8F"/>
+  <!-- Roof Chevron -->
+  <path d="M16 32L32 17L48 32" stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- 4-Pane Window Grid under the roof apex -->
+  <rect x="25" y="27" width="5.5" height="5.5" rx="0.8" fill="#FFFFFF"/>
+  <rect x="33.5" y="27" width="5.5" height="5.5" rx="0.8" fill="#FFFFFF"/>
+  <rect x="25" y="35.5" width="5.5" height="5.5" rx="0.8" fill="#FFFFFF"/>
+  <rect x="33.5" y="35.5" width="5.5" height="5.5" rx="0.8" fill="#FFFFFF"/>
+  <!-- Subtle gold baseline accent dot -->
+  <circle cx="32" cy="49" r="2.5" fill="#B68A4A"/>
+</svg>

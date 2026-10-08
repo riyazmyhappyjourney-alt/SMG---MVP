@@ -1,0 +1,112 @@
+@import "tailwindcss";
+
+@theme {
+  --font-heading: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --color-trust-blue: #244B8F;
+  --color-trust-blue-dark: #1B396E;
+  --color-trust-blue-light: #3264BA;
+  --color-ink: #172033;
+  --color-canvas: #F8FAFC;
+  --color-gold-accent: #B68A4A;
+}
+
+body {
+  font-family: var(--font-body);
+  color: var(--color-ink);
+  background-color: var(--color-canvas);
+  margin: 0;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  letter-spacing: -0.025em;
+}
+
+@keyframes partnerMarquee {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-partner-marquee {
+  display: flex;
+  width: max-content;
+  animation: partnerMarquee 24s linear infinite;
+}
+
+.animate-partner-marquee:hover {
+  animation-play-state: paused;
+}
+
+@keyframes locationTicker {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-location-ticker {
+  display: flex;
+  width: max-content;
+  animation: locationTicker 20s linear infinite;
+}
+
+.animate-location-ticker:hover {
+  animation-play-state: paused;
+}
+
+/* Vertical Locality Up-Rolling Animation: 7 items of 36px each, duplicated to 14 items */
+@keyframes verticalLocalityRoll {
+  0%, 11.5% {
+    transform: translateY(0px);
+  }
+  14.2857%, 25.7857% {
+    transform: translateY(-36px);
+  }
+  28.5714%, 40.0714% {
+    transform: translateY(-72px);
+  }
+  42.8571%, 54.3571% {
+    transform: translateY(-108px);
+  }
+  57.1429%, 68.6429% {
+    transform: translateY(-144px);
+  }
+  71.4286%, 82.9286% {
+    transform: translateY(-180px);
+  }
+  85.7143%, 97.2143% {
+    transform: translateY(-216px);
+  }
+  100% {
+    transform: translateY(-252px);
+  }
+}
+
+.animate-vertical-locality-roll {
+  display: flex;
+  flex-direction: column;
+  animation: verticalLocalityRoll 14s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-partner-marquee {
+    animation: none;
+  }
+  .animate-location-ticker {
+    animation: none;
+  }
+  .animate-vertical-locality-roll {
+    animation: none;
+    transform: translateY(0%);
+  }
+}
