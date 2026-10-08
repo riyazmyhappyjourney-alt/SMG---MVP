@@ -49,6 +49,11 @@ CREATE TABLE IF NOT EXISTS seller_leads (
   listing_intent VARCHAR(20) NOT NULL DEFAULT 'SELL',
   lead_status VARCHAR(30) NOT NULL DEFAULT 'NEW',
   assigned_staff_id VARCHAR(64),
+  assigned_at TIMESTAMPTZ,
+  property_id VARCHAR(64),
+  next_follow_up_at TIMESTAMPTZ,
+  follow_up_notes TEXT,
+  notes TEXT,
   attribution JSONB,
   consent_record_id VARCHAR(64) REFERENCES consents(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -57,6 +62,8 @@ CREATE TABLE IF NOT EXISTS seller_leads (
 
 CREATE INDEX IF NOT EXISTS idx_seller_leads_phone ON seller_leads (phone);
 CREATE INDEX IF NOT EXISTS idx_seller_leads_status ON seller_leads (lead_status);
+CREATE INDEX IF NOT EXISTS idx_seller_leads_property ON seller_leads (property_id);
+CREATE INDEX IF NOT EXISTS idx_seller_leads_staff ON seller_leads (assigned_staff_id);
 
 -- 4. Properties Table
 CREATE TABLE IF NOT EXISTS properties (
@@ -83,6 +90,7 @@ CREATE TABLE IF NOT EXISTS properties (
   asking_price_inr BIGINT NOT NULL,
   reserve_minimum_price_inr BIGINT NOT NULL,
   listing_intent VARCHAR(20) NOT NULL DEFAULT 'SELL',
+  crm_status VARCHAR(30) NOT NULL DEFAULT 'NEW',
   verification_tier VARCHAR(50) NOT NULL DEFAULT 'LEVEL_1_OWNER_DECLARED',
   internal_verification_notes TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -198,6 +206,10 @@ CREATE TABLE IF NOT EXISTS buyer_enquiries (
   preferred_locality_or_society VARCHAR(255) NOT NULL,
   bhk_type VARCHAR(20) NOT NULL,
   lead_status VARCHAR(30) NOT NULL DEFAULT 'NEW',
+  assigned_staff_id VARCHAR(64),
+  assigned_at TIMESTAMPTZ,
+  next_follow_up_at TIMESTAMPTZ,
+  follow_up_notes TEXT,
   notes TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -205,4 +217,5 @@ CREATE TABLE IF NOT EXISTS buyer_enquiries (
 
 CREATE INDEX IF NOT EXISTS idx_buyer_enquiries_phone ON buyer_enquiries (phone);
 CREATE INDEX IF NOT EXISTS idx_buyer_enquiries_status ON buyer_enquiries (lead_status);
+CREATE INDEX IF NOT EXISTS idx_buyer_enquiries_staff ON buyer_enquiries (assigned_staff_id);
 

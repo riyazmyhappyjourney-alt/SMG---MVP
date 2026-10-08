@@ -5,6 +5,7 @@ import { runErasureTests } from '../src/server/compliance/erasure.test';
 import { runDocumentVerificationTests } from '../src/server/storage/document-verification.test';
 import { runSecurityRegressionTests } from '../src/server/auth/security-regression.test';
 import { runHttpIntegrationTests } from './run-http-integration-tests';
+import { runCrmWorkflowTests } from './run-crm-workflow-tests';
 
 async function runAll() {
   console.log('====================================================');
@@ -77,6 +78,15 @@ async function runAll() {
   totalFailed += httpRes.failed;
   suiteResults.push({ name: 'Live Express HTTP Route Integration', passed: httpRes.passed, failed: httpRes.failed, tests: httpRes.results });
   console.log(`Subtotal: ${httpRes.passed} passed, ${httpRes.failed} failed\n`);
+
+  // Suite 8: CRM Core Operational Workflow Suite
+  console.log('--- 8. CRM Core Operational Workflow Suite ---');
+  const crmRes = await runCrmWorkflowTests();
+  crmRes.results.forEach(r => console.log(' ', r));
+  totalPassed += crmRes.passed;
+  totalFailed += crmRes.failed;
+  suiteResults.push({ name: 'CRM Core Operational Workflow', passed: crmRes.passed, failed: crmRes.failed, tests: crmRes.results });
+  console.log(`Subtotal: ${crmRes.passed} passed, ${crmRes.failed} failed\n`);
 
   console.log('====================================================');
   console.log(`FINAL RESULTS: ${totalPassed} PASSED, ${totalFailed} FAILED (TOTAL: ${totalPassed + totalFailed}/${totalPassed + totalFailed})`);

@@ -36,15 +36,18 @@ export interface UserPrivateRecord {
 export type LeadStatus = 
   | 'NEW'
   | 'CONTACTED'
+  | 'FOLLOW_UP'
+  | 'SITE_VISIT'
+  | 'NEGOTIATION'
+  | 'CONVERTED'
+  | 'LOST'
   | 'QUALIFIED'
   | 'PROPERTY_DETAILS'
   | 'VERIFICATION'
   | 'LISTED'
   | 'BUYER_MATCHED'
   | 'VISIT'
-  | 'NEGOTIATION'
-  | 'CLOSED'
-  | 'LOST';
+  | 'CLOSED';
 
 export type BHKType = '1BHK' | '2BHK' | '2.5BHK' | '3BHK' | '3.5BHK' | '4BHK+' | 'PENTHOUSE';
 
@@ -58,6 +61,11 @@ export interface SellerLeadPrivateRecord {
   expected_price_inr: number | null;
   lead_status: LeadStatus;
   assigned_staff_id: string | null;
+  assigned_at?: string | null;
+  property_id?: string | null;
+  next_follow_up_at?: string | null;
+  follow_up_notes?: string | null;
+  notes?: string | null;
   attribution: {
     utm_source?: string;
     utm_medium?: string;
@@ -116,6 +124,7 @@ export interface PropertyPrivateRecord {
   // Verification State
   verification_tier: VerificationTier;
   internal_verification_notes: string;
+  crm_status?: LeadStatus;
   
   created_at: string;
   updated_at: string;
