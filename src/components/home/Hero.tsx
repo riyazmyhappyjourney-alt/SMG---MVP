@@ -11,7 +11,7 @@ interface HeroProps {
   onExploreClick: () => void;
 }
 
-// Curated sliding carousel of flat interiors and building exteriors
+// Curated backdrop of verified Bengaluru apartment township exteriors
 const HERO_SLIDES = [
   {
     url: '/images/luxury-apartment-township-sunset.webp',
@@ -19,24 +19,14 @@ const HERO_SLIDES = [
     tag: 'Township Exterior',
   },
   {
-    url: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1920&q=80',
-    alt: 'Modern Spacious Living Room Flat Interior',
-    tag: 'Flat Interior',
-  },
-  {
-    url: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1920&q=80',
-    alt: 'High-Rise Balcony with Panoramic Bengaluru Views',
-    tag: 'Balcony & Views',
-  },
-  {
     url: '/images/brigade-granada-clubhouse.webp',
-    alt: 'Premium Society Clubhouse and Pool Amenities',
+    alt: 'Premium Society Clubhouse and Township Amenities',
     tag: 'Society Amenities',
   },
   {
-    url: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1920&q=80',
-    alt: 'Contemporary Apartment Dining and Lounge Space',
-    tag: 'Premium Living',
+    url: '/images/bengaluru-night-apartments.webp',
+    alt: 'Modern Residential Community in Bengaluru',
+    tag: 'Residential Community',
   },
 ];
 
@@ -112,26 +102,8 @@ export const Hero: React.FC<HeroProps> = ({ onSellClick, onExploreClick }) => {
         ))}
       </div>
 
-      {/* Lightened Semi-Transparent Overlay: Building & interiors read clearly while headline stays crisp */}
+      {/* Clean Semi-Transparent Backdrop Overlay for crisp readability */}
       <div className="absolute inset-0 bg-gradient-to-b from-slate-950/45 via-slate-950/20 to-slate-950/35 pointer-events-none" />
-
-      {/* Carousel Slide Indicators */}
-      <div className="absolute top-4 right-4 sm:top-6 sm:right-8 z-20 flex items-center space-x-1.5 bg-black/40 backdrop-blur-md px-2.5 py-1 rounded-full border border-white/20">
-        <span className="text-[10px] font-semibold text-slate-200 mr-1 hidden sm:inline">
-          {HERO_SLIDES[activeSlide].tag}
-        </span>
-        {HERO_SLIDES.map((_, i) => (
-          <button
-            key={i}
-            type="button"
-            onClick={() => setActiveSlide(i)}
-            aria-label={`Go to slide ${i + 1}`}
-            className={`h-1.5 rounded-full transition-all cursor-pointer ${
-              i === activeSlide ? 'w-5 bg-white' : 'w-1.5 bg-white/40 hover:bg-white/70'
-            }`}
-          />
-        ))}
-      </div>
 
       {/* Main Content Wrapper: Contains Hero Headline & Intake Form over the continuous backdrop */}
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 sm:pt-14 pb-12 sm:pb-16">

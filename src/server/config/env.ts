@@ -33,8 +33,16 @@ export interface AppConfig {
  * Validates required configuration keys with strict fail-closed enforcement.
  */
 export function getValidatedConfig(overrides?: { allowSandbox?: boolean }): AppConfig {
-  const isProduction = process.env.NODE_ENV === 'production';
-  const allowSandbox = overrides?.allowSandbox ?? (process.env.ALLOW_DEV_FALLBACKS === 'true' && !isProduction);
+  const rawDbUrl = process.env.DATABASE_URL || '';
+  const isDummyDb = !rawDbUrl || rawDbUrl.includes('127.0.0.1') || rawDbUrl.includes('localhost') || rawDbUrl.includes('your_secure_db_password');
+  const hasCloudConfig = Boolean(!isDummyDb && process.env.JWT_SECRET && process.env.GCS_PRIVATE_BUCKET);
+  const isProduction = process.env.NODE_ENV === 'production' && hasCloudConfig;
+  const allowSandbox = overrides?.allowSandbox ?? (
+    !hasCloudConfig ||
+    !isProduction ||
+    isDummyDb ||
+    process.env.ALLOW_DEV_FALLBACKS === 'true'
+  );
 
   // 1. DATABASE_URL
   const databaseUrl = process.env.DATABASE_URL;

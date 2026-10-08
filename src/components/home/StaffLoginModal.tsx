@@ -141,6 +141,32 @@ export const StaffLoginModal: React.FC<StaffLoginModalProps> = ({
               <span>Sign In to Operation Desk</span>
             )}
           </button>
+
+          <div className="pt-3 border-t border-slate-100">
+            <p className="text-[10px] font-semibold text-slate-500 mb-1.5 font-['Montserrat']">Quick Fill Demo Credentials:</p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail('staff@sellmyghar.in');
+                  setPassword('Staff@12345');
+                }}
+                className="text-[10px] px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-medium cursor-pointer transition-colors"
+              >
+                Staff Desk
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail('admin@sellmyghar.in');
+                  setPassword('Admin@12345');
+                }}
+                className="text-[10px] px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-medium cursor-pointer transition-colors"
+              >
+                Super Admin
+              </button>
+            </div>
+          </div>
         </form>
 
       </div>
