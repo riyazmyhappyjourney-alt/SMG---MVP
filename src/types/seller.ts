@@ -8,6 +8,7 @@ export type PropertyStageEnum =
   | 'NEGOTIATION'
   | 'CONVERTED'
   | 'LOST'
+  | 'DROPPED'
   | 'DOCS_REQUESTED'
   | 'IN_VERIFICATION'
   | 'VERIFIED'

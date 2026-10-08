@@ -11,8 +11,24 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
   const [modalType, setModalType] = useState<'PRIVACY' | 'TERMS' | 'GRIEVANCE' | null>(null);
 
   return (
-    <footer className="bg-[#172033] text-slate-300 pt-16 pb-12 border-t border-slate-800">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <footer className="relative overflow-hidden bg-[#172033] text-slate-300 pt-16 pb-12 border-t border-slate-800">
+      {/* Bengaluru Cityscape Background Watermark Layer (15-20% Opacity behind all content) */}
+      <div 
+        className="absolute inset-x-0 bottom-0 w-full h-[220px] sm:h-[260px] md:h-[300px] lg:h-[320px] pointer-events-none select-none z-0 overflow-hidden flex items-end justify-center"
+        aria-hidden="true"
+      >
+        <img
+          src="/images/bengaluru-cityscape-footer.svg"
+          alt="Bengaluru Cityscape"
+          role="presentation"
+          referrerPolicy="no-referrer"
+          className="w-full h-full object-cover object-bottom opacity-[0.18]"
+        />
+        {/* Subtle dark gradient overlay to ensure 100% contrast and legibility */}
+        <div className="absolute inset-0 bg-gradient-to-t from-[#172033]/90 via-[#172033]/60 to-[#172033]/20 pointer-events-none" />
+      </div>
+
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Main Footer Columns */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 pb-12 border-b border-slate-800">

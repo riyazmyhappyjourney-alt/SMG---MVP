@@ -35,7 +35,7 @@ import { recordAuditEvent, AuditableAction } from './src/server/audit/logger';
 import { AuthenticatedUser, AppRole } from './src/core/types/auth';
 
 const app = express();
-const PORT = parseInt(process.env.PORT || '3000', 10);
+const PORT = 3000;
 const isProd = process.env.NODE_ENV === 'production';
 
 // ====================================================================
@@ -236,6 +236,13 @@ function setSessionCookie(res: Response, token: string) {
 // ====================================================================
 // 4. AUTHENTICATION & SESSION ENDPOINTS
 // ====================================================================
+
+// Public asset fallback for image.png and cityscape
+app.get(['/image.png', '/images/image.png', '/images/bengaluru-cityscape-footer.png'], (_req, res) => {
+  res.sendFile(path.resolve('public/images/bengaluru-cityscape-footer.svg'), {
+    headers: { 'Content-Type': 'image/svg+xml' }
+  });
+});
 
 // API: Health check
 app.get('/api/health', (_req, res) => {
@@ -1368,7 +1375,7 @@ app.get('/api/properties', authenticateUser, async (req, res) => {
           }
         },
         rmName: row.rm_name || 'Kavitha Ranganathan',
-        rmPhone: row.rm_phone || '+91 98450 12345',
+        rmPhone: row.rm_phone || '+91 8217873708',
         rmRole: row.rm_name ? 'Dedicated Relationship Manager' : 'Senior Property & Diligence Lead'
       };
     });
@@ -2602,6 +2609,21 @@ async function startServer() {
       appType: 'spa',
     });
     app.use(vite.middlewares);
+
+    // Dev SPA fallback for direct deep links e.g. /crm, /dashboard, /login
+    app.use('*', async (req, res, next) => {
+      if (req.originalUrl.startsWith('/api')) {
+        return next();
+      }
+      try {
+        const url = req.originalUrl;
+        let template = fs.readFileSync(path.resolve('index.html'), 'utf-8');
+        template = await vite.transformIndexHtml(url, template);
+        res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
+      } catch (e) {
+        next(e);
+      }
+    });
   } else {
     app.use(express.static('dist'));
     app.get('*', (_req, res) => {

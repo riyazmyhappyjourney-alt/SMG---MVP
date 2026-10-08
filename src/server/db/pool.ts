@@ -26,18 +26,28 @@ export function setTestQueryHandler(handler: TestQueryHandler | null): void {
   testQueryHandler = handler;
 }
 
+function isDummyDatabaseUrl(url: string | undefined): boolean {
+  if (!url) return true;
+  return (
+    url.includes('127.0.0.1') ||
+    url.includes('localhost') ||
+    url.includes('your_secure_db_password')
+  );
+}
+
 export function getDbPool(): pg.Pool {
   if (!poolInstance) {
     const config = getValidatedConfig();
+    const isDummy = isDummyDatabaseUrl(config.databaseUrl);
 
-    if (!config.databaseUrl && !config.allowSandbox) {
+    if (isDummy && !config.allowSandbox) {
       throw new ConfigurationError(
         'DATABASE_URL',
         'PostgreSQL connection string is required. Fail-closed: database operations cannot proceed.'
       );
     }
 
-    if (!config.databaseUrl && config.allowSandbox) {
+    if (isDummy && config.allowSandbox) {
       // In sandbox mode without a real databaseUrl, route queries to stateful devSandboxStore
       poolInstance = {
         query: async (text: string, params?: unknown[]) => {
@@ -118,8 +128,9 @@ export const dbPool = getDbPool();
  */
 export async function executeQuery<T = any>(text: string, params?: unknown[]): Promise<{ rows: T[] }> {
   const config = getValidatedConfig();
+  const isDummy = isDummyDatabaseUrl(config.databaseUrl);
 
-  if (!config.databaseUrl && !config.allowSandbox) {
+  if (isDummy && !config.allowSandbox) {
     throw new ConfigurationError(
       'DATABASE_URL',
       'Cannot execute query: DATABASE_URL is unset. Fail-closed: writes rejected.'
@@ -135,12 +146,21 @@ export async function executeQuery<T = any>(text: string, params?: unknown[]): P
   }
 
   // 2. Direct sandbox interception BEFORE any connection attempt
-  if (!config.databaseUrl && config.allowSandbox) {
+  if (isDummy && config.allowSandbox) {
     const res = devSandboxStore.handleQuery(text, (params as any[]) || []);
     return res as { rows: T[] };
   }
 
-  const pool = getDbPool();
-  const res = await pool.query(text, params);
-  return res as { rows: T[] };
+  try {
+    const pool = getDbPool();
+    const res = await pool.query(text, params);
+    return res as { rows: T[] };
+  } catch (err: any) {
+    if (config.allowSandbox) {
+      console.warn(`[Dev Sandbox] Database connection unavailable (${err.message}) — falling back to sandbox store`);
+      const res = devSandboxStore.handleQuery(text, (params as any[]) || []);
+      return res as { rows: T[] };
+    }
+    throw err;
+  }
 }
