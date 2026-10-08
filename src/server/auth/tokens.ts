@@ -18,12 +18,13 @@ export interface TokenPayload {
   phone: string;
   email: string | null;
   roles: string[];
+  tokenVersion?: number;
 }
 
 /**
  * Signs a real cryptographic JWT containing user identity and assigned roles.
  */
-export async function signSessionToken(user: AuthenticatedUser): Promise<string> {
+export async function signSessionToken(user: AuthenticatedUser, tokenVersion = 1): Promise<string> {
   const config = getValidatedConfig();
 
   const token = await new SignJWT({
@@ -31,6 +32,7 @@ export async function signSessionToken(user: AuthenticatedUser): Promise<string>
     phone: user.phone,
     email: user.email,
     roles: user.roles,
+    tokenVersion,
   })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
@@ -58,5 +60,6 @@ export async function verifySessionToken(token: string): Promise<TokenPayload> {
     phone: payload.phone as string,
     email: (payload.email as string) || null,
     roles: (payload.roles as string[]) || [],
+    tokenVersion: typeof payload.tokenVersion === 'number' ? payload.tokenVersion : undefined,
   };
 }

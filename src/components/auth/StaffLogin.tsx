@@ -48,12 +48,6 @@ export const StaffLogin: React.FC<StaffLoginProps> = ({ onSuccess, onBackToHome 
     }
   };
 
-  const fillDemoCredentials = () => {
-    setEmail('staff@sellmyghar.in');
-    setPassword('Staff@2026');
-    setErrorMessage(null);
-  };
-
   return (
     <div className="min-h-screen bg-[#F4F6F9] flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-['Montserrat']">
       
@@ -155,17 +149,7 @@ export const StaffLogin: React.FC<StaffLoginProps> = ({ onSuccess, onBackToHome 
             </button>
           </form>
 
-          {/* Quick Demo Helper */}
-          <div className="mt-6 pt-5 border-t border-slate-100 flex items-center justify-between text-xs">
-            <span className="text-slate-400 font-medium">Demo Staff Access:</span>
-            <button
-              type="button"
-              onClick={fillDemoCredentials}
-              className="font-bold text-[#244B8F] hover:underline cursor-pointer"
-            >
-              Fill Credentials (staff@sellmyghar.in)
-            </button>
-          </div>
+
         </div>
 
         {/* Security Assurance Footer */}

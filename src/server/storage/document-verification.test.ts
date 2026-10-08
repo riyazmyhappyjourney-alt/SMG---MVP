@@ -1,4 +1,4 @@
-import { PostUploadVerificationWorker } from './post-upload-worker';
+import { PostUploadVerificationWorker, setTestAvHandler } from './post-upload-worker';
 import { AuthenticatedUser } from '../../core/types/auth';
 import { setTestQueryHandler } from '../db/pool';
 import { createHash } from 'crypto';
@@ -52,6 +52,19 @@ export async function runDocumentVerificationTests(): Promise<{ passed: number; 
     }
 
     return null;
+  });
+
+  // Configure test double AV handler
+  setTestAvHandler((buffer) => {
+    const suspiciousTokens = ['/JavaScript', '/JS', '/Launch', '/EmbeddedFile', '<script', 'eval('];
+    const rawContent = buffer.toString('binary');
+    const detectedThreat = suspiciousTokens.find(token => rawContent.includes(token));
+    return {
+      isClean: !detectedThreat,
+      virusName: detectedThreat ? `Heuristic.MaliciousToken.${detectedThreat}` : undefined,
+      engineVersion: 'ClamAV-Test-Mock',
+      scannedAt: new Date().toISOString(),
+    };
   });
 
   try {
@@ -153,6 +166,7 @@ export async function runDocumentVerificationTests(): Promise<{ passed: number; 
     );
   } finally {
     setTestQueryHandler(null);
+    setTestAvHandler(null);
   }
 
   return { passed, failed, results };

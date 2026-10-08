@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "ALLOW_DEV_FALLBACKS=true tsx scripts/run-all-tests.ts"
+    "test": "RUNNING_TESTS=true ALLOW_DEV_FALLBACKS=true tsx scripts/run-all-tests.ts"
   },
   "dependencies": {
     "@google-cloud/storage": "^8.2.0",

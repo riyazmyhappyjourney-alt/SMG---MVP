@@ -99,27 +99,38 @@ export function AdminErasureQueue() {
     setShowConfirmModal(false);
 
     try {
-      // In this preview container, test double or real execution resolves cleanly
-      const isDealHold = selectedRequest.hasCompletedDeal;
+      // Dispatch to compliance API backend
+      const res = await fetch(`/api/compliance/erasure-requests/${selectedRequest.id}/execute`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          adminId: adminActor.uid,
+          reason: 'Administrative erasure processed under DPDP Act Sec 12',
+        }),
+      });
 
-      if (isDealHold) {
-        // Statutory Hold rejection path
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.message || `Backend execution failed with status ${res.status}`);
+      }
+
+      const data = await res.json();
+      if (data.status === 'REJECTED_STATUTORY_HOLD') {
         setRequests(prev => prev.map(r => r.id === selectedRequest.id ? {
           ...r,
           status: 'REJECTED_STATUTORY_HOLD',
           reviewedByAdminId: adminActor.uid,
           reviewedAt: new Date().toLocaleTimeString(),
-          rejectionReason: 'Statutory Legal Hold Active: Party to completed transaction subject to 8-year limitation hold under Income Tax Act Sec 194-IA.'
+          rejectionReason: data.reason || 'Statutory Legal Hold Active: Party to completed transaction.',
         } : r));
         setActionMessage(`Erasure request ${selectedRequest.id} REJECTED due to mandatory statutory transaction hold.`);
       } else {
-        // Atomic Erasure execution path
         setRequests(prev => prev.map(r => r.id === selectedRequest.id ? {
           ...r,
           status: 'APPROVED_EXECUTED',
           reviewedByAdminId: adminActor.uid,
           reviewedAt: new Date().toLocaleTimeString(),
-          summary: {
+          summary: data.summary || {
             unconvertedLeadsAnonymized: selectedRequest.unconvertedLeadsCount,
             userAccountAnonymized: true,
             propertiesSanitized: 1,

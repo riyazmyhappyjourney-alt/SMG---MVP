@@ -1,5 +1,6 @@
 import { AuthenticatedUser } from '../../core/types/auth';
 import { AuditLogPrivateRecord } from '../../core/types/entities';
+import { executeQuery } from '../db/pool';
 
 /**
  * Immutable Security Audit Logger
@@ -106,6 +107,26 @@ export async function recordAuditEvent(event: AuditEventPayload): Promise<Enrich
     console.warn(`[SECURITY ALERT - ${severity}] Super Admin Privileged Access:`, JSON.stringify(logPayload));
   } else {
     console.info('[AUDIT]', JSON.stringify(logPayload));
+  }
+
+  // Persist to PostgreSQL audit_logs table
+  try {
+    await executeQuery(
+      `INSERT INTO audit_logs (id, actor_id, actor_role, action, target_entity, target_entity_id, ip_address, diff_summary, timestamp)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW())`,
+      [
+        auditRecord.id,
+        auditRecord.actor_id,
+        auditRecord.actor_role,
+        auditRecord.action,
+        auditRecord.target_entity,
+        auditRecord.target_entity_id,
+        auditRecord.ip_address,
+        JSON.stringify(auditRecord.diff_summary || {}),
+      ]
+    );
+  } catch (dbErr: any) {
+    console.warn('[AuditLogger] Note on persisting to audit_logs table:', dbErr.message);
   }
 
   return auditRecord;

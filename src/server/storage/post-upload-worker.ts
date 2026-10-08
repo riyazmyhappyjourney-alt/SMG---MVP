@@ -44,9 +44,22 @@ export interface PostUploadVerificationResult {
   documentUpdated?: boolean;
 }
 
+export type TestAvHandler = (buffer: Buffer) => Promise<AntivirusScanResult | null> | AntivirusScanResult | null;
+let testAvHandler: TestAvHandler | null = null;
+
+/**
+ * Test double hook to allow unit/integration test suites to simulate clean or infected scans
+ * without requiring an external ClamAV daemon process.
+ */
+export function setTestAvHandler(handler: TestAvHandler | null): void {
+  testAvHandler = handler;
+}
+
 /**
  * Enterprise Antivirus Engine Client (ClamAV INSTREAM Protocol)
- * Connects to ClamAV daemon running as a Cloud Run sidecar or dedicated service
+ * Connects to ClamAV daemon running as a Cloud Run sidecar or dedicated service.
+ * [Fail-Closed Enforcement]: If the ClamAV daemon is unreachable or times out,
+ * the scanner fails closed (isClean: false, virusName: 'ANTIVIRUS_UNAVAILABLE').
  */
 export class ClamAvScannerClient {
   private host: string;
@@ -65,10 +78,16 @@ export class ClamAvScannerClient {
 
   /**
    * Scans a file buffer using the ClamAV INSTREAM command over TCP.
-   * If ClamAV daemon is unreachable in development/local test mode,
-   * performs strict heuristic scanning and logs an operational notice.
+   * Fails closed if the daemon is unavailable.
    */
   async scanBuffer(buffer: Buffer): Promise<AntivirusScanResult> {
+    if (testAvHandler) {
+      const mockResult = await testAvHandler(buffer);
+      if (mockResult !== null) {
+        return mockResult;
+      }
+    }
+
     return new Promise((resolve) => {
       const socket = new net.Socket();
       let responseData = '';
@@ -120,23 +139,18 @@ export class ClamAvScannerClient {
       });
 
       socket.on('error', (err) => {
-        // Fallback for sandboxes without a running ClamAV TCP daemon
-        console.warn(`[ANTIVIRUS WARNING] ClamAV daemon connection failed (${err.message}). Using local heuristic scanner.`);
-        
-        // Deep binary inspection for common malicious payloads and script injections in PDFs
-        const suspiciousTokens = ['/JavaScript', '/JS', '/Launch', '/EmbeddedFile', '<script', 'eval('];
-        const rawContent = buffer.toString('binary');
-        const detectedThreat = suspiciousTokens.find(token => rawContent.includes(token));
-
+        // Strict Fail-Closed: If daemon is unavailable, mark unsafe
+        console.warn(`[ANTIVIRUS FAIL-CLOSED] ClamAV daemon connection failed (${err.message}). Rejecting file as ANTIVIRUS_UNAVAILABLE.`);
         finish({
-          isClean: !detectedThreat,
-          virusName: detectedThreat ? `Heuristic.MaliciousToken.${detectedThreat}` : undefined,
-          engineVersion: 'SellMyGhar-Heuristic-Fallback-v1',
+          isClean: false,
+          virusName: 'ANTIVIRUS_UNAVAILABLE',
+          engineVersion: 'ClamAV-Daemon-Unavailable',
           scannedAt: new Date().toISOString(),
         });
       });
 
       socket.on('timeout', () => {
+        console.warn('[ANTIVIRUS FAIL-CLOSED] ClamAV daemon socket timed out. Rejecting file.');
         finish({
           isClean: false,
           virusName: 'SCAN_TIMEOUT_ERROR',

@@ -283,3 +283,42 @@ export async function uploadStatutoryDocToSupabase(
     checksum,
   };
 }
+
+/**
+ * Upload verified hero banner image to Supabase Storage 'property-media' bucket
+ */
+export async function uploadHeroImageToSupabase(
+  fileBuffer: Buffer
+): Promise<{ success: boolean; publicUrl: string; checksum: string }> {
+  await ensureSupabaseBucketsExist();
+  const checksum = createHash('sha256').update(fileBuffer).digest('hex');
+  const storagePath = `hero/luxury-apartment-township-sunset.webp`;
+  const client = getSupabaseClient();
+  let publicUrl = '';
+
+  if (client) {
+    const { error: uploadError } = await client.storage
+      .from(BUCKET_PROPERTY_MEDIA)
+      .upload(storagePath, fileBuffer, {
+        contentType: 'image/webp',
+        upsert: true,
+      });
+
+    if (uploadError) {
+      console.warn(`[SupabaseStorage] Hero image upload error: ${uploadError.message}`);
+    }
+    const { data: urlData } = client.storage.from(BUCKET_PROPERTY_MEDIA).getPublicUrl(storagePath);
+    publicUrl = urlData.publicUrl;
+  } else {
+    const supabaseProject = process.env.SUPABASE_PROJECT_ID || 'db.sellmyghar';
+    publicUrl = `https://${supabaseProject}.supabase.co/storage/v1/object/public/${BUCKET_PROPERTY_MEDIA}/${storagePath}`;
+  }
+
+  console.info(`[SupabaseStorage] Hero image uploaded to ${BUCKET_PROPERTY_MEDIA}/${storagePath}: ${publicUrl}`);
+
+  return {
+    success: true,
+    publicUrl,
+    checksum,
+  };
+}
