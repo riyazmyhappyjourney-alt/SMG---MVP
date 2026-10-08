@@ -229,7 +229,7 @@ export class SellerWorkflowService {
     // Real PostgreSQL UPDATE to mark consent as withdrawn
     const updateConsentSql = `
       UPDATE consents
-      SET is_withdrawn = true, withdrawn_at = $1
+      SET is_withdrawn = true, withdrawn_at = $1, revoked_at = $1
       WHERE phone = $2 AND purpose = $3 AND is_withdrawn = false
       RETURNING id;
     `;

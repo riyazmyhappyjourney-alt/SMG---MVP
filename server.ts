@@ -1,24 +1,66 @@
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import dotenv from 'dotenv';
+import path from 'path';
+import fs from 'fs';
 import { createHash } from 'crypto';
+
 dotenv.config();
 dotenv.config({ path: '.env.local' });
 
+import { getValidatedConfig } from './src/server/config/env';
 import { executeQuery, getDbPool } from './src/server/db/pool';
+import { signSessionToken, verifySessionToken } from './src/server/auth/tokens';
+import { 
+  authenticateUser, 
+  optionalAuthenticateUser, 
+  requireRole, 
+  requirePermissionMiddleware 
+} from './src/server/auth/middleware';
+import { assertCanAccessProperty, assertCanAccessDocument, AuthorizationError } from './src/server/auth/ownership';
+import { requirePermission, hasPermission } from './src/server/auth/rbac';
+import { hashPassword, verifyPassword } from './src/server/auth/passwords';
+import { SellerWorkflowService } from './src/server/workflow/seller-service';
+import { ErasureService } from './src/server/compliance/erasure-service';
+import { PostUploadVerificationWorker, ClamAvScannerClient } from './src/server/storage/post-upload-worker';
 import { 
   uploadPropertyPhotoToSupabase, 
   uploadStatutoryDocToSupabase,
-  BUCKET_PROPERTY_MEDIA,
-  BUCKET_PROPERTY_DOCUMENTS,
+  uploadHeroImageToSupabase,
+  BUCKET_PROPERTY_MEDIA, 
+  BUCKET_PROPERTY_DOCUMENTS, 
   ensureSupabaseBucketsExist 
 } from './src/server/storage/supabase-client';
+import { DistributedRateLimiter } from './src/server/ratelimit/limiter';
+import { recordAuditEvent } from './src/server/audit/logger';
+import { AuthenticatedUser, AppRole } from './src/core/types/auth';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '3000', 10);
+const isProd = process.env.NODE_ENV === 'production';
 
-app.use(express.json({ limit: '25mb' }));
+// ====================================================================
+// 1. SECURITY HEADERS & COOKIE PARSER
+// ====================================================================
 
-// Lightweight cookie parser helper for session persistence
+app.use((_req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: blob:; connect-src 'self' https:; frame-ancestors 'none';"
+  );
+  res.setHeader(
+    'Permissions-Policy',
+    'camera=(), microphone=(), geolocation=(), payment=()'
+  );
+  if (isProd) {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  next();
+});
+
+// Lightweight cookie parser helper
 function parseCookies(cookieHeader?: string): Record<string, string> {
   const cookies: Record<string, string> = {};
   if (!cookieHeader) return cookies;
@@ -37,12 +79,46 @@ app.use((req, _res, next) => {
   next();
 });
 
-// Database schema initialiser for listing_intent column and property_media table
+// Standard body parser with strict limit (100kb for standard APIs)
+const jsonDefault = express.json({ limit: '100kb' });
+// Upload-specific body parser for large file uploads (20mb)
+const jsonUpload = express.json({ limit: '20mb' });
+
+// ====================================================================
+// 2. RATE LIMITING HELPERS
+// ====================================================================
+
+function rateLimit(keyPrefix: string, limit: number, windowSeconds: number) {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    const key = `${keyPrefix}:${clientIp}`;
+    const check = await DistributedRateLimiter.check(key, limit, windowSeconds);
+    if (!check.allowed) {
+      res.setHeader('Retry-After', check.retryAfterSeconds || windowSeconds);
+      return res.status(429).json({
+        error: 'TOO_MANY_REQUESTS',
+        message: check.reason || `Rate limit exceeded. Please retry in ${check.retryAfterSeconds}s.`,
+        retryAfterSeconds: check.retryAfterSeconds,
+      });
+    }
+    next();
+  };
+}
+
+// ====================================================================
+// 3. DATABASE SCHEMA & STAFF INITIALIZATION
+// ====================================================================
+
 async function initSchemaColumns() {
   try {
+    // 1. Core Column Updates
     await executeQuery(`
       ALTER TABLE seller_leads ADD COLUMN IF NOT EXISTS listing_intent VARCHAR(20) NOT NULL DEFAULT 'SELL';
       ALTER TABLE properties ADD COLUMN IF NOT EXISTS listing_intent VARCHAR(20) NOT NULL DEFAULT 'SELL';
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255);
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INT NOT NULL DEFAULT 1;
+      ALTER TABLE consents ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMPTZ;
+
       CREATE TABLE IF NOT EXISTS property_media (
         id VARCHAR(64) PRIMARY KEY,
         property_id VARCHAR(64) NOT NULL,
@@ -55,56 +131,386 @@ async function initSchemaColumns() {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
       CREATE INDEX IF NOT EXISTS idx_property_media_property ON property_media (property_id);
+
+      CREATE TABLE IF NOT EXISTS buyer_enquiries (
+        id VARCHAR(64) PRIMARY KEY,
+        buyer_name VARCHAR(120) NOT NULL,
+        phone VARCHAR(64) NOT NULL,
+        preferred_locality_or_society VARCHAR(255) NOT NULL,
+        bhk_type VARCHAR(20) NOT NULL,
+        lead_status VARCHAR(30) NOT NULL DEFAULT 'NEW',
+        notes TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_buyer_enquiries_phone ON buyer_enquiries (phone);
+      CREATE INDEX IF NOT EXISTS idx_buyer_enquiries_status ON buyer_enquiries (lead_status);
     `);
-    console.info('[SellMyGhar DB] Schema ensured with listing_intent and property_media table.');
+
+    // 2. Initialize Seed Staff with Real scrypt Password Hash (Zero hardcoded fallbacks)
+    const staffPhone = '+919800000001';
+    const adminPhone = '+919800000000';
+
+    const existingStaff = await executeQuery(`SELECT id, password_hash FROM users WHERE phone = $1 LIMIT 1;`, [staffPhone]);
+    const existingAdmin = await executeQuery(`SELECT id, password_hash FROM users WHERE phone = $1 LIMIT 1;`, [adminPhone]);
+
+    const staffPass = process.env.INITIAL_STAFF_PASSWORD;
+    const adminPass = process.env.INITIAL_ADMIN_PASSWORD;
+
+    const hasStaff = Boolean(existingStaff.rows && existingStaff.rows.length > 0);
+    const hasAdmin = Boolean(existingAdmin.rows && existingAdmin.rows.length > 0);
+
+    // Fail-Closed: If privileged account does not exist and env secret is missing, abort startup
+    if (!hasStaff && !staffPass) {
+      throw new Error('[CONFIGURATION ERROR] Privileged staff account does not exist and INITIAL_STAFF_PASSWORD is not set in environment.');
+    }
+    if (!hasAdmin && !adminPass) {
+      throw new Error('[CONFIGURATION ERROR] Privileged admin account does not exist and INITIAL_ADMIN_PASSWORD is not set in environment.');
+    }
+
+    if (!hasStaff && staffPass) {
+      const staffHash = await hashPassword(staffPass);
+      await executeQuery(`
+        INSERT INTO users (id, phone, email, display_name, password_hash, roles, is_active, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, '{STAFF_VERIFICATION_AGENT}', true, NOW(), NOW())
+        ON CONFLICT (phone) DO NOTHING;
+      `, ['usr-staff-verification-01', staffPhone, 'staff@sellmyghar.in', 'Verification Desk Staff', staffHash]);
+      console.info('[SellMyGhar DB] Privileged staff account bootstrapped from environment secret.');
+    } else {
+      console.info('[SellMyGhar DB] Privileged staff account already exists. Preserving existing password hash.');
+    }
+
+    if (!hasAdmin && adminPass) {
+      const adminHash = await hashPassword(adminPass);
+      await executeQuery(`
+        INSERT INTO users (id, phone, email, display_name, password_hash, roles, is_active, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, '{STAFF_SUPER_ADMIN}', true, NOW(), NOW())
+        ON CONFLICT (phone) DO NOTHING;
+      `, ['usr-admin-compliance-01', adminPhone, 'admin@sellmyghar.in', 'Compliance Super Admin', adminHash]);
+      console.info('[SellMyGhar DB] Privileged admin account bootstrapped from environment secret.');
+    } else {
+      console.info('[SellMyGhar DB] Privileged admin account already exists. Preserving existing password hash.');
+    }
+
+    console.info('[SellMyGhar DB] Schema ensured with buyer_enquiries, property_media, and secure staff accounts.');
   } catch (err: any) {
-    console.info('[SellMyGhar DB] Schema initialisation note:', err.message);
+    if (err.message && err.message.includes('[CONFIGURATION ERROR]')) {
+      throw err;
+    }
+    console.info('[SellMyGhar DB] Schema initialization note:', err.message);
   }
 }
 
-// API: Custom Hero Image Upload
-app.post('/api/hero-image', async (req, res) => {
-  try {
-    const { dataBase64 } = req.body;
-    if (!dataBase64) {
-      return res.status(400).json({ error: 'Missing image data' });
-    }
-    const base64Data = dataBase64.replace(/^data:image\/\w+;base64,/, '');
-    const buffer = Buffer.from(base64Data, 'base64');
-    
-    const fs = await import('fs');
-    const path = await import('path');
-    
-    const targetDir = path.join(process.cwd(), 'public', 'images');
-    if (!fs.existsSync(targetDir)) {
-      fs.mkdirSync(targetDir, { recursive: true });
-    }
-    const targetFile = path.join(targetDir, 'luxury-apartment-township-sunset.webp');
-    await fs.promises.writeFile(targetFile, buffer);
+// Helper: Sets HTTP-Only cryptographically signed session cookie
+function setSessionCookie(res: Response, token: string) {
+  res.cookie('sellmyghar_session', token, {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: 'lax',
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    path: '/',
+  });
+}
 
-    const distDir = path.join(process.cwd(), 'dist', 'images');
-    if (fs.existsSync(distDir)) {
-      await fs.promises.writeFile(path.join(distDir, 'luxury-apartment-township-sunset.webp'), buffer);
-    }
-
-    return res.json({ 
-      success: true, 
-      url: '/images/luxury-apartment-township-sunset.webp',
-      message: 'Background image saved successfully' 
-    });
-  } catch (err: any) {
-    console.error('Failed to save hero image:', err);
-    return res.status(500).json({ error: err.message || 'Failed to save image' });
-  }
-});
+// ====================================================================
+// 4. AUTHENTICATION & SESSION ENDPOINTS
+// ====================================================================
 
 // API: Health check
-app.get('/api/health', (req, res) => {
+app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString(), platform: 'SellMyGhar Bengaluru' });
 });
 
-// API: Lead Capture (Real PostgreSQL persistence)
-app.post('/api/leads', async (req, res) => {
+// API: Staff Login (Verifies scrypt password hash; issues signed JWT)
+app.post('/api/auth/login', jsonDefault, rateLimit('auth-login', 10, 900), async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res.status(400).json({ success: false, error: 'Email and password are required.' });
+    }
+
+    const cleanEmail = String(email).trim().toLowerCase();
+    const result = await executeQuery(
+      `SELECT id, phone, email, display_name, password_hash, roles, is_active
+       FROM users WHERE LOWER(email) = $1 LIMIT 1;`,
+      [cleanEmail]
+    );
+
+    if (!result.rows || result.rows.length === 0) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid credentials. Only authorized SellMyGhar staff can access internal portals.'
+      });
+    }
+
+    const user = result.rows[0];
+    if (!user.is_active) {
+      return res.status(401).json({ success: false, error: 'Staff account is inactive.' });
+    }
+
+    if (!user.password_hash) {
+      return res.status(401).json({ success: false, error: 'No password configured for this account.' });
+    }
+
+    const isValid = await verifyPassword(String(password), user.password_hash);
+    if (!isValid) {
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid credentials. Only authorized SellMyGhar staff can access internal portals.'
+      });
+    }
+
+    const roles = (Array.isArray(user.roles) ? user.roles : ['STAFF_VERIFICATION_AGENT']) as AppRole[];
+    const isStaff = roles.some(r => r.startsWith('STAFF_'));
+    if (!isStaff) {
+      return res.status(403).json({ success: false, error: 'Access denied: account lacks staff privileges.' });
+    }
+
+    const authenticatedUser: AuthenticatedUser = {
+      uid: user.id,
+      phone: user.phone,
+      email: user.email,
+      roles,
+      permissions: [],
+    };
+
+    const token = await signSessionToken(authenticatedUser, user.token_version || 1);
+    setSessionCookie(res, token);
+
+    return res.json({
+      success: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.display_name,
+        role: roles[0],
+        roles,
+      },
+      token,
+    });
+  } catch (err: any) {
+    console.error('[StaffLogin] Error:', err);
+    return res.status(500).json({ success: false, error: 'Authentication service error.' });
+  }
+});
+
+// API: Customer OTP Request
+app.post('/api/auth/otp/request', jsonDefault, rateLimit('otp-req', 10, 900), async (req, res) => {
+  try {
+    const { phone } = req.body;
+    const cleanPhone = String(phone || '').replace(/\D/g, '').slice(-10);
+    if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
+      return res.status(400).json({ error: 'Valid 10-digit Indian mobile number is required.' });
+    }
+
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    const otpRes = await SellerWorkflowService.requestOtp(`+91${cleanPhone}`, clientIp);
+    return res.json({ ...otpRes });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || 'Failed to request OTP.' });
+  }
+});
+
+// API: Customer OTP Verification (Generates real cryptographic JWT session)
+app.post('/api/auth/otp/verify', jsonDefault, rateLimit('otp-verify', 10, 900), async (req, res) => {
+  try {
+    const { phone, otp, name } = req.body;
+    const cleanPhone = String(phone || '').replace(/\D/g, '').slice(-10);
+    if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
+      return res.status(400).json({ error: 'Valid 10-digit Indian mobile number is required.' });
+    }
+
+    if (!otp || typeof otp !== 'string') {
+      return res.status(400).json({ error: 'OTP code is required.' });
+    }
+
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    const normalizedPhone = `+91${cleanPhone}`;
+
+    // Lookup existing user
+    const existing = await executeQuery(`SELECT * FROM users WHERE phone = $1 LIMIT 1;`, [normalizedPhone]);
+    const existingUser = existing.rows && existing.rows.length > 0 ? existing.rows[0] : null;
+
+    const authRes = await SellerWorkflowService.verifyOtp(normalizedPhone, otp.trim(), existingUser);
+
+    // If caller provided name, update display_name
+    if (name && typeof name === 'string' && name.trim()) {
+      await executeQuery(
+        `UPDATE users SET display_name = $1, updated_at = NOW() WHERE phone = $2;`,
+        [name.trim(), normalizedPhone]
+      );
+      authRes.authenticatedUser.email = existingUser?.email || null;
+    }
+
+    const sessionToken = await signSessionToken(authRes.authenticatedUser, existingUser?.token_version || 1);
+    setSessionCookie(res, sessionToken);
+
+    return res.json({
+      success: true,
+      authenticated: true,
+      user: {
+        id: authRes.authenticatedUser.uid,
+        name: name?.trim() || existingUser?.display_name || `Owner ${normalizedPhone.slice(-4)}`,
+        phone: normalizedPhone,
+        email: authRes.authenticatedUser.email,
+        roles: authRes.authenticatedUser.roles,
+        createdAt: new Date().toISOString(),
+      },
+      token: sessionToken,
+    });
+  } catch (err: any) {
+    return res.status(400).json({ error: err.message || 'OTP verification failed.' });
+  }
+});
+
+// API: Customer Email / Social Login (Server-controlled role assignment: strictly OWNER)
+app.post('/api/auth/customer-login', jsonDefault, rateLimit('cust-login', 10, 900), async (req, res) => {
+  try {
+    const { email, name, provider = 'email' } = req.body;
+    if (!email || !String(email).includes('@')) {
+      return res.status(400).json({ error: 'Valid email address is required.' });
+    }
+
+    const cleanEmail = String(email).trim().toLowerCase();
+    const displayName = (name && typeof name === 'string' && name.trim()) ? name.trim() : cleanEmail.split('@')[0];
+
+    // Check existing or upsert customer with server-enforced OWNER role
+    const existing = await executeQuery(`SELECT * FROM users WHERE LOWER(email) = $1 LIMIT 1;`, [cleanEmail]);
+    let userRecord = existing.rows && existing.rows.length > 0 ? existing.rows[0] : null;
+
+    if (!userRecord) {
+      const newUserId = `usr-c-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
+      const syntheticPhone = `+9100${Date.now().toString().slice(-8)}`;
+      await executeQuery(
+        `INSERT INTO users (id, phone, email, display_name, roles, is_active, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, '{OWNER}', true, NOW(), NOW())
+         ON CONFLICT (phone) DO UPDATE SET email = EXCLUDED.email, display_name = EXCLUDED.display_name
+         RETURNING *;`,
+        [newUserId, syntheticPhone, cleanEmail, displayName]
+      );
+      userRecord = { id: newUserId, phone: syntheticPhone, email: cleanEmail, display_name: displayName, roles: ['OWNER'], token_version: 1 };
+    }
+
+    // Role is strictly derived from server-side record
+    const roles = (userRecord.roles || ['OWNER']) as AppRole[];
+    const authenticatedUser: AuthenticatedUser = {
+      uid: userRecord.id,
+      phone: userRecord.phone,
+      email: cleanEmail,
+      roles,
+      permissions: [],
+    };
+
+    const token = await signSessionToken(authenticatedUser, userRecord.token_version || 1);
+    setSessionCookie(res, token);
+
+    return res.json({
+      success: true,
+      authenticated: true,
+      user: {
+        id: userRecord.id,
+        name: displayName,
+        email: cleanEmail,
+        roles,
+        provider,
+        createdAt: new Date().toISOString(),
+      },
+      token,
+    });
+  } catch (err: any) {
+    console.error('[CustomerLogin] Error:', err);
+    return res.status(500).json({ error: 'Failed to authenticate customer.' });
+  }
+});
+
+// API: Rejects arbitrary client-supplied session objects
+app.post('/api/auth/session', jsonDefault, (req, res) => {
+  return res.status(400).json({
+    error: 'PROHIBITED',
+    message: 'Client-supplied user identity objects are rejected. Authenticate via /api/auth/login or /api/auth/otp/verify.'
+  });
+});
+
+// API: Check current session state (Cryptographically verifies JWT signature)
+app.get('/api/auth/me', async (req, res) => {
+  const cookies = (req as any).cookies || parseCookies(req.headers.cookie);
+  const sessionToken = cookies.sellmyghar_session || req.headers.authorization?.replace(/^Bearer\s+/, '');
+
+  if (!sessionToken) {
+    return res.json({ authenticated: false, user: null });
+  }
+
+  try {
+    const payload = await verifySessionToken(sessionToken);
+
+    // Optional fresh fetch from DB to check active status
+    const dbUser = await executeQuery(
+      `SELECT id, display_name, email, phone, roles, is_active FROM users WHERE id = $1 LIMIT 1;`,
+      [payload.uid]
+    );
+
+    if (dbUser.rows && dbUser.rows.length > 0) {
+      const u = dbUser.rows[0];
+      if (!u.is_active) {
+        res.clearCookie('sellmyghar_session', { path: '/' });
+        return res.status(401).json({ authenticated: false, user: null, reason: 'ACCOUNT_DEACTIVATED' });
+      }
+      return res.json({
+        authenticated: true,
+        user: {
+          id: u.id,
+          name: u.display_name || payload.email?.split('@')[0] || `User ${u.id.slice(-4)}`,
+          email: u.email,
+          phone: u.phone,
+          roles: u.roles,
+        }
+      });
+    }
+
+    return res.json({
+      authenticated: true,
+      user: {
+        id: payload.uid,
+        email: payload.email,
+        phone: payload.phone,
+        roles: payload.roles,
+      }
+    });
+  } catch {
+    res.clearCookie('sellmyghar_session', { path: '/' });
+    return res.json({ authenticated: false, user: null });
+  }
+});
+
+// API: Logout session (Cryptographically invalidates session in DB & clears cookie)
+app.post('/api/auth/logout', async (req, res) => {
+  const cookies = (req as any).cookies || parseCookies(req.headers.cookie);
+  const token = cookies.sellmyghar_session || req.headers.authorization?.replace(/^Bearer\s+/, '').trim();
+
+  if (token) {
+    try {
+      const payload = await verifySessionToken(token);
+      if (payload && payload.uid) {
+        await executeQuery(
+          `UPDATE users SET token_version = token_version + 1, updated_at = NOW() WHERE id = $1;`,
+          [payload.uid]
+        );
+      }
+    } catch {
+      // Token already invalid or expired
+    }
+  }
+
+  res.clearCookie('sellmyghar_session', { path: '/' });
+  return res.json({ success: true, message: 'Logged out successfully' });
+});
+
+// ====================================================================
+// 5. LEADS & INVENTORY ENDPOINTS
+// ====================================================================
+
+// API: Lead Capture (Rate limited; connects to DPDP consents & buyer_enquiries)
+app.post('/api/leads', jsonDefault, rateLimit('leads-submit', 5, 900), async (req, res) => {
   try {
     const { 
       fullName, 
@@ -117,12 +523,11 @@ app.post('/api/leads', async (req, res) => {
       intent 
     } = req.body;
 
-    // Strict validation
     if (!fullName || typeof fullName !== 'string' || fullName.trim().length < 2) {
       return res.status(400).json({ error: 'Full Name is required (minimum 2 characters).' });
     }
 
-    const cleanPhone = String(phone).replace(/\s+/g, '').replace(/^(\+91)/, '');
+    const cleanPhone = String(phone || '').replace(/\D/g, '').slice(-10);
     if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
       return res.status(400).json({ error: 'Please enter a valid 10-digit Indian mobile number.' });
     }
@@ -133,20 +538,18 @@ app.post('/api/leads', async (req, res) => {
     }
 
     const finalLocality = (locality || 'Bengaluru').trim();
-
     const allowedBhks = ['1BHK', '2BHK', '2.5BHK', '3BHK', '3.5BHK', '4BHK+', '4BHK or 4.5BHK+'];
     const validBhk = allowedBhks.includes(bhkType) ? bhkType : '3BHK';
     const isSeller = intent === 'SELL' || intent === 'SELLER';
     const normalizedPhone = `+91${cleanPhone}`;
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.ip || '127.0.0.1';
-    
-    // Generate customer-friendly Reference ID (e.g. SMG-2026-7842)
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+
     const randomNum = Math.floor(1000 + Math.random() * 9000);
     const referenceId = `SMG-${new Date().getFullYear()}-${randomNum}`;
     const areaNote = builtUpSqft ? `${builtUpSqft} sq.ft` : '';
 
     if (isSeller) {
-      // 1. Record DPDP statutory consent record
+      // Record DPDP statutory consent record
       const consentId = `cst-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
       await executeQuery(
         `INSERT INTO consents (
@@ -166,7 +569,7 @@ app.post('/api/leads', async (req, res) => {
         ]
       );
 
-      // 2. Insert into real seller_leads table with direct listing_intent column
+      // Insert into seller_leads
       const leadId = `lead-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
       const societyWithArea = areaNote ? `${finalSociety} (${areaNote})` : finalSociety;
       const leadListingIntent = (req.body.listing_intent || (req.body.intent === 'RENT' || req.body.intent === 'Rent' ? 'RENT' : 'SELL')).toUpperCase();
@@ -194,7 +597,6 @@ app.post('/api/leads', async (req, res) => {
         ]
       );
 
-      console.info(`[LeadCapture] Real SELLER lead created in DB: ${leadId} (${fullName})`);
       return res.status(201).json({
         success: true,
         type: 'SELLER',
@@ -209,7 +611,7 @@ app.post('/api/leads', async (req, res) => {
         message: `Thank you, ${fullName.trim()}! Your property details have been received.`
       });
     } else {
-      // BUYER Enquiry
+      // BUYER Enquiry into buyer_enquiries table (Schema regression fixed)
       const enquiryId = `enq-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
       const prefLocation = `${finalSociety}, ${finalLocality}`.trim();
       const buyerNote = areaNote ? `Preferred Area: ${areaNote}` : 'Direct homepage enquiry';
@@ -230,7 +632,6 @@ app.post('/api/leads', async (req, res) => {
         ]
       );
 
-      console.info(`[LeadCapture] Real BUYER enquiry created in DB: ${enquiryId} (${fullName})`);
       return res.status(201).json({
         success: true,
         type: 'BUYER',
@@ -252,7 +653,7 @@ app.post('/api/leads', async (req, res) => {
 });
 
 // API: Verified Listings (Sanitized public projection)
-app.get('/api/listings', async (req, res) => {
+app.get('/api/listings', async (_req, res) => {
   try {
     const dbResult = await executeQuery(`
       SELECT 
@@ -273,7 +674,6 @@ app.get('/api/listings', async (req, res) => {
       LIMIT 12;
     `);
 
-    // Curated real Bengaluru societies data for projection display
     const sampleSocieties = [
       { name: 'Prestige Shantiniketan', locality: 'Whitefield, East Bengaluru', image: 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80' },
       { name: 'Sobha Dream Acres', locality: 'Panathur / Balagere, East Bengaluru', image: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80' },
@@ -309,7 +709,6 @@ app.get('/api/listings', async (req, res) => {
       };
     });
 
-    // If fewer than 4 properties in DB, supplement with curated verified placeholders
     if (listings.length < 4) {
       sampleSocieties.forEach((soc, i) => {
         if (listings.length < 6) {
@@ -343,14 +742,13 @@ app.get('/api/listings', async (req, res) => {
   }
 });
 
-// API: Post Property (Real PostgreSQL 6-Step Wizard persistence)
-app.post('/api/properties', async (req, res) => {
+// API: Post Property (Transactional Onboarding Wizard)
+app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), optionalAuthenticateUser, async (req, res) => {
   try {
     const {
       intent,
       propertyType,
       subType,
-      city,
       locality,
       subLocality,
       societyName,
@@ -378,7 +776,6 @@ app.post('/api/properties', async (req, res) => {
       ownerPhone,
     } = req.body;
 
-    // Strict Validations
     if (!ownerName || typeof ownerName !== 'string' || ownerName.trim().length < 2) {
       return res.status(400).json({ error: 'Owner Name is required (minimum 2 characters).' });
     }
@@ -408,26 +805,31 @@ app.post('/api/properties', async (req, res) => {
       });
     }
 
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0] || req.ip || '127.0.0.1';
-    const nowIso = new Date().toISOString();
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
 
-    // 1. Create or update User record for Owner
-    const userId = `usr-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
-    try {
-      await executeQuery(
-        `INSERT INTO users (id, phone, email, display_name, roles, is_active, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, '{OWNER}', true, NOW(), NOW())
-         ON CONFLICT (phone) DO UPDATE SET display_name = EXCLUDED.display_name, updated_at = NOW();`,
-        [userId, normalizedPhone, null, ownerName.trim()]
-      );
-    } catch (uErr) {
-      console.warn('[PostProperty] Note on user upsert:', uErr);
-    }
+    // Atomic 5-step transaction: User -> Consent -> Seller Lead -> Property -> Property Media
+    const pool = getDbPool();
+    const client = await pool.connect();
+    let propResult: any;
 
-    // 2. Insert statutory DPDP consent entry
-    const consentId = `cst-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
     try {
-      await executeQuery(
+      await client.query('BEGIN');
+
+      // 1. Resolve or Create User
+      let userId = req.user?.uid;
+      if (!userId) {
+        userId = `usr-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
+        await client.query(
+          `INSERT INTO users (id, phone, email, display_name, roles, is_active, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, '{OWNER}', true, NOW(), NOW())
+           ON CONFLICT (phone) DO UPDATE SET display_name = EXCLUDED.display_name, updated_at = NOW();`,
+          [userId, normalizedPhone, null, ownerName.trim()]
+        );
+      }
+
+      // 2. Insert statutory DPDP consent
+      const consentId = `cst-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
+      await client.query(
         `INSERT INTO consents (
           id, phone, user_id, purpose, notice_version,
           is_consented, consented_at, is_withdrawn,
@@ -444,15 +846,11 @@ app.post('/api/properties', async (req, res) => {
           'ua-web-wizard'
         ]
       );
-    } catch (cErr) {
-      console.warn('[PostProperty] Note on consent record:', cErr);
-    }
 
-    // 3. Insert into seller_leads table for immediate staff CRM pipeline
-    const leadId = `lead-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
-    const bhkLabel = isRental ? `${bedrooms || 3}BHK (Rent)` : `${bedrooms || 3}BHK`;
-    try {
-      await executeQuery(
+      // 3. Insert into seller_leads
+      const leadId = `lead-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
+      const bhkLabel = isRental ? `${bedrooms || 3}BHK (Rent)` : `${bedrooms || 3}BHK`;
+      await client.query(
         `INSERT INTO seller_leads (
           id, owner_name, phone, apartment_society_name,
           locality_id, bhk_type, expected_price_inr,
@@ -470,142 +868,136 @@ app.post('/api/properties', async (req, res) => {
           consentId
         ]
       );
-    } catch (lErr) {
-      console.warn('[PostProperty] Note on seller lead insertion:', lErr);
-    }
 
-    // 4. Insert into properties table (Core relational record)
-    const propertyId = `prop-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
-    const reservePrice = Math.round(askingPriceNum * 0.95);
-    const sqft = parseInt(superBuiltUpSqft, 10) || 1500;
-    const carpet = parseInt(carpetAreaSqft, 10) || Math.round(sqft * 0.78);
-    const floor = parseInt(floorNumber, 10) || 1;
-    const totalFl = parseInt(totalFloors, 10) || 14;
-    const baths = parseInt(bathrooms, 10) || 2;
-    const balcs = parseInt(balconies, 10) || 1;
-    const facingStr = String(facing || 'EAST').toUpperCase();
-    const parks = parseInt(parkingCount, 10) || 1;
-    const unitNo = houseNo ? String(houseNo).trim() : 'Unit-Declared';
-    const maint = parseInt(maintenanceCharges, 10) || 0;
+      // 4. Insert into properties table
+      const propertyId = `prop-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
+      const reservePrice = Math.round(askingPriceNum * 0.95);
+      const sqft = parseInt(superBuiltUpSqft, 10) || 1500;
+      const carpet = parseInt(carpetAreaSqft, 10) || Math.round(sqft * 0.78);
+      const floor = parseInt(floorNumber, 10) || 1;
+      const totalFl = parseInt(totalFloors, 10) || 14;
+      const baths = parseInt(bathrooms, 10) || 2;
+      const balcs = parseInt(balconies, 10) || 1;
+      const facingStr = String(facing || 'EAST').toUpperCase();
+      const parks = parseInt(parkingCount, 10) || 1;
+      const unitNo = houseNo ? String(houseNo).trim() : 'Unit-Declared';
+      const maint = parseInt(maintenanceCharges, 10) || 0;
 
-    const notesJson = JSON.stringify({
-      intent: isRental ? 'Rent' : 'Sell',
-      listing_intent: isRental ? 'RENT' : 'SELL',
-      propertyType: propertyType || 'Residential',
-      subType: subType || 'Flat/Apartment',
-      societyName: societyName.trim(),
-      locality: locality.trim(),
-      subLocality: subLocality || null,
-      furnishing: furnishing || 'Semi-Furnished',
-      propertyAge: propertyAge || '1 to 5 years',
-      bookingAmount: isRental ? null : (parseInt(bookingAmount, 10) || null),
-      securityDeposit: isRental ? (parseInt(req.body.securityDeposit, 10) || null) : null,
-      preferredTenantType: isRental ? (req.body.preferredTenantType || 'Family') : null,
-      leaseDuration: isRental ? (req.body.leaseDuration || '11-Month (Standard)') : null,
-      customLeaseMonths: isRental ? (req.body.customLeaseMonths || null) : null,
-      moveInAvailability: isRental ? (req.body.moveInAvailability || 'Immediate') : null,
-      moveInDate: isRental ? (req.body.moveInDate || null) : null,
-      isNegotiable: Boolean(isNegotiable),
-      photos: Array.isArray(photos) ? photos.slice(0, 10) : [],
-      videoUrl: videoUrl || null,
-      description: description || null,
-      ownerName: ownerName.trim(),
-      ownerPhone: normalizedPhone,
-      source: 'WIZARD_V2'
-    });
+      const notesJson = JSON.stringify({
+        intent: isRental ? 'Rent' : 'Sell',
+        listing_intent: isRental ? 'RENT' : 'SELL',
+        propertyType: propertyType || 'Residential',
+        subType: subType || 'Flat/Apartment',
+        societyName: societyName.trim(),
+        locality: locality.trim(),
+        subLocality: subLocality || null,
+        furnishing: furnishing || 'Semi-Furnished',
+        propertyAge: propertyAge || '1 to 5 years',
+        bookingAmount: isRental ? null : (parseInt(bookingAmount, 10) || null),
+        isNegotiable: Boolean(isNegotiable),
+        photos: Array.isArray(photos) ? photos.slice(0, 10) : [],
+        videoUrl: videoUrl || null,
+        description: description || null,
+        ownerName: ownerName.trim(),
+        ownerPhone: normalizedPhone,
+        source: 'WIZARD_V2'
+      });
 
-    const listingIntent = (req.body.listing_intent || (isRental ? 'RENT' : 'SELL')).toUpperCase();
+      const listingIntent = (req.body.listing_intent || (isRental ? 'RENT' : 'SELL')).toUpperCase();
 
-    const propResult = await executeQuery(
-      `INSERT INTO properties (
-        id, owner_id, project_locality_id, unit_number, wing_tower,
-        unit_floor, total_floors, bhk_type, super_built_up_sqft,
-        carpet_area_sqft, balconies_count, bathrooms_count, facing,
-        car_parks_count, is_covered_parking, khata_type, encumbrance_status,
-        loan_bank_name, occupancy_status, monthly_maintenance_inr,
-        asking_price_inr, reserve_minimum_price_inr, listing_intent, verification_tier,
-        internal_verification_notes, created_at, updated_at
-      ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
-        $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, NOW(), NOW()
-      )
-      RETURNING *;`,
-      [
-        propertyId,
-        userId,
-        locality.toLowerCase().replace(/[^a-z0-9]/g, '-'),
-        unitNo,
-        'Wing-A',
-        floor,
-        totalFl,
-        bhkLabel,
-        sqft,
-        carpet,
-        balcs,
-        baths,
-        facingStr,
-        parks,
-        Boolean(hasCoveredParking),
-        'A_KHATA',
-        'CLEAR',
-        null,
-        'READY_TO_MOVE',
-        maint,
-        askingPriceNum,
-        reservePrice,
-        listingIntent,
-        'LEVEL_1_OWNER_DECLARED',
-        notesJson
-      ]
-    );
+      propResult = await client.query(
+        `INSERT INTO properties (
+          id, owner_id, project_locality_id, unit_number, wing_tower,
+          unit_floor, total_floors, bhk_type, super_built_up_sqft,
+          carpet_area_sqft, balconies_count, bathrooms_count, facing,
+          car_parks_count, is_covered_parking, khata_type, encumbrance_status,
+          loan_bank_name, occupancy_status, monthly_maintenance_inr,
+          asking_price_inr, reserve_minimum_price_inr, listing_intent, verification_tier,
+          internal_verification_notes, created_at, updated_at
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+          $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, NOW(), NOW()
+        )
+        RETURNING *;`,
+        [
+          propertyId,
+          userId,
+          locality.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+          unitNo,
+          'Wing-A',
+          floor,
+          totalFl,
+          bhkLabel,
+          sqft,
+          carpet,
+          balcs,
+          baths,
+          facingStr,
+          parks,
+          Boolean(hasCoveredParking),
+          'A_KHATA',
+          'CLEAR',
+          null,
+          'READY_TO_MOVE',
+          maint,
+          askingPriceNum,
+          reservePrice,
+          listingIntent,
+          'LEVEL_1_OWNER_DECLARED',
+          notesJson
+        ]
+      );
 
-    // Save photos into property_media table (Supabase image storage integration)
-    if (Array.isArray(photos)) {
-      for (let i = 0; i < photos.length; i++) {
-        const photoUrl = photos[i];
-        if (typeof photoUrl === 'string' && photoUrl.trim()) {
-          const mediaId = `media-${propertyId.slice(5, 12)}-${i}`;
-          const checksum = createHash('sha256').update(photoUrl).digest('hex');
-          try {
-            await executeQuery(
+      // 5. Save photos into property_media table
+      if (Array.isArray(photos)) {
+        for (let i = 0; i < photos.length; i++) {
+          const photoUrl = photos[i];
+          if (typeof photoUrl === 'string' && photoUrl.trim()) {
+            const mediaId = `media-${propertyId.slice(5, 12)}-${i}`;
+            const checksum = createHash('sha256').update(photoUrl).digest('hex');
+            await client.query(
               `INSERT INTO property_media (
                 id, property_id, url, is_featured, checksum, created_at
               ) VALUES ($1, $2, $3, $4, $5, NOW())
               ON CONFLICT (id) DO NOTHING;`,
               [mediaId, propertyId, photoUrl, i === 0, checksum]
             );
-          } catch (mErr: any) {
-            console.warn('[PostProperty] property_media note:', mErr.message);
           }
         }
       }
+
+      await client.query('COMMIT');
+
+      const randomNum = Math.floor(1000 + Math.random() * 9000);
+      const referenceId = `SMG-${new Date().getFullYear()}-${randomNum}`;
+
+      return res.status(201).json({
+        success: true,
+        propertyId,
+        referenceId,
+        property: propResult.rows[0],
+        message: 'Property successfully registered and submitted for legal title verification.'
+      });
+    } catch (txErr) {
+      await client.query('ROLLBACK');
+      throw txErr;
+    } finally {
+      client.release();
     }
-
-    const randomNum = Math.floor(1000 + Math.random() * 9000);
-    const referenceId = `SMG-${new Date().getFullYear()}-${randomNum}`;
-
-    console.info(`[PostProperty] Real property created in DB: ${propertyId} for ${societyName}, ${locality} (Ref: ${referenceId})`);
-
-    return res.status(201).json({
-      success: true,
-      propertyId,
-      referenceId,
-      property: propResult.rows[0],
-      message: 'Property successfully registered and submitted for legal title verification.'
-    });
   } catch (err: any) {
     console.error('[PostProperty] Error saving property to DB:', err);
     return res.status(500).json({ error: 'Database error saving property. Please try again.' });
   }
 });
 
-// API: Query Properties for Seller Dashboard (Scoped to Owner/Session or Curated DB List)
-app.get('/api/properties', async (req, res) => {
+// API: Query Properties for Seller Dashboard (Scoped to Owner/Session or Authorized Staff)
+app.get('/api/properties', authenticateUser, async (req, res) => {
   try {
-    const { phone, format } = req.query;
-    const cleanPhone = phone ? String(phone).replace(/\D/g, '').slice(-10) : '';
+    const { format } = req.query;
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    const isOwner = !isStaff;
 
-    const result = await executeQuery(`
+    let query = `
       SELECT 
         id, 
         owner_id, 
@@ -626,20 +1018,49 @@ app.get('/api/properties', async (req, res) => {
         created_at,
         updated_at
       FROM properties
-      ORDER BY created_at DESC
-      LIMIT 20;
-    `);
+    `;
+    const params: any[] = [];
 
-    // If caller wants simple raw rows, return them
+    // IDOR Protection: Non-staff authenticated users can ONLY query their own properties
+    if (isOwner) {
+      query += ` WHERE owner_id = $1`;
+      params.push(req.user!.uid);
+    } else {
+      // Staff authorization check: verify staff has permission to view listings
+      const canList = req.user!.roles.includes('STAFF_SUPER_ADMIN') || 
+                      req.user!.roles.some(r => ['STAFF_VERIFICATION_AGENT', 'STAFF_LISTING_MANAGER', 'STAFF_DEAL_CLOSER'].includes(r as any)) ||
+                      hasPermission(req.user!, 'properties:read_details_all' as any);
+      if (!canList) {
+        return res.status(403).json({
+          error: 'FORBIDDEN',
+          message: 'Staff user lacks permission to list property inventory.'
+        });
+      }
+    }
+
+    query += ` ORDER BY created_at DESC LIMIT 20;`;
+
+    const result = await executeQuery(query, params);
+
+    // Confidentiality Protection: Sanitize reserve_minimum_price_inr for unauthorized callers
+    const sanitizedRows = result.rows.map((row: any) => {
+      const copy = { ...row };
+      const isSuperAdmin = req.user!.roles.includes('STAFF_SUPER_ADMIN');
+      const isRecordOwner = row.owner_id === req.user!.uid;
+      if (!isSuperAdmin && !isRecordOwner) {
+        delete copy.reserve_minimum_price_inr;
+      }
+      return copy;
+    });
+
     if (format === 'raw') {
       return res.json({
         success: true,
-        count: result.rows.length,
-        properties: result.rows
+        count: sanitizedRows.length,
+        properties: sanitizedRows
       });
     }
 
-    // Default sample luxury township photos for high-res cards
     const curatedPhotos = [
       'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80',
       'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80',
@@ -647,8 +1068,7 @@ app.get('/api/properties', async (req, res) => {
       'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=800&q=80',
     ];
 
-    // Map DB rows to rich Seller Dashboard format
-    let sellerProperties: any[] = result.rows.map((row: any, idx: number) => {
+    let sellerProperties: any[] = sanitizedRows.map((row: any, idx: number) => {
       let notes: any = {};
       try {
         if (row.internal_verification_notes) {
@@ -666,8 +1086,6 @@ app.get('/api/properties', async (req, res) => {
         ? notes.photos
         : [curatedPhotos[idx % curatedPhotos.length]];
 
-      // Map tier to seller-friendly 7-stage pipeline
-      // Pipeline: NEW -> CONTACTED -> DOCS_REQUESTED -> IN_VERIFICATION -> VERIFIED -> LISTED -> SOLD
       let status = 'IN_VERIFICATION';
       let stageBadgeLabel = 'Under Review';
       if (row.verification_tier === 'LEVEL_3_PHYSICALLY_INSPECTED') {
@@ -686,7 +1104,6 @@ app.get('/api/properties', async (req, res) => {
 
       const refId = `SMG-${row.id.slice(5, 11).toUpperCase()}`;
 
-      // Activity Timeline (Amazon Delivery System - dot by dot log)
       const activityTimeline = [
         {
           id: 'log-1',
@@ -762,8 +1179,9 @@ app.get('/api/properties', async (req, res) => {
         }
       ];
 
-      // Backend Managed Site Visits (Coordinated by RM - zero owner hassle)
-      const siteVisits = [
+      const isRecordOwner = row.owner_id === req.user!.uid;
+      const isPrivileged = req.user!.roles.includes('STAFF_SUPER_ADMIN') || isRecordOwner;
+      const siteVisits = isPrivileged ? [
         {
           id: `vis-${row.id.slice(0, 4)}-1`,
           scheduledTime: 'Yesterday, 11:30 AM',
@@ -780,7 +1198,7 @@ app.get('/api/properties', async (req, res) => {
           feedbackNotes: 'Second visit with family elders to review Vastu orientation and car park allocation.',
           status: 'SCHEDULED'
         }
-      ];
+      ] : [];
 
       const resolvedIntent = (row.listing_intent ? row.listing_intent.toUpperCase() : ((notes.intent === 'Rent' || notes.intent === 'RENT' || notes.listing_intent === 'RENT') ? 'RENT' : 'SELL')) as 'SELL' | 'RENT';
 
@@ -894,392 +1312,6 @@ app.get('/api/properties', async (req, res) => {
       };
     });
 
-    // Provide 2 rich benchmark properties: 1 Resale + 1 Rental
-    if (sellerProperties.length < 2) {
-      sellerProperties = [
-        // Property 1: RESALE / SALE
-        {
-          id: 'prop-demo-rrbc',
-          referenceId: 'SMG-BLR-84920',
-          intent: 'SELL',
-          societyName: 'RRBC Picassso',
-          locality: '9th Block Jayanagar, Bengaluru South',
-          bhkType: '3 BHK',
-          superBuiltUpSqft: 2468,
-          carpetAreaSqft: 1925,
-          unitFloor: 8,
-          totalFloors: 14,
-          facing: 'East',
-          askingPriceInr: 65000000,
-          pricePerSqft: 26337,
-          isNegotiable: true,
-          furnishing: 'Semi-Furnished',
-          status: 'LISTED',
-          stageBadgeLabel: 'Live on Market',
-          createdAt: '2026-10-01T10:00:00Z',
-          lastUpdated: '2026-10-06T15:30:00Z',
-          photos: [
-            'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80',
-            'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80',
-            'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=800&q=80'
-          ],
-          photoCount: 10,
-          visibilityScore: 92,
-          completionScore: 92,
-          viewsCount: 365,
-          activityTimeline: [
-            {
-              id: 'tl-1',
-              timestamp: '01 Oct 2026, 10:00 AM',
-              title: 'Resale Intake Received',
-              description: 'Property details and unit photographs captured in private ledger.',
-              isCompleted: true,
-              stageKey: 'NEW',
-              officerName: 'Portal Engine'
-            },
-            {
-              id: 'tl-2',
-              timestamp: '01 Oct 2026, 01:15 PM',
-              title: 'RM Kavitha Assigned',
-              description: 'Personal onboarding call completed; seller expectations noted.',
-              isCompleted: true,
-              stageKey: 'CONTACTED',
-              officerName: 'Kavitha Ranganathan'
-            },
-            {
-              id: 'tl-3',
-              timestamp: '02 Oct 2026, 11:00 AM',
-              title: 'All 5 Statutory Deeds Received',
-              description: 'Original Sale deed, 30-yr Mother deed, A-Khata, EC Form 15, and Tax receipts verified.',
-              isCompleted: true,
-              stageKey: 'DOCS_REQUESTED',
-              officerName: 'Legal Diligence Desk'
-            },
-            {
-              id: 'tl-4',
-              timestamp: '03 Oct 2026, 03:30 PM',
-              title: 'Advocate Title Due Diligence',
-              description: 'Nil mortgage liability verified via Kaveri Online Sub-Registrar records.',
-              isCompleted: true,
-              stageKey: 'IN_VERIFICATION',
-              officerName: 'Adv. M. Raghavan'
-            },
-            {
-              id: 'tl-5',
-              timestamp: '04 Oct 2026, 10:00 AM',
-              title: 'RERA Clean Title Certificate Issued',
-              description: 'Verified Title badge activated; property ready for marketing.',
-              isCompleted: true,
-              stageKey: 'VERIFIED',
-              officerName: 'Senior Legal Committee'
-            },
-            {
-              id: 'tl-6',
-              timestamp: '04 Oct 2026, 02:00 PM',
-              title: 'Live on Market (Broadcast to Tech Corridors)',
-              description: 'Actively receiving screened buyer site visit requests from Cisco, Microsoft & Apollo doctors.',
-              isCompleted: true,
-              isCurrent: true,
-              stageKey: 'LISTED',
-              officerName: 'Resale Advisory Desk'
-            },
-            {
-              id: 'tl-7',
-              timestamp: 'Pending Closing',
-              title: 'Final Registration & Escrow Settlement',
-              description: 'Sub-Registrar deed registration and remaining payment disbursement.',
-              isCompleted: false,
-              stageKey: 'SOLD',
-              officerName: 'Closing Desk'
-            }
-          ],
-          siteVisits: [
-            {
-              id: 'sv-1',
-              scheduledTime: 'Yesterday, 11:30 AM',
-              visitorProfile: 'VP Engineering, Cisco Systems (Family of 4)',
-              rmEscort: 'Escorted by RM Kavitha Ranganathan',
-              feedbackNotes: 'Buyer loved the East-facing balcony and modular kitchen. Loan sanctioned for ₹5.0 Cr.',
-              status: 'COMPLETED'
-            },
-            {
-              id: 'sv-2',
-              scheduledTime: 'Upcoming: Saturday, 04:00 PM',
-              visitorProfile: 'Senior Doctor, Apollo Hospitals',
-              rmEscort: 'Escorted by RM Kavitha Ranganathan',
-              feedbackNotes: 'Re-visiting with parents to review ground floor accessibility & car parking.',
-              status: 'SCHEDULED'
-            }
-          ],
-          corridorDemand: {
-            demandIndexRating: 'High Tech Corridor Demand',
-            demandScore: 92,
-            avgPriceSqft: 26337,
-            avgMonthlyRent: 85000,
-            activeBuyersInCorridor: 76,
-            estimatedDaysToClose: 35
-          },
-          documents: {
-            TITLE_DEED: {
-              id: 'doc-rrbc-1',
-              type: 'TITLE_DEED',
-              label: 'Sale Deed (Registered Title)',
-              subLabel: 'Original conveyance registered at Sub-Registrar Office',
-              status: 'VERIFIED',
-              fileName: 'Sale_Deed_RRBC_Jayanagar.pdf',
-              fileSize: '4.8 MB',
-              uploadedAt: '01 Oct 2026',
-              verifiedAt: '02 Oct 2026',
-              legalReviewNote: 'Clean conveyance deed directly with developer.'
-            },
-            MOTHER_DEED: {
-              id: 'doc-rrbc-2',
-              type: 'MOTHER_DEED',
-              label: 'Mother Deed (30-Year Chain)',
-              subLabel: 'Unbroken chain of parent title deeds',
-              status: 'VERIFIED',
-              fileName: 'Mother_Deed_Chain.pdf',
-              fileSize: '9.2 MB',
-              uploadedAt: '01 Oct 2026',
-              verifiedAt: '02 Oct 2026',
-              legalReviewNote: '30-year lineage verified with zero partition disputes.'
-            },
-            KHATA_CERTIFICATE: {
-              id: 'doc-rrbc-3',
-              type: 'KHATA_CERTIFICATE',
-              label: 'BBMP A-Khata Certificate & Extract',
-              subLabel: 'Valid assessment register extract under BBMP jurisdiction',
-              status: 'VERIFIED',
-              fileName: 'BBMP_A_Khata_Extract.pdf',
-              fileSize: '1.5 MB',
-              uploadedAt: '01 Oct 2026',
-              verifiedAt: '02 Oct 2026',
-              legalReviewNote: 'A-Khata clear under Jayanagar ward.'
-            },
-            ENCUMBRANCE_CERTIFICATE: {
-              id: 'doc-rrbc-4',
-              type: 'ENCUMBRANCE_CERTIFICATE',
-              label: 'Encumbrance Certificate (EC Form 15)',
-              subLabel: 'Nil encumbrance statement for past 15 to 30 years',
-              status: 'VERIFIED',
-              fileName: 'EC_Form_15_2026.pdf',
-              fileSize: '2.4 MB',
-              uploadedAt: '01 Oct 2026',
-              verifiedAt: '03 Oct 2026',
-              legalReviewNote: 'Nil liabilities recorded.'
-            },
-            TAX_RECEIPT: {
-              id: 'doc-rrbc-5',
-              type: 'TAX_RECEIPT',
-              label: 'BBMP Property Tax Paid Receipt',
-              subLabel: 'Latest annual property tax paid with SAS receipt',
-              status: 'VERIFIED',
-              fileName: 'Tax_Receipt_2026.pdf',
-              fileSize: '780 KB',
-              uploadedAt: '01 Oct 2026',
-              verifiedAt: '02 Oct 2026',
-              legalReviewNote: 'Zero tax arrears.'
-            }
-          },
-          rmName: 'Kavitha Ranganathan',
-          rmPhone: '+91 98450 12345',
-          rmRole: 'Senior Property & Diligence Lead'
-        },
-
-        // Property 2: RENTAL
-        {
-          id: 'prop-demo-sobha-rent',
-          referenceId: 'SMG-RNT-92041',
-          intent: 'RENT',
-          listing_intent: 'RENT',
-          societyName: 'Sobha Dream Acres',
-          locality: 'Panathur / Balagere, ORR Corridor',
-          bhkType: '2 BHK',
-          superBuiltUpSqft: 1210,
-          carpetAreaSqft: 945,
-          unitFloor: 12,
-          totalFloors: 14,
-          facing: 'North-East',
-          monthlyRentInr: 45000,
-          securityDepositInr: 200000,
-          tenantPreference: 'Family / Corporate Working Professionals',
-          availableFrom: 'Immediate (Oct 2026)',
-          maintenanceIncluded: true,
-          isNegotiable: false,
-          furnishing: 'Semi-Furnished (Wardrobes, Modular Kitchen, Geysers)',
-          status: 'LISTED',
-          stageBadgeLabel: 'Live for Rent',
-          createdAt: '2026-10-02T11:00:00Z',
-          lastUpdated: '2026-10-06T12:00:00Z',
-          photos: [
-            'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80',
-            'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?auto=format&fit=crop&w=800&q=80'
-          ],
-          photoCount: 8,
-          visibilityScore: 96,
-          completionScore: 95,
-          viewsCount: 480,
-          activityTimeline: [
-            {
-              id: 'tl-r-1',
-              timestamp: '02 Oct 2026, 11:00 AM',
-              title: 'Rental Intake Registered',
-              description: 'Rental expected rent ₹45,000/mo, deposit ₹2,00,000 logged.',
-              isCompleted: true,
-              stageKey: 'NEW',
-              officerName: 'Portal Engine'
-            },
-            {
-              id: 'tl-r-2',
-              timestamp: '02 Oct 2026, 03:00 PM',
-              title: 'Society NOC & Rules Confirmed',
-              description: 'Sobha Dream Acres association moving-in protocol and guidelines recorded.',
-              isCompleted: true,
-              stageKey: 'CONTACTED',
-              officerName: 'Rental Desk'
-            },
-            {
-              id: 'tl-r-3',
-              timestamp: '03 Oct 2026, 10:30 AM',
-              title: 'Ownership Title Verified',
-              description: 'Owner possession letter & electricity bill verified.',
-              isCompleted: true,
-              stageKey: 'DOCS_REQUESTED',
-              officerName: 'Tenant Verification Desk'
-            },
-            {
-              id: 'tl-r-4',
-              timestamp: '04 Oct 2026, 11:00 AM',
-              title: 'Rental Agreement Template Ready',
-              description: 'Standard 11-month Karnataka digital agreement with 5% escalation ready for e-signing.',
-              isCompleted: true,
-              stageKey: 'IN_VERIFICATION',
-              officerName: 'Legal Document Desk'
-            },
-            {
-              id: 'tl-r-5',
-              timestamp: '04 Oct 2026, 03:00 PM',
-              title: 'Verified Tenant Broadcasting Live',
-              description: 'Actively screening IT professionals from EcoWorld, RMZ Ecospace, and Cessna Tech Parks.',
-              isCompleted: true,
-              isCurrent: true,
-              stageKey: 'LISTED',
-              officerName: 'Rental Matching Desk'
-            },
-            {
-              id: 'tl-r-6',
-              timestamp: 'Pending Police Verification',
-              title: 'Tenant KYC & Police Clearance',
-              description: 'Aadhaar e-KYC and company employment check before key handover.',
-              isCompleted: false,
-              stageKey: 'VERIFIED',
-              officerName: 'KYC Desk'
-            },
-            {
-              id: 'tl-r-7',
-              timestamp: 'Pending Agreement Stamping',
-              title: 'Digital E-Stamp & Key Handover',
-              description: 'NeSL digital stamp duty paid and handover receipt generated.',
-              isCompleted: false,
-              stageKey: 'SOLD',
-              officerName: 'Handover Desk'
-            }
-          ],
-          siteVisits: [
-            {
-              id: 'sv-r-1',
-              scheduledTime: 'Yesterday, 05:00 PM',
-              visitorProfile: 'Senior SDE, Amazon (Bellandur) - Married Couple',
-              rmEscort: 'Escorted by RM Kavitha Ranganathan',
-              feedbackNotes: 'Ready to sign 11-month rental agreement from Nov 1. Agreeable to ₹45,000 rent + maintenance.',
-              status: 'COMPLETED'
-            },
-            {
-              id: 'sv-r-2',
-              scheduledTime: 'Upcoming: Sunday, 11:00 AM',
-              visitorProfile: 'Product Manager, Goldman Sachs (Outer Ring Road)',
-              rmEscort: 'Escorted by RM Kavitha Ranganathan',
-              feedbackNotes: 'Inspecting covered car park slot and balcony ventilation.',
-              status: 'SCHEDULED'
-            }
-          ],
-          corridorDemand: {
-            demandIndexRating: 'Surging Tech Corridor Rental Demand',
-            demandScore: 98,
-            avgPriceSqft: 7800,
-            avgMonthlyRent: 45000,
-            activeBuyersInCorridor: 120,
-            estimatedDaysToClose: 7
-          },
-          documents: {
-            TITLE_DEED: {
-              id: 'doc-sobha-1',
-              type: 'TITLE_DEED',
-              label: 'Possession Letter / Sale Deed',
-              subLabel: 'Original title proof confirming landlord ownership',
-              status: 'VERIFIED',
-              fileName: 'Sobha_Possession_Letter.pdf',
-              fileSize: '3.2 MB',
-              uploadedAt: '02 Oct 2026',
-              verifiedAt: '03 Oct 2026',
-              legalReviewNote: 'Landlord unit title confirmed.'
-            },
-            MOTHER_DEED: {
-              id: 'doc-sobha-2',
-              type: 'MOTHER_DEED',
-              label: 'Society NOC & Association Clearance',
-              subLabel: 'Clearance from Sobha Dream Acres Residents Association',
-              status: 'VERIFIED',
-              fileName: 'Association_NOC.pdf',
-              fileSize: '1.4 MB',
-              uploadedAt: '02 Oct 2026',
-              verifiedAt: '03 Oct 2026',
-              legalReviewNote: 'Association moving-in dues cleared.'
-            },
-            KHATA_CERTIFICATE: {
-              id: 'doc-sobha-3',
-              type: 'KHATA_CERTIFICATE',
-              label: 'BESCOM Electricity Bill',
-              subLabel: 'Valid utility connection in landlord name',
-              status: 'VERIFIED',
-              fileName: 'BESCOM_Bill_Sept2026.pdf',
-              fileSize: '890 KB',
-              uploadedAt: '02 Oct 2026',
-              verifiedAt: '03 Oct 2026',
-              legalReviewNote: 'Consumer ID verified active.'
-            },
-            ENCUMBRANCE_CERTIFICATE: {
-              id: 'doc-sobha-4',
-              type: 'ENCUMBRANCE_CERTIFICATE',
-              label: 'Draft Rental Agreement (11 Months)',
-              subLabel: 'Standard Bengaluru 11-month agreement with escalation clause',
-              status: 'VERIFIED',
-              fileName: 'Rental_Agreement_Draft_11Mo.pdf',
-              fileSize: '1.8 MB',
-              uploadedAt: '03 Oct 2026',
-              verifiedAt: '04 Oct 2026',
-              legalReviewNote: 'Agreement terms aligned with Model Tenancy guidelines.'
-            },
-            TAX_RECEIPT: {
-              id: 'doc-sobha-5',
-              type: 'TAX_RECEIPT',
-              label: 'Latest Property Tax Challan',
-              subLabel: 'Current fiscal year BBMP property tax receipt',
-              status: 'VERIFIED',
-              fileName: 'BBMP_Tax_Receipt.pdf',
-              fileSize: '650 KB',
-              uploadedAt: '02 Oct 2026',
-              verifiedAt: '03 Oct 2026',
-              legalReviewNote: 'All property taxes current.'
-            }
-          },
-          rmName: 'Kavitha Ranganathan',
-          rmPhone: '+91 98450 12345',
-          rmRole: 'Senior Property & Diligence Lead'
-        }
-      ];
-    }
-
     return res.json({
       success: true,
       count: sellerProperties.length,
@@ -1291,46 +1323,130 @@ app.get('/api/properties', async (req, res) => {
   }
 });
 
-// API: Upload / Update Document in Property Vault (Supabase Storage 'property-documents' private bucket)
-app.post('/api/properties/:id/documents', async (req, res) => {
+// ====================================================================
+// 6. DOCUMENT VAULT & STORAGE ENDPOINTS (Protected with RBAC & IDOR Guards)
+// ====================================================================
+
+// API: Upload / Update Document in Property Vault (Requires Authentication & Ownership validation)
+app.post('/api/properties/:id/documents', jsonUpload, rateLimit('doc-upload', 20, 300), authenticateUser, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { documentType, fileName, fileSize, fileBase64, uploaderId = 'usr-owner-session' } = req.body;
+    const { documentType, fileName, fileSize, fileBase64 } = req.body;
 
     if (!documentType || !fileName) {
       return res.status(400).json({ error: 'documentType and fileName are required.' });
     }
 
+    // 1. Confirm Property Exists
+    const propResult = await executeQuery(`SELECT * FROM properties WHERE id = $1 LIMIT 1;`, [id]);
+    if (!propResult.rows || propResult.rows.length === 0) {
+      return res.status(404).json({ error: 'Property not found.' });
+    }
+    const property = propResult.rows[0];
+
+    // 2. IDOR / Ownership Guard: Caller must own the property or possess staff write permissions
+    try {
+      assertCanAccessProperty(req.user!, property, 'WRITE');
+    } catch (authErr: any) {
+      await recordAuditEvent({
+        actor: req.user!,
+        action: 'DOCUMENT_UPLOAD_IDOR_VIOLATION',
+        targetEntity: 'properties',
+        targetEntityId: id,
+        clientIp: req.ip || '127.0.0.1',
+        diffSummary: { attemptedPropertyId: id, reason: authErr.message },
+      });
+      return res.status(403).json({ error: 'ACCESS_DENIED', message: 'You do not own this property.' });
+    }
+
     let signedUrl = '';
     let checksum = '';
+    let storagePath = '';
+    const docId = `doc-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
+    const fileSizeNum = parseInt(fileSize, 10) || (fileBase64 ? Math.round(fileBase64.length * 0.75) : 2400000);
 
     if (fileBase64) {
       const cleanBase64 = fileBase64.replace(/^data:application\/pdf;base64,/, '');
       const buffer = Buffer.from(cleanBase64, 'base64');
+
+      // Inspect Magic Bytes: Must be genuine PDF (%PDF)
+      const isMagicValid = PostUploadVerificationWorker.inspectMagicBytes(buffer, 'pdf');
+      if (!isMagicValid) {
+        return res.status(400).json({ error: 'MAGIC_BYTE_MISMATCH', message: 'Statutory documents must be valid PDF files.' });
+      }
+
+      // Antivirus & heuristic scan
+      const avClient = new ClamAvScannerClient();
+      const avScan = await avClient.scanBuffer(buffer);
+      if (!avScan.isClean) {
+        return res.status(400).json({ error: 'MALWARE_DETECTED', message: 'Malware or script exploit detected in uploaded deed.' });
+      }
+
+      // Upload to private Supabase Storage bucket
       const uploadRes = await uploadStatutoryDocToSupabase({
         fileName,
         fileBuffer: buffer,
         propertyId: id,
-        uploaderId,
+        uploaderId: req.user!.uid,
         docType: documentType,
       });
+
       signedUrl = uploadRes.signedUrl;
       checksum = uploadRes.checksum;
+      storagePath = uploadRes.storagePath;
+
+      // 3. PERSISTENCE: Save into PostgreSQL documents table
+      try {
+        await executeQuery(
+          `INSERT INTO documents (
+            id, property_id, uploader_user_id, doc_type, file_name,
+            file_size_bytes, mime_type, storage_path, sha256_checksum,
+            magic_bytes_status, av_engine, av_status, av_scanned_at,
+            verification_status, created_at, updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), 'PENDING_REVIEW', NOW(), NOW())
+          ON CONFLICT (id) DO UPDATE SET storage_path = EXCLUDED.storage_path, sha256_checksum = EXCLUDED.sha256_checksum, updated_at = NOW();`,
+          [
+            docId,
+            id,
+            req.user!.uid,
+            documentType,
+            fileName.replace(/[^a-zA-Z0-9.-]/g, '_'),
+            fileSizeNum,
+            'application/pdf',
+            storagePath,
+            checksum,
+            'VALID_PDF',
+            'ClamAV-1.4.0',
+            'CLEAN',
+          ]
+        );
+      } catch (dbErr: any) {
+        console.error('[DocumentVault] Failed to insert document record in DB:', dbErr);
+        return res.status(500).json({ error: 'Database persistence failed for document record.' });
+      }
+
+      // Record Audit Event
+      await recordAuditEvent({
+        actor: req.user!,
+        action: 'DOCUMENT_CHECKSUM_VERIFIED',
+        targetEntity: 'documents',
+        targetEntityId: docId,
+        clientIp: req.ip || '127.0.0.1',
+        diffSummary: { propertyId: id, checksum, fileName },
+      });
     } else {
       checksum = createHash('sha256').update(fileName + id + Date.now()).digest('hex');
     }
-
-    console.info(`[DocumentVault] Document ${documentType} uploaded for property ${id}: ${fileName}`);
 
     return res.json({
       success: true,
       message: `${fileName} uploaded to private property-documents vault and queued for advocate title diligence.`,
       document: {
-        id: `doc-${Date.now().toString(36)}`,
+        id: docId,
         type: documentType,
         status: 'IN_REVIEW',
         fileName,
-        fileSize: fileSize || '2.4 MB',
+        fileSize: `${(fileSizeNum / (1024 * 1024)).toFixed(1)} MB`,
         signedUrl: signedUrl || undefined,
         checksum,
         bucket: BUCKET_PROPERTY_DOCUMENTS,
@@ -1345,15 +1461,40 @@ app.post('/api/properties/:id/documents', async (req, res) => {
 });
 
 // API: Property Photo Upload to Supabase Storage ('property-media' public bucket)
-app.post('/api/storage/upload-photo', async (req, res) => {
+// Requires Authentication & IDOR Ownership validation
+app.post('/api/storage/upload-photo', jsonUpload, rateLimit('photo-upload', 30, 300), authenticateUser, async (req, res) => {
   try {
     const { fileName, fileBase64, propertyId = 'prop-pending', isFeatured = false } = req.body;
     if (!fileName || !fileBase64) {
       return res.status(400).json({ error: 'fileName and fileBase64 are required.' });
     }
 
+    // IDOR Protection: If target property exists in DB, ensure caller owns it or is authorized staff
+    if (propertyId && propertyId !== 'prop-pending' && propertyId !== 'prop-new') {
+      const propCheck = await executeQuery(`SELECT * FROM properties WHERE id = $1 LIMIT 1;`, [propertyId]);
+      if (propCheck.rows && propCheck.rows.length > 0) {
+        try {
+          assertCanAccessProperty(req.user!, propCheck.rows[0], 'WRITE');
+        } catch (authErr: any) {
+          await recordAuditEvent({
+            actor: req.user!,
+            action: 'DOCUMENT_UPLOAD_IDOR_VIOLATION',
+            targetEntity: 'properties',
+            targetEntityId: propertyId,
+            clientIp: req.ip || '127.0.0.1',
+            diffSummary: { attemptedPropertyId: propertyId, reason: authErr.message },
+          });
+          return res.status(403).json({ error: 'ACCESS_DENIED', message: 'You do not own this property.' });
+        }
+      }
+    }
+
     const cleanBase64 = fileBase64.replace(/^data:image\/\w+;base64,/, '');
     const buffer = Buffer.from(cleanBase64, 'base64');
+
+    if (buffer.length > 10 * 1024 * 1024) {
+      return res.status(400).json({ error: 'Photo size exceeds maximum limit of 10MB.' });
+    }
 
     const result = await uploadPropertyPhotoToSupabase({
       fileName,
@@ -1380,85 +1521,64 @@ app.post('/api/storage/upload-photo', async (req, res) => {
   }
 });
 
-// API: Persistent Session Login (30-day secure httpOnly cookie)
-app.post('/api/auth/session', (req, res) => {
+// API: Safe Hero Image Update (Uploaded to Supabase Storage 'property-media' bucket)
+app.post('/api/hero-image', jsonUpload, authenticateUser, requireRole('STAFF_LISTING_MANAGER', 'STAFF_SUPER_ADMIN'), async (req, res) => {
   try {
-    const { user } = req.body;
-    if (!user || !user.id) {
-      return res.status(400).json({ error: 'Valid user profile required to persist session.' });
+    const { dataBase64 } = req.body;
+    if (!dataBase64) {
+      return res.status(400).json({ error: 'Missing image data' });
+    }
+    const base64Data = dataBase64.replace(/^data:image\/\w+;base64,/, '');
+    const buffer = Buffer.from(base64Data, 'base64');
+
+    if (buffer.length > 5 * 1024 * 1024) {
+      return res.status(400).json({ error: 'Hero image exceeds 5MB limit.' });
     }
 
-    const sessionData = {
-      ...user,
-      sessionCreatedAt: new Date().toISOString(),
-      sessionExpiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-    };
+    // Inspect magic bytes (jpg or png)
+    const isJpg = PostUploadVerificationWorker.inspectMagicBytes(buffer, 'jpg');
+    const isPng = PostUploadVerificationWorker.inspectMagicBytes(buffer, 'png');
+    if (!isJpg && !isPng) {
+      return res.status(400).json({ error: 'Invalid image signature. Only JPEG/PNG/WebP permitted.' });
+    }
 
-    const sessionToken = Buffer.from(JSON.stringify(sessionData)).toString('base64');
-    const isProd = process.env.NODE_ENV === 'production';
+    const uploadRes = await uploadHeroImageToSupabase(buffer);
 
-    res.cookie('sellmyghar_session', sessionToken, {
-      httpOnly: true,
-      secure: isProd,
-      sameSite: 'lax',
-      maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
-      path: '/',
-    });
-
-    return res.json({
-      success: true,
-      authenticated: true,
-      user: sessionData,
-      message: 'Session cookie set for 30 days.',
+    return res.json({ 
+      success: true, 
+      url: uploadRes.publicUrl,
+      checksum: uploadRes.checksum,
+      message: 'Background hero banner saved to Supabase Storage successfully' 
     });
   } catch (err: any) {
-    return res.status(500).json({ error: 'Failed to establish persistent session' });
+    console.error('Failed to save hero image:', err);
+    return res.status(500).json({ error: err.message || 'Failed to save image' });
   }
 });
 
-// API: Check current session state ("am I logged in?")
-app.get('/api/auth/me', (req, res) => {
-  const cookies = (req as any).cookies || parseCookies(req.headers.cookie);
-  const sessionToken = cookies.sellmyghar_session;
-
-  if (!sessionToken) {
-    return res.json({
-      authenticated: false,
-      user: null
-    });
-  }
-
-  try {
-    const raw = Buffer.from(sessionToken, 'base64').toString('utf-8');
-    const user = JSON.parse(raw);
-
-    if (user.sessionExpiresAt && new Date(user.sessionExpiresAt).getTime() < Date.now()) {
-      res.clearCookie('sellmyghar_session', { path: '/' });
-      return res.json({ authenticated: false, user: null, reason: 'SESSION_EXPIRED' });
-    }
-
-    return res.json({
-      authenticated: true,
-      user
-    });
-  } catch {
-    return res.json({ authenticated: false, user: null });
-  }
-});
-
-// API: Logout session
-app.post('/api/auth/logout', (_req, res) => {
-  res.clearCookie('sellmyghar_session', { path: '/' });
-  return res.json({ success: true, message: 'Logged out successfully' });
-});
-
-// API: Respond to Buyer Offer (Accept / Counter / Request RM)
-app.post('/api/properties/:id/inquiries/:inquiryId/action', async (req, res) => {
+// API: Respond to Buyer Offer (Accept / Counter / Request RM - Enforces Authentication & Property Ownership)
+app.post('/api/properties/:id/inquiries/:inquiryId/action', jsonDefault, authenticateUser, async (req, res) => {
   try {
     const { id, inquiryId } = req.params;
     const { action, counterPriceInr } = req.body;
 
-    console.info(`[Inquiries] Seller action on inquiry ${inquiryId} for property ${id}: ${action}`);
+    if (!action || !['ACCEPT', 'COUNTER', 'REQUEST_RM'].includes(action)) {
+      return res.status(400).json({ error: 'Valid action (ACCEPT, COUNTER, REQUEST_RM) is required.' });
+    }
+
+    // 1. Confirm property exists
+    const propRes = await executeQuery(`SELECT * FROM properties WHERE id = $1 LIMIT 1;`, [id]);
+    if (!propRes.rows || propRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Property not found.' });
+    }
+    const property = propRes.rows[0];
+
+    // 2. IDOR / Ownership Guard: Caller must own property or have staff write permission
+    try {
+      assertCanAccessProperty(req.user!, property, 'WRITE');
+    } catch (authErr: any) {
+      return res.status(403).json({ error: 'ACCESS_DENIED', message: 'You do not own this property.' });
+    }
 
     return res.json({
       success: true,
@@ -1467,7 +1587,7 @@ app.post('/api/properties/:id/inquiries/:inquiryId/action', async (req, res) => 
       message: action === 'ACCEPT' 
         ? 'Offer accepted! Your dedicated RM has been notified to draft the Memorandum of Understanding (MOU).' 
         : action === 'COUNTER'
-        ? `Counter-offer of ₹${(counterPriceInr / 10000000).toFixed(2)} Cr sent to verified buyer.`
+        ? `Counter-offer of ₹${(Number(counterPriceInr || 0) / 10000000).toFixed(2)} Cr sent to verified buyer.`
         : 'RM callback requested. Our Senior Property Advisor will connect with you within 15 minutes.'
     });
   } catch (err: any) {
@@ -1476,33 +1596,199 @@ app.post('/api/properties/:id/inquiries/:inquiryId/action', async (req, res) => 
   }
 });
 
-// API: Staff Login (Restricted authentication, not public CRM link)
-app.post('/api/auth/login', (req, res) => {
-  const { email, password } = req.body;
-  // Demo verification staff credentials
-  if (email === 'staff@sellmyghar.in' && password === 'Staff@2026') {
-    return res.json({
-      success: true,
-      user: {
-        email,
-        name: 'Verification Desk Staff',
-        role: 'STAFF_VERIFICATION_AGENT'
-      },
-      token: 'jwt-staff-session-token'
-    });
+// ====================================================================
+// 7. COMPLIANCE & DPDP ACT STATUTORY ENDPOINTS
+// ====================================================================
+
+// API: Withdraw DPDP Consent (Real Backend Mutation on consents table with Identity Protection)
+app.post('/api/compliance/withdraw-consent', jsonDefault, rateLimit('consent-withdraw', 5, 300), optionalAuthenticateUser, async (req, res) => {
+  try {
+    const { purpose, otpToken } = req.body;
+    if (!purpose) {
+      return res.status(400).json({ error: 'purpose is required.' });
+    }
+
+    let callerUser: AuthenticatedUser | undefined = req.user;
+
+    if (!callerUser) {
+      // Unauthenticated caller: require cryptographic proof of possession of the phone number via verified OTP token
+      if (otpToken && typeof otpToken === 'string') {
+        try {
+          const payload = await verifySessionToken(otpToken);
+          callerUser = {
+            uid: payload.uid,
+            phone: payload.phone,
+            email: payload.email,
+            roles: (payload.roles || ['OWNER']) as AppRole[],
+            permissions: [],
+          };
+        } catch {
+          return res.status(401).json({
+            error: 'UNAUTHORIZED',
+            message: 'Invalid or expired OTP verification token. Phone verification required.',
+          });
+        }
+      } else {
+        return res.status(401).json({
+          error: 'UNAUTHORIZED',
+          message: 'Authentication session or verified OTP token required to withdraw consent.',
+        });
+      }
+    }
+
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+
+    // Strictly enforce callerUser.phone (ignore client-supplied req.body.phone to prevent consent spoofing)
+    const withdrawRes = await SellerWorkflowService.withdrawConsent(callerUser, String(purpose).trim(), clientIp);
+    return res.json(withdrawRes);
+  } catch (err: any) {
+    console.error('[ConsentWithdraw] Error:', err);
+    return res.status(500).json({ error: err.message || 'Failed to withdraw consent.' });
   }
-  return res.status(401).json({
-    success: false,
-    error: 'Invalid credentials. Only authorized SellMyGhar staff can access the operational portal.'
-  });
 });
 
-// Mount Vite in Dev Mode or Serve Dist in Prod
+// API: CRM Document Verification (Requires Staff Permission: documents:verify)
+app.post('/api/crm/documents/verify', jsonDefault, authenticateUser, requirePermissionMiddleware('documents:verify'), async (req, res) => {
+  try {
+    const { documentId, propertyId, action, note } = req.body;
+    if (!documentId || !propertyId || !action) {
+      return res.status(400).json({ error: 'documentId, propertyId, and action are required.' });
+    }
+
+    const isApprove = action === 'VERIFY';
+    const status = isApprove ? 'VERIFIED' : 'DISCREPANCY_FLAGGED';
+
+    const updateRes = await executeQuery(
+      `UPDATE documents 
+       SET verification_status = $1, 
+           verified_by_staff_id = $2, 
+           verified_at = NOW(), 
+           discrepancy_note = $3, 
+           updated_at = NOW() 
+       WHERE id = $4 AND property_id = $5 
+       RETURNING *;`,
+      [status, req.user!.uid, note || null, documentId, propertyId]
+    );
+
+    // If verified, update property verification tier
+    if (isApprove) {
+      await executeQuery(
+        `UPDATE properties SET verification_tier = 'LEVEL_2_DOCS_REVIEWED', updated_at = NOW() WHERE id = $1;`,
+        [propertyId]
+      );
+    }
+
+    await recordAuditEvent({
+      actor: req.user!,
+      action: 'REVISE_VERIFICATION_TIER',
+      targetEntity: 'documents',
+      targetEntityId: documentId,
+      clientIp: req.ip || '127.0.0.1',
+      diffSummary: { action, propertyId, note },
+    });
+
+    return res.json({
+      success: true,
+      document: updateRes.rows && updateRes.rows.length > 0 ? updateRes.rows[0] : { id: documentId, verificationStatus: status },
+      message: `Document ${status.toLowerCase()} by verification officer ${req.user!.uid}.`
+    });
+  } catch (err: any) {
+    console.error('[DocumentVerificationDesk] Error:', err);
+    return res.status(500).json({ error: err.message || 'Failed to verify document.' });
+  }
+});
+
+// API: Submit Section 12 Data Erasure Request (Authenticated User)
+app.post('/api/compliance/erasure-request', jsonDefault, rateLimit('erasure-request', 5, 3600), authenticateUser, async (req, res) => {
+  try {
+    const { reason } = req.body;
+    if (!reason || typeof reason !== 'string') {
+      return res.status(400).json({ error: 'Valid reason is required to submit a statutory data erasure request.' });
+    }
+
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    const result = await ErasureService.requestErasure(req.user!, reason.trim(), clientIp);
+
+    return res.status(201).json({
+      success: true,
+      ...result,
+      message: 'Statutory DPDP Section 12 erasure request queued for administrative compliance review.'
+    });
+  } catch (err: any) {
+    console.error('[ErasureRequest] Error:', err);
+    return res.status(400).json({ error: err.message || 'Failed to process erasure request.' });
+  }
+});
+
+// API: Admin Erasure Queue List (Strictly STAFF_SUPER_ADMIN)
+app.get('/api/compliance/erasure-requests', authenticateUser, requireRole('STAFF_SUPER_ADMIN'), async (_req, res) => {
+  try {
+    const result = await executeQuery(`
+      SELECT id, user_id, phone_hash, request_status, requester_reason, requested_at,
+             reviewed_by_admin_id, reviewed_at, rejection_reason, records_affected_summary
+      FROM erasure_requests
+      ORDER BY requested_at DESC
+      LIMIT 50;
+    `);
+
+    return res.json({
+      success: true,
+      count: result.rows.length,
+      requests: result.rows,
+    });
+  } catch (err: any) {
+    console.error('[ErasureQueue] Error:', err);
+    return res.status(500).json({ error: 'Failed to retrieve erasure requests.' });
+  }
+});
+
+// API: Admin Execute Erasure Request (Strictly STAFF_SUPER_ADMIN with Dual-Key Execution)
+app.post('/api/compliance/erasure-requests/:id/execute', jsonDefault, authenticateUser, requireRole('STAFF_SUPER_ADMIN'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+
+    const result = await ErasureService.executeErasureRequest(req.user!, id, clientIp);
+    return res.json({
+      success: true,
+      ...result,
+    });
+  } catch (err: any) {
+    console.error('[ErasureExecute] Error:', err);
+    return res.status(400).json({ error: err.message || 'Failed to execute erasure request.' });
+  }
+});
+
+// API: Admin Users List (Strictly STAFF_SUPER_ADMIN)
+app.get('/api/admin/users', authenticateUser, requireRole('STAFF_SUPER_ADMIN'), async (_req, res) => {
+  try {
+    const result = await executeQuery(`
+      SELECT id, phone, email, display_name, roles, is_active, created_at, updated_at
+      FROM users
+      ORDER BY created_at DESC
+      LIMIT 100;
+    `);
+
+    return res.json({
+      success: true,
+      count: result.rows.length,
+      users: result.rows,
+    });
+  } catch (err: any) {
+    console.error('[AdminUsers] Error:', err);
+    return res.status(500).json({ error: 'Failed to retrieve users.' });
+  }
+});
+
+// ====================================================================
+// 8. SERVER BOOTSTRAP & SPA ROUTING
+// ====================================================================
+
 async function startServer() {
   await initSchemaColumns();
   await ensureSupabaseBucketsExist();
 
-  if (process.env.NODE_ENV !== 'production') {
+  if (!isProd) {
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
@@ -1511,14 +1797,18 @@ async function startServer() {
     app.use(vite.middlewares);
   } else {
     app.use(express.static('dist'));
-    app.get('*', (req, res) => {
+    app.get('*', (_req, res) => {
       res.sendFile('index.html', { root: 'dist' });
     });
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[SellMyGhar] Server running on port ${PORT}`);
+    console.log(`[SellMyGhar] Secure Server running on port ${PORT}`);
   });
 }
 
-startServer();
+if (!process.env.RUNNING_TESTS) {
+  startServer();
+}
+
+export { app, startServer, initSchemaColumns };

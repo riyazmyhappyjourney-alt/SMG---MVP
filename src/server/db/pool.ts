@@ -58,13 +58,17 @@ export function getDbPool(): pg.Pool {
     }
 
     const isRemote = config.databaseUrl.includes('supabase.co') || config.databaseUrl.includes('amazonaws.com') || config.databaseUrl.includes('cloudsql');
+    const allowInsecureSsl = process.env.PG_SSL_ALLOW_INSECURE === 'true' || (!config.isProduction);
+    const sslConfig = isRemote
+      ? (allowInsecureSsl ? { rejectUnauthorized: false } : { rejectUnauthorized: true })
+      : (config.isProduction ? { rejectUnauthorized: true } : false);
 
     const realPool = new Pool({
       connectionString: config.databaseUrl,
       max: 20,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 10000,
-      ssl: isRemote ? { rejectUnauthorized: false } : (config.isProduction ? { rejectUnauthorized: true } : false),
+      ssl: sslConfig,
     });
 
     const origConnect = realPool.connect.bind(realPool);

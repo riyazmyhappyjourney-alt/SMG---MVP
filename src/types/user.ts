@@ -3,7 +3,8 @@ export interface UserAuthProfile {
   name: string;
   email: string;
   avatar?: string;
-  provider: 'google';
+  phone?: string;
+  provider: 'google' | 'phone' | 'email';
   token: string;
   createdAt: string;
 }

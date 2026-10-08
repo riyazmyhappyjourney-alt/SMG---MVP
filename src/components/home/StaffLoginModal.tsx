@@ -126,13 +126,9 @@ export const StaffLoginModal: React.FC<StaffLoginModalProps> = ({
                 className="w-full pl-9 pr-3.5 py-2.5 rounded-lg border border-slate-300 text-xs focus:ring-2 focus:ring-[#244B8F]/30 focus:border-[#244B8F] text-slate-800 font-['Poppins']"
               />
             </div>
-            <p className="text-[10px] text-slate-400 mt-1">
-              Demo authorized staff login: <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-700">staff@sellmyghar.in</code> / <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-700">Staff@2026</code>
-            </p>
           </div>
 
           <button
-            type="submit"
             disabled={loading}
             className="w-full py-3 px-4 rounded-lg bg-[#244B8F] hover:bg-[#1B3A70] text-white font-bold text-xs transition-colors cursor-pointer font-['Montserrat'] flex items-center justify-center space-x-2 disabled:opacity-60 mt-2"
           >

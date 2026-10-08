@@ -9,6 +9,8 @@ CREATE TABLE IF NOT EXISTS users (
   phone VARCHAR(64) UNIQUE NOT NULL,
   email VARCHAR(255),
   display_name VARCHAR(120),
+  password_hash VARCHAR(255),
+  token_version INT NOT NULL DEFAULT 1,
   roles TEXT[] NOT NULL DEFAULT '{OWNER}',
   is_active BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -26,6 +28,7 @@ CREATE TABLE IF NOT EXISTS consents (
   consented_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   is_withdrawn BOOLEAN NOT NULL DEFAULT false,
   withdrawn_at TIMESTAMPTZ,
+  revoked_at TIMESTAMPTZ,
   ip_hash VARCHAR(128) NOT NULL,
   user_agent_hash VARCHAR(128) NOT NULL
 );
@@ -186,4 +189,20 @@ CREATE TABLE IF NOT EXISTS property_media (
 );
 
 CREATE INDEX IF NOT EXISTS idx_property_media_property ON property_media (property_id);
+
+-- 12. Buyer Enquiries Table
+CREATE TABLE IF NOT EXISTS buyer_enquiries (
+  id VARCHAR(64) PRIMARY KEY,
+  buyer_name VARCHAR(120) NOT NULL,
+  phone VARCHAR(64) NOT NULL,
+  preferred_locality_or_society VARCHAR(255) NOT NULL,
+  bhk_type VARCHAR(20) NOT NULL,
+  lead_status VARCHAR(30) NOT NULL DEFAULT 'NEW',
+  notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_buyer_enquiries_phone ON buyer_enquiries (phone);
+CREATE INDEX IF NOT EXISTS idx_buyer_enquiries_status ON buyer_enquiries (lead_status);
 

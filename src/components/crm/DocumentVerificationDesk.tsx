@@ -180,7 +180,7 @@ export function DocumentVerificationDesk({ currentRole }: DocumentVerificationDe
 
     try {
       // Dispatch API request to compliance/document backend
-      await fetch('/api/crm/documents/verify', {
+      const res = await fetch('/api/crm/documents/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -190,11 +190,14 @@ export function DocumentVerificationDesk({ currentRole }: DocumentVerificationDe
           note: actionReason || (isApprove ? 'Title documents authenticated against Kaveri & BBMP records.' : ''),
           staffRole: currentRole,
         }),
-      }).catch(() => {
-        // Fallback for preview mode
       });
 
-      // Update local UI state
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || errorData.message || `Verification request failed (${res.status})`);
+      }
+
+      // Update local UI state ONLY on successful API response
       setDocuments(prev => prev.map(d => {
         if (d.id === doc.id) {
           return {
@@ -215,6 +218,8 @@ export function DocumentVerificationDesk({ currentRole }: DocumentVerificationDe
       );
       setActionModal(null);
       setActionReason('');
+    } catch (err: any) {
+      setFeedbackNotice(`Action failed: ${err.message}`);
     } finally {
       setIsProcessing(false);
     }

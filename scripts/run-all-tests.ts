@@ -3,10 +3,12 @@ import { runAuthorizationTests } from '../src/server/auth/rbac.test';
 import { runConsentLifecycleTests } from '../src/server/compliance/consent.test';
 import { runErasureTests } from '../src/server/compliance/erasure.test';
 import { runDocumentVerificationTests } from '../src/server/storage/document-verification.test';
+import { runSecurityRegressionTests } from '../src/server/auth/security-regression.test';
+import { runHttpIntegrationTests } from './run-http-integration-tests';
 
 async function runAll() {
   console.log('====================================================');
-  console.log('   SellMyGhar Full 29-Test Backend Verification Suite');
+  console.log('   SellMyGhar Full Backend & Security Regression Suite');
   console.log('====================================================\n');
 
   let totalPassed = 0;
@@ -58,8 +60,26 @@ async function runAll() {
   suiteResults.push({ name: 'Document Tamper-Proofing', passed: docRes.passed, failed: docRes.failed, tests: docRes.results });
   console.log(`Subtotal: ${docRes.passed} passed, ${docRes.failed} failed\n`);
 
+  // Suite 6: Phase 20 Security & Architectural Regression Suite
+  console.log('--- 6. Security & Architectural Regression Suite ---');
+  const secRes = await runSecurityRegressionTests();
+  secRes.results.forEach(r => console.log(' ', r));
+  totalPassed += secRes.passed;
+  totalFailed += secRes.failed;
+  suiteResults.push({ name: 'Security & Architectural Regression', passed: secRes.passed, failed: secRes.failed, tests: secRes.results });
+  console.log(`Subtotal: ${secRes.passed} passed, ${secRes.failed} failed\n`);
+
+  // Suite 7: Live Express HTTP Route Integration Suite
+  console.log('--- 7. Live Express HTTP Route Integration Suite ---');
+  const httpRes = await runHttpIntegrationTests();
+  httpRes.results.forEach(r => console.log(' ', r));
+  totalPassed += httpRes.passed;
+  totalFailed += httpRes.failed;
+  suiteResults.push({ name: 'Live Express HTTP Route Integration', passed: httpRes.passed, failed: httpRes.failed, tests: httpRes.results });
+  console.log(`Subtotal: ${httpRes.passed} passed, ${httpRes.failed} failed\n`);
+
   console.log('====================================================');
-  console.log(`FINAL RESULTS: ${totalPassed} PASSED, ${totalFailed} FAILED (TOTAL: ${totalPassed + totalFailed}/29)`);
+  console.log(`FINAL RESULTS: ${totalPassed} PASSED, ${totalFailed} FAILED (TOTAL: ${totalPassed + totalFailed}/${totalPassed + totalFailed})`);
   console.log('====================================================');
 
   if (totalFailed > 0) {

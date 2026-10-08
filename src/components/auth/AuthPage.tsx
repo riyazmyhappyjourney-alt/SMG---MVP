@@ -66,7 +66,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   };
 
   // Handle Verify OTP
-  const handleVerifyOtp = (e: React.FormEvent) => {
+  const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     if (!otpCode || otpCode.trim().length < 4) {
@@ -75,23 +75,37 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     }
 
     setLoading(true);
-    setTimeout(async () => {
+    try {
       const cleanPhone = phone.replace(/\D/g, '').slice(-10);
+      const res = await fetch('/api/auth/otp/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: cleanPhone, otp: otpCode.trim(), name: name.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'OTP verification failed');
+      }
       const userProfile: UserAuthProfile = {
-        id: `usr-otp-${cleanPhone}`,
-        name: name.trim() || `Owner +91${cleanPhone.slice(0, 3)}***${cleanPhone.slice(-2)}`,
-        email: email.trim() || `homeowner.${cleanPhone.slice(-4)}@sellmyghar.in`,
-        provider: 'google', // mapped to authorized session
-        token: `jwt-session-${Date.now()}`,
-        createdAt: new Date().toISOString(),
+        id: data.user.id,
+        name: data.user.name,
+        email: data.user.email,
+        phone: data.user.phone,
+        provider: 'phone',
+        token: data.token,
+        createdAt: data.user.createdAt,
       };
-
-      await persistSessionAndComplete(userProfile);
-    }, 600);
+      localStorage.setItem('sellmyghar_google_user', JSON.stringify(userProfile));
+      setLoading(false);
+      onSuccess(userProfile);
+    } catch (err: any) {
+      setLoading(false);
+      setError(err.message || 'OTP verification failed. Please try again.');
+    }
   };
 
   // Handle Email / Password (NO REPEAT PASSWORD FIELD)
-  const handleEmailAuth = (e: React.FormEvent) => {
+  const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
@@ -107,37 +121,63 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     }
 
     setLoading(true);
-    setTimeout(async () => {
+    try {
+      const res = await fetch('/api/auth/customer-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleanEmail, name: name.trim(), provider: 'email' }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Authentication failed');
+      }
       const userProfile: UserAuthProfile = {
-        id: `usr-email-${Date.now().toString(36)}`,
-        name: name.trim() || cleanEmail.split('@')[0],
-        email: cleanEmail,
-        provider: 'google',
-        token: `jwt-session-${Date.now()}`,
-        createdAt: new Date().toISOString(),
+        id: data.user.id,
+        name: data.user.name,
+        email: data.user.email,
+        provider: 'email',
+        token: data.token,
+        createdAt: data.user.createdAt,
       };
-
-      await persistSessionAndComplete(userProfile);
-    }, 600);
+      localStorage.setItem('sellmyghar_google_user', JSON.stringify(userProfile));
+      setLoading(false);
+      onSuccess(userProfile);
+    } catch (err: any) {
+      setLoading(false);
+      setError(err.message || 'Authentication failed. Please try again.');
+    }
   };
 
   // Handle 1-Click Google Sign-in
-  const handleGoogleAuth = () => {
+  const handleGoogleAuth = async () => {
     setLoading(true);
     setError(null);
-    setTimeout(async () => {
+    try {
+      const res = await fetch('/api/auth/customer-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: 'riyaz.myhappyjourney@gmail.com', name: 'Riyaz', provider: 'google' }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Google sign-in failed');
+      }
       const userProfile: UserAuthProfile = {
-        id: `usr-google-${Date.now().toString(36)}`,
-        name: 'Riyaz',
-        email: 'riyaz.myhappyjourney@gmail.com',
+        id: data.user.id,
+        name: data.user.name,
+        email: data.user.email,
         avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
         provider: 'google',
-        token: `google-oauth-${Date.now()}`,
-        createdAt: new Date().toISOString(),
+        token: data.token,
+        createdAt: data.user.createdAt,
       };
-
-      await persistSessionAndComplete(userProfile);
-    }, 500);
+      localStorage.setItem('sellmyghar_google_user', JSON.stringify(userProfile));
+      setLoading(false);
+      onSuccess(userProfile);
+    } catch (err: any) {
+      setLoading(false);
+      setError(err.message || 'Google sign-in failed.');
+    }
   };
 
   return (
