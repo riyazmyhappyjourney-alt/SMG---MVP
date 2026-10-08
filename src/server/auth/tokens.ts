@@ -10,9 +10,6 @@ import { getValidatedConfig } from '../config/env';
  * unless explicitly operating in sandbox test mode.
  */
 
-const TOKEN_ISSUER = 'https://sellmyghar.com';
-const TOKEN_AUDIENCE = 'https://api.sellmyghar.com';
-
 export interface TokenPayload {
   uid: string;
   phone: string;
@@ -22,10 +19,22 @@ export interface TokenPayload {
 }
 
 /**
+ * Returns the environment-driven JWT Issuer and Audience.
+ */
+export function getJwtIssuerAudience(): { issuer: string; audience: string } {
+  const config = getValidatedConfig();
+  return {
+    issuer: config.jwtIssuer,
+    audience: config.jwtAudience,
+  };
+}
+
+/**
  * Signs a real cryptographic JWT containing user identity and assigned roles.
  */
 export async function signSessionToken(user: AuthenticatedUser, tokenVersion = 1): Promise<string> {
   const config = getValidatedConfig();
+  const { issuer, audience } = getJwtIssuerAudience();
 
   const token = await new SignJWT({
     uid: user.uid,
@@ -36,8 +45,8 @@ export async function signSessionToken(user: AuthenticatedUser, tokenVersion = 1
   })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
-    .setIssuer(TOKEN_ISSUER)
-    .setAudience(TOKEN_AUDIENCE)
+    .setIssuer(issuer)
+    .setAudience(audience)
     .setExpirationTime('24h') // 24-hour session lifetime
     .sign(config.jwtSecret);
 
@@ -49,10 +58,11 @@ export async function signSessionToken(user: AuthenticatedUser, tokenVersion = 1
  */
 export async function verifySessionToken(token: string): Promise<TokenPayload> {
   const config = getValidatedConfig();
+  const { issuer, audience } = getJwtIssuerAudience();
 
   const { payload } = await jwtVerify(token, config.jwtSecret, {
-    issuer: TOKEN_ISSUER,
-    audience: TOKEN_AUDIENCE,
+    issuer,
+    audience,
   });
 
   return {

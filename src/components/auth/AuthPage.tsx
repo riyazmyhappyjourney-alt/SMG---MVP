@@ -32,7 +32,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   const [error, setError] = useState<string | null>(null);
 
   // Handle Send OTP
-  const handleSendOtp = (e: React.FormEvent) => {
+  const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     const cleanPhone = phone.replace(/\D/g, '').slice(-10);
@@ -42,34 +42,31 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     }
 
     setLoading(true);
-    setTimeout(() => {
-      setLoading(false);
-      setOtpSent(true);
-      setOtpCode('749201'); // Pre-fill test OTP for instantaneous developer and user experience
-      setOtpCooldown(60);
-    }, 500);
-  };
-
-  const persistSessionAndComplete = async (userProfile: UserAuthProfile) => {
     try {
-      await fetch('/api/auth/session', {
+      const res = await fetch('/api/auth/otp/request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user: userProfile }),
+        body: JSON.stringify({ phone: cleanPhone }),
       });
-    } catch {
-      // Fallback to client storage
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || data.message || 'Failed to send OTP verification code.');
+      }
+      setOtpSent(true);
+      setOtpCode('');
+      setOtpCooldown(data.cooldownSeconds || 60);
+    } catch (err: any) {
+      setError(err.message || 'Failed to send OTP code. Please try again.');
+    } finally {
+      setLoading(false);
     }
-    localStorage.setItem('sellmyghar_google_user', JSON.stringify(userProfile));
-    setLoading(false);
-    onSuccess(userProfile);
   };
 
   // Handle Verify OTP
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (!otpCode || otpCode.trim().length < 4) {
+    if (!otpCode || otpCode.trim().length !== 6) {
       setError('Please enter the 6-digit OTP code.');
       return;
     }
@@ -84,18 +81,19 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
-        throw new Error(data.error || 'OTP verification failed');
+        throw new Error(data.message || data.error || 'OTP verification failed.');
       }
+
+      // Authoritative session is maintained via HTTP-only cookie
       const userProfile: UserAuthProfile = {
         id: data.user.id,
         name: data.user.name,
-        email: data.user.email,
+        email: data.user.email || '',
         phone: data.user.phone,
         provider: 'phone',
-        token: data.token,
-        createdAt: data.user.createdAt,
+        token: '', // Never expose or persist raw JWT in browser storage
+        createdAt: data.user.createdAt || new Date().toISOString(),
       };
-      localStorage.setItem('sellmyghar_google_user', JSON.stringify(userProfile));
       setLoading(false);
       onSuccess(userProfile);
     } catch (err: any) {
@@ -104,7 +102,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     }
   };
 
-  // Handle Email / Password (NO REPEAT PASSWORD FIELD)
+  // Handle Email / Password
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -115,68 +113,63 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       return;
     }
 
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters.');
-      return;
-    }
-
     setLoading(true);
     try {
       const res = await fetch('/api/auth/customer-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: cleanEmail, name: name.trim(), provider: 'email' }),
+        body: JSON.stringify({ email: cleanEmail }),
       });
       const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Authentication failed');
+      if (!res.ok) {
+        throw new Error(data.message || data.error || 'Customer password login is unavailable.');
       }
-      const userProfile: UserAuthProfile = {
-        id: data.user.id,
-        name: data.user.name,
-        email: data.user.email,
-        provider: 'email',
-        token: data.token,
-        createdAt: data.user.createdAt,
-      };
-      localStorage.setItem('sellmyghar_google_user', JSON.stringify(userProfile));
-      setLoading(false);
-      onSuccess(userProfile);
     } catch (err: any) {
+      setError(err.message || 'Password authentication is unavailable for customer accounts. Please authenticate via Mobile OTP.');
+    } finally {
       setLoading(false);
-      setError(err.message || 'Authentication failed. Please try again.');
     }
   };
 
-  // Handle 1-Click Google Sign-in
+  // Handle Google Sign-in
   const handleGoogleAuth = async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/auth/customer-login', {
+      const res = await fetch('/api/auth/google', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: 'riyaz.myhappyjourney@gmail.com', name: 'Riyaz', provider: 'google' }),
+        body: JSON.stringify({ idToken: '' }),
       });
       const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Google sign-in failed');
+      if (!res.ok) {
+        throw new Error(data.message || 'Google OAuth is currently not configured.');
       }
-      const userProfile: UserAuthProfile = {
-        id: data.user.id,
-        name: data.user.name,
-        email: data.user.email,
-        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-        provider: 'google',
-        token: data.token,
-        createdAt: data.user.createdAt,
-      };
-      localStorage.setItem('sellmyghar_google_user', JSON.stringify(userProfile));
-      setLoading(false);
-      onSuccess(userProfile);
     } catch (err: any) {
+      setError(err.message || 'Google OAuth is not configured in this environment. Please authenticate via Mobile OTP.');
+    } finally {
       setLoading(false);
-      setError(err.message || 'Google sign-in failed.');
+    }
+  };
+
+  // Handle Apple Sign-in
+  const handleAppleAuth = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/auth/apple', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken: '' }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.message || 'Apple Sign-In is currently not configured.');
+      }
+    } catch (err: any) {
+      setError(err.message || 'Apple Sign-In is not configured in this environment. Please authenticate via Mobile OTP.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -349,7 +342,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                     maxLength={6}
                     value={otpCode}
                     onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ''))}
-                    placeholder="749201"
+                    placeholder="••••••"
                     className="w-full text-center tracking-widest text-xl font-mono py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#244B8F] focus:bg-white"
                     required
                   />
@@ -498,7 +491,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
               {/* Apple Option */}
               <button
                 type="button"
-                onClick={handleGoogleAuth}
+                onClick={handleAppleAuth}
                 className="w-10 h-10 rounded-full border border-slate-200 bg-white hover:bg-slate-50 shadow-xs flex items-center justify-center transition-all cursor-pointer hover:scale-105"
                 title="Continue with Apple"
               >

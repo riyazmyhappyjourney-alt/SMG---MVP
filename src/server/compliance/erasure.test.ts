@@ -123,7 +123,7 @@ export async function runErasureTests(): Promise<{ passed: number; failed: numbe
     const listingManager: AuthenticatedUser = {
       uid: 'usr-listing-mgr-01',
       phone: '+919876500001',
-      email: 'listing@sellmyghar.com',
+      email: 'listing@sellmyghar.in',
       roles: ['STAFF_LISTING_MANAGER'],
       permissions: [],
     };
@@ -131,7 +131,7 @@ export async function runErasureTests(): Promise<{ passed: number; failed: numbe
     const superAdmin: AuthenticatedUser = {
       uid: 'usr-admin-01',
       phone: '+919876500000',
-      email: 'admin@sellmyghar.com',
+      email: 'admin@sellmyghar.in',
       roles: ['STAFF_SUPER_ADMIN'],
       permissions: [],
     };

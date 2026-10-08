@@ -22,6 +22,8 @@ export class ConfigurationError extends Error {
 export interface AppConfig {
   databaseUrl: string;
   jwtSecret: Uint8Array;
+  jwtIssuer: string;
+  jwtAudience: string;
   gcsPrivateBucket: string;
   gcpProjectId: string;
   redisUrl: string;
@@ -80,11 +82,52 @@ export function getValidatedConfig(overrides?: { allowSandbox?: boolean }): AppC
     }
   }
 
+  // 5. AUTH_JWT_ISSUER & AUTH_JWT_AUDIENCE (Fail-closed domain verification)
+  const jwtIssuer = process.env.AUTH_JWT_ISSUER || process.env.JWT_ISSUER;
+  const jwtAudience = process.env.AUTH_JWT_AUDIENCE || process.env.JWT_AUDIENCE;
+
+  if (isProduction) {
+    if (!jwtIssuer) {
+      throw new ConfigurationError(
+        'AUTH_JWT_ISSUER',
+        'Authentication JWT issuer is missing in production. Fail-closed: configure AUTH_JWT_ISSUER (e.g., https://sellmyghar.in).'
+      );
+    }
+    if (jwtIssuer.includes('sellmyghar.com')) {
+      throw new ConfigurationError(
+        'AUTH_JWT_ISSUER',
+        'AUTH_JWT_ISSUER references unowned domain sellmyghar.com. Fail-closed: owner only operates sellmyghar.in.'
+      );
+    }
+    if (!jwtAudience) {
+      throw new ConfigurationError(
+        'AUTH_JWT_AUDIENCE',
+        'Authentication JWT audience is missing in production. Fail-closed: configure AUTH_JWT_AUDIENCE (e.g., https://sellmyghar.in).'
+      );
+    }
+    if (jwtAudience.includes('sellmyghar.com')) {
+      throw new ConfigurationError(
+        'AUTH_JWT_AUDIENCE',
+        'AUTH_JWT_AUDIENCE references unowned domain sellmyghar.com. Fail-closed: owner only operates sellmyghar.in.'
+      );
+    }
+  }
+
+  // Non-production fallback defaults safely to owned domain (never unowned .com)
+  const effectiveIssuer = (jwtIssuer && !jwtIssuer.includes('sellmyghar.com'))
+    ? jwtIssuer
+    : 'https://sellmyghar.in';
+  const effectiveAudience = (jwtAudience && !jwtAudience.includes('sellmyghar.com'))
+    ? jwtAudience
+    : 'https://sellmyghar.in';
+
   const effectiveSecret = jwtSecretStr || 'sellmyghar-sandbox-fallback-secret-minimum-32-chars-long';
 
   return {
     databaseUrl: databaseUrl || '',
     jwtSecret: new TextEncoder().encode(effectiveSecret),
+    jwtIssuer: effectiveIssuer,
+    jwtAudience: effectiveAudience,
     gcsPrivateBucket: gcsPrivateBucket || 'sellmyghar-vault-asia-south1',
     gcpProjectId: process.env.GCP_PROJECT_ID || 'sellmyghar-prod',
     redisUrl: redisUrl || '',

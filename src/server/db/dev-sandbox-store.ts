@@ -15,15 +15,39 @@
 
 export interface DevUser {
   id: string;
-  phone: string;
+  phone: string | null;
   email: string | null;
   display_name: string;
   password_hash: string | null;
   token_version: number;
   roles: string[];
   is_active: boolean;
+  failed_login_attempts: number;
+  locked_until: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface DevOtpVerification {
+  id: string;
+  phone: string;
+  otp_hash: string;
+  attempts_count: number;
+  max_attempts: number;
+  expires_at: string;
+  is_consumed: boolean;
+  created_at: string;
+}
+
+export interface DevUserIdentity {
+  id: string;
+  user_id: string;
+  provider: string;
+  provider_user_id: string;
+  email?: string | null;
+  phone?: string | null;
+  is_verified: boolean;
+  created_at: string;
 }
 
 export interface DevSellerLead {
@@ -158,8 +182,25 @@ class DevSandboxStore {
   public documents = new Map<string, DevDocument>();
   public consents = new Map<string, any>();
   public auditLogs: DevAuditLog[] = [];
+  public otpVerifications = new Map<string, DevOtpVerification>();
+  public userIdentities = new Map<string, DevUserIdentity>();
 
   private initialized = false;
+
+  public reset() {
+    this.users.clear();
+    this.sellerLeads.clear();
+    this.buyerEnquiries.clear();
+    this.properties.clear();
+    this.propertyMedia.clear();
+    this.documents.clear();
+    this.consents.clear();
+    this.auditLogs = [];
+    this.otpVerifications.clear();
+    this.userIdentities.clear();
+    this.initialized = false;
+    this.initInitialSeeds();
+  }
 
   public initInitialSeeds() {
     if (this.initialized) return;
@@ -175,10 +216,22 @@ class DevSandboxStore {
       token_version: 1,
       roles: ['OWNER'],
       is_active: true,
+      failed_login_attempts: 0,
+      locked_until: null,
       created_at: new Date(Date.now() - 86400000 * 5).toISOString(),
       updated_at: new Date().toISOString(),
     };
     this.users.set(owner.id, owner);
+
+    this.userIdentities.set('ident-seed-owner-01', {
+      id: 'ident-seed-owner-01',
+      user_id: owner.id,
+      provider: 'PHONE',
+      provider_user_id: owner.phone!,
+      phone: owner.phone,
+      is_verified: true,
+      created_at: new Date().toISOString(),
+    });
 
     // Seed sample seller leads for initial CRM visualization
     const lead1: DevSellerLead = {
@@ -488,6 +541,8 @@ class DevSandboxStore {
         token_version: 1,
         roles: ['STAFF_VERIFICATION_AGENT'],
         is_active: true,
+        failed_login_attempts: 0,
+        locked_until: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -500,6 +555,8 @@ class DevSandboxStore {
         token_version: 1,
         roles: ['STAFF_INTAKE_AGENT'],
         is_active: true,
+        failed_login_attempts: 0,
+        locked_until: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -512,6 +569,8 @@ class DevSandboxStore {
         token_version: 1,
         roles: ['STAFF_DEAL_CLOSER'],
         is_active: true,
+        failed_login_attempts: 0,
+        locked_until: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -528,27 +587,38 @@ class DevSandboxStore {
       return { rows: [staff1, staff2, staff3] };
     }
 
-    // 8. USERS: Single-Row Insert (Admin bootstrap, etc.)
+    // 8. USERS: Single-Row Insert (Admin bootstrap, customer OTP creation, etc.)
     if (cleanSql.includes('INSERT INTO users')) {
       const id = params[0] || `usr-${Date.now()}`;
-      const phone = params[1];
-      const email = params[2] || null;
-      const display_name = params[3] || 'User';
-      const password_hash = params[4] || null;
+      const phone = params[1] || null;
+      let email = params[2] || null;
+      let display_name = params[3] || 'User';
+      let password_hash = params[4] || null;
       let roles = ['OWNER'];
-      if (cleanSql.includes('STAFF_SUPER_ADMIN')) {
-        roles = ['STAFF_SUPER_ADMIN'];
+
+      if (cleanSql.includes('{OWNER}')) {
+        roles = ['OWNER'];
+        email = null;
+        display_name = params[2] || 'User';
+        password_hash = null;
+      } else {
+        const match = cleanSql.match(/'\{(.*?)\}'/);
+        if (match && match[1]) {
+          roles = [match[1]];
+        }
       }
 
       // Check conflict by phone
-      let existing = Array.from(this.users.values()).find(x => x.phone === phone);
-      if (existing) {
-        if (cleanSql.includes('DO UPDATE')) {
-          existing.display_name = display_name;
-          if (email) existing.email = email;
-          existing.updated_at = new Date().toISOString();
+      if (phone) {
+        let existing = Array.from(this.users.values()).find(x => x.phone === phone);
+        if (existing) {
+          if (cleanSql.includes('DO UPDATE')) {
+            if (display_name && display_name !== 'User') existing.display_name = display_name;
+            if (email) existing.email = email;
+            existing.updated_at = new Date().toISOString();
+          }
+          return { rows: [{ ...existing }] };
         }
-        return { rows: [{ ...existing }] };
       }
 
       const u: DevUser = {
@@ -560,6 +630,8 @@ class DevSandboxStore {
         token_version: 1,
         roles,
         is_active: true,
+        failed_login_attempts: 0,
+        locked_until: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -577,6 +649,163 @@ class DevSandboxStore {
         return { rows: [{ ...u }] };
       }
       return { rows: [] };
+    }
+
+    // 9b. USERS: Update failed_login_attempts & locked_until
+    if (cleanSql.includes('UPDATE users') && cleanSql.includes('failed_login_attempts = $1') && cleanSql.includes('locked_until = $2')) {
+      const attempts = Number(params[0]);
+      const lockedUntil = params[1];
+      const id = params[2];
+      const u = this.users.get(id);
+      if (u) {
+        u.failed_login_attempts = attempts;
+        u.locked_until = lockedUntil;
+        u.updated_at = new Date().toISOString();
+        return { rows: [{ ...u }] };
+      }
+      return { rows: [] };
+    }
+
+    if (cleanSql.includes('UPDATE users') && cleanSql.includes('failed_login_attempts = $1')) {
+      const attempts = Number(params[0]);
+      const id = params[1];
+      const u = this.users.get(id);
+      if (u) {
+        u.failed_login_attempts = attempts;
+        u.updated_at = new Date().toISOString();
+        return { rows: [{ ...u }] };
+      }
+      return { rows: [] };
+    }
+
+    if (cleanSql.includes('UPDATE users') && cleanSql.includes('failed_login_attempts = 0') && cleanSql.includes('locked_until = NULL')) {
+      const id = params[0];
+      const u = this.users.get(id);
+      if (u) {
+        u.failed_login_attempts = 0;
+        u.locked_until = null;
+        u.updated_at = new Date().toISOString();
+        return { rows: [{ ...u }] };
+      }
+      return { rows: [] };
+    }
+
+    // 9c. USERS: Update display_name
+    if (cleanSql.includes('UPDATE users') && cleanSql.includes('display_name = $1')) {
+      const name = params[0];
+      const target = params[1];
+      let u = this.users.get(target);
+      if (!u) {
+        u = Array.from(this.users.values()).find(x => x.phone === target);
+      }
+      if (u) {
+        u.display_name = name;
+        u.updated_at = new Date().toISOString();
+        return { rows: [{ ...u }] };
+      }
+      return { rows: [] };
+    }
+
+    // 9d. OTP_VERIFICATIONS Handlers
+    if (cleanSql.includes('UPDATE otp_verifications') && cleanSql.includes('is_consumed = true WHERE phone = $1 AND is_consumed = false')) {
+      const phone = params[0];
+      for (const otp of this.otpVerifications.values()) {
+        if (otp.phone === phone && !otp.is_consumed) {
+          otp.is_consumed = true;
+        }
+      }
+      return { rows: [] };
+    }
+
+    if (cleanSql.includes('INSERT INTO otp_verifications')) {
+      const rec: DevOtpVerification = {
+        id: params[0],
+        phone: params[1],
+        otp_hash: params[2],
+        attempts_count: 0,
+        max_attempts: Number(params[3]) || 5,
+        expires_at: params[4],
+        is_consumed: false,
+        created_at: new Date().toISOString(),
+      };
+      this.otpVerifications.set(rec.id, rec);
+      return { rows: [{ ...rec }] };
+    }
+
+    if (cleanSql.includes('FROM otp_verifications') && cleanSql.includes('WHERE phone = $1 AND is_consumed = false')) {
+      const phone = params[0];
+      const matches = Array.from(this.otpVerifications.values())
+        .filter(x => x.phone === phone && !x.is_consumed)
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      return matches.length > 0 ? { rows: [{ ...matches[0] }] } : { rows: [] };
+    }
+
+    if (cleanSql.includes('UPDATE otp_verifications') && cleanSql.includes('is_consumed = true WHERE id = $1')) {
+      const id = params[0];
+      const rec = this.otpVerifications.get(id);
+      if (rec) {
+        rec.is_consumed = true;
+        return { rows: [{ ...rec }] };
+      }
+      return { rows: [] };
+    }
+
+    if (cleanSql.includes('UPDATE otp_verifications') && cleanSql.includes('attempts_count = $1 WHERE id = $2')) {
+      const attempts = Number(params[0]);
+      const id = params[1];
+      const rec = this.otpVerifications.get(id);
+      if (rec) {
+        rec.attempts_count = attempts;
+        return { rows: [{ ...rec }] };
+      }
+      return { rows: [] };
+    }
+
+    // 9e. USER_IDENTITIES Handlers
+    if (cleanSql.includes('FROM user_identities')) {
+      let matched: DevUserIdentity | undefined;
+      if (cleanSql.includes("provider = 'PHONE'") && cleanSql.includes('provider_user_id = $1')) {
+        const pUserId = params[0];
+        matched = Array.from(this.userIdentities.values()).find(
+          x => x.provider === 'PHONE' && x.provider_user_id === pUserId
+        );
+      } else if (cleanSql.includes('provider = $1') && cleanSql.includes('provider_user_id = $2')) {
+        const prov = params[0];
+        const pUserId = params[1];
+        matched = Array.from(this.userIdentities.values()).find(
+          x => x.provider === prov && x.provider_user_id === pUserId
+        );
+      }
+      return matched ? { rows: [{ ...matched }] } : { rows: [] };
+    }
+
+    if (cleanSql.includes('INSERT INTO user_identities')) {
+      const id = params[0] || `ident-${Date.now()}`;
+      const user_id = params[1];
+      let provider = 'PHONE';
+      let provider_user_id = params[2];
+      let phone = params[2];
+      if (params.length >= 4 && typeof params[2] === 'string' && !params[2].startsWith('+91')) {
+        provider = params[2];
+        provider_user_id = params[3];
+      }
+      const existing = Array.from(this.userIdentities.values()).find(
+        x => x.provider === provider && x.provider_user_id === provider_user_id
+      );
+      if (existing) {
+        return { rows: [{ ...existing }] };
+      }
+      const ident: DevUserIdentity = {
+        id,
+        user_id,
+        provider,
+        provider_user_id,
+        phone,
+        is_verified: true,
+        created_at: new Date().toISOString(),
+      };
+      this.userIdentities.set(ident.id, ident);
+      return { rows: [{ ...ident }] };
     }
 
     // 10. CONSENTS: Insert

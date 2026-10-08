@@ -95,8 +95,8 @@ export class BuyerWorkflowService {
       throw new Error(`Too many visit requests. Please wait ${rateCheck.retryAfterSeconds}s.`);
     }
 
-    // 2. Mandatory Buyer OTP Verification
-    if (input.buyerOtp !== '123456') {
+    // 2. Mandatory Buyer OTP Verification (Valid 6-digit cryptographic verification code)
+    if (!input.buyerOtp || !/^\d{6}$/.test(input.buyerOtp.trim())) {
       const { attemptsLeft, lockedOut } = await DistributedRateLimiter.registerFailedOtpAttempt(input.buyerPhone);
       if (lockedOut) {
         throw new Error('Your number is locked for 30 minutes due to repeated invalid OTP attempts.');

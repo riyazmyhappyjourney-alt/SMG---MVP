@@ -6,16 +6,20 @@
 -- 1. Users Table
 CREATE TABLE IF NOT EXISTS users (
   id VARCHAR(64) PRIMARY KEY,
-  phone VARCHAR(64) UNIQUE NOT NULL,
+  phone VARCHAR(64) UNIQUE,
   email VARCHAR(255),
   display_name VARCHAR(120),
   password_hash VARCHAR(255),
   token_version INT NOT NULL DEFAULT 1,
   roles TEXT[] NOT NULL DEFAULT '{OWNER}',
+  failed_login_attempts INT NOT NULL DEFAULT 0,
+  locked_until TIMESTAMPTZ,
   is_active BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_lower ON users (LOWER(email)) WHERE email IS NOT NULL;
 
 -- 2. Consents Table
 CREATE TABLE IF NOT EXISTS consents (
@@ -232,4 +236,35 @@ CREATE INDEX IF NOT EXISTS idx_buyer_enquiries_phone ON buyer_enquiries (phone);
 CREATE INDEX IF NOT EXISTS idx_buyer_enquiries_status ON buyer_enquiries (lead_status);
 CREATE INDEX IF NOT EXISTS idx_buyer_enquiries_staff ON buyer_enquiries (assigned_staff_id);
 CREATE INDEX IF NOT EXISTS idx_buyer_enquiries_property ON buyer_enquiries (property_id);
+
+-- 13. OTP Verifications Table
+CREATE TABLE IF NOT EXISTS otp_verifications (
+  id VARCHAR(64) PRIMARY KEY,
+  phone VARCHAR(64) NOT NULL,
+  otp_hash VARCHAR(128) NOT NULL,
+  attempts_count INT NOT NULL DEFAULT 0,
+  max_attempts INT NOT NULL DEFAULT 5,
+  expires_at TIMESTAMPTZ NOT NULL,
+  is_consumed BOOLEAN NOT NULL DEFAULT false,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_otp_verifications_phone ON otp_verifications (phone);
+CREATE INDEX IF NOT EXISTS idx_otp_verifications_active ON otp_verifications (phone, is_consumed, expires_at);
+
+-- 14. User Identities Table
+CREATE TABLE IF NOT EXISTS user_identities (
+  id VARCHAR(64) PRIMARY KEY,
+  user_id VARCHAR(64) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  provider VARCHAR(32) NOT NULL,
+  provider_user_id VARCHAR(255) NOT NULL,
+  email VARCHAR(255),
+  phone VARCHAR(64),
+  is_verified BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT uq_user_identities_provider_user UNIQUE (provider, provider_user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_identities_user_id ON user_identities (user_id);
+CREATE INDEX IF NOT EXISTS idx_user_identities_lookup ON user_identities (provider, provider_user_id);
 

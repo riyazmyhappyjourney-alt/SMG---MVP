@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Lock, Mail, KeyRound, AlertCircle, ArrowRight, ShieldCheck, Loader2, ArrowLeft } from 'lucide-react';
 
 interface StaffLoginProps {
-  onSuccess: (session: { token: string; user: any }) => void;
+  onSuccess: (session: { user: any; token?: string }) => void;
   onBackToHome?: () => void;
 }
 
@@ -33,14 +33,14 @@ export const StaffLogin: React.FC<StaffLoginProps> = ({ onSuccess, onBackToHome 
         throw new Error(data.error || 'Invalid credentials. Only authorized SellMyGhar staff can access the operational portal.');
       }
 
-      // Store in session storage for persistence across reloads
+      // Store user profile in session storage for UI display (HTTP-only cookie holds authoritative session)
       sessionStorage.setItem(
         'sellmyghar_staff_session',
-        JSON.stringify({ token: data.token, user: data.user, loggedAt: new Date().toISOString() })
+        JSON.stringify({ user: data.user, loggedAt: new Date().toISOString() })
       );
 
       // Transition app to CRM route
-      onSuccess({ token: data.token, user: data.user });
+      onSuccess({ user: data.user });
     } catch (err: any) {
       setErrorMessage(err.message || 'Authentication failed. Please verify your credentials.');
     } finally {
@@ -148,32 +148,6 @@ export const StaffLogin: React.FC<StaffLoginProps> = ({ onSuccess, onBackToHome 
               )}
             </button>
           </form>
-
-          <div className="mt-5 pt-4 border-t border-slate-100">
-            <p className="text-[11px] font-semibold text-slate-500 mb-2">Development Access Credentials:</p>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail('staff@sellmyghar.in');
-                  setPassword('Staff@12345');
-                }}
-                className="text-[11px] px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-medium cursor-pointer transition-colors"
-              >
-                Fill Staff (Verification Agent)
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setEmail('admin@sellmyghar.in');
-                  setPassword('Admin@12345');
-                }}
-                className="text-[11px] px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-medium cursor-pointer transition-colors"
-              >
-                Fill Super Admin
-              </button>
-            </div>
-          </div>
         </div>
 
         {/* Security Assurance Footer */}

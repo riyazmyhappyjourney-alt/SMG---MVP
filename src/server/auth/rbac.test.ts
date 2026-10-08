@@ -28,7 +28,7 @@ export function runAuthorizationTests(): { passed: number; failed: number; resul
   const listingManager: AuthenticatedUser = {
     uid: 'usr-listing-mgr-01',
     phone: '+919876500001',
-    email: 'listing@sellmyghar.com',
+    email: 'listing@sellmyghar.in',
     roles: ['STAFF_LISTING_MANAGER'],
     permissions: [],
   };
@@ -36,7 +36,7 @@ export function runAuthorizationTests(): { passed: number; failed: number; resul
   const verificationAgent: AuthenticatedUser = {
     uid: 'usr-verifier-01',
     phone: '+919876500002',
-    email: 'verifier@sellmyghar.com',
+    email: 'verifier@sellmyghar.in',
     roles: ['STAFF_VERIFICATION_AGENT'],
     permissions: [],
   };

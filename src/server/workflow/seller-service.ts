@@ -25,6 +25,7 @@ import { generateV4SignedUploadUrl } from '../storage/gcs-client';
 
 import { OutreachService } from '../notifications/outreach-service';
 import { getValidatedConfig } from '../config/env';
+import { OtpService } from '../auth/otp-service';
 
 /**
  * SellMyGhar Seller Workflow Domain Service
@@ -123,17 +124,7 @@ export class SellerWorkflowService {
    * STEP 2A: Issue OTP for Phone Verification
    */
   static async requestOtp(phone: string, clientIp: string): Promise<{ success: boolean; cooldownSeconds: number }> {
-    const phoneLimit = await DistributedRateLimiter.check(`otp-phone:${phone}`, 3, 900);
-    if (!phoneLimit.allowed) {
-      throw new Error(`OTP limit reached. Please wait ${phoneLimit.retryAfterSeconds}s before requesting again.`);
-    }
-
-    const ipLimit = await DistributedRateLimiter.check(`otp-ip:${clientIp}`, 10, 900);
-    if (!ipLimit.allowed) {
-      throw new Error('Too many OTP attempts from this network. Try later.');
-    }
-
-    return { success: true, cooldownSeconds: 60 };
+    return OtpService.requestOtp(phone, clientIp);
   }
 
   /**
@@ -142,74 +133,15 @@ export class SellerWorkflowService {
   static async verifyOtp(
     phone: string,
     enteredOtp: string,
-    existingUserRecord: UserPrivateRecord | null
+    existingUserRecord?: UserPrivateRecord | null,
+    clientIp = '127.0.0.1',
+    name?: string
   ): Promise<{ authenticatedUser: AuthenticatedUser; sessionToken: string }> {
-    // 1. Check if locked out
-    const lockoutCheck = await DistributedRateLimiter.check(`lockout:otp-phone:${phone}`, 1, 1800);
-    if (!lockoutCheck.allowed) {
-      throw new Error(`Phone is temporarily locked due to multiple failed OTP attempts. Retry in ${lockoutCheck.retryAfterSeconds}s.`);
-    }
-
-    // 2. Verify OTP code (Sandbox hardcoded to 123456 - Tracked as P0 Blocker)
-    const isValid = enteredOtp === '123456';
-    if (!isValid) {
-      const { lockedOut, attemptsLeft } = await DistributedRateLimiter.registerFailedOtpAttempt(phone);
-      if (lockedOut) {
-        throw new Error('Account locked for 30 minutes due to 5 consecutive invalid OTP attempts.');
-      }
-      throw new Error(`Invalid OTP. ${attemptsLeft} attempts remaining.`);
-    }
-
-    await DistributedRateLimiter.resetOtpFailures(phone);
-
-    // 3. Prevent Staff Account Hijacking
-    if (existingUserRecord && existingUserRecord.roles.some((r) => r.startsWith('STAFF_'))) {
-      throw new Error('Staff accounts must authenticate via enterprise corporate SSO with hardware MFA. Public customer OTP is rejected.');
-    }
-
-    // 4. Resolve Roles
-    let resolvedRoles: AppRole[] = ['OWNER'];
-    if (existingUserRecord) {
-      const rolesSet = new Set<AppRole>(existingUserRecord.roles as AppRole[]);
-      rolesSet.add('OWNER');
-      resolvedRoles = Array.from(rolesSet);
-    }
-
-    const userUid = existingUserRecord ? existingUserRecord.id : `usr-${phone.replace(/\D/g, '').slice(-10)}`;
-    const authenticatedUser: AuthenticatedUser = {
-      uid: userUid,
-      phone,
-      email: existingUserRecord?.email || null,
-      roles: resolvedRoles,
-      permissions: [
-        'properties:create',
-        'properties:read_own',
-        'properties:update_own',
-        'properties:read_reserve_price',
-        'documents:upload_own',
-        'documents:read_own',
-        'visits:read_own',
-        'offers:read_own',
-        'listings:read_public',
-      ],
-    };
-
-    // 5. Upsert into users table if database is configured
-    const upsertUserSql = `
-      INSERT INTO users (id, phone, email, roles, updated_at)
-      VALUES ($1, $2, $3, $4, NOW())
-      ON CONFLICT (phone) DO UPDATE 
-      SET roles = EXCLUDED.roles, updated_at = NOW()
-      RETURNING id;
-    `;
-    await executeQuery(upsertUserSql, [userUid, phone, existingUserRecord?.email || null, resolvedRoles]);
-
-    // 6. Issue REAL signed HMAC-SHA256 JWT using jose
-    const realSignedJwt = await signSessionToken(authenticatedUser);
-
+    const { authenticatedUser } = await OtpService.verifyOtp(phone, enteredOtp, clientIp, name);
+    const sessionToken = await signSessionToken(authenticatedUser);
     return {
       authenticatedUser,
-      sessionToken: realSignedJwt,
+      sessionToken,
     };
   }
 
