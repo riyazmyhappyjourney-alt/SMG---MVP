@@ -1,5 +1,6 @@
 import pg from 'pg';
 import { getValidatedConfig, ConfigurationError } from '../config/env';
+import { devSandboxStore } from './dev-sandbox-store';
 
 const { Pool } = pg;
 
@@ -37,17 +38,14 @@ export function getDbPool(): pg.Pool {
     }
 
     if (!config.databaseUrl && config.allowSandbox) {
-      // In sandbox mode without a real databaseUrl, DO NOT instantiate a real pg.Pool.
-      // Return a mock pool object so zero real TCP connections are attempted.
+      // In sandbox mode without a real databaseUrl, route queries to stateful devSandboxStore
       poolInstance = {
         query: async (text: string, params?: unknown[]) => {
-          console.info(`[PG SANDBOX SQL INTERCEPT - Dev Only] ${text.replace(/\s+/g, ' ')}`, params || []);
-          return { rows: [] };
+          return devSandboxStore.handleQuery(text, (params as any[]) || []);
         },
         connect: async () => ({
           query: async (sql: string, params?: unknown[]) => {
-            console.info(`[PG SANDBOX SQL INTERCEPT - Dev Only] ${sql.replace(/\s+/g, ' ')}`, params || []);
-            return { rows: [] };
+            return devSandboxStore.handleQuery(sql, (params as any[]) || []);
           },
           release: () => {},
         }),
@@ -138,8 +136,8 @@ export async function executeQuery<T = any>(text: string, params?: unknown[]): P
 
   // 2. Direct sandbox interception BEFORE any connection attempt
   if (!config.databaseUrl && config.allowSandbox) {
-    console.info(`[PG SANDBOX SQL INTERCEPT - Dev Only] ${text.replace(/\s+/g, ' ')}`, params || []);
-    return { rows: [] };
+    const res = devSandboxStore.handleQuery(text, (params as any[]) || []);
+    return res as { rows: T[] };
   }
 
   const pool = getDbPool();
