@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 220" width="100%" height="100%">
+  <!-- SOBHA (Didot/Bodoni luxury high-contrast serif font) -->
+  <text x="250" y="125" font-family="'Didot', 'Bodoni MT', 'Times New Roman', serif" font-size="88" font-weight="900" text-anchor="middle" fill="#000000" letter-spacing="14">SOBHA</text>
+  
+  <!-- REALTY (Clean modern geometric sans-serif) -->
+  <text x="250" y="175" font-family="'Plus Jakarta Sans', 'Arial', sans-serif" font-size="28" font-weight="800" text-anchor="middle" fill="#000000" letter-spacing="16">REALTY</text>
+</svg>

@@ -1,0 +1,8 @@
+{
+  "name": "SellMyGhar - Bengaluru Real Estate Resale",
+  "description": "Premium real estate resale platform helping Bengaluru apartment owners sell with verified buyers, transparent steps, and dedicated transaction support.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
