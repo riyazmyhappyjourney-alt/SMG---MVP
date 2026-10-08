@@ -149,7 +149,31 @@ export const StaffLogin: React.FC<StaffLoginProps> = ({ onSuccess, onBackToHome 
             </button>
           </form>
 
-
+          <div className="mt-5 pt-4 border-t border-slate-100">
+            <p className="text-[11px] font-semibold text-slate-500 mb-2">Development Access Credentials:</p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail('staff@sellmyghar.in');
+                  setPassword('Staff@12345');
+                }}
+                className="text-[11px] px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-medium cursor-pointer transition-colors"
+              >
+                Fill Staff (Verification Agent)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail('admin@sellmyghar.in');
+                  setPassword('Admin@12345');
+                }}
+                className="text-[11px] px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded font-medium cursor-pointer transition-colors"
+              >
+                Fill Super Admin
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Security Assurance Footer */}

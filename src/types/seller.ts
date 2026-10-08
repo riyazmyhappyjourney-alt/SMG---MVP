@@ -3,6 +3,12 @@ export type PropertyIntent = 'SELL' | 'RENT';
 export type PropertyStageEnum = 
   | 'NEW'
   | 'CONTACTED'
+  | 'FOLLOW_UP'
+  | 'SITE_VISIT'
+  | 'NEGOTIATION'
+  | 'CONVERTED'
+  | 'LOST'
+  | 'DROPPED'
   | 'DOCS_REQUESTED'
   | 'IN_VERIFICATION'
   | 'VERIFIED'
