@@ -87,7 +87,7 @@ export function AdminErasureQueue() {
   const adminActor: AuthenticatedUser = {
     uid: 'usr-super-admin-01',
     phone: '+919876500000',
-    email: 'compliance@sellmyghar.com',
+    email: 'compliance@sellmyghar.in',
     roles: ['STAFF_SUPER_ADMIN'],
     permissions: [],
   };

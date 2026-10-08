@@ -19,6 +19,7 @@ import {
 import { assertCanAccessProperty, assertCanAccessDocument, AuthorizationError } from './src/server/auth/ownership';
 import { requirePermission, hasPermission } from './src/server/auth/rbac';
 import { hashPassword, verifyPassword } from './src/server/auth/passwords';
+import { OtpService } from './src/server/auth/otp-service';
 import { SellerWorkflowService } from './src/server/workflow/seller-service';
 import { ErasureService } from './src/server/compliance/erasure-service';
 import { PostUploadVerificationWorker, ClamAvScannerClient } from './src/server/storage/post-upload-worker';
@@ -134,7 +135,38 @@ async function initSchemaColumns() {
       ALTER TABLE properties ADD COLUMN IF NOT EXISTS highlights JSONB DEFAULT '[]'::jsonb;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255);
       ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INT NOT NULL DEFAULT 1;
+      ALTER TABLE users ALTER COLUMN phone DROP NOT NULL;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_login_attempts INT NOT NULL DEFAULT 0;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_until TIMESTAMPTZ;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_lower ON users (LOWER(email)) WHERE email IS NOT NULL;
       ALTER TABLE consents ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMPTZ;
+
+      CREATE TABLE IF NOT EXISTS otp_verifications (
+        id VARCHAR(64) PRIMARY KEY,
+        phone VARCHAR(64) NOT NULL,
+        otp_hash VARCHAR(128) NOT NULL,
+        attempts_count INT NOT NULL DEFAULT 0,
+        max_attempts INT NOT NULL DEFAULT 5,
+        expires_at TIMESTAMPTZ NOT NULL,
+        is_consumed BOOLEAN NOT NULL DEFAULT false,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_otp_verifications_phone ON otp_verifications (phone);
+      CREATE INDEX IF NOT EXISTS idx_otp_verifications_active ON otp_verifications (phone, is_consumed, expires_at);
+
+      CREATE TABLE IF NOT EXISTS user_identities (
+        id VARCHAR(64) PRIMARY KEY,
+        user_id VARCHAR(64) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        provider VARCHAR(32) NOT NULL,
+        provider_user_id VARCHAR(255) NOT NULL,
+        email VARCHAR(255),
+        phone VARCHAR(64),
+        is_verified BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        CONSTRAINT uq_user_identities_provider_user UNIQUE (provider, provider_user_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_user_identities_user_id ON user_identities (user_id);
+      CREATE INDEX IF NOT EXISTS idx_user_identities_lookup ON user_identities (provider, provider_user_id);
 
       CREATE INDEX IF NOT EXISTS idx_properties_listing_status ON properties (listing_status);
       CREATE INDEX IF NOT EXISTS idx_seller_leads_property ON seller_leads (property_id);
@@ -267,8 +299,9 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString(), platform: 'SellMyGhar Bengaluru' });
 });
 
-// API: Staff Login (Verifies scrypt password hash; issues signed JWT)
+// API: Staff Login (Verifies scrypt password hash, enforces account lockout; issues HTTP-only cookie)
 app.post('/api/auth/login', jsonDefault, rateLimit('auth-login', 10, 900), async (req, res) => {
+  const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
   try {
     const { email, password } = req.body;
     if (!email || !password) {
@@ -277,12 +310,20 @@ app.post('/api/auth/login', jsonDefault, rateLimit('auth-login', 10, 900), async
 
     const cleanEmail = String(email).trim().toLowerCase();
     const result = await executeQuery(
-      `SELECT id, phone, email, display_name, password_hash, roles, is_active
+      `SELECT id, phone, email, display_name, password_hash, roles, is_active, failed_login_attempts, locked_until, token_version
        FROM users WHERE LOWER(email) = $1 LIMIT 1;`,
       [cleanEmail]
     );
 
     if (!result.rows || result.rows.length === 0) {
+      await recordAuditEvent({
+        actor: { uid: 'anonymous', roles: [] },
+        action: 'STAFF_LOGIN_FAILED',
+        targetEntity: 'users',
+        targetEntityId: 'none',
+        clientIp,
+        diffSummary: { email: cleanEmail, reason: 'USER_NOT_FOUND' },
+      });
       return res.status(401).json({
         success: false,
         error: 'Invalid credentials. Only authorized SellMyGhar staff can access internal portals.'
@@ -290,16 +331,73 @@ app.post('/api/auth/login', jsonDefault, rateLimit('auth-login', 10, 900), async
     }
 
     const user = result.rows[0];
+
+    // Check account lockout (5 failed attempts locks for 15 minutes)
+    if (user.locked_until && new Date(user.locked_until).getTime() > Date.now()) {
+      await recordAuditEvent({
+        actor: { uid: user.id, roles: user.roles || [], email: user.email },
+        action: 'STAFF_LOGIN_LOCKED',
+        targetEntity: 'users',
+        targetEntityId: user.id,
+        clientIp,
+        diffSummary: { email: cleanEmail, lockedUntil: user.locked_until },
+      });
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid credentials. Only authorized SellMyGhar staff can access internal portals.'
+      });
+    }
+
     if (!user.is_active) {
+      await recordAuditEvent({
+        actor: { uid: user.id, roles: user.roles || [], email: user.email },
+        action: 'STAFF_ACCESS_DENIED',
+        targetEntity: 'users',
+        targetEntityId: user.id,
+        clientIp,
+        diffSummary: { email: cleanEmail, reason: 'ACCOUNT_INACTIVE' },
+      });
       return res.status(401).json({ success: false, error: 'Staff account is inactive.' });
     }
 
     if (!user.password_hash) {
-      return res.status(401).json({ success: false, error: 'No password configured for this account.' });
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid credentials. Only authorized SellMyGhar staff can access internal portals.'
+      });
     }
 
     const isValid = await verifyPassword(String(password), user.password_hash);
     if (!isValid) {
+      const nextAttempts = (user.failed_login_attempts || 0) + 1;
+      if (nextAttempts >= 5) {
+        const lockedUntil = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+        await executeQuery(
+          `UPDATE users SET failed_login_attempts = $1, locked_until = $2 WHERE id = $3;`,
+          [nextAttempts, lockedUntil, user.id]
+        );
+        await recordAuditEvent({
+          actor: { uid: user.id, roles: user.roles || [], email: user.email },
+          action: 'STAFF_LOGIN_LOCKED',
+          targetEntity: 'users',
+          targetEntityId: user.id,
+          clientIp,
+          diffSummary: { email: cleanEmail, attempts: nextAttempts, lockedUntil },
+        });
+      } else {
+        await executeQuery(
+          `UPDATE users SET failed_login_attempts = $1 WHERE id = $2;`,
+          [nextAttempts, user.id]
+        );
+        await recordAuditEvent({
+          actor: { uid: user.id, roles: user.roles || [], email: user.email },
+          action: 'STAFF_LOGIN_FAILED',
+          targetEntity: 'users',
+          targetEntityId: user.id,
+          clientIp,
+          diffSummary: { email: cleanEmail, attempts: nextAttempts },
+        });
+      }
       return res.status(401).json({
         success: false,
         error: 'Invalid credentials. Only authorized SellMyGhar staff can access internal portals.'
@@ -309,7 +407,23 @@ app.post('/api/auth/login', jsonDefault, rateLimit('auth-login', 10, 900), async
     const roles = (Array.isArray(user.roles) ? user.roles : ['STAFF_VERIFICATION_AGENT']) as AppRole[];
     const isStaff = roles.some(r => r.startsWith('STAFF_'));
     if (!isStaff) {
+      await recordAuditEvent({
+        actor: { uid: user.id, roles, email: user.email },
+        action: 'STAFF_ACCESS_DENIED',
+        targetEntity: 'users',
+        targetEntityId: user.id,
+        clientIp,
+        diffSummary: { email: cleanEmail, reason: 'NON_STAFF_ROLE' },
+      });
       return res.status(403).json({ success: false, error: 'Access denied: account lacks staff privileges.' });
+    }
+
+    // Reset failed login counter on successful password verification
+    if (user.failed_login_attempts > 0 || user.locked_until) {
+      await executeQuery(
+        `UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = $1;`,
+        [user.id]
+      );
     }
 
     const authenticatedUser: AuthenticatedUser = {
@@ -323,6 +437,15 @@ app.post('/api/auth/login', jsonDefault, rateLimit('auth-login', 10, 900), async
     const token = await signSessionToken(authenticatedUser, user.token_version || 1);
     setSessionCookie(res, token);
 
+    await recordAuditEvent({
+      actor: authenticatedUser,
+      action: 'STAFF_LOGIN_SUCCESS',
+      targetEntity: 'users',
+      targetEntityId: user.id,
+      clientIp,
+      diffSummary: { email: cleanEmail, role: roles[0] },
+    });
+
     return res.json({
       success: true,
       user: {
@@ -332,7 +455,6 @@ app.post('/api/auth/login', jsonDefault, rateLimit('auth-login', 10, 900), async
         role: roles[0],
         roles,
       },
-      token,
     });
   } catch (err: any) {
     console.error('[StaffLogin] Error:', err);
@@ -346,185 +468,143 @@ app.post('/api/auth/otp/request', jsonDefault, rateLimit('otp-req', 10, 900), as
     const { phone } = req.body;
     const cleanPhone = String(phone || '').replace(/\D/g, '').slice(-10);
     if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
-      return res.status(400).json({ error: 'Valid 10-digit Indian mobile number is required.' });
+      return res.status(400).json({ success: false, error: 'Valid 10-digit Indian mobile number is required.' });
     }
 
     const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
-    const otpRes = await SellerWorkflowService.requestOtp(`+91${cleanPhone}`, clientIp);
-    return res.json({ ...otpRes });
+    const otpRes = await OtpService.requestOtp(`+91${cleanPhone}`, clientIp);
+    return res.json(otpRes);
   } catch (err: any) {
-    return res.status(400).json({ error: err.message || 'Failed to request OTP.' });
+    return res.status(400).json({ success: false, error: err.message || 'Failed to request OTP.' });
   }
 });
 
-// API: Customer OTP Verification (Generates real cryptographic JWT session)
+// API: Customer OTP Verification (Generates cryptographically signed JWT cookie; strictly OWNER role)
 app.post('/api/auth/otp/verify', jsonDefault, rateLimit('otp-verify', 10, 900), async (req, res) => {
   try {
     const { phone, otp, name } = req.body;
     const cleanPhone = String(phone || '').replace(/\D/g, '').slice(-10);
     if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
-      return res.status(400).json({ error: 'Valid 10-digit Indian mobile number is required.' });
+      return res.status(400).json({ success: false, error: 'Valid 10-digit Indian mobile number is required.' });
     }
 
     if (!otp || typeof otp !== 'string') {
-      return res.status(400).json({ error: 'OTP code is required.' });
+      return res.status(400).json({ success: false, error: 'OTP code is required.' });
     }
 
     const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
     const normalizedPhone = `+91${cleanPhone}`;
 
-    // Lookup existing user
-    const existing = await executeQuery(`SELECT * FROM users WHERE phone = $1 LIMIT 1;`, [normalizedPhone]);
-    const existingUser = existing.rows && existing.rows.length > 0 ? existing.rows[0] : null;
+    const { authenticatedUser, userRecord } = await OtpService.verifyOtp(
+      normalizedPhone,
+      otp.trim(),
+      clientIp,
+      name
+    );
 
-    const authRes = await SellerWorkflowService.verifyOtp(normalizedPhone, otp.trim(), existingUser);
-
-    // If caller provided name, update display_name
-    if (name && typeof name === 'string' && name.trim()) {
-      await executeQuery(
-        `UPDATE users SET display_name = $1, updated_at = NOW() WHERE phone = $2;`,
-        [name.trim(), normalizedPhone]
-      );
-      authRes.authenticatedUser.email = existingUser?.email || null;
-    }
-
-    const sessionToken = await signSessionToken(authRes.authenticatedUser, existingUser?.token_version || 1);
+    const sessionToken = await signSessionToken(authenticatedUser, userRecord?.token_version || 1);
     setSessionCookie(res, sessionToken);
 
     return res.json({
       success: true,
       authenticated: true,
       user: {
-        id: authRes.authenticatedUser.uid,
-        name: name?.trim() || existingUser?.display_name || `Owner ${normalizedPhone.slice(-4)}`,
+        id: authenticatedUser.uid,
+        name: userRecord?.display_name || `Owner ${normalizedPhone.slice(-4)}`,
         phone: normalizedPhone,
-        email: authRes.authenticatedUser.email,
-        roles: authRes.authenticatedUser.roles,
-        createdAt: new Date().toISOString(),
+        email: authenticatedUser.email || null,
+        roles: authenticatedUser.roles,
+        createdAt: userRecord?.created_at || new Date().toISOString(),
       },
-      token: sessionToken,
     });
   } catch (err: any) {
-    return res.status(400).json({ error: err.message || 'OTP verification failed.' });
+    return res.status(400).json({ success: false, error: err.message || 'OTP verification failed.' });
   }
 });
 
-// API: Customer Email / Social Login (Server-controlled role assignment: strictly OWNER)
+// API: Customer Password Login (Disabled: customer auth is strictly Mobile OTP / Social)
 app.post('/api/auth/customer-login', jsonDefault, rateLimit('cust-login', 10, 900), async (req, res) => {
-  try {
-    const { email, name, provider = 'email' } = req.body;
-    if (!email || !String(email).includes('@')) {
-      return res.status(400).json({ error: 'Valid email address is required.' });
-    }
+  return res.status(400).json({
+    success: false,
+    error: 'CUSTOMER_PASSWORD_AUTH_UNAVAILABLE',
+    message: 'Password authentication is unavailable for customer accounts. Please authenticate via Mobile OTP.'
+  });
+});
 
-    const cleanEmail = String(email).trim().toLowerCase();
-    const displayName = (name && typeof name === 'string' && name.trim()) ? name.trim() : cleanEmail.split('@')[0];
+// API: Google OAuth (Fails closed until provider credentials are configured)
+app.post('/api/auth/google', jsonDefault, async (_req, res) => {
+  return res.status(503).json({
+    success: false,
+    error: 'PROVIDER_NOT_CONFIGURED',
+    message: 'Google Sign-In is not configured in this environment. Please authenticate via Mobile Number + OTP.'
+  });
+});
 
-    // Check existing or upsert customer with server-enforced OWNER role
-    const existing = await executeQuery(`SELECT * FROM users WHERE LOWER(email) = $1 LIMIT 1;`, [cleanEmail]);
-    let userRecord = existing.rows && existing.rows.length > 0 ? existing.rows[0] : null;
-
-    if (!userRecord) {
-      const newUserId = `usr-c-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
-      const syntheticPhone = `+9100${Date.now().toString().slice(-8)}`;
-      await executeQuery(
-        `INSERT INTO users (id, phone, email, display_name, roles, is_active, created_at, updated_at)
-         VALUES ($1, $2, $3, $4, '{OWNER}', true, NOW(), NOW())
-         ON CONFLICT (phone) DO UPDATE SET email = EXCLUDED.email, display_name = EXCLUDED.display_name
-         RETURNING *;`,
-        [newUserId, syntheticPhone, cleanEmail, displayName]
-      );
-      userRecord = { id: newUserId, phone: syntheticPhone, email: cleanEmail, display_name: displayName, roles: ['OWNER'], token_version: 1 };
-    }
-
-    // Role is strictly derived from server-side record
-    const roles = (userRecord.roles || ['OWNER']) as AppRole[];
-    const authenticatedUser: AuthenticatedUser = {
-      uid: userRecord.id,
-      phone: userRecord.phone,
-      email: cleanEmail,
-      roles,
-      permissions: [],
-    };
-
-    const token = await signSessionToken(authenticatedUser, userRecord.token_version || 1);
-    setSessionCookie(res, token);
-
-    return res.json({
-      success: true,
-      authenticated: true,
-      user: {
-        id: userRecord.id,
-        name: displayName,
-        email: cleanEmail,
-        roles,
-        provider,
-        createdAt: new Date().toISOString(),
-      },
-      token,
-    });
-  } catch (err: any) {
-    console.error('[CustomerLogin] Error:', err);
-    return res.status(500).json({ error: 'Failed to authenticate customer.' });
-  }
+// API: Apple OAuth (Fails closed until provider credentials are configured)
+app.post('/api/auth/apple', jsonDefault, async (_req, res) => {
+  return res.status(503).json({
+    success: false,
+    error: 'PROVIDER_NOT_CONFIGURED',
+    message: 'Apple Sign-In is not configured in this environment. Please authenticate via Mobile Number + OTP.'
+  });
 });
 
 // API: Rejects arbitrary client-supplied session objects
-app.post('/api/auth/session', jsonDefault, (req, res) => {
+app.post('/api/auth/session', jsonDefault, (_req, res) => {
   return res.status(400).json({
     error: 'PROHIBITED',
     message: 'Client-supplied user identity objects are rejected. Authenticate via /api/auth/login or /api/auth/otp/verify.'
   });
 });
 
-// API: Check current session state (Cryptographically verifies JWT signature)
+// API: Check current session state (Cryptographically verifies JWT signature & token_version)
 app.get('/api/auth/me', async (req, res) => {
   const cookies = (req as any).cookies || parseCookies(req.headers.cookie);
   const sessionToken = cookies.sellmyghar_session || req.headers.authorization?.replace(/^Bearer\s+/, '');
 
   if (!sessionToken) {
-    return res.json({ authenticated: false, user: null });
+    return res.status(401).json({ authenticated: false, user: null });
   }
 
   try {
     const payload = await verifySessionToken(sessionToken);
 
-    // Optional fresh fetch from DB to check active status
+    // Fetch user from DB to verify active status and token_version
     const dbUser = await executeQuery(
-      `SELECT id, display_name, email, phone, roles, is_active FROM users WHERE id = $1 LIMIT 1;`,
+      `SELECT id, display_name, email, phone, roles, is_active, token_version FROM users WHERE id = $1 LIMIT 1;`,
       [payload.uid]
     );
 
-    if (dbUser.rows && dbUser.rows.length > 0) {
-      const u = dbUser.rows[0];
-      if (!u.is_active) {
-        res.clearCookie('sellmyghar_session', { path: '/' });
-        return res.status(401).json({ authenticated: false, user: null, reason: 'ACCOUNT_DEACTIVATED' });
-      }
-      return res.json({
-        authenticated: true,
-        user: {
-          id: u.id,
-          name: u.display_name || payload.email?.split('@')[0] || `User ${u.id.slice(-4)}`,
-          email: u.email,
-          phone: u.phone,
-          roles: u.roles,
-        }
-      });
+    if (!dbUser.rows || dbUser.rows.length === 0) {
+      res.clearCookie('sellmyghar_session', { path: '/' });
+      return res.status(401).json({ authenticated: false, user: null, reason: 'USER_NOT_FOUND' });
+    }
+
+    const u = dbUser.rows[0];
+    if (!u.is_active) {
+      res.clearCookie('sellmyghar_session', { path: '/' });
+      return res.status(401).json({ authenticated: false, user: null, reason: 'ACCOUNT_DEACTIVATED' });
+    }
+
+    // Token version validation: rejects revoked sessions (e.g. after logout or password change)
+    if (payload.tokenVersion !== undefined && u.token_version !== undefined && payload.tokenVersion !== u.token_version) {
+      res.clearCookie('sellmyghar_session', { path: '/' });
+      return res.status(401).json({ authenticated: false, user: null, reason: 'SESSION_REVOKED' });
     }
 
     return res.json({
       authenticated: true,
       user: {
-        id: payload.uid,
-        email: payload.email,
-        phone: payload.phone,
-        roles: payload.roles,
+        id: u.id,
+        name: u.display_name || payload.email?.split('@')[0] || `User ${u.id.slice(-4)}`,
+        email: u.email,
+        phone: u.phone,
+        roles: u.roles,
       }
     });
   } catch {
     res.clearCookie('sellmyghar_session', { path: '/' });
-    return res.json({ authenticated: false, user: null });
+    return res.status(401).json({ authenticated: false, user: null });
   }
 });
 

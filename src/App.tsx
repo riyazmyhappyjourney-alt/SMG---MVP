@@ -52,17 +52,9 @@ export default function App() {
     return 'HOME';
   });
 
-  const [activeUser, setActiveUser] = useState<UserAuthProfile | null>(() => {
-    try {
-      const stored = localStorage.getItem('sellmyghar_google_user');
-      if (stored) return JSON.parse(stored);
-    } catch {
-      // Ignore
-    }
-    return null;
-  });
+  const [activeUser, setActiveUser] = useState<UserAuthProfile | null>(null);
 
-  // Persistent Login Check: On page load, verify 30-day session cookie and restore logged-in nav state
+  // Persistent Login Check: On page load, verify session cookie via /api/auth/me and restore logged-in nav state
   useEffect(() => {
     let isMounted = true;
     const restoreSession = async () => {
@@ -72,11 +64,16 @@ export default function App() {
           const data = await res.json();
           if (isMounted && data.authenticated && data.user) {
             setActiveUser(data.user);
-            localStorage.setItem('sellmyghar_google_user', JSON.stringify(data.user));
+            return;
           }
         }
-      } catch (err) {
-        // Fallback to client state
+        if (isMounted) {
+          setActiveUser(null);
+        }
+      } catch {
+        if (isMounted) {
+          setActiveUser(null);
+        }
       }
     };
     restoreSession();
@@ -84,7 +81,7 @@ export default function App() {
   }, []);
 
   // Staff internal session (Strictly accessible ONLY via custom link e.g. #/crm or crm.domain)
-  const [staffSession, setStaffSession] = useState<{ token: string; user: any } | null>(() => {
+  const [staffSession, setStaffSession] = useState<{ token?: string; user: any } | null>(() => {
     try {
       const stored = sessionStorage.getItem('sellmyghar_staff_session');
       if (stored) {
@@ -174,7 +171,12 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleStaffLogout = () => {
+  const handleStaffLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch {
+      // Ignore
+    }
     sessionStorage.removeItem('sellmyghar_staff_session');
     setStaffSession(null);
     navigateTo('HOME');
@@ -186,7 +188,6 @@ export default function App() {
     } catch {
       // Ignore
     }
-    localStorage.removeItem('sellmyghar_google_user');
     setActiveUser(null);
     navigateTo('HOME');
   };

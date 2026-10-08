@@ -8,6 +8,7 @@ import { runHttpIntegrationTests } from './run-http-integration-tests';
 import { runCrmWorkflowTests } from './run-crm-workflow-tests';
 import { runPropertyDetailTests } from './run-property-detail-tests';
 import { runCrmPropertyManagementTests } from './run-crm-property-management-tests';
+import { runAuthIntegrationTests } from './run-auth-integration-tests';
 
 async function runAll() {
   console.log('====================================================');
@@ -107,6 +108,15 @@ async function runAll() {
   totalFailed += propMgmtRes.failed;
   suiteResults.push({ name: 'CRM Property Management', passed: propMgmtRes.passed, failed: propMgmtRes.failed, tests: propMgmtRes.results });
   console.log(`Subtotal: ${propMgmtRes.passed} passed, ${propMgmtRes.failed} failed\n`);
+
+  // Suite 11: Production Authentication & Session Hardening Suite
+  console.log('--- 11. Production Authentication & Session Hardening Suite ---');
+  const authRes = await runAuthIntegrationTests();
+  authRes.results.forEach(r => console.log(' ', r));
+  totalPassed += authRes.passed;
+  totalFailed += authRes.failed;
+  suiteResults.push({ name: 'Production Authentication Hardening', passed: authRes.passed, failed: authRes.failed, tests: authRes.results });
+  console.log(`Subtotal: ${authRes.passed} passed, ${authRes.failed} failed\n`);
 
   console.log('====================================================');
   console.log(`FINAL RESULTS: ${totalPassed} PASSED, ${totalFailed} FAILED (TOTAL: ${totalPassed + totalFailed}/${totalPassed + totalFailed})`);

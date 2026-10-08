@@ -107,14 +107,14 @@ export async function runCrmPropertyManagementTests(): Promise<{ passed: number;
 
   // Configure URL fetch mock for test isolation in offline/sandboxed environments
   setTestUrlFetcher(async (url: string) => {
-    if (url.includes('images.unsplash.com') || url.includes('test-valid-image.jpg') || url.includes('valid-sample.jpg')) {
-      return { status: 200, body: validTestJpeg };
-    }
     if (url.includes('valid-sample.png')) {
       return { status: 200, body: validTestPng };
     }
     if (url.includes('valid-sample.webp')) {
       return { status: 200, body: validTestWebp };
+    }
+    if (url.includes('images.unsplash.com') || url.includes('test-valid-image.jpg') || url.includes('valid-sample.jpg')) {
+      return { status: 200, body: validTestJpeg };
     }
     if (url.includes('oversized-image.jpg')) {
       return { status: 200, body: Buffer.alloc(11 * 1024 * 1024) }; // 11MB (>10MB)

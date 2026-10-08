@@ -1,5 +1,5 @@
 import { SignJWT } from 'jose';
-import { signSessionToken, verifySessionToken } from './tokens';
+import { signSessionToken, verifySessionToken, getJwtIssuerAudience } from './tokens';
 import { hashPassword, verifyPassword } from './passwords';
 import { authenticateUser, requireRole } from './middleware';
 import { assertCanAccessProperty, AuthorizationError } from './ownership';
@@ -54,6 +54,7 @@ export async function runSecurityRegressionTests(): Promise<{ passed: number; fa
   // TEST 1: Forged JWT rejected (signature verification)
   // ----------------------------------------------------
   try {
+    const { issuer, audience } = getJwtIssuerAudience();
     const forgedSecret = new TextEncoder().encode('attacker-malicious-secret-key-32-bytes!');
     const forgedToken = await new SignJWT({
       uid: 'usr-attacker-01',
@@ -62,8 +63,8 @@ export async function runSecurityRegressionTests(): Promise<{ passed: number; fa
     })
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuedAt()
-      .setIssuer('https://sellmyghar.com')
-      .setAudience('https://api.sellmyghar.com')
+      .setIssuer(issuer)
+      .setAudience(audience)
       .setExpirationTime('24h')
       .sign(forgedSecret);
 
@@ -82,6 +83,7 @@ export async function runSecurityRegressionTests(): Promise<{ passed: number; fa
   // TEST 2: Expired JWT rejected
   // ----------------------------------------------------
   try {
+    const { issuer, audience } = getJwtIssuerAudience();
     const validUser: AuthenticatedUser = {
       uid: 'usr-exp-01',
       phone: '+919876543210',
@@ -98,8 +100,8 @@ export async function runSecurityRegressionTests(): Promise<{ passed: number; fa
     })
       .setProtectedHeader({ alg: 'HS256' })
       .setIssuedAt(Math.floor(Date.now() / 1000) - 7200)
-      .setIssuer('https://sellmyghar.com')
-      .setAudience('https://api.sellmyghar.com')
+      .setIssuer(issuer)
+      .setAudience(audience)
       .setExpirationTime(Math.floor(Date.now() / 1000) - 3600)
       .sign(configSecret);
 

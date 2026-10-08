@@ -39,12 +39,27 @@ export type AuditableAction =
   | 'IMAGE_ADDED'
   | 'IMAGE_REMOVED'
   | 'PRIMARY_IMAGE_CHANGED'
-  | 'IMAGE_REORDERED';
+  | 'IMAGE_REORDERED'
+  | 'LOGIN_SUCCESS'
+  | 'LOGIN_FAILED'
+  | 'LOGIN_LOCKED'
+  | 'OTP_REQUESTED'
+  | 'OTP_VERIFICATION_FAILED'
+  | 'OTP_VERIFIED'
+  | 'OTP_EXPIRED'
+  | 'SOCIAL_LOGIN_SUCCESS'
+  | 'SOCIAL_LOGIN_FAILED'
+  | 'ACCOUNT_LINKED'
+  | 'ACCESS_DENIED'
+  | 'STAFF_LOGIN_SUCCESS'
+  | 'STAFF_LOGIN_FAILED'
+  | 'STAFF_LOGIN_LOCKED'
+  | 'STAFF_ACCESS_DENIED';
 
 export type AlertSeverity = 'ROUTINE' | 'ELEVATED_INSIDER_RISK' | 'CRITICAL_SECURITY_EVENT';
 
 export interface AuditEventPayload {
-  actor: AuthenticatedUser;
+  actor: AuthenticatedUser | { uid: string; roles: string[]; email?: string | null; phone?: string | null };
   action: AuditableAction;
   targetEntity: string;
   targetEntityId: string;
@@ -60,8 +75,8 @@ export interface EnrichedAuditLogRecord extends AuditLogPrivateRecord {
 /**
  * Determines whether an action qualifies as an elevated insider-risk event.
  */
-function evaluateInsiderRisk(actor: AuthenticatedUser, action: AuditableAction, targetEntity: string): AlertSeverity {
-  const isSuperAdmin = actor.roles.includes('STAFF_SUPER_ADMIN');
+function evaluateInsiderRisk(actor: { roles: string[] }, action: AuditableAction, targetEntity: string): AlertSeverity {
+  const isSuperAdmin = (actor.roles || []).includes('STAFF_SUPER_ADMIN');
 
   if (isSuperAdmin) {
     // 1. Super Admin inspecting the owner's bottom negotiation line

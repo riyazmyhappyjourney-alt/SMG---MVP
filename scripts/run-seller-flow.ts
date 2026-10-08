@@ -4,6 +4,7 @@ dotenv.config({ path: '.env.local' });
 
 import { SellerService } from '../src/server/workflow/seller-service';
 import { executeQuery, getDbPool } from '../src/server/db/pool';
+import { getLastDevOtp } from '../src/server/notifications/sms-provider';
 import { BHKType } from '../src/core/types/entities';
 
 async function runRealSellerFlow() {
@@ -37,8 +38,9 @@ async function runRealSellerFlow() {
   console.log('-> OTP requested:', otpReq);
 
   // Step 2B: Verify OTP
-  console.log('\nStep 2B: Verifying OTP (code: 123456)...');
-  const authResult = await SellerService.verifyOtp(testPhone, '123456', null);
+  const devOtp = getLastDevOtp(testPhone) || '';
+  console.log(`\nStep 2B: Verifying OTP (code: ${devOtp})...`);
+  const authResult = await SellerService.verifyOtp(testPhone, devOtp, null);
   console.log('-> User authenticated with real JWT session:');
   console.log('   UID:', authResult.authenticatedUser.uid);
   console.log('   Roles:', authResult.authenticatedUser.roles);

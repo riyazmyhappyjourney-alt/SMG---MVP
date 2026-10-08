@@ -145,9 +145,21 @@ export class DistributedRateLimiter {
     return { lockedOut: false, attemptsLeft: 5 - fails };
   }
 
+  static async isPhoneLockedOut(phone: string): Promise<{ lockedOut: boolean; retryAfterSeconds: number }> {
+    const client = this.getClient();
+    const key = `lockout:otp-phone:${phone}`;
+    const val = await client.get(key);
+    if (val) {
+      const ttl = await client.ttl(key);
+      return { lockedOut: true, retryAfterSeconds: ttl > 0 ? ttl : 1800 };
+    }
+    return { lockedOut: false, retryAfterSeconds: 0 };
+  }
+
   static async resetOtpFailures(phone: string): Promise<void> {
     const client = this.getClient();
-    await client.del(`otp-fails:${phone}`);
+    const failKey = `otp-fails:${phone}`;
+    await client.del(failKey);
     await client.del(`lockout:otp-phone:${phone}`);
   }
 }
