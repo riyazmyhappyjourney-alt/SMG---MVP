@@ -1,0 +1,641 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 680" width="100%" height="100%">
+  <defs>
+    <!-- Sky & Background Gradients -->
+    <linearGradient id="skyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FAF8F5" />
+      <stop offset="60%" stop-color="#F5F2EC" />
+      <stop offset="100%" stop-color="#ECE7DF" />
+    </linearGradient>
+
+    <!-- Glasshouse reflections -->
+    <linearGradient id="glassGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#D7EFEA" stop-opacity="0.9" />
+      <stop offset="50%" stop-color="#B2DFDB" stop-opacity="0.8" />
+      <stop offset="100%" stop-color="#80CBC4" stop-opacity="0.85" />
+    </linearGradient>
+
+    <!-- Glass Ribs -->
+    <linearGradient id="ribGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="100%" stop-color="#CFD8DC" />
+    </linearGradient>
+
+    <!-- Sandstone Bangalore Palace & Vidhana Soudha -->
+    <linearGradient id="palaceStone" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#D8B582" />
+      <stop offset="100%" stop-color="#B9925E" />
+    </linearGradient>
+    <linearGradient id="soudhaStone" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#EADBBA" />
+      <stop offset="50%" stop-color="#D5BE93" />
+      <stop offset="100%" stop-color="#BF9F6C" />
+    </linearGradient>
+    <linearGradient id="domeGold" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#F2DF9B" />
+      <stop offset="50%" stop-color="#CFAC63" />
+      <stop offset="100%" stop-color="#9C7837" />
+    </linearGradient>
+
+    <!-- Modern Skyscrapers Gradients -->
+    <linearGradient id="towerGrad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#90B7D6" />
+      <stop offset="100%" stop-color="#5583AA" />
+    </linearGradient>
+    <linearGradient id="towerGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6F9BC0" />
+      <stop offset="100%" stop-color="#3C6488" />
+    </linearGradient>
+    <linearGradient id="towerGrad3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#B1CDDE" />
+      <stop offset="100%" stop-color="#7B9FB9" />
+    </linearGradient>
+
+    <!-- Metro Viaduct & Train -->
+    <linearGradient id="viaductConcrete" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#E2E7ED" />
+      <stop offset="100%" stop-color="#BDC6D1" />
+    </linearGradient>
+    <linearGradient id="metroPurple" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#6E2B8D" />
+      <stop offset="100%" stop-color="#4B1863" />
+    </linearGradient>
+    <linearGradient id="metroSilver" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="100%" stop-color="#CFD6DF" />
+    </linearGradient>
+
+    <!-- Road & Grass -->
+    <linearGradient id="asphaltGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#464C56" />
+      <stop offset="100%" stop-color="#2D323A" />
+    </linearGradient>
+    <linearGradient id="lawnGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#57AC46" />
+      <stop offset="100%" stop-color="#3D872E" />
+    </linearGradient>
+
+    <!-- Subtle Tree Foliage -->
+    <filter id="softShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000000" flood-opacity="0.15" />
+    </filter>
+  </defs>
+
+  <!-- 1. Background Sky -->
+  <rect x="0" y="0" width="1920" height="680" fill="url(#skyGrad)" />
+
+  <!-- Distant Soft Cloud Shapes -->
+  <path d="M 120 340 Q 180 320 240 340 Q 300 325 360 340 L 360 360 L 120 360 Z" fill="#EAE5DC" opacity="0.5" />
+  <path d="M 540 330 Q 600 310 680 330 Q 740 315 800 330 L 800 355 L 540 355 Z" fill="#EAE5DC" opacity="0.45" />
+  <path d="M 1050 335 Q 1120 315 1190 335 Q 1240 325 1290 335 L 1290 355 L 1050 355 Z" fill="#EAE5DC" opacity="0.45" />
+  <path d="M 1750 380 Q 1800 365 1860 380 L 1860 400 L 1750 400 Z" fill="#EAE5DC" opacity="0.5" />
+
+  <!-- 2. Far Skyline: Modern High-Rises (Right of Vidhana Soudha) -->
+  <g id="distantTowers">
+    <!-- Blue Glass Tech Tower 1 -->
+    <rect x="640" y="390" width="80" height="150" rx="3" fill="#88AECF" />
+    <line x1="640" y1="415" x2="720" y2="415" stroke="#FFFFFF" stroke-width="1.5" opacity="0.4" />
+    <line x1="640" y1="440" x2="720" y2="440" stroke="#FFFFFF" stroke-width="1.5" opacity="0.4" />
+    <line x1="640" y1="465" x2="720" y2="465" stroke="#FFFFFF" stroke-width="1.5" opacity="0.4" />
+    <line x1="640" y1="490" x2="720" y2="490" stroke="#FFFFFF" stroke-width="1.5" opacity="0.4" />
+    <line x1="660" y1="390" x2="660" y2="540" stroke="#FFFFFF" stroke-width="1.5" opacity="0.4" />
+    <line x1="680" y1="390" x2="680" y2="540" stroke="#FFFFFF" stroke-width="1.5" opacity="0.4" />
+    <line x1="700" y1="390" x2="700" y2="540" stroke="#FFFFFF" stroke-width="1.5" opacity="0.4" />
+
+    <!-- Glass Tech Tower 2 -->
+    <rect x="1110" y="390" width="85" height="150" rx="3" fill="#7FA7C9" />
+    <line x1="1110" y1="420" x2="1195" y2="420" stroke="#FFFFFF" stroke-width="1.5" opacity="0.35" />
+    <line x1="1110" y1="450" x2="1195" y2="450" stroke="#FFFFFF" stroke-width="1.5" opacity="0.35" />
+    <line x1="1110" y1="480" x2="1195" y2="480" stroke="#FFFFFF" stroke-width="1.5" opacity="0.35" />
+
+    <!-- Modern Midground Corporate High-Rise 3 (Stepped) -->
+    <rect x="1205" y="340" width="105" height="200" rx="3" fill="url(#towerGrad1)" />
+    <!-- Tower Windows Grid -->
+    <g stroke="#FFFFFF" stroke-width="1.5" opacity="0.45">
+      <line x1="1205" y1="370" x2="1310" y2="370" />
+      <line x1="1205" y1="400" x2="1310" y2="400" />
+      <line x1="1205" y1="430" x2="1310" y2="430" />
+      <line x1="1205" y1="460" x2="1310" y2="460" />
+      <line x1="1205" y1="490" x2="1310" y2="490" />
+      <line x1="1231" y1="340" x2="1231" y2="540" />
+      <line x1="1257" y1="340" x2="1257" y2="540" />
+      <line x1="1283" y1="340" x2="1283" y2="540" />
+    </g>
+
+    <!-- Tall Glass Skyscraper with Antenna -->
+    <rect x="1330" y="270" width="95" height="270" rx="4" fill="url(#towerGrad2)" />
+    <!-- Crown Spire -->
+    <polygon points="1377,220 1373,270 1381,270" fill="#3C6488" />
+    <line x1="1377" y1="210" x2="1377" y2="245" stroke="#2D4D6B" stroke-width="2.5" />
+    <g stroke="#E3EEF8" stroke-width="1.5" opacity="0.5">
+      <line x1="1330" y1="300" x2="1425" y2="300" />
+      <line x1="1330" y1="330" x2="1425" y2="330" />
+      <line x1="1330" y1="360" x2="1425" y2="360" />
+      <line x1="1330" y1="390" x2="1425" y2="390" />
+      <line x1="1330" y1="420" x2="1425" y2="420" />
+      <line x1="1330" y1="450" x2="1425" y2="450" />
+      <line x1="1330" y1="480" x2="1425" y2="480" />
+      <line x1="1353" y1="270" x2="1353" y2="540" />
+      <line x1="1377" y1="270" x2="1377" y2="540" />
+      <line x1="1401" y1="270" x2="1401" y2="540" />
+    </g>
+
+    <!-- High-Rise Tower 5 -->
+    <rect x="1435" y="325" width="110" height="215" rx="3" fill="url(#towerGrad3)" />
+    <g stroke="#FFFFFF" stroke-width="1.5" opacity="0.45">
+      <line x1="1435" y1="360" x2="1545" y2="360" />
+      <line x1="1435" y1="395" x2="1545" y2="395" />
+      <line x1="1435" y1="430" x2="1545" y2="430" />
+      <line x1="1435" y1="465" x2="1545" y2="465" />
+      <line x1="1462" y1="325" x2="1462" y2="540" />
+      <line x1="1490" y1="325" x2="1490" y2="540" />
+      <line x1="1518" y1="325" x2="1518" y2="540" />
+    </g>
+  </g>
+
+  <!-- 3. Left Midground: Bangalore Palace (Tudor Stone Castle) -->
+  <g id="bangalorePalace">
+    <!-- Main fortified stone base -->
+    <rect x="120" y="420" width="360" height="120" fill="url(#palaceStone)" />
+    
+    <!-- Castles & Towers -->
+    <!-- Tower 1 Left -->
+    <rect x="105" y="390" width="45" height="150" fill="#C49B61" />
+    <!-- Battlements -->
+    <polygon points="100,390 100,378 112,378 112,384 120,384 120,378 132,378 132,384 140,384 140,378 152,378 152,390" fill="#B48B52" />
+
+    <!-- Tower 2 -->
+    <rect x="180" y="395" width="40" height="145" fill="#BF9558" />
+    <polygon points="176,395 176,384 186,384 186,389 194,389 194,384 204,384 204,389 212,389 212,384 222,384 222,395" fill="#B0864B" />
+
+    <!-- Tower 3 (Central Tall Octagonal Spire) -->
+    <rect x="250" y="340" width="55" height="200" fill="#D3A76B" />
+    <polygon points="245,340 245,325 258,325 258,332 268,332 268,325 281,325 281,332 291,332 291,325 304,325 304,332 310,332 310,340" fill="#BA8D4F" />
+    <polygon points="255,325 277,290 300,325" fill="#996E33" />
+    <circle cx="277.5" cy="365" r="7" fill="#875F2A" />
+
+    <!-- Tower 4 Right Wing -->
+    <rect x="365" y="395" width="50" height="145" fill="#C49B61" />
+    <polygon points="360,395 360,384 372,384 372,389 382,389 382,384 394,384 394,389 404,389 404,384 416,384 416,395" fill="#B0864B" />
+
+    <!-- Palace Arched Windows & Machicolations -->
+    <g fill="#7A5322">
+      <path d="M 115 425 A 6 6 0 0 1 127 425 L 127 445 L 115 445 Z" />
+      <path d="M 115 465 A 6 6 0 0 1 127 465 L 127 485 L 115 485 Z" />
+      <path d="M 190 425 A 6 6 0 0 1 202 425 L 202 445 L 190 445 Z" />
+      <path d="M 190 465 A 6 6 0 0 1 202 465 L 202 485 L 190 485 Z" />
+      <path d="M 265 410 A 7 7 0 0 1 279 410 L 279 435 L 265 435 Z" />
+      <path d="M 265 455 A 7 7 0 0 1 279 455 L 279 480 L 265 480 Z" />
+      <path d="M 320 440 A 6 6 0 0 1 332 440 L 332 460 L 320 460 Z" />
+      <path d="M 345 440 A 6 6 0 0 1 357 440 L 357 460 L 345 460 Z" />
+      <path d="M 378 425 A 6 6 0 0 1 390 425 L 390 445 L 378 445 Z" />
+      <path d="M 378 465 A 6 6 0 0 1 390 465 L 390 485 L 378 485 Z" />
+    </g>
+
+    <!-- Castle Turret Wall Cresting -->
+    <g fill="#A87E44">
+      <rect x="145" y="415" width="35" height="6" />
+      <rect x="220" y="415" width="30" height="6" />
+      <rect x="305" y="415" width="60" height="6" />
+      <rect x="415" y="415" width="60" height="6" />
+    </g>
+  </g>
+
+  <!-- 4. Left Foreground: Lalbagh Glasshouse -->
+  <g id="lalbaghGlassHouse">
+    <!-- Glass Central Grand Transept Dome -->
+    <path d="M 175 490 C 175 440, 245 425, 290 425 C 335 425, 405 440, 405 490 Z" fill="url(#glassGrad)" stroke="#FFFFFF" stroke-width="2.5" />
+    
+    <!-- Left Glass Wing -->
+    <path d="M 110 500 C 110 465, 150 455, 185 455 L 185 530 L 110 530 Z" fill="url(#glassGrad)" stroke="#FFFFFF" stroke-width="2" />
+
+    <!-- Right Glass Wing -->
+    <path d="M 395 455 C 430 455, 470 465, 470 500 L 470 530 L 395 530 Z" fill="url(#glassGrad)" stroke="#FFFFFF" stroke-width="2" />
+
+    <!-- Glass Pavilion Base Structure -->
+    <rect x="105" y="500" width="370" height="35" fill="url(#glassGrad)" stroke="#FFFFFF" stroke-width="2.5" />
+
+    <!-- Victorian Curved Iron Ribs -->
+    <g stroke="url(#ribGrad)" stroke-width="2" fill="none">
+      <path d="M 210 490 C 210 450, 255 435, 290 435 C 325 435, 370 450, 370 490" />
+      <path d="M 240 490 C 240 460, 270 448, 290 448 C 310 448, 340 460, 340 490" />
+      <!-- Vertical Mullions -->
+      <line x1="290" y1="425" x2="290" y2="535" stroke-width="3" stroke="#FFFFFF" />
+      <line x1="260" y1="435" x2="260" y2="535" stroke-width="2" />
+      <line x1="320" y1="435" x2="320" y2="535" stroke-width="2" />
+      <line x1="230" y1="450" x2="230" y2="535" stroke-width="2" />
+      <line x1="350" y1="450" x2="350" y2="535" stroke-width="2" />
+      <line x1="200" y1="465" x2="200" y2="535" stroke-width="2" />
+      <line x1="380" y1="465" x2="380" y2="535" stroke-width="2" />
+      <line x1="160" y1="475" x2="160" y2="535" stroke-width="2" />
+      <line x1="420" y1="475" x2="420" y2="535" stroke-width="2" />
+      <line x1="135" y1="485" x2="135" y2="535" stroke-width="2" />
+      <line x1="445" y1="485" x2="445" y2="535" stroke-width="2" />
+    </g>
+
+    <!-- Ornamental Finial Spike on top of Glasshouse Dome -->
+    <line x1="290" y1="408" x2="290" y2="425" stroke="#E0F2F1" stroke-width="3.5" />
+    <circle cx="290" cy="406" r="3.5" fill="#FFFFFF" />
+    <circle cx="185" cy="452" r="2.5" fill="#FFFFFF" />
+    <circle cx="395" cy="452" r="2.5" fill="#FFFFFF" />
+  </g>
+
+  <!-- 5. Centerpiece: Vidhana Soudha (Neo-Dravidian Architectural Marvel) -->
+  <g id="vidhanaSoudha">
+    <!-- Massive Base Podium & Plinth -->
+    <rect x="520" y="440" width="560" height="95" fill="url(#soudhaStone)" />
+    <!-- Upper Floor Cornice -->
+    <rect x="510" y="432" width="580" height="10" fill="#B3925F" />
+    <rect x="505" y="415" width="590" height="8" fill="#B3925F" />
+
+    <!-- Left Symmetrical Wing -->
+    <rect x="530" y="420" width="180" height="115" fill="#CBB285" />
+    <!-- Left Wing Windows Grid -->
+    <g fill="#61431D">
+      <!-- Upper row of arched windows -->
+      <path d="M 545 440 A 5 5 0 0 1 555 440 L 555 452 L 545 452 Z" />
+      <path d="M 565 440 A 5 5 0 0 1 575 440 L 575 452 L 565 452 Z" />
+      <path d="M 585 440 A 5 5 0 0 1 595 440 L 595 452 L 585 452 Z" />
+      <path d="M 605 440 A 5 5 0 0 1 615 440 L 615 452 L 605 452 Z" />
+      <path d="M 625 440 A 5 5 0 0 1 635 440 L 635 452 L 625 452 Z" />
+      <path d="M 645 440 A 5 5 0 0 1 655 440 L 655 452 L 645 452 Z" />
+      <path d="M 665 440 A 5 5 0 0 1 675 440 L 675 452 L 665 452 Z" />
+      <path d="M 685 440 A 5 5 0 0 1 695 440 L 695 452 L 685 452 Z" />
+      <!-- Lower row of arched windows -->
+      <path d="M 545 468 A 5 5 0 0 1 555 468 L 555 482 L 545 482 Z" />
+      <path d="M 565 468 A 5 5 0 0 1 575 468 L 575 482 L 565 482 Z" />
+      <path d="M 585 468 A 5 5 0 0 1 595 468 L 595 482 L 585 482 Z" />
+      <path d="M 605 468 A 5 5 0 0 1 615 468 L 615 482 L 605 482 Z" />
+      <path d="M 625 468 A 5 5 0 0 1 635 468 L 635 482 L 625 482 Z" />
+      <path d="M 645 468 A 5 5 0 0 1 655 468 L 655 482 L 645 482 Z" />
+      <path d="M 665 468 A 5 5 0 0 1 675 468 L 675 482 L 665 482 Z" />
+      <path d="M 685 468 A 5 5 0 0 1 695 468 L 695 482 L 685 482 Z" />
+    </g>
+
+    <!-- Right Symmetrical Wing -->
+    <rect x="890" y="420" width="180" height="115" fill="#CBB285" />
+    <!-- Right Wing Windows Grid -->
+    <g fill="#61431D">
+      <path d="M 905 440 A 5 5 0 0 1 915 440 L 915 452 L 905 452 Z" />
+      <path d="M 925 440 A 5 5 0 0 1 935 440 L 935 452 L 925 452 Z" />
+      <path d="M 945 440 A 5 5 0 0 1 955 440 L 955 452 L 945 452 Z" />
+      <path d="M 965 440 A 5 5 0 0 1 975 440 L 975 452 L 965 452 Z" />
+      <path d="M 985 440 A 5 5 0 0 1 995 440 L 995 452 L 985 452 Z" />
+      <path d="M 1005 440 A 5 5 0 0 1 1015 440 L 1015 452 L 1005 452 Z" />
+      <path d="M 1025 440 A 5 5 0 0 1 1035 440 L 1035 452 L 1025 452 Z" />
+      <path d="M 1045 440 A 5 5 0 0 1 1055 440 L 1055 452 L 1045 452 Z" />
+      <!-- Lower row of arched windows -->
+      <path d="M 905 468 A 5 5 0 0 1 915 468 L 915 482 L 905 482 Z" />
+      <path d="M 925 468 A 5 5 0 0 1 935 468 L 935 482 L 925 482 Z" />
+      <path d="M 945 468 A 5 5 0 0 1 955 468 L 955 482 L 945 482 Z" />
+      <path d="M 965 468 A 5 5 0 0 1 975 468 L 975 482 L 965 482 Z" />
+      <path d="M 985 468 A 5 5 0 0 1 995 468 L 995 482 L 985 482 Z" />
+      <path d="M 1005 468 A 5 5 0 0 1 1015 468 L 1015 482 L 1005 482 Z" />
+      <path d="M 1025 468 A 5 5 0 0 1 1035 468 L 1035 482 L 1025 482 Z" />
+      <path d="M 1045 468 A 5 5 0 0 1 1055 468 L 1055 482 L 1045 482 Z" />
+    </g>
+
+    <!-- Corner Rajasthani/Dravidian Chattris (Pavilion Domes) -->
+    <!-- Left Corner Chattri -->
+    <rect x="515" y="395" width="25" height="25" fill="#D5BE93" />
+    <path d="M 510 395 C 510 375, 545 375, 545 395 Z" fill="url(#domeGold)" />
+    <polygon points="527.5,365 525,375 530,375" fill="#8E6B2C" />
+
+    <!-- Left Center Chattri -->
+    <rect x="695" y="395" width="28" height="25" fill="#D5BE93" />
+    <path d="M 690 395 C 690 372, 728 372, 728 395 Z" fill="url(#domeGold)" />
+    <polygon points="709,362 706.5,372 711.5,372" fill="#8E6B2C" />
+
+    <!-- Right Center Chattri -->
+    <rect x="875" y="395" width="28" height="25" fill="#D5BE93" />
+    <path d="M 870 395 C 870 372, 908 372, 908 395 Z" fill="url(#domeGold)" />
+    <polygon points="889,362 886.5,372 891.5,372" fill="#8E6B2C" />
+
+    <!-- Right Corner Chattri -->
+    <rect x="1060" y="395" width="25" height="25" fill="#D5BE93" />
+    <path d="M 1055 395 C 1055 375, 1090 375, 1090 395 Z" fill="url(#domeGold)" />
+    <polygon points="1072.5,365 1070,375 1075,375" fill="#8E6B2C" />
+
+    <!-- Central Grand Porch (Colonnaded Portico) -->
+    <rect x="715" y="405" width="170" height="130" fill="#EADBBA" stroke="#B89762" stroke-width="2" />
+    <!-- Portico Pediment / Entablature with Ashoka Emblem carving hint -->
+    <polygon points="710,405 800,380 890,405" fill="#D5BE93" stroke="#B89762" stroke-width="2" />
+    <circle cx="800" cy="397" r="5" fill="#8C6627" />
+
+    <!-- 12 Majestic Classical Pillars of the Portico -->
+    <g fill="#F3E5CA" stroke="#B39360" stroke-width="1.5">
+      <rect x="725" y="405" width="9" height="95" />
+      <rect x="739" y="405" width="9" height="95" />
+      <rect x="753" y="405" width="9" height="95" />
+      <rect x="767" y="405" width="9" height="95" />
+      <rect x="781" y="405" width="9" height="95" />
+      <rect x="795" y="405" width="9" height="95" />
+      <rect x="809" y="405" width="9" height="95" />
+      <rect x="823" y="405" width="9" height="95" />
+      <rect x="837" y="405" width="9" height="95" />
+      <rect x="851" y="405" width="9" height="95" />
+      <rect x="865" y="405" width="9" height="95" />
+    </g>
+
+    <!-- Grand Ceremonial Flight of Stairs -->
+    <polygon points="705,535 725,500 875,500 895,535" fill="#CBB285" stroke="#9A7844" stroke-width="1.5" />
+    <g stroke="#9A7844" stroke-width="1.5">
+      <line x1="723" y1="507" x2="877" y2="507" />
+      <line x1="719" y1="514" x2="881" y2="514" />
+      <line x1="715" y1="521" x2="885" y2="521" />
+      <line x1="710" y1="528" x2="890" y2="528" />
+    </g>
+
+    <!-- Main Central High Tiered Drum & Dome of Vidhana Soudha -->
+    <!-- Base Drum -->
+    <rect x="745" y="340" width="110" height="42" fill="#D5BE93" stroke="#B89762" stroke-width="2" />
+    <!-- Drum Pillarets & Arches -->
+    <g fill="#573D19">
+      <path d="M 755 352 A 4 4 0 0 1 763 352 L 763 365 L 755 365 Z" />
+      <path d="M 770 352 A 4 4 0 0 1 778 352 L 778 365 L 770 365 Z" />
+      <path d="M 785 352 A 4 4 0 0 1 793 352 L 793 365 L 785 365 Z" />
+      <path d="M 800 352 A 4 4 0 0 1 808 352 L 808 365 L 800 365 Z" />
+      <path d="M 815 352 A 4 4 0 0 1 823 352 L 823 365 L 815 365 Z" />
+      <path d="M 830 352 A 4 4 0 0 1 838 352 L 838 365 L 830 365 Z" />
+      <path d="M 845 352 A 4 4 0 0 1 853 352 L 853 365 L 845 365 Z" />
+    </g>
+
+    <!-- The Great Central Dome -->
+    <path d="M 735 340 C 735 280, 865 280, 865 340 Z" fill="url(#domeGold)" stroke="#A6833E" stroke-width="2" />
+    
+    <!-- Kalasa & Finial on top of Central Dome -->
+    <polygon points="795,280 805,280 803,260 797,260" fill="#E2C278" />
+    <circle cx="800" cy="256" r="4.5" fill="#CFAC63" />
+    <polygon points="797,252 800,240 803,252" fill="#8C6627" />
+
+    <!-- Indian Tricolor National Flag at the Pinnacle -->
+    <line x1="800" y1="240" x2="800" y2="200" stroke="#333333" stroke-width="2.5" />
+    <!-- Saffron stripe -->
+    <rect x="800" y="202" width="28" height="6" fill="#FF9933" />
+    <!-- White stripe with blue Ashoka Chakra -->
+    <rect x="800" y="208" width="28" height="6" fill="#FFFFFF" />
+    <circle cx="814" cy="211" r="2.2" fill="#000080" />
+    <!-- Green stripe -->
+    <rect x="800" y="214" width="28" height="6" fill="#138808" />
+  </g>
+
+  <!-- 6. Right Midground: Elevated Namma Metro Viaduct & Purple Line Train -->
+  <g id="nammaMetro">
+    <!-- Elevated Concrete Pillars / Columns -->
+    <g fill="url(#viaductConcrete)" stroke="#9FAAB7" stroke-width="1.5">
+      <!-- Pillar 1 -->
+      <polygon points="1270,445 1300,445 1295,560 1275,560" />
+      <rect x="1260" y="435" width="50" height="12" rx="2" fill="#CED6DF" />
+
+      <!-- Pillar 2 -->
+      <polygon points="1440,445 1470,445 1465,560 1445,560" />
+      <rect x="1430" y="435" width="50" height="12" rx="2" fill="#CED6DF" />
+
+      <!-- Pillar 3 -->
+      <polygon points="1610,445 1640,445 1635,560 1615,560" />
+      <rect x="1600" y="435" width="50" height="12" rx="2" fill="#CED6DF" />
+
+      <!-- Pillar 4 -->
+      <polygon points="1780,445 1810,445 1805,560 1785,560" />
+      <rect x="1770" y="435" width="50" height="12" rx="2" fill="#CED6DF" />
+    </g>
+
+    <!-- Viaduct Track Bed Girder (Spanning rightwards across screen) -->
+    <polygon points="1200,432 1920,432 1920,410 1200,410" fill="url(#viaductConcrete)" stroke="#8A96A5" stroke-width="2" />
+    <!-- Safety Railing along viaduct -->
+    <rect x="1200" y="405" width="720" height="6" fill="#A8B4C0" />
+
+    <!-- Namma Metro Train (Sleek Purple Line Train) -->
+    <g id="metroTrain" filter="url(#softShadow)">
+      <!-- Train Cars Body -->
+      <path d="M 1300 405 L 1860 405 C 1875 405, 1890 395, 1890 375 C 1890 355, 1875 350, 1860 350 L 1300 350 Z" fill="url(#metroSilver)" stroke="#A0AAB5" stroke-width="2" />
+      
+      <!-- Purple Line Signature Livery Roof & Stripe -->
+      <path d="M 1300 362 L 1860 362 C 1875 362, 1888 358, 1888 350 L 1300 350 Z" fill="url(#metroPurple)" />
+      <rect x="1300" y="388" width="560" height="5" fill="url(#metroPurple)" />
+
+      <!-- Front Aerodynamic Nose Cab Window -->
+      <path d="M 1865 358 C 1878 360, 1885 368, 1885 378 L 1865 378 Z" fill="#202A36" stroke="#485B70" stroke-width="1.5" />
+      <!-- Headlights -->
+      <circle cx="1880" cy="392" r="3" fill="#FFF59D" />
+
+      <!-- Passenger Windows Sequence -->
+      <g fill="#2A3849" rx="2">
+        <rect x="1310" y="367" width="30" height="17" rx="2" />
+        <rect x="1348" y="367" width="30" height="17" rx="2" />
+        <rect x="1386" y="367" width="30" height="17" rx="2" />
+        <rect x="1424" y="367" width="30" height="17" rx="2" />
+        <rect x="1462" y="367" width="30" height="17" rx="2" />
+        <rect x="1500" y="367" width="30" height="17" rx="2" />
+        <rect x="1538" y="367" width="30" height="17" rx="2" />
+        <rect x="1576" y="367" width="30" height="17" rx="2" />
+        <rect x="1614" y="367" width="30" height="17" rx="2" />
+        <rect x="1652" y="367" width="30" height="17" rx="2" />
+        <rect x="1690" y="367" width="30" height="17" rx="2" />
+        <rect x="1728" y="367" width="30" height="17" rx="2" />
+        <rect x="1766" y="367" width="30" height="17" rx="2" />
+        <rect x="1804" y="367" width="30" height="17" rx="2" />
+        <rect x="1842" y="367" width="22" height="17" rx="2" />
+      </g>
+      <!-- Car Couplers / Doors divisions -->
+      <line x1="1490" y1="350" x2="1490" y2="405" stroke="#8794A1" stroke-width="2.5" />
+      <line x1="1680" y1="350" x2="1680" y2="405" stroke="#8794A1" stroke-width="2.5" />
+    </g>
+  </g>
+
+  <!-- 7. Right Street Frontage & Stores -->
+  <g id="streetShops">
+    <rect x="1550" y="470" width="110" height="85" fill="#E8D1B5" stroke="#C4A882" stroke-width="2" />
+    <!-- Awning / Chajja -->
+    <polygon points="1545,490 1665,490 1660,505 1550,505" fill="#E67E22" />
+    <!-- Shop Door & Window -->
+    <rect x="1590" y="505" width="30" height="50" fill="#3E2723" />
+    <rect x="1628" y="510" width="25" height="25" fill="#90CAF9" stroke="#5D4037" stroke-width="1.5" />
+
+    <rect x="1660" y="450" width="180" height="105" fill="#D35400" stroke="#BA4A00" stroke-width="2" />
+    <!-- Modern cafe awning with yellow-white stripes -->
+    <polygon points="1655,475 1845,475 1840,495 1660,495" fill="#F39C12" />
+    <g fill="#FAD7A0">
+      <polygon points="1670,475 1685,475 1682,495 1668,495" />
+      <polygon points="1705,475 1720,475 1717,495 1703,495" />
+      <polygon points="1740,475 1755,475 1752,495 1738,495" />
+      <polygon points="1775,475 1790,475 1787,495 1773,495" />
+      <polygon points="1810,475 1825,475 1822,495 1808,495" />
+    </g>
+    <!-- Windows & Door -->
+    <rect x="1675" y="505" width="40" height="50" fill="#EBF5FB" stroke="#78281F" stroke-width="2" />
+    <rect x="1730" y="505" width="45" height="50" fill="#34495E" />
+    <rect x="1790" y="505" width="40" height="50" fill="#EBF5FB" stroke="#78281F" stroke-width="2" />
+  </g>
+
+  <!-- 8. Midground Trees, Hedges & Green Belt (Garden City of India) -->
+  <g id="gardenCityTrees">
+    <!-- Left Flank Big Canopy Trees -->
+    <circle cx="20" cy="460" r="70" fill="#2E7D32" />
+    <circle cx="45" cy="430" r="55" fill="#388E3C" />
+    <circle cx="80" cy="470" r="50" fill="#43A047" />
+    
+    <!-- Trees between Palace and Glasshouse -->
+    <circle cx="110" cy="510" r="30" fill="#2E7D32" />
+    <circle cx="150" cy="520" r="25" fill="#388E3C" />
+
+    <!-- Trees flanking Vidhana Soudha -->
+    <circle cx="485" cy="485" r="45" fill="#2E7D32" />
+    <circle cx="510" cy="470" r="35" fill="#43A047" />
+    <circle cx="515" cy="505" r="28" fill="#388E3C" />
+
+    <circle cx="1085" cy="485" r="45" fill="#2E7D32" />
+    <circle cx="1110" cy="470" r="35" fill="#43A047" />
+    <circle cx="1115" cy="505" r="28" fill="#388E3C" />
+
+    <!-- Right Flank Lush Trees -->
+    <circle cx="1875" cy="445" r="65" fill="#2E7D32" />
+    <circle cx="1910" cy="425" r="60" fill="#388E3C" />
+    <circle cx="1840" cy="465" r="45" fill="#43A047" />
+
+    <!-- Trees along Metro viaduct -->
+    <circle cx="1235" cy="515" r="35" fill="#388E3C" />
+    <circle cx="1360" cy="515" r="30" fill="#43A047" />
+    <circle cx="1530" cy="515" r="32" fill="#2E7D32" />
+    <circle cx="1715" cy="515" r="30" fill="#388E3C" />
+
+    <!-- Ornamental Pink Tabebuia / Bougainvillea in Lalbagh Garden -->
+    <circle cx="360" cy="525" r="16" fill="#F06292" opacity="0.9" />
+    <circle cx="375" cy="520" r="14" fill="#EC407A" opacity="0.9" />
+    <circle cx="390" cy="526" r="15" fill="#F48FB1" opacity="0.9" />
+    <circle cx="405" cy="522" r="12" fill="#F06292" opacity="0.9" />
+
+    <!-- Lawns along the perimeter -->
+    <rect x="0" y="535" width="1920" height="25" fill="url(#lawnGrad)" />
+
+    <!-- Decorative Wrought Iron Park Fence in front of Vidhana Soudha & Lalbagh -->
+    <g stroke="#1F2D3D" stroke-width="1.8" opacity="0.75">
+      <line x1="80" y1="540" x2="1140" y2="540" />
+      <line x1="80" y1="550" x2="1140" y2="550" />
+      <!-- Fence vertical pickets -->
+      <line x1="90" y1="535" x2="90" y2="555" />
+      <line x1="120" y1="535" x2="120" y2="555" />
+      <line x1="150" y1="535" x2="150" y2="555" />
+      <line x1="180" y1="535" x2="180" y2="555" />
+      <line x1="210" y1="535" x2="210" y2="555" />
+      <line x1="240" y1="535" x2="240" y2="555" />
+      <line x1="270" y1="535" x2="270" y2="555" />
+      <line x1="300" y1="535" x2="300" y2="555" />
+      <line x1="330" y1="535" x2="330" y2="555" />
+      <line x1="360" y1="535" x2="360" y2="555" />
+      <line x1="390" y1="535" x2="390" y2="555" />
+      <line x1="420" y1="535" x2="420" y2="555" />
+      <line x1="450" y1="535" x2="450" y2="555" />
+      <line x1="480" y1="535" x2="480" y2="555" />
+      <line x1="510" y1="535" x2="510" y2="555" />
+      <line x1="540" y1="535" x2="540" y2="555" />
+      <line x1="570" y1="535" x2="570" y2="555" />
+      <line x1="600" y1="535" x2="600" y2="555" />
+      <line x1="630" y1="535" x2="630" y2="555" />
+      <line x1="660" y1="535" x2="660" y2="555" />
+      <line x1="690" y1="535" x2="690" y2="555" />
+      <line x1="920" y1="535" x2="920" y2="555" />
+      <line x1="950" y1="535" x2="950" y2="555" />
+      <line x1="980" y1="535" x2="980" y2="555" />
+      <line x1="1010" y1="535" x2="1010" y2="555" />
+      <line x1="1040" y1="535" x2="1040" y2="555" />
+      <line x1="1070" y1="535" x2="1070" y2="555" />
+      <line x1="1100" y1="535" x2="1100" y2="555" />
+      <line x1="1130" y1="535" x2="1130" y2="555" />
+    </g>
+
+    <!-- Heritage Street Lanterns -->
+    <g fill="#1F2937">
+      <rect x="40" y="515" width="4" height="40" />
+      <polygon points="37,515 47,515 45,505 39,505" />
+      <circle cx="42" cy="508" r="3" fill="#FFF9C4" />
+
+      <rect x="475" y="515" width="4" height="40" />
+      <polygon points="472,515 482,515 480,505 474,505" />
+      <circle cx="477" cy="508" r="3" fill="#FFF9C4" />
+
+      <rect x="1140" y="515" width="4" height="40" />
+      <polygon points="1137,515 1147,515 1145,505 1139,505" />
+      <circle cx="1142" cy="508" r="3" fill="#FFF9C4" />
+    </g>
+  </g>
+
+  <!-- 9. Bengaluru Iconic Green & Yellow Auto-Rickshaw -->
+  <g id="bengaluruAutoRickshaw" filter="url(#softShadow)">
+    <!-- Yellow Canopy Roof -->
+    <path d="M 1420 545 C 1420 530, 1435 520, 1455 520 L 1485 520 C 1495 520, 1502 530, 1500 545 Z" fill="#F4B400" stroke="#C49000" stroke-width="2" />
+    
+    <!-- Windshield & Cabin Frame -->
+    <path d="M 1485 525 L 1498 545 L 1480 545 L 1475 525 Z" fill="#B3E5FC" opacity="0.8" stroke="#37474F" stroke-width="1.5" />
+    
+    <!-- Green Lower Body (Bengaluru Eco-Auto Green) -->
+    <path d="M 1420 545 L 1502 545 L 1495 580 L 1430 580 L 1420 565 Z" fill="#0F9D58" stroke="#0B8043" stroke-width="2" />
+    
+    <!-- Driver Opening & Handlebar hint -->
+    <rect x="1445" y="535" width="28" height="25" fill="#263238" rx="2" />
+    <circle cx="1456" cy="542" r="6" fill="#795548" /> <!-- Driver silhouette -->
+
+    <!-- Headlight -->
+    <circle cx="1503" cy="558" r="3.5" fill="#FFF9C4" stroke="#F57F17" stroke-width="1" />
+    <!-- Bumper -->
+    <rect x="1498" y="575" width="8" height="5" fill="#455A64" rx="1" />
+
+    <!-- Front & Rear Wheels -->
+    <circle cx="1492" cy="582" r="10" fill="#212121" stroke="#616161" stroke-width="2" />
+    <circle cx="1492" cy="582" r="4" fill="#B0BEC5" />
+    <circle cx="1438" cy="582" r="10" fill="#212121" stroke="#616161" stroke-width="2" />
+    <circle cx="1438" cy="582" r="4" fill="#B0BEC5" />
+  </g>
+
+  <!-- 10. Foreground: Black & White Striped Curb (Bengaluru Signature) -->
+  <g id="blackWhiteCurb">
+    <!-- Curb Top Edge Line -->
+    <rect x="0" y="560" width="1920" height="18" fill="#1C2028" />
+    <!-- Repeating White Curb Blocks (40px white, 40px black) -->
+    <g fill="#FFFFFF">
+      <rect x="0" y="560" width="40" height="18" />
+      <rect x="80" y="560" width="40" height="18" />
+      <rect x="160" y="560" width="40" height="18" />
+      <rect x="240" y="560" width="40" height="18" />
+      <rect x="320" y="560" width="40" height="18" />
+      <rect x="400" y="560" width="40" height="18" />
+      <rect x="480" y="560" width="40" height="18" />
+      <rect x="560" y="560" width="40" height="18" />
+      <rect x="640" y="560" width="40" height="18" />
+      <rect x="720" y="560" width="40" height="18" />
+      <rect x="800" y="560" width="40" height="18" />
+      <rect x="880" y="560" width="40" height="18" />
+      <rect x="960" y="560" width="40" height="18" />
+      <rect x="1040" y="560" width="40" height="18" />
+      <rect x="1120" y="560" width="40" height="18" />
+      <rect x="1200" y="560" width="40" height="18" />
+      <rect x="1280" y="560" width="40" height="18" />
+      <rect x="1360" y="560" width="40" height="18" />
+      <rect x="1440" y="560" width="40" height="18" />
+      <rect x="1520" y="560" width="40" height="18" />
+      <rect x="1600" y="560" width="40" height="18" />
+      <rect x="1680" y="560" width="40" height="18" />
+      <rect x="1760" y="560" width="40" height="18" />
+      <rect x="1840" y="560" width="40" height="18" />
+    </g>
+  </g>
+
+  <!-- 11. Foreground: Clean Asphalt Road Promenade -->
+  <g id="asphaltRoad">
+    <rect x="0" y="578" width="1920" height="102" fill="url(#asphaltGrad)" />
+    <!-- White Dashed Lane Dividers -->
+    <g fill="#FFFFFF" opacity="0.8">
+      <rect x="60" y="625" width="80" height="6" rx="2" />
+      <rect x="220" y="625" width="80" height="6" rx="2" />
+      <rect x="380" y="625" width="80" height="6" rx="2" />
+      <rect x="540" y="625" width="80" height="6" rx="2" />
+      <rect x="700" y="625" width="80" height="6" rx="2" />
+      <rect x="860" y="625" width="80" height="6" rx="2" />
+      <rect x="1020" y="625" width="80" height="6" rx="2" />
+      <rect x="1180" y="625" width="80" height="6" rx="2" />
+      <rect x="1340" y="625" width="80" height="6" rx="2" />
+      <rect x="1500" y="625" width="80" height="6" rx="2" />
+      <rect x="1660" y="625" width="80" height="6" rx="2" />
+      <rect x="1820" y="625" width="80" height="6" rx="2" />
+    </g>
+  </g>
+</svg>
