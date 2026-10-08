@@ -52,7 +52,7 @@ const INITIAL_LISTINGS: PublicListingProjection[] = [
     ],
     amenities: ['Clubhouse', 'Swimming Pool', 'EV Charging', 'Metro Walkable (500m)'],
     public_verification_badge: 'DOCS_CHECKED',
-    status: 'ACTIVE',
+    status: 'PUBLISHED',
     published_at: '2026-09-28T10:00:00Z',
   },
   {
@@ -80,7 +80,7 @@ const INITIAL_LISTINGS: PublicListingProjection[] = [
     ],
     amenities: ['Tennis Court', 'Clubhouse', 'Power Backup', 'Piped Gas'],
     public_verification_badge: 'INSPECTED',
-    status: 'ACTIVE',
+    status: 'PUBLISHED',
     published_at: '2026-09-29T14:30:00Z',
   },
   {
@@ -108,7 +108,7 @@ const INITIAL_LISTINGS: PublicListingProjection[] = [
     ],
     amenities: ['Courtyard Garden', 'Gymnasium', 'Security 24/7', 'Solar Water'],
     public_verification_badge: 'OWNER_VERIFIED',
-    status: 'ACTIVE',
+    status: 'PUBLISHED',
     published_at: '2026-09-27T08:00:00Z',
   },
   {
@@ -136,7 +136,7 @@ const INITIAL_LISTINGS: PublicListingProjection[] = [
     ],
     amenities: ['Multiplex', 'Integrated Retail', 'Olympic Pool', 'Tennis Academy'],
     public_verification_badge: 'DOCS_CHECKED',
-    status: 'ACTIVE',
+    status: 'PUBLISHED',
     published_at: '2026-09-29T16:00:00Z',
   }
 ];

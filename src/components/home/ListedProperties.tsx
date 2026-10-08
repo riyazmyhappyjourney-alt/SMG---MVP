@@ -246,18 +246,29 @@ export const ListedProperties: React.FC<ListedPropertiesProps> = ({ onSelectProp
                     </div>
                   </div>
 
-                  {/* Action CTA */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onSelectProperty(property.projectName, property.localityName, property.bhkType);
-                    }}
-                    className="w-full py-2.5 px-4 rounded text-xs font-bold text-[#244B8F] bg-[#244B8F]/10 hover:bg-[#244B8F] hover:text-white transition-colors font-['Montserrat'] flex items-center justify-center space-x-1.5 cursor-pointer"
-                  >
-                    <PhoneCall className="w-3.5 h-3.5" />
-                    <span>Enquire & Schedule Visit</span>
-                    <ArrowUpRight className="w-3.5 h-3.5" />
-                  </button>
+                  {/* Action CTAs */}
+                  <div className="flex items-center gap-2 pt-1">
+                    <a
+                      href={`/property/${property.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex-1 py-2.5 px-3 rounded text-xs font-bold text-white bg-[#244B8F] hover:bg-[#1E2E4B] transition-colors font-['Montserrat'] flex items-center justify-center space-x-1.5 cursor-pointer shadow-xs"
+                    >
+                      <span>View Property</span>
+                      <ArrowUpRight className="w-3.5 h-3.5" />
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onSelectProperty(property.projectName, property.localityName, property.bhkType);
+                      }}
+                      className="py-2.5 px-3 rounded text-xs font-semibold text-[#172033] bg-slate-100 hover:bg-slate-200 transition-colors font-['Montserrat'] flex items-center justify-center space-x-1 cursor-pointer shrink-0"
+                      title="Quick Enquiry"
+                    >
+                      <PhoneCall className="w-3.5 h-3.5 text-[#244B8F]" />
+                      <span>Quick Enquiry</span>
+                    </button>
+                  </div>
 
                 </div>
 

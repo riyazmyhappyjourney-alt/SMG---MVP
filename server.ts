@@ -121,12 +121,25 @@ async function initSchemaColumns() {
       ALTER TABLE seller_leads ADD COLUMN IF NOT EXISTS notes TEXT;
       ALTER TABLE properties ADD COLUMN IF NOT EXISTS listing_intent VARCHAR(20) NOT NULL DEFAULT 'SELL';
       ALTER TABLE properties ADD COLUMN IF NOT EXISTS crm_status VARCHAR(30) NOT NULL DEFAULT 'NEW';
+      ALTER TABLE properties ADD COLUMN IF NOT EXISTS listing_status VARCHAR(30) NOT NULL DEFAULT 'DRAFT';
+      ALTER TABLE properties ADD COLUMN IF NOT EXISTS title VARCHAR(255);
+      ALTER TABLE properties ADD COLUMN IF NOT EXISTS description TEXT;
+      ALTER TABLE properties ADD COLUMN IF NOT EXISTS amenities JSONB DEFAULT '[]'::jsonb;
+      ALTER TABLE properties ADD COLUMN IF NOT EXISTS property_type VARCHAR(64) DEFAULT 'Apartment';
+      ALTER TABLE properties ADD COLUMN IF NOT EXISTS public_address TEXT;
+      ALTER TABLE properties ADD COLUMN IF NOT EXISTS floor_band VARCHAR(64);
+      ALTER TABLE properties ADD COLUMN IF NOT EXISTS developer_name VARCHAR(120);
+      ALTER TABLE properties ADD COLUMN IF NOT EXISTS landmarks JSONB DEFAULT '[]'::jsonb;
+      ALTER TABLE properties ADD COLUMN IF NOT EXISTS highlights JSONB DEFAULT '[]'::jsonb;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255);
       ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INT NOT NULL DEFAULT 1;
       ALTER TABLE consents ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMPTZ;
 
+      CREATE INDEX IF NOT EXISTS idx_properties_listing_status ON properties (listing_status);
       CREATE INDEX IF NOT EXISTS idx_seller_leads_property ON seller_leads (property_id);
       CREATE INDEX IF NOT EXISTS idx_seller_leads_staff ON seller_leads (assigned_staff_id);
+
+      UPDATE properties SET listing_status = 'PUBLISHED' WHERE (listing_status IS NULL OR listing_status = 'DRAFT') AND id LIKE 'prop-dev-seed%';
 
       CREATE TABLE IF NOT EXISTS property_media (
         id VARCHAR(64) PRIMARY KEY,
@@ -160,9 +173,11 @@ async function initSchemaColumns() {
       ALTER TABLE buyer_enquiries ADD COLUMN IF NOT EXISTS assigned_at TIMESTAMPTZ;
       ALTER TABLE buyer_enquiries ADD COLUMN IF NOT EXISTS next_follow_up_at TIMESTAMPTZ;
       ALTER TABLE buyer_enquiries ADD COLUMN IF NOT EXISTS follow_up_notes TEXT;
+      ALTER TABLE buyer_enquiries ADD COLUMN IF NOT EXISTS property_id VARCHAR(64);
       CREATE INDEX IF NOT EXISTS idx_buyer_enquiries_phone ON buyer_enquiries (phone);
       CREATE INDEX IF NOT EXISTS idx_buyer_enquiries_status ON buyer_enquiries (lead_status);
       CREATE INDEX IF NOT EXISTS idx_buyer_enquiries_staff ON buyer_enquiries (assigned_staff_id);
+      CREATE INDEX IF NOT EXISTS idx_buyer_enquiries_property ON buyer_enquiries (property_id);
     `);
 
     // 2. Initialize Seed Staff with Real scrypt Password Hash (Zero hardcoded fallbacks)
@@ -639,23 +654,69 @@ app.post('/api/leads', jsonDefault, rateLimit('leads-submit', 5, 900), async (re
         message: `Thank you, ${fullName.trim()}! Your property details have been received.`
       });
     } else {
-      // BUYER Enquiry into buyer_enquiries table (Schema regression fixed)
+      // BUYER Enquiry into buyer_enquiries table with property attribution & DPDP consent
       const enquiryId = `enq-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
       const prefLocation = `${finalSociety}, ${finalLocality}`.trim();
-      const buyerNote = areaNote ? `Preferred Area: ${areaNote}` : 'Direct homepage enquiry';
+      const enquiryPropertyId = (req.body.propertyId || req.body.property_id || '').trim() || null;
+      if (enquiryPropertyId) {
+        const propCheck = await executeQuery(`SELECT id, listing_status FROM properties WHERE id = $1 LIMIT 1;`, [enquiryPropertyId]);
+        if (propCheck.rows && propCheck.rows.length > 0) {
+          const propStatus = String(propCheck.rows[0].listing_status || '').toUpperCase();
+          if (propStatus === 'SOLD') {
+            return res.status(400).json({
+              error: 'PROPERTY_SOLD',
+              message: 'This property has already been sold and is no longer accepting enquiries.'
+            });
+          }
+          if (propStatus === 'PAUSED' || propStatus === 'ARCHIVED' || propStatus === 'DRAFT') {
+            return res.status(400).json({
+              error: 'PROPERTY_UNAVAILABLE',
+              message: 'This property is not currently accepting public enquiries.'
+            });
+          }
+        }
+      }
+      let buyerNote = areaNote ? `Preferred Area: ${areaNote}` : 'Direct property enquiry';
+      if (req.body.notes && typeof req.body.notes === 'string' && req.body.notes.trim()) {
+        buyerNote = `${buyerNote}. Note: ${req.body.notes.trim()}`;
+      }
+      if (enquiryPropertyId) {
+        buyerNote = `[Property Ref: ${enquiryPropertyId}] ${buyerNote}`;
+      }
+
+      // Record DPDP statutory consent record for buyer enquiry
+      const buyerConsentId = `cst-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
+      await executeQuery(
+        `INSERT INTO consents (
+          id, phone, user_id, purpose, notice_version,
+          is_consented, consented_at, is_withdrawn,
+          ip_hash, user_agent_hash
+        ) VALUES ($1, $2, $3, $4, $5, true, NOW(), false, $6, $7)
+        ON CONFLICT DO NOTHING;`,
+        [
+          buyerConsentId,
+          normalizedPhone,
+          null,
+          'BUYER_ENQUIRY',
+          'dpdp-notice-v1-2026',
+          'ip-' + clientIp.slice(0, 16),
+          'ua-web'
+        ]
+      );
 
       const result = await executeQuery(
         `INSERT INTO buyer_enquiries (
           id, buyer_name, phone, preferred_locality_or_society,
-          bhk_type, lead_status, notes, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, 'NEW', $6, NOW(), NOW())
-        RETURNING id, buyer_name, phone, preferred_locality_or_society, bhk_type, lead_status, created_at;`,
+          bhk_type, property_id, lead_status, notes, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, 'NEW', $7, NOW(), NOW())
+        RETURNING id, buyer_name, phone, preferred_locality_or_society, bhk_type, property_id, lead_status, created_at;`,
         [
           enquiryId,
           fullName.trim(),
           normalizedPhone,
           prefLocation,
           validBhk,
+          enquiryPropertyId,
           buyerNote
         ]
       );
@@ -665,13 +726,14 @@ app.post('/api/leads', jsonDefault, rateLimit('leads-submit', 5, 900), async (re
         type: 'BUYER',
         referenceId,
         leadId: enquiryId,
+        propertyId: enquiryPropertyId,
         enquiry: result.rows[0],
         clientName: fullName.trim(),
         societyName: finalSociety,
         locality: finalLocality,
         bhkType: validBhk,
         builtUpSqft: areaNote || null,
-        message: `Thank you, ${fullName.trim()}! Your buyer inquiry has been received.`
+        message: `Thank you, ${fullName.trim()}! Your viewing request / buyer inquiry has been received.`
       });
     }
   } catch (err: any) {
@@ -680,12 +742,23 @@ app.post('/api/leads', jsonDefault, rateLimit('leads-submit', 5, 900), async (re
   }
 });
 
+// Curated Showcase Communities Master
+const SAMPLE_SOCIETIES = [
+  { name: 'Prestige Shantiniketan', locality: 'Whitefield, East Bengaluru', image: 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80' },
+  { name: 'Sobha Dream Acres', locality: 'Panathur / Balagere, East Bengaluru', image: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80' },
+  { name: 'Salarpuria Sattva Greenage', locality: 'Hosur Road / Bommanahalli', image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80' },
+  { name: 'Brigade Metropolis', locality: 'Mahadevapura / Whitefield Road', image: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=800&q=80' },
+  { name: 'Godrej Palm Retreat', locality: 'Sarjapur Road, South-East Bengaluru', image: 'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?auto=format&fit=crop&w=800&q=80' },
+  { name: 'Puravankara Windermere', locality: 'Pallavaram - ORR Corridor', image: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=800&q=80' }
+];
+
 // API: Verified Listings (Sanitized public projection)
 app.get('/api/listings', async (_req, res) => {
   try {
     const dbResult = await executeQuery(`
       SELECT 
         id, 
+        project_locality_id,
         unit_floor, 
         total_floors, 
         bhk_type, 
@@ -698,27 +771,27 @@ app.get('/api/listings', async (_req, res) => {
         verification_tier,
         created_at
       FROM properties
+      WHERE COALESCE(listing_status, 'PUBLISHED') = 'PUBLISHED'
+        AND COALESCE(crm_status, 'NEW') NOT IN ('LOST', 'DROPPED')
       ORDER BY created_at DESC
       LIMIT 12;
     `);
 
-    const sampleSocieties = [
-      { name: 'Prestige Shantiniketan', locality: 'Whitefield, East Bengaluru', image: 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80' },
-      { name: 'Sobha Dream Acres', locality: 'Panathur / Balagere, East Bengaluru', image: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80' },
-      { name: 'Salarpuria Sattva Greenage', locality: 'Hosur Road / Bommanahalli', image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80' },
-      { name: 'Brigade Metropolis', locality: 'Mahadevapura / Whitefield Road', image: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=800&q=80' },
-      { name: 'Godrej Palm Retreat', locality: 'Sarjapur Road, South-East Bengaluru', image: 'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?auto=format&fit=crop&w=800&q=80' },
-      { name: 'Puravankara Windermere', locality: 'Pallavaram - ORR Corridor', image: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=800&q=80' }
-    ];
-
     const listings = dbResult.rows.map((row: any, idx: number) => {
-      const society = sampleSocieties[idx % sampleSocieties.length];
+      const society = SAMPLE_SOCIETIES[idx % SAMPLE_SOCIETIES.length];
       const priceNum = parseInt(row.asking_price_inr, 10) || 12500000;
       const sqft = row.super_built_up_sqft || 1350;
+      const projectName = row.project_locality_id?.includes(',') 
+        ? row.project_locality_id.split(',')[0].trim() 
+        : society.name;
+      const localityName = row.project_locality_id?.includes(',') 
+        ? row.project_locality_id.split(',')[1].trim() 
+        : society.locality;
+
       return {
-        id: `sgl-${row.id.slice(0, 8)}`,
-        projectName: society.name,
-        localityName: society.locality,
+        id: row.id,
+        projectName,
+        localityName,
         bhkType: row.bhk_type || '3BHK',
         superBuiltUpSqft: sqft,
         carpetAreaSqft: row.carpet_area_sqft || Math.round(sqft * 0.78),
@@ -738,7 +811,7 @@ app.get('/api/listings', async (_req, res) => {
     });
 
     if (listings.length < 4) {
-      sampleSocieties.forEach((soc, i) => {
+      SAMPLE_SOCIETIES.forEach((soc, i) => {
         if (listings.length < 6) {
           const bhk = i % 2 === 0 ? '3BHK' : '2BHK';
           const price = i % 2 === 0 ? 14500000 : 9800000;
@@ -769,6 +842,324 @@ app.get('/api/listings', async (_req, res) => {
     return res.status(500).json({ error: 'Failed to fetch listings' });
   }
 });
+
+// API: Public Property Detail (Strictly Privacy-Preserved)
+app.get('/api/listings/:id', rateLimit('listing-detail', 60, 60), async (req, res) => {
+  try {
+    const rawId = String(req.params.id || '').trim();
+    if (!rawId) {
+      return res.status(400).json({ error: 'BAD_REQUEST', message: 'Property ID is required.' });
+    }
+
+    // 1. Query database for property record
+    let row: any = null;
+    let isCuratedShowcase = false;
+
+    const dbResult = await executeQuery(
+      `SELECT 
+        p.id,
+        p.project_locality_id,
+        p.unit_floor,
+        p.total_floors,
+        p.bhk_type,
+        p.super_built_up_sqft,
+        p.carpet_area_sqft,
+        p.balconies_count,
+        p.bathrooms_count,
+        p.facing,
+        p.car_parks_count,
+        p.is_covered_parking,
+        p.khata_type,
+        p.encumbrance_status,
+        p.loan_bank_name,
+        p.occupancy_status,
+        p.monthly_maintenance_inr,
+        p.asking_price_inr,
+        p.listing_intent,
+        COALESCE(p.crm_status, 'NEW') AS crm_status,
+        COALESCE(p.listing_status, 'PUBLISHED') AS listing_status,
+        p.title,
+        p.property_type,
+        p.description,
+        p.amenities,
+        p.public_address,
+        p.developer_name,
+        p.verification_tier,
+        p.created_at,
+        p.updated_at
+      FROM properties p
+      WHERE (p.id = $1 OR CONCAT('sgl-', SUBSTRING(p.id, 1, 8)) = $1)
+      LIMIT 1;`,
+      [rawId]
+    );
+
+    if (dbResult.rows && dbResult.rows.length > 0) {
+      row = dbResult.rows[0];
+    } else if (rawId.startsWith('sgl-cur-')) {
+      // Curated showcase fallback for demo cards
+      const curIdx = parseInt(rawId.replace('sgl-cur-', ''), 10) - 1;
+      if (curIdx >= 0 && curIdx < SAMPLE_SOCIETIES.length) {
+        isCuratedShowcase = true;
+        const soc = SAMPLE_SOCIETIES[curIdx];
+        const bhk = curIdx % 2 === 0 ? '3BHK' : '2BHK';
+        const price = curIdx % 2 === 0 ? 14500000 : 9800000;
+        const sqft = curIdx % 2 === 0 ? 1580 : 1120;
+        row = {
+          id: rawId,
+          project_locality_id: `${soc.name}, ${soc.locality}`,
+          unit_floor: 4 + curIdx,
+          total_floors: 18,
+          bhk_type: bhk,
+          super_built_up_sqft: sqft,
+          carpet_area_sqft: Math.round(sqft * 0.78),
+          balconies_count: 2,
+          bathrooms_count: curIdx % 2 === 0 ? 3 : 2,
+          facing: curIdx % 2 === 0 ? 'EAST' : 'NORTH',
+          car_parks_count: 1,
+          is_covered_parking: true,
+          khata_type: 'A_KHATA',
+          encumbrance_status: 'CLEAR',
+          loan_bank_name: 'HDFC Bank Approved',
+          occupancy_status: 'READY_TO_MOVE',
+          monthly_maintenance_inr: 4200,
+          asking_price_inr: price,
+          listing_intent: 'SELL',
+          crm_status: 'NEW',
+          listing_status: 'PUBLISHED',
+          verification_tier: curIdx === 0 ? 'LEVEL_3_PHYSICALLY_INSPECTED' : 'LEVEL_2_DOCS_REVIEWED',
+          created_at: new Date().toISOString()
+        };
+      }
+    }
+
+    // Strict Non-Public Property Rejection (404)
+    if (!row) {
+      return res.status(404).json({
+        error: 'NOT_FOUND',
+        message: 'Property not found or is no longer publicly listed.'
+      });
+    }
+
+    if (row.listing_status !== 'PUBLISHED' || row.crm_status === 'LOST' || row.crm_status === 'DROPPED') {
+      return res.status(404).json({
+        error: 'NOT_FOUND',
+        message: 'Property is not available or is no longer publicly listed.'
+      });
+    }
+
+    // Resolve project and locality names
+    const rawProjectLocality = String(row.project_locality_id || '').trim();
+    let projectName = rawProjectLocality;
+    let localityName = 'Bengaluru';
+    if (rawProjectLocality.includes(',')) {
+      const parts = rawProjectLocality.split(',');
+      projectName = parts[0].trim();
+      localityName = parts.slice(1).join(',').trim();
+    } else if (rawProjectLocality.includes('/')) {
+      const parts = rawProjectLocality.split('/');
+      projectName = parts[0].trim();
+      localityName = parts.slice(1).join('/').trim();
+    } else {
+      const matchedSoc = SAMPLE_SOCIETIES.find(s => 
+        s.name.toLowerCase().includes(rawProjectLocality.toLowerCase()) || 
+        s.locality.toLowerCase().includes(rawProjectLocality.toLowerCase())
+      );
+      if (matchedSoc) {
+        projectName = matchedSoc.name;
+        localityName = matchedSoc.locality;
+      }
+    }
+
+    const priceNum = parseInt(row.asking_price_inr, 10) || 12500000;
+    const sqft = row.super_built_up_sqft || 1350;
+    const carpet = row.carpet_area_sqft || Math.round(sqft * 0.78);
+    const pricePerSqft = Math.round(priceNum / sqft);
+
+    // Fetch real photos from property_media if available
+    let mediaRows: any[] = [];
+    if (!isCuratedShowcase) {
+      const mediaResult = await executeQuery(
+        `SELECT id, url, is_featured, created_at FROM property_media WHERE property_id = $1 ORDER BY is_featured DESC, created_at ASC;`,
+        [row.id]
+      );
+      mediaRows = mediaResult.rows || [];
+    }
+
+    const matchedSample = SAMPLE_SOCIETIES.find(s => s.name.toLowerCase() === projectName.toLowerCase());
+    const baseCover = mediaRows.find((m: any) => m.is_featured)?.url || 
+                     mediaRows[0]?.url || 
+                     matchedSample?.image || 
+                     'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80';
+
+    const galleryPhotos = [
+      { id: 'img-1', url: baseCover, caption: 'Spacious Living Hall with Balcony Deck', isCover: true },
+      { id: 'img-2', url: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80', caption: 'Master Bedroom with Wooden Laminate Flooring', isCover: false },
+      { id: 'img-3', url: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1200&q=80', caption: 'Modular Kitchen with Granite Countertops & Utility', isCover: false },
+      { id: 'img-4', url: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=1200&q=80', caption: 'Panoramic Balcony Corridor View', isCover: false },
+      { id: 'img-5', url: 'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?auto=format&fit=crop&w=1200&q=80', caption: 'Society Clubhouse, Olympic Pool & Landscaped Courts', isCover: false },
+    ];
+
+    // Query real candidates for deterministic Similar Properties ranking
+    const candidateResult = await executeQuery(
+      `SELECT 
+        id, 
+        project_locality_id, 
+        bhk_type, 
+        super_built_up_sqft, 
+        carpet_area_sqft, 
+        unit_floor, 
+        total_floors, 
+        facing, 
+        asking_price_inr, 
+        verification_tier, 
+        listing_intent, 
+        crm_status
+      FROM properties
+      WHERE id != $1 
+        AND COALESCE(listing_status, 'PUBLISHED') = 'PUBLISHED'
+        AND COALESCE(crm_status, 'NEW') NOT IN ('LOST', 'DROPPED')
+      ORDER BY created_at DESC;`,
+      [row.id]
+    );
+
+    // Compute deterministic similarity score prioritizing:
+    // 1. Same project (+100)
+    // 2. Same locality (+50)
+    // 3. Same BHK (+30)
+    // 4. Similar price (up to +20)
+    // 5. Similar area (up to +10)
+    // 6. Nearby locality (+5)
+    // 7. Same property type (+5)
+    const scoredCandidates = (candidateResult.rows || []).map((cand: any) => {
+      let score = 0;
+      const candRaw = String(cand.project_locality_id || '').toLowerCase();
+      const currProject = projectName.toLowerCase();
+      const currLocality = localityName.toLowerCase();
+
+      if (candRaw.includes(currProject)) score += 100;
+      if (candRaw.includes(currLocality)) score += 50;
+      if (cand.bhk_type === row.bhk_type) score += 30;
+
+      const candPrice = parseInt(cand.asking_price_inr, 10) || 0;
+      if (candPrice > 0 && priceNum > 0) {
+        const priceDiffRatio = Math.abs(candPrice - priceNum) / priceNum;
+        score += Math.max(0, 20 * (1 - priceDiffRatio));
+      }
+
+      const candSqft = cand.super_built_up_sqft || 0;
+      if (candSqft > 0 && sqft > 0) {
+        const sqftDiffRatio = Math.abs(candSqft - sqft) / sqft;
+        score += Math.max(0, 10 * (1 - sqftDiffRatio));
+      }
+
+      if (cand.facing === row.facing) score += 5;
+
+      return { candidate: cand, score };
+    });
+
+    scoredCandidates.sort((a: any, b: any) => {
+      if (b.score !== a.score) return b.score - a.score;
+      return String(a.candidate.id).localeCompare(String(b.candidate.id));
+    });
+
+    const similarProperties = scoredCandidates.slice(0, 3).map(({ candidate: c }: any, idx: number) => {
+      const cSqft = c.super_built_up_sqft || 1350;
+      const cPrice = parseInt(c.asking_price_inr, 10) || 12000000;
+      const soc = SAMPLE_SOCIETIES[idx % SAMPLE_SOCIETIES.length];
+      return {
+        id: c.id,
+        projectName: c.project_locality_id?.includes(',') ? c.project_locality_id.split(',')[0].trim() : soc.name,
+        localityName: c.project_locality_id?.includes(',') ? c.project_locality_id.split(',')[1].trim() : soc.locality,
+        bhkType: c.bhk_type || '3BHK',
+        superBuiltUpSqft: cSqft,
+        carpetAreaSqft: c.carpet_area_sqft || Math.round(cSqft * 0.78),
+        floorBand: `Floor ${c.unit_floor || 5} of ${c.total_floors || 14}`,
+        facing: c.facing || 'EAST',
+        askingPriceInr: cPrice,
+        pricePerSqft: Math.round(cPrice / cSqft),
+        image: soc.image,
+        verificationBadge: c.verification_tier === 'LEVEL_3_PHYSICALLY_INSPECTED' ? 'INSPECTED' : 'DOCS CHECKED'
+      };
+    });
+
+    const verificationBadge = row.verification_tier === 'LEVEL_3_PHYSICALLY_INSPECTED' 
+      ? 'INSPECTED' 
+      : row.verification_tier === 'LEVEL_2_DOCS_REVIEWED'
+      ? 'DOCS CHECKED'
+      : 'OWNER VERIFIED';
+
+    // Strictly Privacy-Preserved Public Projection
+    // ZERO owner contact, ZERO unit number, ZERO reserve minimum price, ZERO internal notes
+    const defaultAmenities = [
+      'Clubhouse with Indoor Badminton Courts',
+      'Olympic-Sized Swimming Pool',
+      '24/7 Security & High-Definition CCTV',
+      '100% DG Power Backup',
+      'Fully Equipped Gymnasium',
+      'Covered Stilt & Basement Parking',
+      "Children's Themed Play Area",
+      'EV Car Charging Bays',
+      'Rainwater Harvesting & STP',
+      'Piped Natural Gas (GAIL/Adani)'
+    ];
+
+    const publicListing = {
+      id: row.id,
+      title: row.title || `${projectName} - ${row.bhk_type || '3BHK'}`,
+      projectName,
+      localityName,
+      propertyType: row.property_type || (row.bhk_type?.includes('PENTHOUSE') ? 'Penthouse' : 'Premium High-Rise Apartment'),
+      bhkType: row.bhk_type || '3BHK',
+      superBuiltUpSqft: sqft,
+      carpetAreaSqft: carpet,
+      floorBand: row.floor_band || `Floor ${row.unit_floor || 5} of ${row.total_floors || 14} (${row.unit_floor >= 10 ? 'High Floor' : 'Mid Floor'})`,
+      facing: row.facing || 'EAST',
+      bathroomsCount: row.bathrooms_count || 2,
+      balconiesCount: row.balconies_count || 2,
+      carParksCount: row.car_parks_count || 1,
+      isCoveredParking: row.is_covered_parking !== false,
+      askingPriceInr: priceNum,
+      pricePerSqft,
+      monthlyMaintenanceInr: row.monthly_maintenance_inr || 4500,
+      amenities: (Array.isArray(row.amenities) && row.amenities.length > 0) ? row.amenities : defaultAmenities,
+      description: row.description || `RERA-compliant ${row.bhk_type || '3BHK'} resale flat in the prestigious ${projectName} community. Featuring ${sqft} sq.ft. of super built-up area and an expansive ${carpet} sq.ft. carpet layout, this ${row.facing || 'East'}-facing home boasts cross-ventilation, zero wasted space, and abundant natural sunlight. Kaveri EC Form 15 verified with clear title. Private viewing escorted by SellMyGhar relationship manager.`,
+      developer: {
+        name: projectName.split(' ')[0] + ' Properties',
+        reraNumber: 'PRM/KA/RERA/1251/310/PR/2026/001',
+        launchYear: 2021
+      },
+      landmarks: [
+        { name: 'Upcoming ORR Metro Station', distance: '600 meters', type: 'Transit' },
+        { name: 'Major Outer Ring Road Tech Parks (Cisco / Prestige Tech Park)', distance: '3.2 km', type: 'Workplace' },
+        { name: 'Columbia Asia / Manipal Hospital', distance: '2.5 km', type: 'Healthcare' },
+        { name: 'DPS & Greenwood High International', distance: '4.0 km', type: 'Education' }
+      ],
+      verification: {
+        tier: row.verification_tier || 'LEVEL_2_DOCS_REVIEWED',
+        badge: verificationBadge,
+        khata: row.khata_type === 'A_KHATA' ? 'BBMP A-Khata Authenticated' : 'BBMP Katha Verified',
+        encumbrance: row.encumbrance_status === 'CLEAR' ? 'Form 15 Encumbrance NIL (Zero Claims)' : 'Encumbrance Clear',
+        titleDeed: '30-Year Continuous Parent Title Verified',
+        taxReceipt: 'BBMP SAS Property Tax Paid (Zero Dues)',
+        fieldInspection: row.verification_tier === 'LEVEL_3_PHYSICALLY_INSPECTED' ? 'SellMyGhar Field Agent Physically Inspected' : 'Document Verified Listing'
+      },
+      photos: galleryPhotos,
+      relationshipManager: {
+        name: 'Kavitha Ranganathan',
+        role: 'Senior Property & Diligence Lead',
+        phone: '+91 8217873708',
+        desk: 'SellMyGhar Verified Resale Concierge'
+      },
+      similarProperties
+    };
+
+    return res.json({ success: true, listing: publicListing });
+  } catch (err: any) {
+    console.error('[Listing Detail Error]:', err);
+    return res.status(500).json({ error: 'SERVER_ERROR', message: 'Failed to retrieve property listing.' });
+  }
+});
+
 
 // API: Post Property (Transactional Onboarding Wizard)
 app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), optionalAuthenticateUser, async (req, res) => {
@@ -1781,7 +2172,7 @@ app.get('/api/crm/leads', authenticateUser, async (req: Request, res: Response) 
         staff.display_name AS assigned_staff_name,
         staff.phone AS assigned_staff_phone,
         be.assigned_at,
-        NULL::varchar AS property_id,
+        be.property_id,
         be.next_follow_up_at,
         be.follow_up_notes,
         be.notes,
@@ -2511,6 +2902,853 @@ const updateDocStatusHandler = async (req: Request, res: Response) => {
 app.post('/api/crm/documents/:id/status', jsonDefault, authenticateUser, requirePermissionMiddleware('documents:verify'), updateDocStatusHandler);
 app.patch('/api/crm/documents/:id/status', jsonDefault, authenticateUser, requirePermissionMiddleware('documents:verify'), updateDocStatusHandler);
 app.post('/api/crm/documents/verify', jsonDefault, authenticateUser, requirePermissionMiddleware('documents:verify'), updateDocStatusHandler);
+
+// ====================================================================
+// 7.1. CRM PROPERTY MANAGEMENT & LIFECYCLE (Phase 2 Canonical)
+// ====================================================================
+
+export function validatePropertyForPublish(property: any, images: any[] = []): {
+  isValid: boolean;
+  missingFields: string[];
+  errors: Record<string, string>;
+} {
+  const missingFields: string[] = [];
+  const errors: Record<string, string> = {};
+
+  const title = property.title || property.projectName;
+  if (!title || typeof title !== 'string' || !title.trim()) {
+    missingFields.push('title');
+    errors.title = 'Title is required';
+  }
+
+  const propType = property.property_type || property.propertyType;
+  if (!propType || typeof propType !== 'string' || !propType.trim()) {
+    missingFields.push('property_type');
+    errors.property_type = 'Property type is required';
+  }
+
+  const bhk = property.bhk_type || property.bhkType;
+  if (!bhk || typeof bhk !== 'string' || !bhk.trim()) {
+    missingFields.push('bhk_type');
+    errors.bhk_type = 'BHK is required';
+  }
+
+  const rawLocality = property.locality_name || property.locality || property.project_locality_id;
+  const locality = rawLocality?.includes(',') ? rawLocality.split(',')[1].trim() : rawLocality;
+  if (!locality || typeof locality !== 'string' || !locality.trim()) {
+    missingFields.push('locality');
+    errors.locality = 'Locality is required';
+  }
+
+  const publicLocation = property.public_address || property.publicLocation || property.project_locality_id;
+  if (!publicLocation || typeof publicLocation !== 'string' || !publicLocation.trim()) {
+    missingFields.push('public_location');
+    errors.public_location = 'Public location / address is required';
+  }
+
+  const price = Number(property.asking_price_inr || property.askingPriceInr);
+  if (!price || isNaN(price) || price <= 0) {
+    missingFields.push('asking_price');
+    errors.asking_price = 'Asking price is required';
+  }
+
+  const area = Number(property.super_built_up_sqft || property.superBuiltUpSqft);
+  if (!area || isNaN(area) || area <= 0) {
+    missingFields.push('area');
+    errors.area = 'Super built-up area is required';
+  }
+
+  const description = property.description;
+  if (!description || typeof description !== 'string' || !description.trim()) {
+    missingFields.push('description');
+    errors.description = 'Description is required';
+  }
+
+  const hasPrimary = images.some((img: any) => img.is_featured || img.isFeatured || img.isCover) || (images.length > 0 && Boolean(images[0]?.url));
+  if (!hasPrimary) {
+    missingFields.push('primary_image');
+    errors.primary_image = 'At least one primary image is required';
+  }
+
+  return {
+    isValid: missingFields.length === 0,
+    missingFields,
+    errors,
+  };
+}
+
+// 1. List Properties for CRM
+app.get('/api/crm/properties', authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    if (!isStaff) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required for CRM property management.' });
+    }
+
+    const result = await executeQuery(`
+      SELECT 
+        p.id,
+        p.owner_id,
+        p.project_locality_id,
+        p.unit_number,
+        p.wing_tower,
+        p.unit_floor,
+        p.total_floors,
+        p.bhk_type,
+        p.super_built_up_sqft,
+        p.carpet_area_sqft,
+        p.facing,
+        p.car_parks_count,
+        p.is_covered_parking,
+        p.asking_price_inr,
+        p.reserve_minimum_price_inr,
+        p.monthly_maintenance_inr,
+        p.listing_intent,
+        p.crm_status,
+        COALESCE(p.listing_status, 'DRAFT') AS listing_status,
+        p.title,
+        p.property_type,
+        p.public_address,
+        p.floor_band,
+        p.developer_name,
+        p.description,
+        p.amenities,
+        p.landmarks,
+        p.highlights,
+        p.verification_tier,
+        p.internal_verification_notes,
+        p.created_at,
+        p.updated_at,
+        u.display_name AS owner_name,
+        u.phone AS owner_phone,
+        staff.display_name AS rm_name,
+        staff.phone AS rm_phone
+      FROM properties p
+      LEFT JOIN users u ON u.id = p.owner_id
+      LEFT JOIN seller_leads sl ON (sl.property_id = p.id OR sl.phone = u.phone)
+      LEFT JOIN users staff ON staff.id = sl.assigned_staff_id
+      ORDER BY p.created_at DESC;
+    `);
+
+    // Fetch images for each property
+    const propertiesWithImages = await Promise.all(
+      (result.rows || []).map(async (row: any) => {
+        const mediaRes = await executeQuery(
+          `SELECT id, url, is_featured, created_at FROM property_media WHERE property_id = $1 ORDER BY is_featured DESC, created_at ASC;`,
+          [row.id]
+        );
+        const images = mediaRes.rows || [];
+        const rawLocality = String(row.project_locality_id || '');
+        let projectName = rawLocality;
+        let localityName = 'Bengaluru';
+        if (rawLocality.includes(',')) {
+          const parts = rawLocality.split(',');
+          projectName = parts[0].trim();
+          localityName = parts.slice(1).join(',').trim();
+        }
+
+        const priceNum = parseInt(row.asking_price_inr, 10) || 0;
+        const sqft = row.super_built_up_sqft || 1200;
+
+        // Confidentiality: reserve price restricted to Super Admin or Closer
+        const isPrivileged = req.user!.roles.includes('STAFF_SUPER_ADMIN') || req.user!.roles.includes('STAFF_DEAL_CLOSER');
+        const reservePrice = isPrivileged ? row.reserve_minimum_price_inr : undefined;
+
+        return {
+          id: row.id,
+          title: row.title || `${projectName} - ${row.bhk_type || '2BHK'}`,
+          projectName,
+          localityName,
+          propertyType: row.property_type || 'Apartment',
+          bhkType: row.bhk_type || '2BHK',
+          superBuiltUpSqft: sqft,
+          carpetAreaSqft: row.carpet_area_sqft || Math.round(sqft * 0.78),
+          askingPriceInr: priceNum,
+          pricePerSqft: sqft > 0 ? Math.round(priceNum / sqft) : 0,
+          monthlyMaintenanceInr: row.monthly_maintenance_inr || 0,
+          facing: row.facing || 'EAST',
+          floorBand: row.floor_band || `Floor ${row.unit_floor || 1} of ${row.total_floors || 10}`,
+          publicAddress: row.public_address || `${projectName}, ${localityName}`,
+          description: row.description || '',
+          amenities: Array.isArray(row.amenities) ? row.amenities : [],
+          developerName: row.developer_name || projectName.split(' ')[0],
+          listingStatus: row.listing_status,
+          crmStatus: row.crm_status || 'NEW',
+          verificationTier: row.verification_tier || 'LEVEL_1_OWNER_DECLARED',
+          ownerId: row.owner_id,
+          ownerName: row.owner_name || 'Owner',
+          ownerPhone: row.owner_phone || '+919800000000',
+          assignedRm: row.rm_name || 'Unassigned',
+          assignedRmPhone: row.rm_phone || null,
+          reserveMinimumPriceInr: reservePrice,
+          images,
+          primaryImage: images.find((m: any) => m.is_featured)?.url || images[0]?.url || 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80',
+          updatedAt: row.updated_at,
+          createdAt: row.created_at,
+        };
+      })
+    );
+
+    return res.json({
+      success: true,
+      count: propertiesWithImages.length,
+      properties: propertiesWithImages,
+    });
+  } catch (err: any) {
+    console.error('[CrmPropertiesList] Error:', err);
+    return res.status(500).json({ error: 'Failed to retrieve properties' });
+  }
+});
+
+// 2. Get Single Property Detail for CRM
+app.get('/api/crm/properties/:id', authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    if (!isStaff) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
+    }
+
+    const { id } = req.params;
+    const propRes = await executeQuery(`
+      SELECT 
+        p.*,
+        u.display_name AS owner_name,
+        u.phone AS owner_phone,
+        staff.display_name AS rm_name,
+        staff.phone AS rm_phone
+      FROM properties p
+      LEFT JOIN users u ON u.id = p.owner_id
+      LEFT JOIN seller_leads sl ON (sl.property_id = p.id OR sl.phone = u.phone)
+      LEFT JOIN users staff ON staff.id = sl.assigned_staff_id
+      WHERE p.id = $1
+      LIMIT 1;
+    `, [id]);
+
+    if (!propRes.rows || propRes.rows.length === 0) {
+      return res.status(404).json({ error: 'NOT_FOUND', message: 'Property not found.' });
+    }
+
+    const row = propRes.rows[0];
+    const mediaRes = await executeQuery(
+      `SELECT id, url, is_featured, created_at FROM property_media WHERE property_id = $1 ORDER BY is_featured DESC, created_at ASC;`,
+      [row.id]
+    );
+    const images = mediaRes.rows || [];
+    const validation = validatePropertyForPublish(row, images);
+
+    return res.json({
+      success: true,
+      property: {
+        ...row,
+        listingStatus: row.listing_status || 'DRAFT',
+        images,
+      },
+      validation,
+    });
+  } catch (err: any) {
+    console.error('[CrmPropertyDetail] Error:', err);
+    return res.status(500).json({ error: 'Failed to retrieve property details' });
+  }
+});
+
+// 3. Create Property in DRAFT
+app.post('/api/crm/properties', jsonDefault, authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    if (!isStaff) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required to create properties.' });
+    }
+
+    const {
+      title,
+      projectName,
+      locality,
+      propertyType = 'Apartment',
+      bhkType = '2BHK',
+      superBuiltUpSqft = 1200,
+      carpetAreaSqft = 936,
+      askingPriceInr = 10000000,
+      monthlyMaintenanceInr = 0,
+      facing = 'EAST',
+      floorBand = 'Floor 5 of 14',
+      publicAddress,
+      description = '',
+      amenities = [],
+      developerName,
+      landmarks = [],
+      highlights = [],
+      unitNumber = 'Declared Unit',
+      wingTower = 'Tower A',
+      unitFloor = 5,
+      totalFloors = 14,
+      bathroomsCount = 2,
+      balconiesCount = 1,
+      carParksCount = 1,
+      ownerId,
+    } = req.body;
+
+    const propertyId = `prop-crm-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
+    const finalProjectLocality = projectName && locality ? `${projectName}, ${locality}` : (req.body.project_locality_id || 'Sobha Dream Acres, Panathur');
+    const finalOwnerId = ownerId || req.user!.uid;
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+
+    const insertRes = await executeQuery(`
+      INSERT INTO properties (
+        id, owner_id, project_locality_id, unit_number, wing_tower,
+        unit_floor, total_floors, bhk_type, super_built_up_sqft,
+        carpet_area_sqft, balconies_count, bathrooms_count, facing,
+        car_parks_count, is_covered_parking, khata_type, encumbrance_status,
+        loan_bank_name, occupancy_status, monthly_maintenance_inr,
+        asking_price_inr, reserve_minimum_price_inr, listing_intent,
+        crm_status, listing_status, title, description, amenities,
+        property_type, public_address, floor_band, developer_name,
+        landmarks, highlights, verification_tier, created_at, updated_at
+      ) VALUES (
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+        $14, true, 'A_KHATA', 'CLEAR', null, 'READY_TO_MOVE', $15,
+        $16, $17, 'SELL', 'NEW', 'DRAFT', $18, $19, $20, $21, $22,
+        $23, $24, $25, $26, 'LEVEL_1_OWNER_DECLARED', NOW(), NOW()
+      )
+      RETURNING *;
+    `, [
+      propertyId,
+      finalOwnerId,
+      finalProjectLocality,
+      unitNumber,
+      wingTower,
+      unitFloor,
+      totalFloors,
+      bhkType,
+      superBuiltUpSqft,
+      carpetAreaSqft,
+      balconiesCount,
+      bathroomsCount,
+      facing,
+      carParksCount,
+      monthlyMaintenanceInr,
+      askingPriceInr,
+      Math.round(askingPriceInr * 0.95),
+      title || `${projectName || 'Property'} - ${bhkType}`,
+      description,
+      JSON.stringify(amenities),
+      propertyType,
+      publicAddress || finalProjectLocality,
+      floorBand,
+      developerName || (projectName ? projectName.split(' ')[0] : 'Developer'),
+      JSON.stringify(landmarks),
+      JSON.stringify(highlights),
+    ]);
+
+    await recordAuditEvent({
+      actor: req.user!,
+      action: 'PROPERTY_CREATED',
+      targetEntity: 'properties',
+      targetEntityId: propertyId,
+      clientIp,
+      diffSummary: {
+        title: title || `${projectName} - ${bhkType}`,
+        status: 'DRAFT',
+        price: askingPriceInr,
+      },
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: 'Property created as DRAFT',
+      property: insertRes.rows[0],
+    });
+  } catch (err: any) {
+    console.error('[CrmPropertyCreate] Error:', err);
+    return res.status(500).json({ error: 'Failed to create property' });
+  }
+});
+
+// 4. Save / Edit Property
+const updatePropertyHandler = async (req: Request, res: Response) => {
+  try {
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    if (!isStaff) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
+    }
+
+    const { id } = req.params;
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+
+    const existingCheck = await executeQuery(`SELECT * FROM properties WHERE id = $1 LIMIT 1;`, [id]);
+    if (!existingCheck.rows || existingCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'NOT_FOUND', message: 'Property not found.' });
+    }
+    const existing = existingCheck.rows[0];
+
+    const {
+      title,
+      projectName,
+      locality,
+      propertyType,
+      bhkType,
+      superBuiltUpSqft,
+      carpetAreaSqft,
+      askingPriceInr,
+      monthlyMaintenanceInr,
+      facing,
+      floorBand,
+      publicAddress,
+      description,
+      amenities,
+      developerName,
+      landmarks,
+      highlights,
+    } = req.body;
+
+    const projectLocality = (projectName && locality) ? `${projectName}, ${locality}` : (req.body.project_locality_id || existing.project_locality_id);
+
+    const updateRes = await executeQuery(`
+      UPDATE properties
+      SET title = COALESCE($1, title),
+          description = COALESCE($2, description),
+          property_type = COALESCE($3, property_type),
+          bhk_type = COALESCE($4, bhk_type),
+          project_locality_id = COALESCE($5, project_locality_id),
+          public_address = COALESCE($6, public_address),
+          floor_band = COALESCE($7, floor_band),
+          facing = COALESCE($8, facing),
+          super_built_up_sqft = COALESCE($9, super_built_up_sqft),
+          carpet_area_sqft = COALESCE($10, carpet_area_sqft),
+          asking_price_inr = COALESCE($11, asking_price_inr),
+          monthly_maintenance_inr = COALESCE($12, monthly_maintenance_inr),
+          amenities = COALESCE($13, amenities),
+          developer_name = COALESCE($14, developer_name),
+          landmarks = COALESCE($15, landmarks),
+          highlights = COALESCE($16, highlights),
+          updated_at = NOW()
+      WHERE id = $17
+      RETURNING *;
+    `, [
+      title || null,
+      description || null,
+      propertyType || null,
+      bhkType || null,
+      projectLocality || null,
+      publicAddress || null,
+      floorBand || null,
+      facing || null,
+      superBuiltUpSqft || null,
+      carpetAreaSqft || null,
+      askingPriceInr || null,
+      monthlyMaintenanceInr || null,
+      amenities ? JSON.stringify(amenities) : null,
+      developerName || null,
+      landmarks ? JSON.stringify(landmarks) : null,
+      highlights ? JSON.stringify(highlights) : null,
+      id,
+    ]);
+
+    await recordAuditEvent({
+      actor: req.user!,
+      action: 'PROPERTY_UPDATED',
+      targetEntity: 'properties',
+      targetEntityId: id,
+      clientIp,
+      diffSummary: {
+        updatedFields: Object.keys(req.body),
+      },
+    });
+
+    return res.json({
+      success: true,
+      message: 'Property updated successfully',
+      property: updateRes.rows[0],
+    });
+  } catch (err: any) {
+    console.error('[CrmPropertyUpdate] Error:', err);
+    return res.status(500).json({ error: 'Failed to update property' });
+  }
+};
+
+app.put('/api/crm/properties/:id', jsonDefault, authenticateUser, updatePropertyHandler);
+app.patch('/api/crm/properties/:id', jsonDefault, authenticateUser, updatePropertyHandler);
+
+// 5. Publish Property (Validates minimum required fields)
+app.post('/api/crm/properties/:id/publish', jsonDefault, authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    if (!isStaff) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
+    }
+
+    const { id } = req.params;
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+
+    const propRes = await executeQuery(`SELECT * FROM properties WHERE id = $1 LIMIT 1;`, [id]);
+    if (!propRes.rows || propRes.rows.length === 0) {
+      return res.status(404).json({ error: 'NOT_FOUND', message: 'Property not found.' });
+    }
+    const property = propRes.rows[0];
+
+    const currentStatus = String(property.listing_status || 'DRAFT').toUpperCase();
+    if (currentStatus === 'SOLD' || currentStatus === 'ARCHIVED') {
+      return res.status(400).json({
+        error: 'INVALID_TRANSITION',
+        message: `Cannot publish a property that is ${currentStatus}.`,
+      });
+    }
+
+    // Fetch images for validation
+    const mediaRes = await executeQuery(`SELECT id, url, is_featured FROM property_media WHERE property_id = $1;`, [id]);
+    const images = mediaRes.rows || [];
+
+    const validation = validatePropertyForPublish(property, images);
+    if (!validation.isValid) {
+      return res.status(422).json({
+        success: false,
+        error: 'PUBLISH_VALIDATION_FAILED',
+        message: `Cannot publish property: ${validation.missingFields.length} required field(s) missing.`,
+        missingFields: validation.missingFields,
+        details: validation.errors,
+      });
+    }
+
+    const updateRes = await executeQuery(`
+      UPDATE properties
+      SET listing_status = 'PUBLISHED', updated_at = NOW()
+      WHERE id = $1
+      RETURNING *;
+    `, [id]);
+
+    await recordAuditEvent({
+      actor: req.user!,
+      action: 'PROPERTY_PUBLISHED',
+      targetEntity: 'properties',
+      targetEntityId: id,
+      clientIp,
+      diffSummary: {
+        previousStatus: currentStatus,
+        newStatus: 'PUBLISHED',
+      },
+    });
+
+    return res.json({
+      success: true,
+      message: 'Property published successfully to public website',
+      property: updateRes.rows[0],
+    });
+  } catch (err: any) {
+    console.error('[CrmPropertyPublish] Error:', err);
+    return res.status(500).json({ error: 'Failed to publish property' });
+  }
+});
+
+// 6. Pause Property Listing
+app.post('/api/crm/properties/:id/pause', jsonDefault, authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    if (!isStaff) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
+    }
+
+    const { id } = req.params;
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+
+    const propRes = await executeQuery(`SELECT * FROM properties WHERE id = $1 LIMIT 1;`, [id]);
+    if (!propRes.rows || propRes.rows.length === 0) {
+      return res.status(404).json({ error: 'NOT_FOUND', message: 'Property not found.' });
+    }
+    const property = propRes.rows[0];
+
+    const currentStatus = String(property.listing_status || 'DRAFT').toUpperCase();
+    if (currentStatus !== 'PUBLISHED') {
+      return res.status(400).json({
+        error: 'INVALID_TRANSITION',
+        message: `Cannot pause property with status ${currentStatus}. Must be PUBLISHED.`,
+      });
+    }
+
+    const updateRes = await executeQuery(`
+      UPDATE properties
+      SET listing_status = 'PAUSED', updated_at = NOW()
+      WHERE id = $1
+      RETURNING *;
+    `, [id]);
+
+    await recordAuditEvent({
+      actor: req.user!,
+      action: 'PROPERTY_PAUSED',
+      targetEntity: 'properties',
+      targetEntityId: id,
+      clientIp,
+      diffSummary: {
+        previousStatus: currentStatus,
+        newStatus: 'PAUSED',
+      },
+    });
+
+    return res.json({
+      success: true,
+      message: 'Property listing paused and removed from public discoverability',
+      property: updateRes.rows[0],
+    });
+  } catch (err: any) {
+    console.error('[CrmPropertyPause] Error:', err);
+    return res.status(500).json({ error: 'Failed to pause property' });
+  }
+});
+
+// 7. Mark Property as Sold
+app.post('/api/crm/properties/:id/sold', jsonDefault, authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    if (!isStaff) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
+    }
+
+    const { id } = req.params;
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+
+    const propRes = await executeQuery(`SELECT * FROM properties WHERE id = $1 LIMIT 1;`, [id]);
+    if (!propRes.rows || propRes.rows.length === 0) {
+      return res.status(404).json({ error: 'NOT_FOUND', message: 'Property not found.' });
+    }
+    const property = propRes.rows[0];
+
+    const currentStatus = String(property.listing_status || 'DRAFT').toUpperCase();
+    if (currentStatus !== 'PUBLISHED' && currentStatus !== 'PAUSED') {
+      return res.status(400).json({
+        error: 'INVALID_TRANSITION',
+        message: `Cannot mark property as sold from status ${currentStatus}. Must be PUBLISHED or PAUSED.`,
+      });
+    }
+
+    const updateRes = await executeQuery(`
+      UPDATE properties
+      SET listing_status = 'SOLD', updated_at = NOW()
+      WHERE id = $1
+      RETURNING *;
+    `, [id]);
+
+    await recordAuditEvent({
+      actor: req.user!,
+      action: 'PROPERTY_SOLD',
+      targetEntity: 'properties',
+      targetEntityId: id,
+      clientIp,
+      diffSummary: {
+        previousStatus: currentStatus,
+        newStatus: 'SOLD',
+      },
+    });
+
+    return res.json({
+      success: true,
+      message: 'Property marked as SOLD and enquiries closed',
+      property: updateRes.rows[0],
+    });
+  } catch (err: any) {
+    console.error('[CrmPropertySold] Error:', err);
+    return res.status(500).json({ error: 'Failed to mark property as sold' });
+  }
+});
+
+// 8. Archive Property
+app.post('/api/crm/properties/:id/archive', jsonDefault, authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    if (!isStaff) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
+    }
+
+    const { id } = req.params;
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+
+    const propRes = await executeQuery(`SELECT * FROM properties WHERE id = $1 LIMIT 1;`, [id]);
+    if (!propRes.rows || propRes.rows.length === 0) {
+      return res.status(404).json({ error: 'NOT_FOUND', message: 'Property not found.' });
+    }
+    const property = propRes.rows[0];
+
+    const currentStatus = String(property.listing_status || 'DRAFT').toUpperCase();
+    if (currentStatus === 'ARCHIVED') {
+      return res.status(400).json({ error: 'ALREADY_ARCHIVED', message: 'Property is already archived.' });
+    }
+
+    const updateRes = await executeQuery(`
+      UPDATE properties
+      SET listing_status = 'ARCHIVED', updated_at = NOW()
+      WHERE id = $1
+      RETURNING *;
+    `, [id]);
+
+    await recordAuditEvent({
+      actor: req.user!,
+      action: 'PROPERTY_ARCHIVED',
+      targetEntity: 'properties',
+      targetEntityId: id,
+      clientIp,
+      diffSummary: {
+        previousStatus: currentStatus,
+        newStatus: 'ARCHIVED',
+      },
+    });
+
+    return res.json({
+      success: true,
+      message: 'Property archived',
+      property: updateRes.rows[0],
+    });
+  } catch (err: any) {
+    console.error('[CrmPropertyArchive] Error:', err);
+    return res.status(500).json({ error: 'Failed to archive property' });
+  }
+});
+
+// 9. Add Image to Property
+app.post('/api/crm/properties/:id/images', jsonDefault, authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    if (!isStaff) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
+    }
+
+    const { id } = req.params;
+    const { url, isFeatured = false } = req.body;
+    if (!url || typeof url !== 'string' || !url.trim()) {
+      return res.status(400).json({ error: 'url is required' });
+    }
+
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    const mediaId = `media-${id.slice(5, 12)}-${Date.now().toString(36)}`;
+    const checksum = createHash('sha256').update(url + id).digest('hex');
+
+    if (isFeatured) {
+      await executeQuery(`UPDATE property_media SET is_featured = false WHERE property_id = $1;`, [id]);
+    }
+
+    const insertRes = await executeQuery(`
+      INSERT INTO property_media (id, property_id, url, is_featured, checksum, created_at)
+      VALUES ($1, $2, $3, $4, $5, NOW())
+      RETURNING *;
+    `, [mediaId, id, url.trim(), Boolean(isFeatured), checksum]);
+
+    await recordAuditEvent({
+      actor: req.user!,
+      action: 'IMAGE_ADDED',
+      targetEntity: 'properties',
+      targetEntityId: id,
+      clientIp,
+      diffSummary: { mediaId, url: url.trim(), isFeatured: Boolean(isFeatured) },
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: 'Image added to property',
+      media: insertRes.rows[0],
+    });
+  } catch (err: any) {
+    console.error('[CrmPropertyAddImage] Error:', err);
+    return res.status(500).json({ error: 'Failed to add image to property' });
+  }
+});
+
+// 10. Delete Image from Property
+app.delete('/api/crm/properties/:id/images/:imageId', authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    if (!isStaff) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
+    }
+
+    const { id, imageId } = req.params;
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+
+    await executeQuery(`DELETE FROM property_media WHERE id = $1;`, [imageId]);
+
+    await recordAuditEvent({
+      actor: req.user!,
+      action: 'IMAGE_REMOVED',
+      targetEntity: 'properties',
+      targetEntityId: id,
+      clientIp,
+      diffSummary: { mediaId: imageId },
+    });
+
+    return res.json({
+      success: true,
+      message: 'Image removed from property',
+    });
+  } catch (err: any) {
+    console.error('[CrmPropertyDeleteImage] Error:', err);
+    return res.status(500).json({ error: 'Failed to delete image' });
+  }
+});
+
+// 11. Set Primary Image for Property
+app.post('/api/crm/properties/:id/images/:imageId/primary', jsonDefault, authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    if (!isStaff) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
+    }
+
+    const { id, imageId } = req.params;
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+
+    await executeQuery(`UPDATE property_media SET is_featured = false WHERE property_id = $1;`, [id]);
+    await executeQuery(`UPDATE property_media SET is_featured = true WHERE id = $1 AND property_id = $2;`, [imageId, id]);
+
+    await recordAuditEvent({
+      actor: req.user!,
+      action: 'PRIMARY_IMAGE_CHANGED',
+      targetEntity: 'properties',
+      targetEntityId: id,
+      clientIp,
+      diffSummary: { primaryMediaId: imageId },
+    });
+
+    return res.json({
+      success: true,
+      message: 'Primary image set successfully',
+    });
+  } catch (err: any) {
+    console.error('[CrmPropertySetPrimaryImage] Error:', err);
+    return res.status(500).json({ error: 'Failed to set primary image' });
+  }
+});
+
+// 12. Get Property Activity Timeline
+app.get('/api/crm/properties/:id/activity', authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    if (!isStaff) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
+    }
+
+    const { id } = req.params;
+    const auditRes = await executeQuery(`
+      SELECT id, action, actor_user_id, actor_id, actor_role, client_ip, diff_summary, created_at, timestamp
+      FROM audit_logs
+      WHERE target_entity_id = $1
+      ORDER BY created_at DESC
+      LIMIT 50;
+    `, [id]);
+
+    const activity = (auditRes.rows || []).map((r: any) => ({
+      id: r.id,
+      action: r.action,
+      actorRole: r.actor_role,
+      actorId: r.actor_id || r.actor_user_id,
+      timestamp: r.created_at || r.timestamp,
+      details: r.diff_summary || {},
+    }));
+
+    return res.json({
+      success: true,
+      count: activity.length,
+      activity,
+    });
+  } catch (err: any) {
+    console.error('[CrmPropertyActivity] Error:', err);
+    return res.status(500).json({ error: 'Failed to retrieve property activity' });
+  }
+});
 
 // API: Submit Section 12 Data Erasure Request (Authenticated User)
 app.post('/api/compliance/erasure-request', jsonDefault, rateLimit('erasure-request', 5, 3600), authenticateUser, async (req, res) => {

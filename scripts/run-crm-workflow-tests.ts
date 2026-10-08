@@ -791,6 +791,9 @@ export async function runCrmWorkflowTests(): Promise<{ passed: number; failed: n
     'TEST 15: Operational CRM status is persistent in PostgreSQL and verified identical across separate endpoints'
   );
 
+  // Clean up: reset test query handler so subsequent suites use dev sandbox store
+  setTestQueryHandler(null);
+
   return { passed, failed, results };
 }
 

@@ -53,6 +53,7 @@ export interface DevBuyerEnquiry {
   phone: string;
   preferred_locality_or_society: string;
   bhk_type: string;
+  property_id?: string | null;
   lead_status: string;
   assigned_staff_id: string | null;
   assigned_at: string | null;
@@ -88,10 +89,32 @@ export interface DevProperty {
   reserve_minimum_price_inr: number;
   listing_intent: string;
   crm_status: string;
+  listing_status: 'DRAFT' | 'PUBLISHED' | 'PAUSED' | 'SOLD' | 'ARCHIVED';
+  title?: string;
+  description?: string;
+  amenities?: string[];
+  property_type?: string;
+  public_address?: string;
+  floor_band?: string;
+  developer_name?: string;
+  landmarks?: any[];
+  highlights?: string[];
   verification_tier: string;
   internal_verification_notes: string;
   created_at: string;
   updated_at: string;
+}
+
+export interface DevPropertyMedia {
+  id: string;
+  property_id: string;
+  url: string;
+  is_featured: boolean;
+  checksum: string;
+  storage_path?: string | null;
+  mime_type?: string | null;
+  file_size_bytes?: number | null;
+  created_at: string;
 }
 
 export interface DevDocument {
@@ -227,7 +250,7 @@ class DevSandboxStore {
     const prop1: DevProperty = {
       id: 'prop-dev-seed-01',
       owner_id: owner.id,
-      project_locality_id: 'panathur',
+      project_locality_id: 'Sobha Dream Acres, Panathur',
       unit_number: 'Flat 1102',
       wing_tower: 'Tower 4',
       unit_floor: 11,
@@ -249,12 +272,158 @@ class DevSandboxStore {
       reserve_minimum_price_inr: 13800000,
       listing_intent: 'SELL',
       crm_status: 'NEW',
+      listing_status: 'PUBLISHED',
+      title: 'Sobha Dream Acres - Spacious 3BHK',
+      property_type: 'Apartment',
+      public_address: 'Tower 4, Panathur / Balagere, East Bengaluru',
+      floor_band: 'Floor 11 of 18 (High Floor)',
+      developer_name: 'Sobha Limited',
+      description: 'RERA-approved 3BHK resale apartment in Sobha Dream Acres. Featuring 1650 sq.ft. super built-up area, East facing, cross ventilation, and complete clear legal title.',
+      amenities: ['Clubhouse with Indoor Badminton Courts', 'Olympic-Sized Swimming Pool', '24/7 Security & CCTV', '100% DG Power Backup', 'Gymnasium'],
       verification_tier: 'LEVEL_1_OWNER_DECLARED',
       internal_verification_notes: JSON.stringify({ verified: false }),
       created_at: new Date(Date.now() - 3600000 * 3).toISOString(),
       updated_at: new Date().toISOString(),
     };
     this.properties.set(prop1.id, prop1);
+
+    const prop2: DevProperty = {
+      id: 'prop-dev-seed-02',
+      owner_id: owner.id,
+      project_locality_id: 'Sobha Dream Acres, Panathur / Balagere',
+      unit_number: 'Flat 402',
+      wing_tower: 'Tower 2',
+      unit_floor: 4,
+      total_floors: 18,
+      bhk_type: '2BHK',
+      super_built_up_sqft: 1205,
+      carpet_area_sqft: 890,
+      balconies_count: 1,
+      bathrooms_count: 2,
+      facing: 'NORTH',
+      car_parks_count: 1,
+      is_covered_parking: true,
+      khata_type: 'A_KHATA',
+      encumbrance_status: 'CLEAR',
+      loan_bank_name: 'SBI Home Finance',
+      occupancy_status: 'READY_TO_MOVE',
+      monthly_maintenance_inr: 3800,
+      asking_price_inr: 10800000,
+      reserve_minimum_price_inr: 10200000,
+      listing_intent: 'SELL',
+      crm_status: 'CONTACTED',
+      listing_status: 'PUBLISHED',
+      title: 'Sobha Dream Acres - Compact 2BHK',
+      property_type: 'Apartment',
+      public_address: 'Panathur / Balagere, East Bengaluru',
+      floor_band: 'Floor 4 of 18 (Mid Floor)',
+      developer_name: 'Sobha Limited',
+      description: 'Well-ventilated 2BHK residence with modular kitchen and Kaveri Form 15 verified title.',
+      amenities: ['Swimming Pool', 'Gymnasium', '24/7 Security', 'Power Backup'],
+      verification_tier: 'LEVEL_3_PHYSICALLY_INSPECTED',
+      internal_verification_notes: JSON.stringify({ verified: true }),
+      created_at: new Date(Date.now() - 3600000 * 24).toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    this.properties.set(prop2.id, prop2);
+
+    const prop3: DevProperty = {
+      id: 'prop-dev-seed-03',
+      owner_id: owner.id,
+      project_locality_id: 'Prestige Falcon City, Kanakapura Road',
+      unit_number: 'Flat 801',
+      wing_tower: 'Tower 1',
+      unit_floor: 8,
+      total_floors: 18,
+      bhk_type: '3BHK',
+      super_built_up_sqft: 1850,
+      carpet_area_sqft: 1420,
+      balconies_count: 2,
+      bathrooms_count: 3,
+      facing: 'EAST',
+      car_parks_count: 1,
+      is_covered_parking: true,
+      khata_type: 'A_KHATA',
+      encumbrance_status: 'CLEAR',
+      loan_bank_name: 'HDFC Bank',
+      occupancy_status: 'READY_TO_MOVE',
+      monthly_maintenance_inr: 5200,
+      asking_price_inr: 16500000,
+      reserve_minimum_price_inr: 15800000,
+      listing_intent: 'SELL',
+      crm_status: 'FOLLOW_UP',
+      listing_status: 'PUBLISHED',
+      title: 'Prestige Falcon City - Premium 3BHK',
+      property_type: 'Apartment',
+      public_address: 'Kanakapura Road, South Bengaluru',
+      floor_band: 'Floor 8 of 18 (Mid Floor)',
+      developer_name: 'Prestige Group',
+      description: 'Spacious 3BHK high-rise apartment near Metro Station with expansive balcony deck.',
+      amenities: ['Clubhouse', 'Swimming Pool', 'Tennis Court', 'Gymnasium', '24/7 Security'],
+      verification_tier: 'LEVEL_2_DOCS_REVIEWED',
+      internal_verification_notes: JSON.stringify({ verified: true }),
+      created_at: new Date(Date.now() - 3600000 * 48).toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    this.properties.set(prop3.id, prop3);
+
+    const prop4: DevProperty = {
+      id: 'prop-dev-seed-04',
+      owner_id: owner.id,
+      project_locality_id: 'Brigade Cornerstone Utopia, Varthur / Whitefield',
+      unit_number: 'Flat 1604',
+      wing_tower: 'Tower Eden',
+      unit_floor: 16,
+      total_floors: 22,
+      bhk_type: '4BHK+',
+      super_built_up_sqft: 2450,
+      carpet_area_sqft: 1890,
+      balconies_count: 3,
+      bathrooms_count: 4,
+      facing: 'NORTH_EAST',
+      car_parks_count: 2,
+      is_covered_parking: true,
+      khata_type: 'A_KHATA',
+      encumbrance_status: 'CLEAR',
+      loan_bank_name: 'ICICI Bank',
+      occupancy_status: 'READY_TO_MOVE',
+      monthly_maintenance_inr: 6800,
+      asking_price_inr: 28500000,
+      reserve_minimum_price_inr: 27500000,
+      listing_intent: 'SELL',
+      crm_status: 'SITE_VISIT',
+      listing_status: 'PUBLISHED',
+      title: 'Brigade Cornerstone Utopia - Luxury 4BHK+',
+      property_type: 'Apartment',
+      public_address: 'Varthur / Whitefield, East Bengaluru',
+      floor_band: 'Floor 16 of 22 (High Floor)',
+      developer_name: 'Brigade Group',
+      description: 'Exclusive 4BHK penthouse style residence in integrated smart township.',
+      amenities: ['Olympic Pool', 'Multiplex Screening', 'Clubhouse', 'EV Stations', 'Security'],
+      verification_tier: 'LEVEL_3_PHYSICALLY_INSPECTED',
+      internal_verification_notes: JSON.stringify({ verified: true }),
+      created_at: new Date(Date.now() - 3600000 * 72).toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    this.properties.set(prop4.id, prop4);
+
+    // Seed default media for sample properties
+    const mediaSeeds = [
+      { id: 'media-seed-01', property_id: 'prop-dev-seed-01', url: 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80', is_featured: true },
+      { id: 'media-seed-02', property_id: 'prop-dev-seed-02', url: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80', is_featured: true },
+      { id: 'media-seed-03', property_id: 'prop-dev-seed-03', url: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1200&q=80', is_featured: true },
+      { id: 'media-seed-04', property_id: 'prop-dev-seed-04', url: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=1200&q=80', is_featured: true },
+    ];
+    for (const m of mediaSeeds) {
+      this.propertyMedia.set(m.id, {
+        id: m.id,
+        property_id: m.property_id,
+        url: m.url,
+        is_featured: m.is_featured,
+        checksum: 'seed-' + m.id,
+        created_at: new Date().toISOString()
+      });
+    }
   }
 
   public handleQuery(sql: string, params: any[] = []): { rows: any[] } {
@@ -426,8 +595,10 @@ class DevSandboxStore {
 
     // 11. CONSENTS: Select
     if (cleanSql.includes('FROM consents')) {
-      const phone = params[0];
-      let matched = Array.from(this.consents.values()).filter(x => x.phone === phone);
+      const rawPhone = String(params[0] || '').replace(/\D/g, '').slice(-10);
+      let matched = Array.from(this.consents.values()).filter(x => 
+        x.phone === params[0] || x.phone?.replace(/\D/g, '').slice(-10) === rawPhone
+      );
       if (cleanSql.includes('purpose = $2') && params[1]) {
         matched = matched.filter(x => x.purpose === params[1]);
       }
@@ -596,28 +767,38 @@ class DevSandboxStore {
         return {
           rows: [{
             ...be,
+            property_id: be.property_id || null,
             assigned_staff_name: staff?.display_name || null,
             assigned_staff_phone: staff?.phone || null,
           }]
         };
       }
-      return { rows: Array.from(this.buyerEnquiries.values()).map(b => ({ ...b })) };
+      if (cleanSql.includes('WHERE phone = $1') || cleanSql.includes('WHERE buyer_phone = $1')) {
+        const rawPhone = String(params[0] || '').replace(/\D/g, '').slice(-10);
+        const match = Array.from(this.buyerEnquiries.values()).filter(b => 
+          b.phone === params[0] || b.phone?.replace(/\D/g, '').slice(-10) === rawPhone
+        );
+        return { rows: match.map(b => ({ ...b, property_id: b.property_id || null })) };
+      }
+      return { rows: Array.from(this.buyerEnquiries.values()).map(b => ({ ...b, property_id: b.property_id || null })) };
     }
 
     // 17. BUYER_ENQUIRIES: Insert
     if (cleanSql.includes('INSERT INTO buyer_enquiries')) {
+      const hasProp = cleanSql.includes('property_id');
       const be: DevBuyerEnquiry = {
         id: params[0] || `enq-${Date.now()}`,
         buyer_name: params[1],
         phone: params[2],
         preferred_locality_or_society: params[3],
         bhk_type: params[4],
-        lead_status: params[5] || 'NEW',
-        assigned_staff_id: params[6] || null,
+        property_id: hasProp ? (params[5] || null) : null,
+        lead_status: params.length >= 8 ? (params[6] || 'NEW') : 'NEW',
+        assigned_staff_id: null,
         assigned_at: null,
         next_follow_up_at: null,
         follow_up_notes: null,
-        notes: null,
+        notes: params.length === 7 ? (params[6] || null) : (params[7] || params[6] || null),
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -650,8 +831,113 @@ class DevSandboxStore {
       return { rows: [] };
     }
 
-    // 19. PROPERTIES: Select (with owner filter or list)
+    // 19. PROPERTY MEDIA: Select, Insert, Update, Delete
+    if (cleanSql.includes('FROM property_media')) {
+      if (cleanSql.includes('WHERE property_id = $1')) {
+        const propId = String(params[0] || '').trim();
+        const media = Array.from(this.propertyMedia.values()).filter(m => m.property_id === propId);
+        media.sort((a, b) => (b.is_featured ? 1 : 0) - (a.is_featured ? 1 : 0));
+        return { rows: media.map(m => ({ ...m })) };
+      }
+      if (cleanSql.includes('WHERE id = $1')) {
+        const id = String(params[0] || '').trim();
+        const m = this.propertyMedia.get(id);
+        return m ? { rows: [{ ...m }] } : { rows: [] };
+      }
+      return { rows: Array.from(this.propertyMedia.values()).map(m => ({ ...m })) };
+    }
+
+    if (cleanSql.includes('INSERT INTO property_media')) {
+      const mediaId = params[0] || `media-${Date.now()}`;
+      const propId = params[1];
+      const url = params[2];
+      const isFeatured = Boolean(params[3]);
+      const checksum = params[4] || 'hash-' + mediaId;
+      const mediaItem = {
+        id: mediaId,
+        property_id: propId,
+        url,
+        is_featured: isFeatured,
+        checksum,
+        storage_path: params[5] || null,
+        mime_type: params[6] || 'image/jpeg',
+        file_size_bytes: params[7] || 500000,
+        created_at: new Date().toISOString()
+      };
+      // If this is marked featured, unmark others for the same property
+      if (isFeatured) {
+        for (const m of this.propertyMedia.values()) {
+          if (m.property_id === propId) m.is_featured = false;
+        }
+      }
+      this.propertyMedia.set(mediaId, mediaItem);
+      return { rows: [{ ...mediaItem }] };
+    }
+
+    if (cleanSql.includes('UPDATE property_media')) {
+      if (cleanSql.includes('is_featured = false WHERE property_id = $1')) {
+        const propId = params[0];
+        for (const m of this.propertyMedia.values()) {
+          if (m.property_id === propId) m.is_featured = false;
+        }
+        return { rows: [] };
+      }
+      if (cleanSql.includes('is_featured = true WHERE id = $1') || cleanSql.includes('is_featured = $1 WHERE id = $2')) {
+        const targetId = cleanSql.includes('is_featured = true') ? params[0] : params[1];
+        const targetVal = cleanSql.includes('is_featured = true') ? true : Boolean(params[0]);
+        const m = this.propertyMedia.get(targetId);
+        if (m) {
+          if (targetVal) {
+            for (const other of this.propertyMedia.values()) {
+              if (other.property_id === m.property_id) other.is_featured = false;
+            }
+          }
+          m.is_featured = targetVal;
+          return { rows: [{ ...m }] };
+        }
+        return { rows: [] };
+      }
+    }
+
+    if (cleanSql.includes('DELETE FROM property_media WHERE id = $1')) {
+      const mediaId = params[0];
+      const m = this.propertyMedia.get(mediaId);
+      this.propertyMedia.delete(mediaId);
+      // If removed image was featured, promote another
+      if (m && m.is_featured) {
+        const remaining = Array.from(this.propertyMedia.values()).filter(x => x.property_id === m.property_id);
+        if (remaining.length > 0) remaining[0].is_featured = true;
+      }
+      return { rows: [] };
+    }
+
+    // 20. PROPERTIES: Select (with owner filter, single ID lookup, similar lookup, or list)
     if (cleanSql.includes('FROM properties')) {
+      // 1. Single property by ID
+      if (
+        cleanSql.includes('WHERE id = $1') || 
+        cleanSql.includes('WHERE p.id = $1') ||
+        cleanSql.includes('WHERE (p.id = $1') ||
+        cleanSql.includes('WHERE (id = $1')
+      ) {
+        const id = String(params[0] || '').trim();
+        const p = this.properties.get(id) || Array.from(this.properties.values()).find(x => x.id === id || `sgl-${x.id.slice(0, 8)}` === id);
+        return p ? { rows: [{ ...p }] } : { rows: [] };
+      }
+
+      // 2. Similar properties query (excludes target property ID and non-published / lost / dropped properties)
+      if (cleanSql.includes('WHERE id != $1') || cleanSql.includes('WHERE p.id != $1')) {
+        const excludeId = String(params[0] || '').trim();
+        const candidates = Array.from(this.properties.values()).filter(p => {
+          if (p.id === excludeId || `sgl-${p.id.slice(0, 8)}` === excludeId) return false;
+          if (p.crm_status === 'LOST' || p.crm_status === 'DROPPED') return false;
+          if (p.listing_status && p.listing_status !== 'PUBLISHED') return false;
+          return true;
+        });
+        return { rows: candidates.map(p => ({ ...p })) };
+      }
+
+      // 3. Properties by owner ID
       if (cleanSql.includes('WHERE p.owner_id = $1') || cleanSql.includes('WHERE owner_id = $1')) {
         const ownerId = params[0];
         const matched = Array.from(this.properties.values()).filter(p => p.owner_id === ownerId);
@@ -671,23 +957,100 @@ class DevSandboxStore {
         };
       }
 
-      if (cleanSql.includes('WHERE id = $1')) {
-        const id = params[0];
-        const p = this.properties.get(id);
-        return p ? { rows: [{ ...p }] } : { rows: [] };
+      // 4. Public active listings query (/api/listings)
+      if (cleanSql.includes('listing_status = \'PUBLISHED\'') || cleanSql.includes('COALESCE(listing_status, \'PUBLISHED\') = \'PUBLISHED\'')) {
+        const published = Array.from(this.properties.values()).filter(p => 
+          (p.listing_status === 'PUBLISHED' || (!p.listing_status && p.id.startsWith('prop-dev-seed'))) &&
+          p.crm_status !== 'LOST' && p.crm_status !== 'DROPPED'
+        );
+        return { rows: published.map(p => ({ ...p })) };
       }
 
-      // All properties
+      // 5. All active properties (CRM inventory table)
       const all = Array.from(this.properties.values());
-      return { rows: all.map(p => ({ ...p })) };
+      return {
+        rows: all.map(p => {
+          const lead = Array.from(this.sellerLeads.values()).find(l => l.property_id === p.id);
+          const staff = lead?.assigned_staff_id ? this.users.get(lead.assigned_staff_id) : null;
+          return {
+            ...p,
+            owner_name: lead?.owner_name || 'Owner',
+            owner_phone: lead?.phone || '+919800000000',
+            rm_name: staff?.display_name || 'Unassigned',
+            rm_phone: staff?.phone || null,
+          };
+        })
+      };
     }
 
-    // 20. PROPERTIES: Insert
+    // 21. PROPERTIES: Insert
     if (cleanSql.includes('INSERT INTO properties')) {
+      // Determine if listing_status is provided
+      let listingStatus: 'DRAFT' | 'PUBLISHED' | 'PAUSED' | 'SOLD' | 'ARCHIVED' = 'DRAFT';
+      if (cleanSql.includes('listing_status')) {
+        const found = params.find(p => ['DRAFT', 'PUBLISHED', 'PAUSED', 'SOLD', 'ARCHIVED'].includes(p));
+        if (found) listingStatus = found as any;
+      }
+
+      // If this is the Phase 2 CRM Property Management insert
+      if (cleanSql.includes('property_type') && cleanSql.includes('floor_band')) {
+        let amenitiesParsed: string[] = [];
+        try { amenitiesParsed = JSON.parse(params[19]); } catch { amenitiesParsed = Array.isArray(params[19]) ? params[19] : []; }
+        let landmarksParsed: string[] = [];
+        try { landmarksParsed = JSON.parse(params[24]); } catch { landmarksParsed = Array.isArray(params[24]) ? params[24] : []; }
+        let highlightsParsed: string[] = [];
+        try { highlightsParsed = JSON.parse(params[25]); } catch { highlightsParsed = Array.isArray(params[25]) ? params[25] : []; }
+
+        const prop: DevProperty = {
+          id: params[0] || `prop-${Date.now()}`,
+          owner_id: params[1] || 'usr-staff-intake-01',
+          project_locality_id: params[2] || 'Bengaluru',
+          unit_number: params[3] || 'Flat 101',
+          wing_tower: params[4] || 'Tower A',
+          unit_floor: Number(params[5]) || 1,
+          total_floors: Number(params[6]) || 10,
+          bhk_type: params[7] || '2BHK',
+          super_built_up_sqft: Number(params[8]) || 1200,
+          carpet_area_sqft: Number(params[9]) || 950,
+          balconies_count: Number(params[10]) || 1,
+          bathrooms_count: Number(params[11]) || 2,
+          facing: params[12] || 'EAST',
+          car_parks_count: Number(params[13]) || 1,
+          is_covered_parking: true,
+          khata_type: 'A_KHATA',
+          encumbrance_status: 'CLEAR',
+          loan_bank_name: null,
+          occupancy_status: 'READY_TO_MOVE',
+          monthly_maintenance_inr: Number(params[14]) || 0,
+          asking_price_inr: Number(params[15]) || 10000000,
+          reserve_minimum_price_inr: Number(params[16]) || 9500000,
+          listing_intent: 'SELL',
+          crm_status: 'NEW',
+          listing_status: 'DRAFT',
+          title: params[17] || 'Property',
+          description: params[18] || '',
+          amenities: amenitiesParsed,
+          property_type: params[20] || 'Apartment',
+          public_address: params[21] || params[2] || 'Bengaluru',
+          floor_band: params[22] || 'MID',
+          developer_name: params[23] || 'Developer',
+          landmarks: landmarksParsed,
+          highlights: highlightsParsed,
+          verification_tier: 'LEVEL_1_OWNER_DECLARED',
+          internal_verification_notes: '{}',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        this.properties.set(prop.id, prop);
+        return { rows: [{ ...prop }] };
+      }
+
+      // Default property insert (seller service / wizard)
       const prop: DevProperty = {
         id: params[0] || `prop-${Date.now()}`,
-        owner_id: params[1],
-        project_locality_id: params[2],
+        owner_id: params[1] || 'usr-staff-intake-01',
+        project_locality_id: params[2] || 'Bengaluru',
         unit_number: params[3] || 'Flat 101',
         wing_tower: params[4] || 'Tower A',
         unit_floor: params[5] || 1,
@@ -708,42 +1071,120 @@ class DevSandboxStore {
         asking_price_inr: params[20] || 10000000,
         reserve_minimum_price_inr: params[21] || 9500000,
         listing_intent: params[22] || 'SELL',
-        crm_status: 'NEW',
+        crm_status: (params.find((p: any) => p === 'LOST' || p === 'DROPPED') as any) || 'NEW',
+        listing_status: listingStatus,
         verification_tier: params[23] || 'LEVEL_1_OWNER_DECLARED',
         internal_verification_notes: params[24] || '{}',
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
+        property_type: 'Apartment',
+        title: 'Property',
+        description: '',
+        public_address: params[2] || 'Bengaluru',
+        floor_band: 'MID',
+        developer_name: 'Developer',
+        amenities: [],
+        landmarks: [],
+        highlights: []
       };
+
       this.properties.set(prop.id, prop);
       return { rows: [{ ...prop }] };
     }
 
-    // 21. PROPERTIES: Update crm_status
-    if (cleanSql.includes('UPDATE properties') && cleanSql.includes('crm_status = $1')) {
-      const newStatus = params[0];
-      if (cleanSql.includes('WHERE id = $2')) {
-        const id = params[1];
-        const p = this.properties.get(id);
-        if (p) {
-          p.crm_status = newStatus;
-          p.updated_at = new Date().toISOString();
+    // 22. PROPERTIES: Update (listing_status, crm_status, or full edit)
+    if (cleanSql.includes('UPDATE properties')) {
+      if (cleanSql.includes('listing_status =')) {
+        let newListingStatus: 'DRAFT' | 'PUBLISHED' | 'PAUSED' | 'SOLD' | 'ARCHIVED' | undefined;
+        let propId = params[0];
+        if (cleanSql.includes("listing_status = 'PUBLISHED'")) newListingStatus = 'PUBLISHED';
+        else if (cleanSql.includes("listing_status = 'PAUSED'")) newListingStatus = 'PAUSED';
+        else if (cleanSql.includes("listing_status = 'SOLD'")) newListingStatus = 'SOLD';
+        else if (cleanSql.includes("listing_status = 'ARCHIVED'")) newListingStatus = 'ARCHIVED';
+        else if (cleanSql.includes('listing_status = $1')) {
+          newListingStatus = params[0] as any;
+          propId = params[1];
         }
-      } else if (cleanSql.includes('WHERE owner_id =')) {
-        const phone = params[1];
-        const u = Array.from(this.users.values()).find(x => x.phone === phone);
-        if (u) {
-          for (const p of this.properties.values()) {
-            if (p.owner_id === u.id) {
-              p.crm_status = newStatus;
-              p.updated_at = new Date().toISOString();
+
+        if (newListingStatus) {
+          const p = this.properties.get(propId);
+          if (p) {
+            p.listing_status = newListingStatus;
+            p.updated_at = new Date().toISOString();
+            return { rows: [{ ...p }] };
+          }
+          return { rows: [] };
+        }
+      }
+
+      if (cleanSql.includes('crm_status = $1')) {
+        const newStatus = params[0];
+        if (cleanSql.includes('WHERE id = $2')) {
+          const id = params[1];
+          const p = this.properties.get(id);
+          if (p) {
+            p.crm_status = newStatus;
+            p.updated_at = new Date().toISOString();
+          }
+        } else if (cleanSql.includes('WHERE owner_id =')) {
+          const phone = params[1];
+          const u = Array.from(this.users.values()).find(x => x.phone === phone);
+          if (u) {
+            for (const p of this.properties.values()) {
+              if (p.owner_id === u.id) {
+                p.crm_status = newStatus;
+                p.updated_at = new Date().toISOString();
+              }
             }
           }
         }
+        return { rows: [] };
+      }
+
+      // Full property field edit: UPDATE properties SET title = COALESCE($1, title)... WHERE id = $17
+      if (cleanSql.includes('title = COALESCE($1, title)')) {
+        const propId = params[params.length - 1];
+        const p = this.properties.get(propId);
+        if (p) {
+          if (params[0] !== null && params[0] !== undefined) p.title = params[0];
+          if (params[1] !== null && params[1] !== undefined) p.description = params[1];
+          if (params[2] !== null && params[2] !== undefined) p.property_type = params[2];
+          if (params[3] !== null && params[3] !== undefined) p.bhk_type = params[3];
+          if (params[4] !== null && params[4] !== undefined) p.project_locality_id = params[4];
+          if (params[5] !== null && params[5] !== undefined) p.public_address = params[5];
+          if (params[6] !== null && params[6] !== undefined) p.floor_band = params[6];
+          if (params[7] !== null && params[7] !== undefined) p.facing = params[7];
+          if (params[8] !== null && params[8] !== undefined) p.super_built_up_sqft = Number(params[8]);
+          if (params[9] !== null && params[9] !== undefined) p.carpet_area_sqft = Number(params[9]);
+          if (params[10] !== null && params[10] !== undefined) p.asking_price_inr = Number(params[10]);
+          if (params[11] !== null && params[11] !== undefined) p.monthly_maintenance_inr = Number(params[11]);
+          if (params[12] !== null && params[12] !== undefined) {
+            try { p.amenities = JSON.parse(params[12]); } catch { p.amenities = params[12]; }
+          }
+          if (params[13] !== null && params[13] !== undefined) p.developer_name = params[13];
+          if (params[14] !== null && params[14] !== undefined) {
+            try { p.landmarks = JSON.parse(params[14]); } catch { p.landmarks = params[14]; }
+          }
+          if (params[15] !== null && params[15] !== undefined) {
+            try { p.highlights = JSON.parse(params[15]); } catch { p.highlights = params[15]; }
+          }
+          p.updated_at = new Date().toISOString();
+          return { rows: [{ ...p }] };
+        }
+        return { rows: [] };
+      }
+
+      // General property edit: find by ID in params
+      const propId = params[params.length - 1];
+      const p = this.properties.get(propId);
+      if (p) {
+        p.updated_at = new Date().toISOString();
+        return { rows: [{ ...p }] };
       }
       return { rows: [] };
     }
 
-    // 22. DOCUMENTS: Select / Update
+    // 23. DOCUMENTS: Select / Update
     if (cleanSql.includes('FROM documents') && cleanSql.includes('WHERE id = $1')) {
       const id = params[0];
       const d = this.documents.get(id);
@@ -763,7 +1204,7 @@ class DevSandboxStore {
       return { rows: [] };
     }
 
-    // 23. AUDIT_LOGS: Insert & Select
+    // 24. AUDIT_LOGS: Insert & Select
     if (cleanSql.includes('INSERT INTO audit_logs')) {
       const logEntry: DevAuditLog = {
         id: params[0] || `aud-${Date.now()}`,
@@ -783,7 +1224,11 @@ class DevSandboxStore {
 
     if (cleanSql.includes('FROM audit_logs')) {
       const targetId = params[0];
-      const filtered = this.auditLogs.filter(l => l.target_entity_id === targetId);
+      const filtered = this.auditLogs.filter(l => 
+        l.target_entity_id === targetId || 
+        (params[1] && l.target_entity_id === params[1]) ||
+        (l.diff_summary && l.diff_summary.propertyId === targetId)
+      );
       return { rows: filtered };
     }
 

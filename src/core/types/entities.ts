@@ -89,11 +89,24 @@ export type VerificationTier =
   | 'LEVEL_2_DOCS_REVIEWED'   // Sale deed + Katha + EC basic review
   | 'LEVEL_3_PHYSICALLY_INSPECTED'; // SellMyGhar field agent visited & tagged
 
+export type PropertyStatus = 'DRAFT' | 'PUBLISHED' | 'PAUSED' | 'SOLD' | 'ARCHIVED';
+
 export interface PropertyPrivateRecord {
   id: string;
   owner_id: string; // FK to UserPrivateRecord.id
   project_locality_id: string; // FK to ProjectLocalityRecord.id
   
+  // Basic Information & Public Metadata
+  title?: string;
+  property_type?: string;
+  public_address?: string;
+  floor_band?: string;
+  developer_name?: string;
+  description?: string;
+  amenities?: string[];
+  landmarks?: any[];
+  highlights?: string[];
+
   // SENSITIVE PRIVATE IDENTIFIERS (Never sent to public/buyers)
   unit_number: string; // Flat/Villa number e.g., "A-1204"
   wing_tower: string;   // e.g., "Tower 2, Wing B"
@@ -121,7 +134,8 @@ export interface PropertyPrivateRecord {
   asking_price_inr: number;
   reserve_minimum_price_inr: number; // Strictly confidential to owner & senior deal closer
   
-  // Verification State
+  // Lifecycle & Status Model (Phase 2 Canonical)
+  listing_status?: PropertyStatus;
   verification_tier: VerificationTier;
   internal_verification_notes: string;
   crm_status?: LeadStatus;
@@ -133,7 +147,7 @@ export interface PropertyPrivateRecord {
 // -------------------------------------------------------------
 // 4. Listings (Public Discovery Projection)
 // -------------------------------------------------------------
-export type ListingStatus = 'ACTIVE' | 'UNDER_OFFER' | 'SOLD' | 'WITHDRAWN';
+export type ListingStatus = PropertyStatus;
 
 export interface PublicListingPhoto {
   id: string;
@@ -160,7 +174,7 @@ export interface PublicListingProjection {
   photos: PublicListingPhoto[]; // EXIF metadata stripped, WebP compressed
   amenities: string[];
   public_verification_badge: 'OWNER_VERIFIED' | 'DOCS_CHECKED' | 'INSPECTED';
-  status: ListingStatus;
+  status: PropertyStatus;
   published_at: string;
 }
 
