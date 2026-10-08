@@ -28,7 +28,8 @@ import {
   uploadHeroImageToSupabase,
   BUCKET_PROPERTY_MEDIA, 
   BUCKET_PROPERTY_DOCUMENTS, 
-  ensureSupabaseBucketsExist 
+  ensureSupabaseBucketsExist,
+  getSupabaseClient
 } from './src/server/storage/supabase-client';
 import { DistributedRateLimiter } from './src/server/ratelimit/limiter';
 import { recordAuditEvent, AuditableAction } from './src/server/audit/logger';
@@ -146,12 +147,14 @@ async function initSchemaColumns() {
         property_id VARCHAR(64) NOT NULL,
         url TEXT NOT NULL,
         is_featured BOOLEAN NOT NULL DEFAULT false,
+        display_order INTEGER NOT NULL DEFAULT 0,
         checksum VARCHAR(64) NOT NULL,
         storage_path VARCHAR(512),
         mime_type VARCHAR(64),
         file_size_bytes BIGINT,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+      ALTER TABLE property_media ADD COLUMN IF NOT EXISTS display_order INTEGER NOT NULL DEFAULT 0;
       CREATE INDEX IF NOT EXISTS idx_property_media_property ON property_media (property_id);
 
       CREATE TABLE IF NOT EXISTS buyer_enquiries (
@@ -979,7 +982,7 @@ app.get('/api/listings/:id', rateLimit('listing-detail', 60, 60), async (req, re
     let mediaRows: any[] = [];
     if (!isCuratedShowcase) {
       const mediaResult = await executeQuery(
-        `SELECT id, url, is_featured, created_at FROM property_media WHERE property_id = $1 ORDER BY is_featured DESC, created_at ASC;`,
+        `SELECT id, url, is_featured, display_order, created_at FROM property_media WHERE property_id = $1 ORDER BY is_featured DESC, display_order ASC, created_at ASC;`,
         [row.id]
       );
       mediaRows = mediaResult.rows || [];
@@ -991,13 +994,21 @@ app.get('/api/listings/:id', rateLimit('listing-detail', 60, 60), async (req, re
                      matchedSample?.image || 
                      'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80';
 
-    const galleryPhotos = [
-      { id: 'img-1', url: baseCover, caption: 'Spacious Living Hall with Balcony Deck', isCover: true },
-      { id: 'img-2', url: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80', caption: 'Master Bedroom with Wooden Laminate Flooring', isCover: false },
-      { id: 'img-3', url: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1200&q=80', caption: 'Modular Kitchen with Granite Countertops & Utility', isCover: false },
-      { id: 'img-4', url: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=1200&q=80', caption: 'Panoramic Balcony Corridor View', isCover: false },
-      { id: 'img-5', url: 'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?auto=format&fit=crop&w=1200&q=80', caption: 'Society Clubhouse, Olympic Pool & Landscaped Courts', isCover: false },
-    ];
+    const galleryPhotos = mediaRows.length > 0
+      ? mediaRows.map((m: any, idx: number) => ({
+          id: m.id || `img-${idx + 1}`,
+          url: m.url,
+          caption: m.is_featured ? 'Primary Cover Photo' : `Property Photo ${idx + 1}`,
+          isCover: Boolean(m.is_featured),
+          displayOrder: m.display_order ?? idx,
+        }))
+      : [
+          { id: 'img-1', url: baseCover, caption: 'Spacious Living Hall with Balcony Deck', isCover: true, displayOrder: 0 },
+          { id: 'img-2', url: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80', caption: 'Master Bedroom with Wooden Laminate Flooring', isCover: false, displayOrder: 1 },
+          { id: 'img-3', url: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1200&q=80', caption: 'Modular Kitchen with Granite Countertops & Utility', isCover: false, displayOrder: 2 },
+          { id: 'img-4', url: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=1200&q=80', caption: 'Panoramic Balcony Corridor View', isCover: false, displayOrder: 3 },
+          { id: 'img-5', url: 'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?auto=format&fit=crop&w=1200&q=80', caption: 'Society Clubhouse, Olympic Pool & Landscaped Courts', isCover: false, displayOrder: 4 },
+        ];
 
     // Query real candidates for deterministic Similar Properties ranking
     const candidateResult = await executeQuery(
@@ -1144,6 +1155,7 @@ app.get('/api/listings/:id', rateLimit('listing-detail', 60, 60), async (req, re
         fieldInspection: row.verification_tier === 'LEVEL_3_PHYSICALLY_INSPECTED' ? 'SellMyGhar Field Agent Physically Inspected' : 'Document Verified Listing'
       },
       photos: galleryPhotos,
+      galleryPhotos: galleryPhotos,
       relationshipManager: {
         name: 'Kavitha Ranganathan',
         role: 'Senior Property & Diligence Lead',
@@ -2978,12 +2990,12 @@ export function validatePropertyForPublish(property: any, images: any[] = []): {
 }
 
 // 1. List Properties for CRM
-app.get('/api/crm/properties', authenticateUser, async (req: Request, res: Response) => {
-  try {
-    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
-    if (!isStaff) {
-      return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required for CRM property management.' });
-    }
+app.get(
+  '/api/crm/properties',
+  authenticateUser,
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER', 'STAFF_DEAL_CLOSER', 'STAFF_INTAKE_AGENT', 'STAFF_VERIFICATION_AGENT'),
+  async (req: Request, res: Response) => {
+    try {
 
     const result = await executeQuery(`
       SELECT 
@@ -3034,7 +3046,7 @@ app.get('/api/crm/properties', authenticateUser, async (req: Request, res: Respo
     const propertiesWithImages = await Promise.all(
       (result.rows || []).map(async (row: any) => {
         const mediaRes = await executeQuery(
-          `SELECT id, url, is_featured, created_at FROM property_media WHERE property_id = $1 ORDER BY is_featured DESC, created_at ASC;`,
+          `SELECT id, url, is_featured, display_order, created_at FROM property_media WHERE property_id = $1 ORDER BY is_featured DESC, display_order ASC, created_at ASC;`,
           [row.id]
         );
         const images = mediaRes.rows || [];
@@ -3101,14 +3113,13 @@ app.get('/api/crm/properties', authenticateUser, async (req: Request, res: Respo
 });
 
 // 2. Get Single Property Detail for CRM
-app.get('/api/crm/properties/:id', authenticateUser, async (req: Request, res: Response) => {
-  try {
-    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
-    if (!isStaff) {
-      return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
-    }
-
-    const { id } = req.params;
+app.get(
+  '/api/crm/properties/:id',
+  authenticateUser,
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER', 'STAFF_DEAL_CLOSER', 'STAFF_INTAKE_AGENT', 'STAFF_VERIFICATION_AGENT'),
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
     const propRes = await executeQuery(`
       SELECT 
         p.*,
@@ -3130,7 +3141,7 @@ app.get('/api/crm/properties/:id', authenticateUser, async (req: Request, res: R
 
     const row = propRes.rows[0];
     const mediaRes = await executeQuery(
-      `SELECT id, url, is_featured, created_at FROM property_media WHERE property_id = $1 ORDER BY is_featured DESC, created_at ASC;`,
+      `SELECT id, url, is_featured, display_order, created_at FROM property_media WHERE property_id = $1 ORDER BY is_featured DESC, display_order ASC, created_at ASC;`,
       [row.id]
     );
     const images = mediaRes.rows || [];
@@ -3152,12 +3163,13 @@ app.get('/api/crm/properties/:id', authenticateUser, async (req: Request, res: R
 });
 
 // 3. Create Property in DRAFT
-app.post('/api/crm/properties', jsonDefault, authenticateUser, async (req: Request, res: Response) => {
-  try {
-    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
-    if (!isStaff) {
-      return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required to create properties.' });
-    }
+app.post(
+  '/api/crm/properties',
+  jsonDefault,
+  authenticateUser,
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER', 'STAFF_DEAL_CLOSER'),
+  async (req: Request, res: Response) => {
+    try {
 
     const {
       title,
@@ -3365,18 +3377,30 @@ const updatePropertyHandler = async (req: Request, res: Response) => {
   }
 };
 
-app.put('/api/crm/properties/:id', jsonDefault, authenticateUser, updatePropertyHandler);
-app.patch('/api/crm/properties/:id', jsonDefault, authenticateUser, updatePropertyHandler);
+app.put(
+  '/api/crm/properties/:id',
+  jsonDefault,
+  authenticateUser,
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER', 'STAFF_DEAL_CLOSER'),
+  updatePropertyHandler
+);
+app.patch(
+  '/api/crm/properties/:id',
+  jsonDefault,
+  authenticateUser,
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER', 'STAFF_DEAL_CLOSER'),
+  updatePropertyHandler
+);
 
 // 5. Publish Property (Validates minimum required fields)
-app.post('/api/crm/properties/:id/publish', jsonDefault, authenticateUser, async (req: Request, res: Response) => {
-  try {
-    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
-    if (!isStaff) {
-      return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
-    }
-
-    const { id } = req.params;
+app.post(
+  '/api/crm/properties/:id/publish',
+  jsonDefault,
+  authenticateUser,
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER', 'STAFF_DEAL_CLOSER'),
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
     const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
 
     const propRes = await executeQuery(`SELECT * FROM properties WHERE id = $1 LIMIT 1;`, [id]);
@@ -3439,124 +3463,126 @@ app.post('/api/crm/properties/:id/publish', jsonDefault, authenticateUser, async
 });
 
 // 6. Pause Property Listing
-app.post('/api/crm/properties/:id/pause', jsonDefault, authenticateUser, async (req: Request, res: Response) => {
-  try {
-    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
-    if (!isStaff) {
-      return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
-    }
+app.post(
+  '/api/crm/properties/:id/pause',
+  jsonDefault,
+  authenticateUser,
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER', 'STAFF_DEAL_CLOSER'),
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
 
-    const { id } = req.params;
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+      const propRes = await executeQuery(`SELECT * FROM properties WHERE id = $1 LIMIT 1;`, [id]);
+      if (!propRes.rows || propRes.rows.length === 0) {
+        return res.status(404).json({ error: 'NOT_FOUND', message: 'Property not found.' });
+      }
+      const property = propRes.rows[0];
 
-    const propRes = await executeQuery(`SELECT * FROM properties WHERE id = $1 LIMIT 1;`, [id]);
-    if (!propRes.rows || propRes.rows.length === 0) {
-      return res.status(404).json({ error: 'NOT_FOUND', message: 'Property not found.' });
-    }
-    const property = propRes.rows[0];
+      const currentStatus = String(property.listing_status || 'DRAFT').toUpperCase();
+      if (currentStatus !== 'PUBLISHED') {
+        return res.status(400).json({
+          error: 'INVALID_TRANSITION',
+          message: `Cannot pause property with status ${currentStatus}. Must be PUBLISHED.`,
+        });
+      }
 
-    const currentStatus = String(property.listing_status || 'DRAFT').toUpperCase();
-    if (currentStatus !== 'PUBLISHED') {
-      return res.status(400).json({
-        error: 'INVALID_TRANSITION',
-        message: `Cannot pause property with status ${currentStatus}. Must be PUBLISHED.`,
+      const updateRes = await executeQuery(`
+        UPDATE properties
+        SET listing_status = 'PAUSED', updated_at = NOW()
+        WHERE id = $1
+        RETURNING *;
+      `, [id]);
+
+      await recordAuditEvent({
+        actor: req.user!,
+        action: 'PROPERTY_PAUSED',
+        targetEntity: 'properties',
+        targetEntityId: id,
+        clientIp,
+        diffSummary: {
+          previousStatus: currentStatus,
+          newStatus: 'PAUSED',
+        },
       });
+
+      return res.json({
+        success: true,
+        message: 'Property listing paused and removed from public discoverability',
+        property: updateRes.rows[0],
+      });
+    } catch (err: any) {
+      console.error('[CrmPropertyPause] Error:', err);
+      return res.status(500).json({ error: 'Failed to pause property' });
     }
-
-    const updateRes = await executeQuery(`
-      UPDATE properties
-      SET listing_status = 'PAUSED', updated_at = NOW()
-      WHERE id = $1
-      RETURNING *;
-    `, [id]);
-
-    await recordAuditEvent({
-      actor: req.user!,
-      action: 'PROPERTY_PAUSED',
-      targetEntity: 'properties',
-      targetEntityId: id,
-      clientIp,
-      diffSummary: {
-        previousStatus: currentStatus,
-        newStatus: 'PAUSED',
-      },
-    });
-
-    return res.json({
-      success: true,
-      message: 'Property listing paused and removed from public discoverability',
-      property: updateRes.rows[0],
-    });
-  } catch (err: any) {
-    console.error('[CrmPropertyPause] Error:', err);
-    return res.status(500).json({ error: 'Failed to pause property' });
   }
-});
+);
 
 // 7. Mark Property as Sold
-app.post('/api/crm/properties/:id/sold', jsonDefault, authenticateUser, async (req: Request, res: Response) => {
-  try {
-    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
-    if (!isStaff) {
-      return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
-    }
+app.post(
+  '/api/crm/properties/:id/sold',
+  jsonDefault,
+  authenticateUser,
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER', 'STAFF_DEAL_CLOSER'),
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
 
-    const { id } = req.params;
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+      const propRes = await executeQuery(`SELECT * FROM properties WHERE id = $1 LIMIT 1;`, [id]);
+      if (!propRes.rows || propRes.rows.length === 0) {
+        return res.status(404).json({ error: 'NOT_FOUND', message: 'Property not found.' });
+      }
+      const property = propRes.rows[0];
 
-    const propRes = await executeQuery(`SELECT * FROM properties WHERE id = $1 LIMIT 1;`, [id]);
-    if (!propRes.rows || propRes.rows.length === 0) {
-      return res.status(404).json({ error: 'NOT_FOUND', message: 'Property not found.' });
-    }
-    const property = propRes.rows[0];
+      const currentStatus = String(property.listing_status || 'DRAFT').toUpperCase();
+      if (currentStatus !== 'PUBLISHED' && currentStatus !== 'PAUSED') {
+        return res.status(400).json({
+          error: 'INVALID_TRANSITION',
+          message: `Cannot mark property as sold from status ${currentStatus}. Must be PUBLISHED or PAUSED.`,
+        });
+      }
 
-    const currentStatus = String(property.listing_status || 'DRAFT').toUpperCase();
-    if (currentStatus !== 'PUBLISHED' && currentStatus !== 'PAUSED') {
-      return res.status(400).json({
-        error: 'INVALID_TRANSITION',
-        message: `Cannot mark property as sold from status ${currentStatus}. Must be PUBLISHED or PAUSED.`,
+      const updateRes = await executeQuery(`
+        UPDATE properties
+        SET listing_status = 'SOLD', updated_at = NOW()
+        WHERE id = $1
+        RETURNING *;
+      `, [id]);
+
+      await recordAuditEvent({
+        actor: req.user!,
+        action: 'PROPERTY_SOLD',
+        targetEntity: 'properties',
+        targetEntityId: id,
+        clientIp,
+        diffSummary: {
+          previousStatus: currentStatus,
+          newStatus: 'SOLD',
+        },
       });
+
+      return res.json({
+        success: true,
+        message: 'Property marked as SOLD and enquiries closed',
+        property: updateRes.rows[0],
+      });
+    } catch (err: any) {
+      console.error('[CrmPropertySold] Error:', err);
+      return res.status(500).json({ error: 'Failed to mark property as sold' });
     }
-
-    const updateRes = await executeQuery(`
-      UPDATE properties
-      SET listing_status = 'SOLD', updated_at = NOW()
-      WHERE id = $1
-      RETURNING *;
-    `, [id]);
-
-    await recordAuditEvent({
-      actor: req.user!,
-      action: 'PROPERTY_SOLD',
-      targetEntity: 'properties',
-      targetEntityId: id,
-      clientIp,
-      diffSummary: {
-        previousStatus: currentStatus,
-        newStatus: 'SOLD',
-      },
-    });
-
-    return res.json({
-      success: true,
-      message: 'Property marked as SOLD and enquiries closed',
-      property: updateRes.rows[0],
-    });
-  } catch (err: any) {
-    console.error('[CrmPropertySold] Error:', err);
-    return res.status(500).json({ error: 'Failed to mark property as sold' });
   }
-});
+);
 
 // 8. Archive Property
-app.post('/api/crm/properties/:id/archive', jsonDefault, authenticateUser, async (req: Request, res: Response) => {
-  try {
-    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
-    if (!isStaff) {
-      return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
-    }
-
-    const { id } = req.params;
+app.post(
+  '/api/crm/properties/:id/archive',
+  jsonDefault,
+  authenticateUser,
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER', 'STAFF_DEAL_CLOSER'),
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
     const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
 
     const propRes = await executeQuery(`SELECT * FROM properties WHERE id = $1 LIMIT 1;`, [id]);
@@ -3600,126 +3626,467 @@ app.post('/api/crm/properties/:id/archive', jsonDefault, authenticateUser, async
   }
 });
 
-// 9. Add Image to Property
-app.post('/api/crm/properties/:id/images', jsonDefault, authenticateUser, async (req: Request, res: Response) => {
+export interface RemoteUrlValidationResult {
+  valid: boolean;
+  error?: string;
+  message?: string;
+  parsed?: URL;
+}
+
+export function validateRemoteImageUrl(urlString: string): RemoteUrlValidationResult {
+  let parsed: URL;
   try {
-    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
-    if (!isStaff) {
-      return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
-    }
-
-    const { id } = req.params;
-    const { url, isFeatured = false } = req.body;
-    if (!url || typeof url !== 'string' || !url.trim()) {
-      return res.status(400).json({ error: 'url is required' });
-    }
-
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
-    const mediaId = `media-${id.slice(5, 12)}-${Date.now().toString(36)}`;
-    const checksum = createHash('sha256').update(url + id).digest('hex');
-
-    if (isFeatured) {
-      await executeQuery(`UPDATE property_media SET is_featured = false WHERE property_id = $1;`, [id]);
-    }
-
-    const insertRes = await executeQuery(`
-      INSERT INTO property_media (id, property_id, url, is_featured, checksum, created_at)
-      VALUES ($1, $2, $3, $4, $5, NOW())
-      RETURNING *;
-    `, [mediaId, id, url.trim(), Boolean(isFeatured), checksum]);
-
-    await recordAuditEvent({
-      actor: req.user!,
-      action: 'IMAGE_ADDED',
-      targetEntity: 'properties',
-      targetEntityId: id,
-      clientIp,
-      diffSummary: { mediaId, url: url.trim(), isFeatured: Boolean(isFeatured) },
-    });
-
-    return res.status(201).json({
-      success: true,
-      message: 'Image added to property',
-      media: insertRes.rows[0],
-    });
-  } catch (err: any) {
-    console.error('[CrmPropertyAddImage] Error:', err);
-    return res.status(500).json({ error: 'Failed to add image to property' });
+    parsed = new URL(urlString.trim());
+  } catch {
+    return { valid: false, error: 'INVALID_URL', message: 'A valid URL must be provided.' };
   }
-});
+
+  // 1. Enforce HTTPS only (reject http, ftp, javascript, data, file)
+  if (parsed.protocol !== 'https:') {
+    return { valid: false, error: 'INSECURE_PROTOCOL', message: 'Only secure HTTPS image URLs are permitted.' };
+  }
+
+  // 2. SSRF Protection: Reject private/internal IPs, loopback, cloud metadata, and internal hostnames
+  const hostname = parsed.hostname.toLowerCase();
+
+  // IPv6 loopback
+  if (hostname === '[::1]' || hostname === '::1' || hostname === '0:0:0:0:0:0:0:1') {
+    return { valid: false, error: 'SSRF_BLOCKED', message: 'Restricted host: private network URLs cannot be ingested.' };
+  }
+
+  // Exact loopback and metadata addresses
+  if (
+    hostname === 'localhost' ||
+    hostname === '127.0.0.1' ||
+    hostname === '0.0.0.0' ||
+    hostname === '169.254.169.254'
+  ) {
+    return { valid: false, error: 'SSRF_BLOCKED', message: 'Restricted host: private network URLs cannot be ingested.' };
+  }
+
+  // Internal and local domains
+  if (
+    hostname.endsWith('.local') ||
+    hostname.endsWith('.internal') ||
+    hostname.endsWith('.localhost') ||
+    hostname.endsWith('.corp') ||
+    hostname.endsWith('.lan') ||
+    hostname.includes('metadata.google.internal') ||
+    hostname.includes('metadata.aws') ||
+    hostname === 'instance-data'
+  ) {
+    return { valid: false, error: 'SSRF_BLOCKED', message: 'Restricted host: private network URLs cannot be ingested.' };
+  }
+
+  // Numeric IPv4 validation
+  const ipv4Match = hostname.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (ipv4Match) {
+    const o1 = parseInt(ipv4Match[1], 10);
+    const o2 = parseInt(ipv4Match[2], 10);
+    const o3 = parseInt(ipv4Match[3], 10);
+    const o4 = parseInt(ipv4Match[4], 10);
+
+    if (o1 > 255 || o2 > 255 || o3 > 255 || o4 > 255) {
+      return { valid: false, error: 'INVALID_HOST', message: 'Invalid IP address format.' };
+    }
+
+    // 127.0.0.0/8 (Loopback)
+    if (o1 === 127) {
+      return { valid: false, error: 'SSRF_BLOCKED', message: 'Restricted host: loopback IP cannot be ingested.' };
+    }
+    // 10.0.0.0/8 (Private)
+    if (o1 === 10) {
+      return { valid: false, error: 'SSRF_BLOCKED', message: 'Restricted host: private network IP (10.0.0.0/8) cannot be ingested.' };
+    }
+    // 172.16.0.0/12 (Private)
+    if (o1 === 172 && o2 >= 16 && o2 <= 31) {
+      return { valid: false, error: 'SSRF_BLOCKED', message: 'Restricted host: private network IP (172.16.0.0/12) cannot be ingested.' };
+    }
+    // 192.168.0.0/16 (Private)
+    if (o1 === 192 && o2 === 168) {
+      return { valid: false, error: 'SSRF_BLOCKED', message: 'Restricted host: private network IP (192.168.0.0/16) cannot be ingested.' };
+    }
+    // 169.254.0.0/16 (Link-local / Cloud metadata)
+    if (o1 === 169 && o2 === 254) {
+      return { valid: false, error: 'SSRF_BLOCKED', message: 'Restricted host: cloud metadata address (169.254.169.254) cannot be ingested.' };
+    }
+    // 0.0.0.0/8
+    if (o1 === 0) {
+      return { valid: false, error: 'SSRF_BLOCKED', message: 'Restricted host: default route cannot be ingested.' };
+    }
+  }
+
+  return { valid: true, parsed };
+}
+
+export type TestUrlFetcher = (url: string) => Promise<{ status: number; headers?: Record<string, string>; body: Buffer } | null> | { status: number; headers?: Record<string, string>; body: Buffer } | null;
+let testUrlFetcher: TestUrlFetcher | null = null;
+export function setTestUrlFetcher(handler: TestUrlFetcher | null): void {
+  testUrlFetcher = handler;
+}
+
+// 9. Add / Ingest Image to Property (Secure Multi-Layer Upload Pipeline)
+app.post(
+  '/api/crm/properties/:id/images',
+  jsonUpload,
+  rateLimit('crm-image-upload', 30, 300),
+  authenticateUser,
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER', 'STAFF_DEAL_CLOSER'),
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { url, fileName, fileBase64, isFeatured = false } = req.body;
+      const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+
+      // Verify target property exists
+      const propCheck = await executeQuery(`SELECT id FROM properties WHERE id = $1 LIMIT 1;`, [id]);
+      if (!propCheck.rows || propCheck.rows.length === 0) {
+        return res.status(404).json({ error: 'NOT_FOUND', message: 'Property not found.' });
+      }
+
+      // Calculate next display order
+      const orderRes = await executeQuery(
+        `SELECT COALESCE(MAX(display_order), -1) + 1 AS next_order FROM property_media WHERE property_id = $1;`,
+        [id]
+      );
+      const nextDisplayOrder = Number(orderRes.rows?.[0]?.next_order ?? 0);
+
+      let finalUrl: string;
+      let checksum: string;
+      let storagePath: string | null = null;
+      let mimeType: string = 'image/jpeg';
+      let fileSize: number = 0;
+      let detectedFormat: 'jpg' | 'png' | 'webp' = 'jpg';
+
+      if (fileBase64 && typeof fileBase64 === 'string') {
+        // --- PATH A: Direct file upload (base64) ---
+        const cleanBase64 = fileBase64.replace(/^data:image\/\w+;base64,/, '');
+        const buffer = Buffer.from(cleanBase64, 'base64');
+        fileSize = buffer.length;
+
+        if (fileSize > 10 * 1024 * 1024) {
+          return res.status(400).json({ error: 'PHOTO_TOO_LARGE', message: 'Photo size exceeds maximum limit of 10MB.' });
+        }
+
+        const detected = PostUploadVerificationWorker.detectImageFormat(buffer);
+        if (!detected) {
+          return res.status(400).json({ error: 'MAGIC_BYTE_MISMATCH', message: 'File contents do not match image format signature (JPEG, PNG, WebP).' });
+        }
+        detectedFormat = detected;
+
+        const avClient = new ClamAvScannerClient();
+        const avScan = await avClient.scanBuffer(buffer);
+        if (!avScan.isClean) {
+          if (avScan.virusName === 'ANTIVIRUS_UNAVAILABLE' && process.env.ALLOW_DEV_FALLBACKS === 'true' && process.env.NODE_ENV !== 'production') {
+            console.warn('[ClamAV Dev Note] ClamAV daemon offline in local development. Proceeding with magic-byte verified image.');
+          } else {
+            return res.status(400).json({ error: 'MALWARE_DETECTED', message: `Malware detected in upload: ${avScan.virusName || 'Threat'}` });
+          }
+        }
+
+        checksum = createHash('sha256').update(buffer).digest('hex');
+
+        // Storage upload to Supabase 'property-media'
+        await ensureSupabaseBucketsExist();
+        const client = getSupabaseClient();
+        const safeFileName = (fileName && typeof fileName === 'string') ? fileName : `photo-${Date.now()}.${detectedFormat}`;
+        const cleanBaseName = safeFileName.replace(/[^a-zA-Z0-9.-]/g, '_');
+        storagePath = `${id}/${Date.now()}-${cleanBaseName}`;
+        mimeType = detectedFormat === 'png' ? 'image/png' : detectedFormat === 'webp' ? 'image/webp' : 'image/jpeg';
+
+        if (client) {
+          const { error: uploadError } = await client.storage
+            .from(BUCKET_PROPERTY_MEDIA)
+            .upload(storagePath, buffer, { contentType: mimeType, upsert: true });
+
+          const { data: urlData } = client.storage.from(BUCKET_PROPERTY_MEDIA).getPublicUrl(storagePath);
+          finalUrl = urlData.publicUrl;
+        } else {
+          const supabaseProject = process.env.SUPABASE_PROJECT_ID || 'db.sellmyghar';
+          finalUrl = `https://${supabaseProject}.supabase.co/storage/v1/object/public/${BUCKET_PROPERTY_MEDIA}/${storagePath}`;
+        }
+      } else if (url && typeof url === 'string' && url.trim()) {
+        // --- PATH B: URL ingestion with strict security pipeline ---
+        const trimmedUrl = url.trim();
+        const urlValidation = validateRemoteImageUrl(trimmedUrl);
+        if (!urlValidation.valid) {
+          return res.status(400).json({ error: urlValidation.error, message: urlValidation.message });
+        }
+
+        // Fetch remote bytes with timeout and 10MB limit
+        let remoteBytes: Buffer | null = null;
+        let remoteStatus = 200;
+
+        if (testUrlFetcher) {
+          const mockResult = await testUrlFetcher(trimmedUrl);
+          if (mockResult) {
+            remoteStatus = mockResult.status;
+            remoteBytes = mockResult.body;
+          }
+        }
+
+        if (remoteBytes === null) {
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 5000);
+            const response = await fetch(trimmedUrl, {
+              signal: controller.signal,
+              headers: { 'User-Agent': 'SellMyGhar-MediaIngestion/1.0' },
+            });
+            clearTimeout(timeoutId);
+
+            if (!response.ok) {
+              return res.status(400).json({
+                error: 'FETCH_FAILED',
+                message: `Remote server responded with HTTP status ${response.status}.`,
+              });
+            }
+
+            const headerLen = response.headers.get('content-length');
+            if (headerLen && parseInt(headerLen, 10) > 10 * 1024 * 1024) {
+              return res.status(400).json({
+                error: 'PHOTO_TOO_LARGE',
+                message: 'Remote image size exceeds maximum limit of 10MB.',
+              });
+            }
+
+            const arrayBuf = await response.arrayBuffer();
+            remoteBytes = Buffer.from(arrayBuf);
+          } catch (fetchErr: any) {
+            if (fetchErr.name === 'AbortError' || fetchErr.message?.includes('timeout') || fetchErr.message?.includes('abort')) {
+              return res.status(400).json({
+                error: 'FETCH_TIMEOUT',
+                message: 'Remote image download timed out after 5000ms.',
+              });
+            }
+            return res.status(400).json({
+              error: 'FETCH_FAILED',
+              message: `Failed to download remote image: ${fetchErr.message}`,
+            });
+          }
+        }
+
+        if (remoteStatus >= 400) {
+          return res.status(400).json({
+            error: 'FETCH_FAILED',
+            message: `Remote server responded with HTTP status ${remoteStatus}.`,
+          });
+        }
+
+        fileSize = remoteBytes.length;
+        if (fileSize > 10 * 1024 * 1024) {
+          return res.status(400).json({
+            error: 'PHOTO_TOO_LARGE',
+            message: 'Remote image size exceeds maximum limit of 10MB.',
+          });
+        }
+
+        // Actual downloaded byte inspection (Do NOT trust remote server Content-Type header or URL extension)
+        const detected = PostUploadVerificationWorker.detectImageFormat(remoteBytes);
+        if (!detected) {
+          return res.status(400).json({
+            error: 'MAGIC_BYTE_MISMATCH',
+            message: 'Downloaded content does not match allowed image format signatures (JPEG, PNG, WebP). Remote server Content-Type header is not trusted.',
+          });
+        }
+        detectedFormat = detected;
+
+        // ClamAV scanning
+        const avClient = new ClamAvScannerClient();
+        const avScan = await avClient.scanBuffer(remoteBytes);
+        if (!avScan.isClean) {
+          if (avScan.virusName === 'ANTIVIRUS_UNAVAILABLE' && process.env.ALLOW_DEV_FALLBACKS === 'true' && process.env.NODE_ENV !== 'production') {
+            console.warn('[ClamAV Dev Note] ClamAV daemon offline in local development. Proceeding with magic-byte verified remote image.');
+          } else {
+            return res.status(400).json({
+              error: 'MALWARE_DETECTED',
+              message: `Malware detected in remote image: ${avScan.virusName || 'Threat'}`,
+            });
+          }
+        }
+
+        // SHA-256 Checksum calculation
+        checksum = createHash('sha256').update(remoteBytes).digest('hex');
+
+        // Supabase Storage upload
+        await ensureSupabaseBucketsExist();
+        const client = getSupabaseClient();
+        const cleanFileName = `remote-${Date.now()}.${detectedFormat}`;
+        storagePath = `${id}/${Date.now()}-${cleanFileName}`;
+        mimeType = detectedFormat === 'png' ? 'image/png' : detectedFormat === 'webp' ? 'image/webp' : 'image/jpeg';
+
+        if (client) {
+          const { error: uploadError } = await client.storage
+            .from(BUCKET_PROPERTY_MEDIA)
+            .upload(storagePath, remoteBytes, { contentType: mimeType, upsert: true });
+
+          const { data: urlData } = client.storage.from(BUCKET_PROPERTY_MEDIA).getPublicUrl(storagePath);
+          finalUrl = urlData.publicUrl;
+        } else {
+          const supabaseProject = process.env.SUPABASE_PROJECT_ID || 'db.sellmyghar';
+          finalUrl = `https://${supabaseProject}.supabase.co/storage/v1/object/public/${BUCKET_PROPERTY_MEDIA}/${storagePath}`;
+        }
+      } else {
+        return res.status(400).json({ error: 'IMAGE_DATA_REQUIRED', message: 'Either a file upload (fileBase64) or secure image URL is required.' });
+      }
+
+      const mediaId = `media-${id.slice(5, 12)}-${Date.now().toString(36)}`;
+
+      if (isFeatured) {
+        await executeQuery(`UPDATE property_media SET is_featured = false WHERE property_id = $1;`, [id]);
+      }
+
+      const insertRes = await executeQuery(`
+        INSERT INTO property_media (id, property_id, url, is_featured, display_order, checksum, storage_path, mime_type, file_size_bytes, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+        RETURNING *;
+      `, [mediaId, id, finalUrl, Boolean(isFeatured), nextDisplayOrder, checksum, storagePath, mimeType, fileSize]);
+
+      await recordAuditEvent({
+        actor: req.user!,
+        action: 'IMAGE_ADDED',
+        targetEntity: 'properties',
+        targetEntityId: id,
+        clientIp,
+        diffSummary: {
+          mediaId,
+          url: finalUrl,
+          isFeatured: Boolean(isFeatured),
+          displayOrder: nextDisplayOrder,
+          isRemote: Boolean(url),
+          detectedFormat,
+          checksum,
+        },
+      });
+
+      return res.status(201).json({
+        success: true,
+        message: 'Image securely verified and added to property gallery',
+        media: insertRes.rows[0],
+      });
+    } catch (err: any) {
+      console.error('[CrmPropertyAddImage] Error:', err);
+      return res.status(500).json({ error: 'Failed to add image to property' });
+    }
+  }
+);
 
 // 10. Delete Image from Property
-app.delete('/api/crm/properties/:id/images/:imageId', authenticateUser, async (req: Request, res: Response) => {
-  try {
-    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
-    if (!isStaff) {
-      return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
+app.delete(
+  '/api/crm/properties/:id/images/:imageId',
+  authenticateUser,
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER', 'STAFF_DEAL_CLOSER'),
+  async (req: Request, res: Response) => {
+    try {
+      const { id, imageId } = req.params;
+      const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+
+      await executeQuery(`DELETE FROM property_media WHERE id = $1;`, [imageId]);
+
+      await recordAuditEvent({
+        actor: req.user!,
+        action: 'IMAGE_REMOVED',
+        targetEntity: 'properties',
+        targetEntityId: id,
+        clientIp,
+        diffSummary: { mediaId: imageId },
+      });
+
+      return res.json({
+        success: true,
+        message: 'Image removed from property',
+      });
+    } catch (err: any) {
+      console.error('[CrmPropertyDeleteImage] Error:', err);
+      return res.status(500).json({ error: 'Failed to delete image' });
     }
-
-    const { id, imageId } = req.params;
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
-
-    await executeQuery(`DELETE FROM property_media WHERE id = $1;`, [imageId]);
-
-    await recordAuditEvent({
-      actor: req.user!,
-      action: 'IMAGE_REMOVED',
-      targetEntity: 'properties',
-      targetEntityId: id,
-      clientIp,
-      diffSummary: { mediaId: imageId },
-    });
-
-    return res.json({
-      success: true,
-      message: 'Image removed from property',
-    });
-  } catch (err: any) {
-    console.error('[CrmPropertyDeleteImage] Error:', err);
-    return res.status(500).json({ error: 'Failed to delete image' });
   }
-});
+);
 
 // 11. Set Primary Image for Property
-app.post('/api/crm/properties/:id/images/:imageId/primary', jsonDefault, authenticateUser, async (req: Request, res: Response) => {
-  try {
-    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
-    if (!isStaff) {
-      return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
+app.post(
+  '/api/crm/properties/:id/images/:imageId/primary',
+  jsonDefault,
+  authenticateUser,
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER', 'STAFF_DEAL_CLOSER'),
+  async (req: Request, res: Response) => {
+    try {
+      const { id, imageId } = req.params;
+      const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+
+      await executeQuery(`UPDATE property_media SET is_featured = false WHERE property_id = $1;`, [id]);
+      await executeQuery(`UPDATE property_media SET is_featured = true WHERE id = $1 AND property_id = $2;`, [imageId, id]);
+
+      await recordAuditEvent({
+        actor: req.user!,
+        action: 'PRIMARY_IMAGE_CHANGED',
+        targetEntity: 'properties',
+        targetEntityId: id,
+        clientIp,
+        diffSummary: { primaryMediaId: imageId },
+      });
+
+      return res.json({
+        success: true,
+        message: 'Primary image set successfully',
+      });
+    } catch (err: any) {
+      console.error('[CrmPropertySetPrimaryImage] Error:', err);
+      return res.status(500).json({ error: 'Failed to set primary image' });
     }
-
-    const { id, imageId } = req.params;
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
-
-    await executeQuery(`UPDATE property_media SET is_featured = false WHERE property_id = $1;`, [id]);
-    await executeQuery(`UPDATE property_media SET is_featured = true WHERE id = $1 AND property_id = $2;`, [imageId, id]);
-
-    await recordAuditEvent({
-      actor: req.user!,
-      action: 'PRIMARY_IMAGE_CHANGED',
-      targetEntity: 'properties',
-      targetEntityId: id,
-      clientIp,
-      diffSummary: { primaryMediaId: imageId },
-    });
-
-    return res.json({
-      success: true,
-      message: 'Primary image set successfully',
-    });
-  } catch (err: any) {
-    console.error('[CrmPropertySetPrimaryImage] Error:', err);
-    return res.status(500).json({ error: 'Failed to set primary image' });
   }
-});
+);
 
-// 12. Get Property Activity Timeline
-app.get('/api/crm/properties/:id/activity', authenticateUser, async (req: Request, res: Response) => {
-  try {
-    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
-    if (!isStaff) {
-      return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
+// 12. Reorder Images for Property
+app.post(
+  '/api/crm/properties/:id/images/reorder',
+  jsonDefault,
+  authenticateUser,
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER', 'STAFF_DEAL_CLOSER'),
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { imageIds } = req.body;
+      const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+
+      if (!Array.isArray(imageIds)) {
+        return res.status(400).json({ error: 'INVALID_PAYLOAD', message: 'imageIds must be an array of media IDs.' });
+      }
+
+      for (let i = 0; i < imageIds.length; i++) {
+        await executeQuery(
+          `UPDATE property_media SET display_order = $1 WHERE id = $2 AND property_id = $3;`,
+          [i, String(imageIds[i]), id]
+        );
+      }
+
+      await recordAuditEvent({
+        actor: req.user!,
+        action: 'IMAGE_REORDERED',
+        targetEntity: 'properties',
+        targetEntityId: id,
+        clientIp,
+        diffSummary: { imageIds, propertyId: id },
+      });
+
+      return res.json({
+        success: true,
+        message: 'Property gallery images reordered successfully',
+      });
+    } catch (err: any) {
+      console.error('[CrmPropertyReorderImages] Error:', err);
+      return res.status(500).json({ error: 'Failed to reorder images' });
     }
+  }
+);
+
+// 13. Get Property Activity Timeline
+app.get(
+  '/api/crm/properties/:id/activity',
+  authenticateUser,
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER', 'STAFF_DEAL_CLOSER', 'STAFF_INTAKE_AGENT', 'STAFF_VERIFICATION_AGENT'),
+  async (req: Request, res: Response) => {
+    try {
 
     const { id } = req.params;
     const auditRes = await executeQuery(`
