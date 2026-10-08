@@ -31,7 +31,7 @@ import {
   ensureSupabaseBucketsExist 
 } from './src/server/storage/supabase-client';
 import { DistributedRateLimiter } from './src/server/ratelimit/limiter';
-import { recordAuditEvent } from './src/server/audit/logger';
+import { recordAuditEvent, AuditableAction } from './src/server/audit/logger';
 import { AuthenticatedUser, AppRole } from './src/core/types/auth';
 
 const app = express();
@@ -114,10 +114,19 @@ async function initSchemaColumns() {
     // 1. Core Column Updates
     await executeQuery(`
       ALTER TABLE seller_leads ADD COLUMN IF NOT EXISTS listing_intent VARCHAR(20) NOT NULL DEFAULT 'SELL';
+      ALTER TABLE seller_leads ADD COLUMN IF NOT EXISTS property_id VARCHAR(64);
+      ALTER TABLE seller_leads ADD COLUMN IF NOT EXISTS assigned_at TIMESTAMPTZ;
+      ALTER TABLE seller_leads ADD COLUMN IF NOT EXISTS next_follow_up_at TIMESTAMPTZ;
+      ALTER TABLE seller_leads ADD COLUMN IF NOT EXISTS follow_up_notes TEXT;
+      ALTER TABLE seller_leads ADD COLUMN IF NOT EXISTS notes TEXT;
       ALTER TABLE properties ADD COLUMN IF NOT EXISTS listing_intent VARCHAR(20) NOT NULL DEFAULT 'SELL';
+      ALTER TABLE properties ADD COLUMN IF NOT EXISTS crm_status VARCHAR(30) NOT NULL DEFAULT 'NEW';
       ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255);
       ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INT NOT NULL DEFAULT 1;
       ALTER TABLE consents ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMPTZ;
+
+      CREATE INDEX IF NOT EXISTS idx_seller_leads_property ON seller_leads (property_id);
+      CREATE INDEX IF NOT EXISTS idx_seller_leads_staff ON seller_leads (assigned_staff_id);
 
       CREATE TABLE IF NOT EXISTS property_media (
         id VARCHAR(64) PRIMARY KEY,
@@ -139,12 +148,21 @@ async function initSchemaColumns() {
         preferred_locality_or_society VARCHAR(255) NOT NULL,
         bhk_type VARCHAR(20) NOT NULL,
         lead_status VARCHAR(30) NOT NULL DEFAULT 'NEW',
+        assigned_staff_id VARCHAR(64),
+        assigned_at TIMESTAMPTZ,
+        next_follow_up_at TIMESTAMPTZ,
+        follow_up_notes TEXT,
         notes TEXT,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
+      ALTER TABLE buyer_enquiries ADD COLUMN IF NOT EXISTS assigned_staff_id VARCHAR(64);
+      ALTER TABLE buyer_enquiries ADD COLUMN IF NOT EXISTS assigned_at TIMESTAMPTZ;
+      ALTER TABLE buyer_enquiries ADD COLUMN IF NOT EXISTS next_follow_up_at TIMESTAMPTZ;
+      ALTER TABLE buyer_enquiries ADD COLUMN IF NOT EXISTS follow_up_notes TEXT;
       CREATE INDEX IF NOT EXISTS idx_buyer_enquiries_phone ON buyer_enquiries (phone);
       CREATE INDEX IF NOT EXISTS idx_buyer_enquiries_status ON buyer_enquiries (lead_status);
+      CREATE INDEX IF NOT EXISTS idx_buyer_enquiries_staff ON buyer_enquiries (assigned_staff_id);
     `);
 
     // 2. Initialize Seed Staff with Real scrypt Password Hash (Zero hardcoded fallbacks)
@@ -172,7 +190,10 @@ async function initSchemaColumns() {
       const staffHash = await hashPassword(staffPass);
       await executeQuery(`
         INSERT INTO users (id, phone, email, display_name, password_hash, roles, is_active, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, '{STAFF_VERIFICATION_AGENT}', true, NOW(), NOW())
+        VALUES 
+          ($1, $2, $3, $4, $5, '{STAFF_VERIFICATION_AGENT}', true, NOW(), NOW()),
+          ('usr-staff-intake-01', '+919800000002', 'intake@sellmyghar.in', 'Sneha Reddy (Lead Intake)', $5, '{STAFF_INTAKE_AGENT}', true, NOW(), NOW()),
+          ('usr-staff-closer-01', '+919800000003', 'closer@sellmyghar.in', 'Vikram Sethi (Deal Closer)', $5, '{STAFF_DEAL_CLOSER}', true, NOW(), NOW())
         ON CONFLICT (phone) DO NOTHING;
       `, ['usr-staff-verification-01', staffPhone, 'staff@sellmyghar.in', 'Verification Desk Staff', staffHash]);
       console.info('[SellMyGhar DB] Privileged staff account bootstrapped from environment secret.');
@@ -847,16 +868,19 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
         ]
       );
 
-      // 3. Insert into seller_leads
+      // 3. Generate Property ID & Link to Seller Lead
+      const propertyId = `prop-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
       const leadId = `lead-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
       const bhkLabel = isRental ? `${bedrooms || 3}BHK (Rent)` : `${bedrooms || 3}BHK`;
+      const leadListingIntent = (req.body.listing_intent || (isRental ? 'RENT' : 'SELL')).toUpperCase();
+
       await client.query(
         `INSERT INTO seller_leads (
           id, owner_name, phone, apartment_society_name,
           locality_id, bhk_type, expected_price_inr,
-          lead_status, assigned_staff_id, consent_record_id,
-          created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'NEW', null, $8, NOW(), NOW());`,
+          listing_intent, lead_status, assigned_staff_id, consent_record_id,
+          property_id, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'NEW', null, $9, $10, NOW(), NOW());`,
         [
           leadId,
           ownerName.trim(),
@@ -865,12 +889,36 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
           locality.trim(),
           bhkLabel,
           askingPriceNum,
-          consentId
+          leadListingIntent,
+          consentId,
+          propertyId
         ]
       );
 
+      // Record statutory CRM Lead Creation in immutable audit logs
+      await recordAuditEvent({
+        actor: req.user || {
+          uid: userId,
+          phone: normalizedPhone,
+          email: null,
+          roles: ['OWNER'],
+          permissions: [],
+        },
+        action: 'LEAD_CREATED',
+        targetEntity: 'seller_leads',
+        targetEntityId: leadId,
+        clientIp,
+        diffSummary: {
+          leadId,
+          propertyId,
+          ownerName: ownerName.trim(),
+          societyName: societyName.trim(),
+          bhk: bhkLabel,
+          status: 'NEW'
+        }
+      });
+
       // 4. Insert into properties table
-      const propertyId = `prop-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
       const reservePrice = Math.round(askingPriceNum * 0.95);
       const sqft = parseInt(superBuiltUpSqft, 10) || 1500;
       const carpet = parseInt(carpetAreaSqft, 10) || Math.round(sqft * 0.78);
@@ -912,11 +960,11 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
           carpet_area_sqft, balconies_count, bathrooms_count, facing,
           car_parks_count, is_covered_parking, khata_type, encumbrance_status,
           loan_bank_name, occupancy_status, monthly_maintenance_inr,
-          asking_price_inr, reserve_minimum_price_inr, listing_intent, verification_tier,
+          asking_price_inr, reserve_minimum_price_inr, listing_intent, crm_status, verification_tier,
           internal_verification_notes, created_at, updated_at
         ) VALUES (
           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
-          $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, NOW(), NOW()
+          $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, 'NEW', $24, $25, NOW(), NOW()
         )
         RETURNING *;`,
         [
@@ -999,31 +1047,40 @@ app.get('/api/properties', authenticateUser, async (req, res) => {
 
     let query = `
       SELECT 
-        id, 
-        owner_id, 
-        project_locality_id, 
-        unit_number,
-        wing_tower,
-        unit_floor, 
-        total_floors, 
-        bhk_type, 
-        super_built_up_sqft, 
-        carpet_area_sqft, 
-        facing, 
-        asking_price_inr, 
-        reserve_minimum_price_inr,
-        listing_intent,
-        verification_tier,
-        internal_verification_notes,
-        created_at,
-        updated_at
-      FROM properties
+        p.id, 
+        p.owner_id, 
+        p.project_locality_id, 
+        p.unit_number,
+        p.wing_tower,
+        p.unit_floor, 
+        p.total_floors, 
+        p.bhk_type, 
+        p.super_built_up_sqft, 
+        p.carpet_area_sqft, 
+        p.facing, 
+        p.asking_price_inr, 
+        p.reserve_minimum_price_inr,
+        p.listing_intent,
+        COALESCE(sl.lead_status, p.crm_status, 'NEW') AS crm_status,
+        p.verification_tier,
+        p.internal_verification_notes,
+        sl.id AS lead_id,
+        sl.assigned_staff_id,
+        staff.display_name AS rm_name,
+        staff.phone AS rm_phone,
+        sl.next_follow_up_at,
+        sl.follow_up_notes,
+        p.created_at,
+        p.updated_at
+      FROM properties p
+      LEFT JOIN seller_leads sl ON (sl.property_id = p.id OR sl.phone = (SELECT phone FROM users WHERE id = p.owner_id LIMIT 1))
+      LEFT JOIN users staff ON staff.id = sl.assigned_staff_id
     `;
     const params: any[] = [];
 
     // IDOR Protection: Non-staff authenticated users can ONLY query their own properties
     if (isOwner) {
-      query += ` WHERE owner_id = $1`;
+      query += ` WHERE p.owner_id = $1`;
       params.push(req.user!.uid);
     } else {
       // Staff authorization check: verify staff has permission to view listings
@@ -1038,7 +1095,7 @@ app.get('/api/properties', authenticateUser, async (req, res) => {
       }
     }
 
-    query += ` ORDER BY created_at DESC LIMIT 20;`;
+    query += ` ORDER BY p.created_at DESC LIMIT 20;`;
 
     const result = await executeQuery(query, params);
 
@@ -1086,28 +1143,38 @@ app.get('/api/properties', authenticateUser, async (req, res) => {
         ? notes.photos
         : [curatedPhotos[idx % curatedPhotos.length]];
 
-      let status = 'IN_VERIFICATION';
-      let stageBadgeLabel = 'Under Review';
-      if (row.verification_tier === 'LEVEL_3_PHYSICALLY_INSPECTED') {
-        status = 'LISTED';
-        stageBadgeLabel = 'Live on Market';
-      } else if (row.verification_tier === 'LEVEL_2_DOCS_REVIEWED') {
-        status = 'VERIFIED';
-        stageBadgeLabel = 'Title Verified';
-      } else if (idx === 0) {
-        status = 'IN_VERIFICATION';
-        stageBadgeLabel = 'Legal Due Diligence';
-      } else if (idx === 1) {
-        status = 'LISTED';
-        stageBadgeLabel = 'Live on Market';
-      }
+      const authoritativeStatus = String(row.crm_status || 'NEW').toUpperCase();
+      const status = authoritativeStatus;
+
+      const stageBadgeMap: Record<string, string> = {
+        NEW: 'New Lead',
+        CONTACTED: 'Contacted',
+        FOLLOW_UP: 'Follow Up',
+        SITE_VISIT: 'Site Visit',
+        NEGOTIATION: 'Negotiation',
+        CONVERTED: 'Converted',
+        LOST: 'Inquiry Closed',
+      };
+      const stageBadgeLabel = stageBadgeMap[authoritativeStatus] || authoritativeStatus;
+
+      const trackerStages = [
+        { key: 'NEW', label: 'New Lead', shortDesc: 'Intake Registered' },
+        { key: 'CONTACTED', label: 'Contacted', shortDesc: 'RM Assigned' },
+        { key: 'FOLLOW_UP', label: 'Follow Up', shortDesc: 'Diligence in Progress' },
+        { key: 'SITE_VISIT', label: 'Site Visit', shortDesc: 'Property Tour Scheduled' },
+        { key: 'NEGOTIATION', label: 'Negotiation', shortDesc: 'Commercial Terms Review' },
+        { key: 'CONVERTED', label: 'Converted', shortDesc: 'Deal Finalized' },
+      ];
+      const trackerKeys = trackerStages.map(s => s.key);
+      const isLost = authoritativeStatus === 'LOST';
+      const trackerActiveIdx = isLost ? -1 : Math.max(0, trackerKeys.indexOf(authoritativeStatus));
 
       const refId = `SMG-${row.id.slice(5, 11).toUpperCase()}`;
 
       const activityTimeline = [
         {
           id: 'log-1',
-          timestamp: '01 Oct 2026, 10:15 AM',
+          timestamp: row.created_at ? new Date(row.created_at).toLocaleString('en-IN') : 'Day 1',
           title: 'Intake Registered & Unit Digitized',
           description: 'Property floor plan, super built-up specs, and ownership declaration logged.',
           isCompleted: true,
@@ -1116,66 +1183,53 @@ app.get('/api/properties', authenticateUser, async (req, res) => {
         },
         {
           id: 'log-2',
-          timestamp: '01 Oct 2026, 02:40 PM',
+          timestamp: row.assigned_staff_id ? 'Assigned' : 'Pending RM Assignment',
           title: 'Dedicated RM Assigned',
-          description: 'Senior Property Lead Kavitha Ranganathan assigned to manage diligence and buyer screening.',
-          isCompleted: true,
+          description: row.rm_name ? `Senior Property Lead ${row.rm_name} assigned to manage diligence.` : 'Dedicated relationship manager assigned.',
+          isCompleted: trackerActiveIdx >= 1 || isLost,
+          isCurrent: trackerActiveIdx === 1,
           stageKey: 'CONTACTED',
-          officerName: 'Kavitha Ranganathan (RM Desk)'
+          officerName: row.rm_name || 'RM Desk'
         },
         {
           id: 'log-3',
-          timestamp: '02 Oct 2026, 11:30 AM',
-          title: '5 Statutory Deeds Uploaded',
-          description: 'Original Sale Deed, Mother Deed chain, BBMP A-Khata, EC Form 15, and Tax Challan received.',
-          isCompleted: true,
-          stageKey: 'DOCS_REQUESTED',
-          officerName: 'Verification Desk'
+          timestamp: 'Diligence in progress',
+          title: 'Title Diligence & Owner Follow-up',
+          description: 'Document verification and title review with legal desk.',
+          isCompleted: trackerActiveIdx >= 2,
+          isCurrent: trackerActiveIdx === 2,
+          stageKey: 'FOLLOW_UP',
+          officerName: row.rm_name || 'Verification Desk'
         },
         {
           id: 'log-4',
-          timestamp: '03 Oct 2026, 04:15 PM',
-          title: 'Kaveri Online Legal Title Diligence',
-          description: status === 'LISTED' || status === 'VERIFIED'
-            ? 'Nil encumbrance confirmed on Kaveri portal. High Court advocate cleared 30-year lineage.'
-            : 'Advocate title verification in progress on Kaveri Sub-Registrar ledger.',
-          isCompleted: status === 'LISTED' || status === 'VERIFIED',
-          isCurrent: status === 'IN_VERIFICATION',
-          stageKey: 'IN_VERIFICATION',
-          officerName: 'Adv. M. Raghavan (Senior Title Counsel)'
+          timestamp: 'Corridor Tour',
+          title: 'Buyer Site Visits & Property Tours',
+          description: 'Screened buyers escorted for physical viewing and amenities walkthrough.',
+          isCompleted: trackerActiveIdx >= 3,
+          isCurrent: trackerActiveIdx === 3,
+          stageKey: 'SITE_VISIT',
+          officerName: 'Field Escort Team'
         },
         {
           id: 'log-5',
-          timestamp: '04 Oct 2026, 09:30 AM',
-          title: 'Title Diligence Certificate Issued',
-          description: status === 'LISTED'
-            ? 'RERA verification badge generated. Property declared legally marketable.'
-            : 'Pending final review of BBMP assessment extract.',
-          isCompleted: status === 'LISTED',
-          isCurrent: status === 'VERIFIED',
-          stageKey: 'VERIFIED',
-          officerName: 'Legal Verification Committee'
+          timestamp: 'Commercial Stage',
+          title: 'Commercial Offer & Negotiation',
+          description: 'Buyer terms, counter-offers, and token advance escrow review.',
+          isCompleted: trackerActiveIdx >= 4,
+          isCurrent: trackerActiveIdx === 4,
+          stageKey: 'NEGOTIATION',
+          officerName: 'Senior Closer Desk'
         },
         {
           id: 'log-6',
-          timestamp: '04 Oct 2026, 06:00 PM',
-          title: 'Live on Market (Tech Corridor Broadcast)',
-          description: status === 'LISTED'
-            ? 'Broadcasted to 340+ pre-approved buyers in Whitefield, ORR, and Jayanagar corridors.'
-            : 'Scheduled upon title clearance.',
-          isCompleted: status === 'LISTED',
-          isCurrent: status === 'LISTED',
-          stageKey: 'LISTED',
-          officerName: 'SellMyGhar Marketplace Desk'
-        },
-        {
-          id: 'log-7',
-          timestamp: 'Pending Closing',
-          title: 'Agreement Execution & Token Escrow',
-          description: 'MOU drafting, token held in secure bank escrow, and Sub-Registrar biometric appointment.',
-          isCompleted: status === 'SOLD',
-          stageKey: 'SOLD',
-          officerName: 'Escrow & Closing Desk'
+          timestamp: isLost ? 'Closed' : 'Final Step',
+          title: isLost ? 'Inquiry Dropped / Closed' : 'Deal Converted & Sub-Registrar Closing',
+          description: isLost ? 'Lead marked as lost/dropped.' : 'Sale deed execution and agreement handover.',
+          isCompleted: trackerActiveIdx >= 5 || isLost,
+          isCurrent: trackerActiveIdx === 5 || isLost,
+          stageKey: isLost ? 'LOST' : 'CONVERTED',
+          officerName: 'Closing Committee'
         }
       ];
 
@@ -1224,7 +1278,14 @@ app.get('/api/properties', authenticateUser, async (req, res) => {
         isNegotiable: notes.isNegotiable !== false,
         furnishing: notes.furnishing || 'Semi-Furnished',
         status,
+        crm_status: authoritativeStatus,
         stageBadgeLabel,
+        progressTracker: {
+          currentStatus: authoritativeStatus,
+          isLost,
+          activeIndex: trackerActiveIdx,
+          stages: trackerStages
+        },
         createdAt: row.created_at,
         lastUpdated: row.updated_at || row.created_at,
         photos,
@@ -1306,9 +1367,9 @@ app.get('/api/properties', authenticateUser, async (req, res) => {
             legalReviewNote: 'SAS receipt verified with zero outstanding property tax dues.'
           }
         },
-        rmName: 'Kavitha Ranganathan',
-        rmPhone: '+91 98450 12345',
-        rmRole: 'Senior Property & Diligence Lead'
+        rmName: row.rm_name || 'Kavitha Ranganathan',
+        rmPhone: row.rm_phone || '+91 98450 12345',
+        rmRole: row.rm_name ? 'Dedicated Relationship Manager' : 'Senior Property & Diligence Lead'
       };
     });
 
@@ -1647,56 +1708,802 @@ app.post('/api/compliance/withdraw-consent', jsonDefault, rateLimit('consent-wit
   }
 });
 
-// API: CRM Document Verification (Requires Staff Permission: documents:verify)
-app.post('/api/crm/documents/verify', jsonDefault, authenticateUser, requirePermissionMiddleware('documents:verify'), async (req, res) => {
+// ====================================================================
+// 7. CRM OPERATIONAL WORKFLOW ENDPOINTS (Staff Protected & Audited)
+// ====================================================================
+
+// API: List CRM Leads (Protected: leads:read_all or leads:read_assigned)
+app.get('/api/crm/leads', authenticateUser, async (req: Request, res: Response) => {
   try {
-    const { documentId, propertyId, action, note } = req.body;
-    if (!documentId || !propertyId || !action) {
-      return res.status(400).json({ error: 'documentId, propertyId, and action are required.' });
+    const canReadAll = hasPermission(req.user!, 'leads:read_all' as any);
+    const canReadAssigned = hasPermission(req.user!, 'leads:read_assigned' as any);
+
+    if (!canReadAll && !canReadAssigned) {
+      return res.status(403).json({
+        error: 'FORBIDDEN',
+        message: 'Access denied: CRM leads require authorized staff permissions.'
+      });
     }
 
-    const isApprove = action === 'VERIFY';
-    const status = isApprove ? 'VERIFIED' : 'DISCREPANCY_FLAGGED';
+    const { type, status, assigned } = req.query;
+    const filterType = String(type || 'all').toLowerCase();
+    const filterStatus = status ? String(status).toUpperCase() : null;
+    const filterAssigned = assigned ? String(assigned) : null;
 
-    const updateRes = await executeQuery(
-      `UPDATE documents 
-       SET verification_status = $1, 
-           verified_by_staff_id = $2, 
-           verified_at = NOW(), 
-           discrepancy_note = $3, 
-           updated_at = NOW() 
-       WHERE id = $4 AND property_id = $5 
-       RETURNING *;`,
-      [status, req.user!.uid, note || null, documentId, propertyId]
-    );
+    let sellerQuery = `
+      SELECT 
+        sl.id,
+        'SELLER' AS lead_type,
+        sl.owner_name AS name,
+        sl.phone,
+        sl.apartment_society_name AS society,
+        sl.locality_id AS locality,
+        sl.bhk_type AS bhk,
+        sl.expected_price_inr AS expected_price,
+        sl.listing_intent,
+        sl.lead_status,
+        sl.assigned_staff_id,
+        staff.display_name AS assigned_staff_name,
+        staff.phone AS assigned_staff_phone,
+        sl.assigned_at,
+        sl.property_id,
+        sl.next_follow_up_at,
+        sl.follow_up_notes,
+        sl.notes,
+        sl.created_at,
+        sl.updated_at
+      FROM seller_leads sl
+      LEFT JOIN users staff ON staff.id = sl.assigned_staff_id
+      WHERE 1=1
+    `;
+    const sellerParams: any[] = [];
 
-    // If verified, update property verification tier
-    if (isApprove) {
-      await executeQuery(
-        `UPDATE properties SET verification_tier = 'LEVEL_2_DOCS_REVIEWED', updated_at = NOW() WHERE id = $1;`,
-        [propertyId]
-      );
+    let buyerQuery = `
+      SELECT 
+        be.id,
+        'BUYER' AS lead_type,
+        be.buyer_name AS name,
+        be.phone,
+        be.preferred_locality_or_society AS society,
+        be.preferred_locality_or_society AS locality,
+        be.bhk_type AS bhk,
+        NULL::bigint AS expected_price,
+        'BUY' AS listing_intent,
+        be.lead_status,
+        be.assigned_staff_id,
+        staff.display_name AS assigned_staff_name,
+        staff.phone AS assigned_staff_phone,
+        be.assigned_at,
+        NULL::varchar AS property_id,
+        be.next_follow_up_at,
+        be.follow_up_notes,
+        be.notes,
+        be.created_at,
+        be.updated_at
+      FROM buyer_enquiries be
+      LEFT JOIN users staff ON staff.id = be.assigned_staff_id
+      WHERE 1=1
+    `;
+    const buyerParams: any[] = [];
+
+    // Least-privilege: if caller only has leads:read_assigned, restrict strictly to assigned leads
+    if (!canReadAll && canReadAssigned) {
+      sellerParams.push(req.user!.uid);
+      sellerQuery += ` AND sl.assigned_staff_id = $${sellerParams.length}`;
+      buyerParams.push(req.user!.uid);
+      buyerQuery += ` AND be.assigned_staff_id = $${buyerParams.length}`;
+    } else if (filterAssigned) {
+      if (filterAssigned === 'me') {
+        sellerParams.push(req.user!.uid);
+        sellerQuery += ` AND sl.assigned_staff_id = $${sellerParams.length}`;
+        buyerParams.push(req.user!.uid);
+        buyerQuery += ` AND be.assigned_staff_id = $${buyerParams.length}`;
+      } else if (filterAssigned === 'unassigned') {
+        sellerQuery += ` AND sl.assigned_staff_id IS NULL`;
+        buyerQuery += ` AND be.assigned_staff_id IS NULL`;
+      } else {
+        sellerParams.push(filterAssigned);
+        sellerQuery += ` AND sl.assigned_staff_id = $${sellerParams.length}`;
+        buyerParams.push(filterAssigned);
+        buyerQuery += ` AND be.assigned_staff_id = $${buyerParams.length}`;
+      }
     }
 
-    await recordAuditEvent({
-      actor: req.user!,
-      action: 'REVISE_VERIFICATION_TIER',
-      targetEntity: 'documents',
-      targetEntityId: documentId,
-      clientIp: req.ip || '127.0.0.1',
-      diffSummary: { action, propertyId, note },
+    if (filterStatus) {
+      sellerParams.push(filterStatus);
+      sellerQuery += ` AND sl.lead_status = $${sellerParams.length}`;
+      buyerParams.push(filterStatus);
+      buyerQuery += ` AND be.lead_status = $${buyerParams.length}`;
+    }
+
+    sellerQuery += ` ORDER BY sl.created_at DESC LIMIT 100;`;
+    buyerQuery += ` ORDER BY be.created_at DESC LIMIT 100;`;
+
+    let rows: any[] = [];
+    if (filterType === 'seller') {
+      const resSeller = await executeQuery(sellerQuery, sellerParams);
+      rows = resSeller.rows;
+    } else if (filterType === 'buyer') {
+      const resBuyer = await executeQuery(buyerQuery, buyerParams);
+      rows = resBuyer.rows;
+    } else {
+      const [resSeller, resBuyer] = await Promise.all([
+        executeQuery(sellerQuery, sellerParams),
+        executeQuery(buyerQuery, buyerParams)
+      ]);
+      rows = [...resSeller.rows, ...resBuyer.rows].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    }
+
+    const leads = rows.map(r => {
+      const isOverdue = Boolean(r.next_follow_up_at && new Date(r.next_follow_up_at).getTime() < Date.now());
+      return {
+        id: r.id,
+        type: r.lead_type,
+        ownerName: r.name,
+        name: r.name,
+        phone: r.phone,
+        society: r.society,
+        locality: r.locality,
+        bhk: r.bhk,
+        expectedPrice: r.expected_price ? `₹${(Number(r.expected_price) / 10000000).toFixed(2)} Cr` : 'Market Expectation',
+        expectedPriceRaw: r.expected_price,
+        listingIntent: r.listing_intent,
+        stage: r.lead_status,
+        status: r.lead_status,
+        assignedStaffId: r.assigned_staff_id,
+        assignedStaffName: r.assigned_staff_name || null,
+        assignedStaffPhone: r.assigned_staff_phone || null,
+        assignedTo: r.assigned_staff_name || (r.assigned_staff_id ? 'Assigned' : 'Unassigned'),
+        assignedAt: r.assigned_at,
+        propertyId: r.property_id,
+        nextFollowUpAt: r.next_follow_up_at,
+        followUpNotes: r.follow_up_notes,
+        notes: r.notes,
+        isOverdue,
+        createdAt: r.created_at,
+        updatedAt: r.updated_at
+      };
     });
 
     return res.json({
       success: true,
-      document: updateRes.rows && updateRes.rows.length > 0 ? updateRes.rows[0] : { id: documentId, verificationStatus: status },
-      message: `Document ${status.toLowerCase()} by verification officer ${req.user!.uid}.`
+      count: leads.length,
+      leads
     });
   } catch (err: any) {
-    console.error('[DocumentVerificationDesk] Error:', err);
-    return res.status(500).json({ error: err.message || 'Failed to verify document.' });
+    console.error('[CrmLeads] Error:', err);
+    return res.status(500).json({ error: 'Failed to retrieve CRM leads' });
   }
 });
+
+// API: Get Single CRM Lead Detail (Protected)
+app.get('/api/crm/leads/:id', authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const canReadAll = hasPermission(req.user!, 'leads:read_all' as any);
+    const canReadAssigned = hasPermission(req.user!, 'leads:read_assigned' as any);
+
+    if (!canReadAll && !canReadAssigned) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required for CRM lead.' });
+    }
+
+    // Check seller leads first
+    let leadResult = await executeQuery(`
+      SELECT 
+        sl.*,
+        'SELLER' AS lead_type,
+        staff.display_name AS assigned_staff_name,
+        staff.phone AS assigned_staff_phone,
+        p.asking_price_inr,
+        p.reserve_minimum_price_inr,
+        p.verification_tier,
+        p.crm_status AS property_crm_status
+      FROM seller_leads sl
+      LEFT JOIN users staff ON staff.id = sl.assigned_staff_id
+      LEFT JOIN properties p ON p.id = sl.property_id
+      WHERE sl.id = $1
+      LIMIT 1;
+    `, [id]);
+
+    if (!leadResult.rows || leadResult.rows.length === 0) {
+      leadResult = await executeQuery(`
+        SELECT 
+          be.*,
+          'BUYER' AS lead_type,
+          staff.display_name AS assigned_staff_name,
+          staff.phone AS assigned_staff_phone
+        FROM buyer_enquiries be
+        LEFT JOIN users staff ON staff.id = be.assigned_staff_id
+        WHERE be.id = $1
+        LIMIT 1;
+      `, [id]);
+    }
+
+    if (!leadResult.rows || leadResult.rows.length === 0) {
+      return res.status(404).json({ error: 'LEAD_NOT_FOUND', message: 'Lead record not found.' });
+    }
+
+    const leadRow = leadResult.rows[0];
+
+    // Read assigned restriction
+    if (!canReadAll && canReadAssigned && leadRow.assigned_staff_id !== req.user!.uid) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Access restricted to assigned leads.' });
+    }
+
+    // Confidentiality protection on reserve price
+    if (!req.user!.roles.includes('STAFF_SUPER_ADMIN') && !req.user!.roles.includes('STAFF_DEAL_CLOSER')) {
+      delete leadRow.reserve_minimum_price_inr;
+    }
+
+    // Fetch related audit trail
+    const auditRes = await executeQuery(`
+      SELECT id, action, actor_user_id, client_ip, diff_summary, created_at
+      FROM audit_logs
+      WHERE target_entity_id = $1 OR (target_entity_id = $2 AND $2 IS NOT NULL)
+      ORDER BY created_at DESC
+      LIMIT 20;
+    `, [id, leadRow.property_id || null]);
+
+    const isOverdue = Boolean(leadRow.next_follow_up_at && new Date(leadRow.next_follow_up_at).getTime() < Date.now());
+
+    return res.json({
+      success: true,
+      lead: {
+        id: leadRow.id,
+        type: leadRow.lead_type,
+        ownerName: leadRow.owner_name || leadRow.buyer_name,
+        name: leadRow.owner_name || leadRow.buyer_name,
+        phone: leadRow.phone,
+        society: leadRow.apartment_society_name || leadRow.preferred_locality_or_society,
+        locality: leadRow.locality_id || leadRow.preferred_locality_or_society,
+        bhk: leadRow.bhk_type,
+        expectedPrice: leadRow.expected_price_inr ? `₹${(Number(leadRow.expected_price_inr) / 10000000).toFixed(2)} Cr` : 'Market Expectation',
+        expectedPriceRaw: leadRow.expected_price_inr || null,
+        listingIntent: leadRow.listing_intent || 'BUY',
+        stage: leadRow.lead_status,
+        status: leadRow.lead_status,
+        assignedStaffId: leadRow.assigned_staff_id,
+        assignedStaffName: leadRow.assigned_staff_name,
+        assignedStaffPhone: leadRow.assigned_staff_phone,
+        assignedTo: leadRow.assigned_staff_name || (leadRow.assigned_staff_id ? 'Assigned' : 'Unassigned'),
+        assignedAt: leadRow.assigned_at,
+        propertyId: leadRow.property_id || null,
+        verificationTier: leadRow.verification_tier || null,
+        propertyCrmStatus: leadRow.property_crm_status || null,
+        nextFollowUpAt: leadRow.next_follow_up_at,
+        followUpNotes: leadRow.follow_up_notes,
+        notes: leadRow.notes,
+        isOverdue,
+        createdAt: leadRow.created_at,
+        updatedAt: leadRow.updated_at
+      },
+      auditHistory: auditRes.rows
+    });
+  } catch (err: any) {
+    console.error('[CrmLeadDetail] Error:', err);
+    return res.status(500).json({ error: 'Failed to retrieve lead details' });
+  }
+});
+
+// Helper for updating lead status
+const updateLeadStatusHandler = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { status, note } = req.body;
+
+    const ALLOWED_STATUSES = ['NEW', 'CONTACTED', 'FOLLOW_UP', 'SITE_VISIT', 'NEGOTIATION', 'CONVERTED', 'LOST'];
+    const targetStatus = String(status || '').toUpperCase().trim();
+
+    if (!ALLOWED_STATUSES.includes(targetStatus)) {
+      return res.status(400).json({
+        error: 'INVALID_STATUS',
+        message: `Status must be one of: ${ALLOWED_STATUSES.join(', ')}`
+      });
+    }
+
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+
+    // 1. Try seller_leads first
+    const sellerCheck = await executeQuery(`SELECT * FROM seller_leads WHERE id = $1 LIMIT 1;`, [id]);
+    let isSeller = true;
+    let currentLead = sellerCheck.rows?.[0];
+
+    if (!currentLead) {
+      isSeller = false;
+      const buyerCheck = await executeQuery(`SELECT * FROM buyer_enquiries WHERE id = $1 LIMIT 1;`, [id]);
+      currentLead = buyerCheck.rows?.[0];
+    }
+
+    if (!currentLead) {
+      return res.status(404).json({ error: 'LEAD_NOT_FOUND', message: 'Lead not found.' });
+    }
+
+    const prevStatus = currentLead.lead_status;
+
+    let updatedLead: any = null;
+    if (isSeller) {
+      const updateResult = await executeQuery(`
+        UPDATE seller_leads
+        SET lead_status = $1,
+            notes = CASE WHEN $2::text IS NOT NULL AND length(trim($2::text)) > 0 
+                         THEN COALESCE(notes || E'\n' || $2, $2) 
+                         ELSE notes END,
+            updated_at = NOW()
+        WHERE id = $3
+        RETURNING *;
+      `, [targetStatus, note || null, id]);
+      updatedLead = updateResult.rows[0];
+
+      // Synchronously update linked property crm_status
+      if (updatedLead.property_id) {
+        await executeQuery(`
+          UPDATE properties 
+          SET crm_status = $1, updated_at = NOW() 
+          WHERE id = $2;
+        `, [targetStatus, updatedLead.property_id]);
+      } else {
+        // Fallback: update property owned by matching phone
+        await executeQuery(`
+          UPDATE properties
+          SET crm_status = $1, updated_at = NOW()
+          WHERE owner_id = (SELECT id FROM users WHERE phone = $2 LIMIT 1);
+        `, [targetStatus, updatedLead.phone]);
+      }
+    } else {
+      const updateResult = await executeQuery(`
+        UPDATE buyer_enquiries
+        SET lead_status = $1,
+            notes = CASE WHEN $2::text IS NOT NULL AND length(trim($2::text)) > 0 
+                         THEN COALESCE(notes || E'\n' || $2, $2) 
+                         ELSE notes END,
+            updated_at = NOW()
+        WHERE id = $3
+        RETURNING *;
+      `, [targetStatus, note || null, id]);
+      updatedLead = updateResult.rows[0];
+    }
+
+    // Determine audit action
+    let auditAction: AuditableAction = 'LEAD_STATUS_CHANGED';
+    if (targetStatus === 'CONVERTED') auditAction = 'LEAD_CONVERTED';
+    else if (targetStatus === 'LOST') auditAction = 'LEAD_LOST';
+    else if (targetStatus === 'SITE_VISIT') auditAction = 'SITE_VISIT_RECORDED';
+    else if (targetStatus === 'NEGOTIATION') auditAction = 'NEGOTIATION_STARTED';
+
+    await recordAuditEvent({
+      actor: req.user!,
+      action: auditAction,
+      targetEntity: isSeller ? 'seller_leads' : 'buyer_enquiries',
+      targetEntityId: id,
+      clientIp,
+      diffSummary: {
+        previousStatus: prevStatus,
+        newStatus: targetStatus,
+        note: note || null,
+        propertyId: updatedLead.property_id || null
+      }
+    });
+
+    return res.json({
+      success: true,
+      message: `Lead status updated to ${targetStatus}`,
+      lead: {
+        id: updatedLead.id,
+        stage: updatedLead.lead_status,
+        status: updatedLead.lead_status,
+        propertyId: updatedLead.property_id || null,
+        updatedAt: updatedLead.updated_at
+      }
+    });
+  } catch (err: any) {
+    console.error('[CrmLeadStatusUpdate] Error:', err);
+    return res.status(500).json({ error: 'Failed to update lead status' });
+  }
+};
+
+app.post('/api/crm/leads/:id/status', jsonDefault, authenticateUser, requirePermissionMiddleware('leads:update_status'), updateLeadStatusHandler);
+app.patch('/api/crm/leads/:id/status', jsonDefault, authenticateUser, requirePermissionMiddleware('leads:update_status'), updateLeadStatusHandler);
+
+// Helper for assigning lead to staff
+const assignLeadHandler = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const staffId = req.body.staffId || req.body.assignedStaffId;
+
+    if (!staffId || typeof staffId !== 'string') {
+      return res.status(400).json({ error: 'Valid staffId is required for lead assignment.' });
+    }
+
+    const staffRes = await executeQuery(`SELECT id, display_name, email, roles, is_active FROM users WHERE id = $1 LIMIT 1;`, [staffId]);
+    if (!staffRes.rows || staffRes.rows.length === 0) {
+      return res.status(404).json({ error: 'STAFF_NOT_FOUND', message: 'Assigned staff user does not exist.' });
+    }
+    const staffUser = staffRes.rows[0];
+    if (!staffUser.is_active) {
+      return res.status(400).json({ error: 'STAFF_INACTIVE', message: 'Cannot assign lead to an inactive staff account.' });
+    }
+
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+
+    let isSeller = true;
+    let sellerCheck = await executeQuery(`SELECT * FROM seller_leads WHERE id = $1 LIMIT 1;`, [id]);
+    if (!sellerCheck.rows || sellerCheck.rows.length === 0) {
+      isSeller = false;
+      const buyerCheck = await executeQuery(`SELECT * FROM buyer_enquiries WHERE id = $1 LIMIT 1;`, [id]);
+      if (!buyerCheck.rows || buyerCheck.rows.length === 0) {
+        return res.status(404).json({ error: 'LEAD_NOT_FOUND', message: 'Lead not found.' });
+      }
+    }
+
+    let updatedLead: any = null;
+    if (isSeller) {
+      const updateRes = await executeQuery(`
+        UPDATE seller_leads
+        SET assigned_staff_id = $1,
+            assigned_at = NOW(),
+            lead_status = CASE WHEN lead_status = 'NEW' THEN 'CONTACTED' ELSE lead_status END,
+            updated_at = NOW()
+        WHERE id = $2
+        RETURNING *;
+      `, [staffId, id]);
+      updatedLead = updateRes.rows[0];
+
+      if (updatedLead.lead_status === 'CONTACTED' && updatedLead.property_id) {
+        await executeQuery(`
+          UPDATE properties 
+          SET crm_status = 'CONTACTED', updated_at = NOW() 
+          WHERE id = $1 AND crm_status = 'NEW';
+        `, [updatedLead.property_id]);
+      }
+    } else {
+      const updateRes = await executeQuery(`
+        UPDATE buyer_enquiries
+        SET assigned_staff_id = $1,
+            assigned_at = NOW(),
+            lead_status = CASE WHEN lead_status = 'NEW' THEN 'CONTACTED' ELSE lead_status END,
+            updated_at = NOW()
+        WHERE id = $2
+        RETURNING *;
+      `, [staffId, id]);
+      updatedLead = updateRes.rows[0];
+    }
+
+    await recordAuditEvent({
+      actor: req.user!,
+      action: 'LEAD_ASSIGNED',
+      targetEntity: isSeller ? 'seller_leads' : 'buyer_enquiries',
+      targetEntityId: id,
+      clientIp,
+      diffSummary: {
+        assignedStaffId: staffUser.id,
+        assignedStaffName: staffUser.display_name,
+        newStatus: updatedLead.lead_status
+      }
+    });
+
+    return res.json({
+      success: true,
+      message: `Lead assigned to ${staffUser.display_name}`,
+      lead: {
+        id: updatedLead.id,
+        stage: updatedLead.lead_status,
+        status: updatedLead.lead_status,
+        assignedStaffId: updatedLead.assigned_staff_id,
+        assignedStaffName: staffUser.display_name,
+        assignedTo: staffUser.display_name,
+        assignedAt: updatedLead.assigned_at,
+        updatedAt: updatedLead.updated_at
+      },
+      assignedStaff: {
+        id: staffUser.id,
+        displayName: staffUser.display_name,
+        email: staffUser.email,
+        roles: staffUser.roles
+      }
+    });
+  } catch (err: any) {
+    console.error('[CrmLeadAssign] Error:', err);
+    return res.status(500).json({ error: 'Failed to assign lead' });
+  }
+};
+
+app.post('/api/crm/leads/:id/assign', jsonDefault, authenticateUser, requirePermissionMiddleware('leads:assign'), assignLeadHandler);
+app.patch('/api/crm/leads/:id/assign', jsonDefault, authenticateUser, requirePermissionMiddleware('leads:assign'), assignLeadHandler);
+
+// Helper for scheduling follow-ups
+const followUpHandler = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { nextFollowUpAt, followUpNotes } = req.body;
+
+    if (!nextFollowUpAt || isNaN(Date.parse(nextFollowUpAt))) {
+      return res.status(400).json({ error: 'Valid nextFollowUpAt ISO date string is required.' });
+    }
+
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+
+    let isSeller = true;
+    let sellerCheck = await executeQuery(`SELECT * FROM seller_leads WHERE id = $1 LIMIT 1;`, [id]);
+    if (!sellerCheck.rows || sellerCheck.rows.length === 0) {
+      isSeller = false;
+      const buyerCheck = await executeQuery(`SELECT * FROM buyer_enquiries WHERE id = $1 LIMIT 1;`, [id]);
+      if (!buyerCheck.rows || buyerCheck.rows.length === 0) {
+        return res.status(404).json({ error: 'LEAD_NOT_FOUND', message: 'Lead not found.' });
+      }
+    }
+
+    let updatedLead: any = null;
+    if (isSeller) {
+      const updateRes = await executeQuery(`
+        UPDATE seller_leads
+        SET next_follow_up_at = $1,
+            follow_up_notes = $2,
+            lead_status = CASE WHEN lead_status = 'NEW' THEN 'CONTACTED' ELSE lead_status END,
+            updated_at = NOW()
+        WHERE id = $3
+        RETURNING *;
+      `, [nextFollowUpAt, followUpNotes || null, id]);
+      updatedLead = updateRes.rows[0];
+    } else {
+      const updateRes = await executeQuery(`
+        UPDATE buyer_enquiries
+        SET next_follow_up_at = $1,
+            follow_up_notes = $2,
+            lead_status = CASE WHEN lead_status = 'NEW' THEN 'CONTACTED' ELSE lead_status END,
+            updated_at = NOW()
+        WHERE id = $3
+        RETURNING *;
+      `, [nextFollowUpAt, followUpNotes || null, id]);
+      updatedLead = updateRes.rows[0];
+    }
+
+    await recordAuditEvent({
+      actor: req.user!,
+      action: 'FOLLOW_UP_SCHEDULED',
+      targetEntity: isSeller ? 'seller_leads' : 'buyer_enquiries',
+      targetEntityId: id,
+      clientIp,
+      diffSummary: {
+        nextFollowUpAt,
+        followUpNotes: followUpNotes || null
+      }
+    });
+
+    const isOverdue = new Date(nextFollowUpAt).getTime() < Date.now();
+
+    return res.json({
+      success: true,
+      message: 'Follow-up scheduled successfully',
+      isOverdue,
+      lead: {
+        id: updatedLead.id,
+        stage: updatedLead.lead_status,
+        status: updatedLead.lead_status,
+        nextFollowUpAt: updatedLead.next_follow_up_at,
+        followUpNotes: updatedLead.follow_up_notes,
+        isOverdue,
+        updatedAt: updatedLead.updated_at
+      }
+    });
+  } catch (err: any) {
+    console.error('[CrmFollowUp] Error:', err);
+    return res.status(500).json({ error: 'Failed to schedule follow-up' });
+  }
+};
+
+app.post('/api/crm/leads/:id/follow-up', jsonDefault, authenticateUser, requirePermissionMiddleware('leads:update_status'), followUpHandler);
+app.patch('/api/crm/leads/:id/follow-up', jsonDefault, authenticateUser, requirePermissionMiddleware('leads:update_status'), followUpHandler);
+
+// API: Add Note to Lead
+app.post('/api/crm/leads/:id/notes', jsonDefault, authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { note } = req.body;
+
+    if (!note || typeof note !== 'string' || !note.trim()) {
+      return res.status(400).json({ error: 'Note text is required.' });
+    }
+
+    const canRead = hasPermission(req.user!, 'leads:read_assigned' as any) || hasPermission(req.user!, 'leads:read_all' as any);
+    if (!canRead) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff permission required to add notes.' });
+    }
+
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    const timestampedNote = `[${new Date().toISOString()} - ${req.user!.email || req.user!.uid}]: ${note.trim()}`;
+
+    let isSeller = true;
+    let sellerCheck = await executeQuery(`SELECT * FROM seller_leads WHERE id = $1 LIMIT 1;`, [id]);
+    if (!sellerCheck.rows || sellerCheck.rows.length === 0) {
+      isSeller = false;
+      const buyerCheck = await executeQuery(`SELECT * FROM buyer_enquiries WHERE id = $1 LIMIT 1;`, [id]);
+      if (!buyerCheck.rows || buyerCheck.rows.length === 0) {
+        return res.status(404).json({ error: 'LEAD_NOT_FOUND', message: 'Lead not found.' });
+      }
+    }
+
+    let updatedLead: any = null;
+    if (isSeller) {
+      const updateRes = await executeQuery(`
+        UPDATE seller_leads
+        SET notes = CASE WHEN notes IS NOT NULL AND length(trim(notes)) > 0 
+                         THEN notes || E'\n' || $1 
+                         ELSE $1 END,
+            updated_at = NOW()
+        WHERE id = $2
+        RETURNING *;
+      `, [timestampedNote, id]);
+      updatedLead = updateRes.rows[0];
+    } else {
+      const updateRes = await executeQuery(`
+        UPDATE buyer_enquiries
+        SET notes = CASE WHEN notes IS NOT NULL AND length(trim(notes)) > 0 
+                         THEN notes || E'\n' || $1 
+                         ELSE $1 END,
+            updated_at = NOW()
+        WHERE id = $2
+        RETURNING *;
+      `, [timestampedNote, id]);
+      updatedLead = updateRes.rows[0];
+    }
+
+    await recordAuditEvent({
+      actor: req.user!,
+      action: 'NOTE_ADDED',
+      targetEntity: isSeller ? 'seller_leads' : 'buyer_enquiries',
+      targetEntityId: id,
+      clientIp,
+      diffSummary: { noteAdded: note.trim() }
+    });
+
+    return res.json({
+      success: true,
+      message: 'Note added successfully',
+      lead: {
+        id: updatedLead.id,
+        notes: updatedLead.notes,
+        updatedAt: updatedLead.updated_at
+      }
+    });
+  } catch (err: any) {
+    console.error('[CrmNotes] Error:', err);
+    return res.status(500).json({ error: 'Failed to add note' });
+  }
+});
+
+// API: List Available Staff for Assignment
+app.get('/api/crm/staff', authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    if (!isStaff) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
+    }
+
+    const staffRes = await executeQuery(`
+      SELECT id, display_name, email, phone, roles, is_active, created_at
+      FROM users
+      WHERE is_active = true
+        AND (
+          'STAFF_SUPER_ADMIN' = ANY(roles) OR
+          'STAFF_INTAKE_AGENT' = ANY(roles) OR
+          'STAFF_VERIFICATION_AGENT' = ANY(roles) OR
+          'STAFF_LISTING_MANAGER' = ANY(roles) OR
+          'STAFF_DEAL_CLOSER' = ANY(roles)
+        )
+      ORDER BY display_name ASC;
+    `);
+
+    const staff = staffRes.rows.map(s => ({
+      id: s.id,
+      displayName: s.display_name,
+      name: s.display_name,
+      email: s.email,
+      phone: s.phone,
+      roles: s.roles
+    }));
+
+    return res.json({
+      success: true,
+      count: staff.length,
+      staff
+    });
+  } catch (err: any) {
+    console.error('[CrmStaffList] Error:', err);
+    return res.status(500).json({ error: 'Failed to retrieve staff members' });
+  }
+});
+
+// Helper for document verification
+const updateDocStatusHandler = async (req: Request, res: Response) => {
+  try {
+    const docId = req.params.id || req.body.documentId;
+    const { status, action, note, propertyId } = req.body;
+
+    if (!docId) {
+      return res.status(400).json({ error: 'Document ID is required.' });
+    }
+
+    // Determine target verification status (simplified to PENDING, VERIFIED, REJECTED)
+    let targetStatus = 'PENDING_REVIEW';
+    if (status) {
+      const s = String(status).toUpperCase().trim();
+      if (s === 'VERIFIED') targetStatus = 'VERIFIED';
+      else if (s === 'REJECTED' || s === 'REJECT') targetStatus = 'REJECTED';
+      else if (s === 'PENDING' || s === 'PENDING_REVIEW') targetStatus = 'PENDING_REVIEW';
+      else {
+        return res.status(400).json({
+          error: 'INVALID_STATUS',
+          message: 'Document status must be one of: PENDING, VERIFIED, REJECTED'
+        });
+      }
+    } else if (action) {
+      const a = String(action).toUpperCase().trim();
+      if (a === 'VERIFY' || a === 'APPROVED') targetStatus = 'VERIFIED';
+      else if (a === 'REJECT' || a === 'REJECTED') targetStatus = 'REJECTED';
+      else if (a === 'FLAG_DISCREPANCY') targetStatus = 'DISCREPANCY_FLAGGED';
+      else targetStatus = 'PENDING_REVIEW';
+    }
+
+    // Fetch existing document
+    const docRes = await executeQuery(`SELECT * FROM documents WHERE id = $1 LIMIT 1;`, [docId]);
+    if (!docRes.rows || docRes.rows.length === 0) {
+      return res.status(404).json({ error: 'DOCUMENT_NOT_FOUND', message: 'Document not found.' });
+    }
+    const doc = docRes.rows[0];
+    const resolvedPropertyId = propertyId || doc.property_id;
+
+    const updateRes = await executeQuery(`
+      UPDATE documents
+      SET verification_status = $1,
+          verified_by_staff_id = $2,
+          verified_at = NOW(),
+          discrepancy_note = $3,
+          updated_at = NOW()
+      WHERE id = $4
+      RETURNING *;
+    `, [targetStatus, req.user!.uid, note || null, docId]);
+
+    const updatedDoc = updateRes.rows[0];
+
+    // If verified, advance property verification tier
+    if (targetStatus === 'VERIFIED') {
+      await executeQuery(`
+        UPDATE properties
+        SET verification_tier = 'LEVEL_2_DOCS_REVIEWED', updated_at = NOW()
+        WHERE id = $1;
+      `, [resolvedPropertyId]);
+    }
+
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+
+    await recordAuditEvent({
+      actor: req.user!,
+      action: 'DOCUMENT_STATUS_CHANGED',
+      targetEntity: 'documents',
+      targetEntityId: docId,
+      clientIp,
+      diffSummary: {
+        oldStatus: doc.verification_status,
+        newStatus: targetStatus,
+        propertyId: resolvedPropertyId,
+        note: note || null
+      }
+    });
+
+    return res.json({
+      success: true,
+      document: updatedDoc,
+      message: `Document status updated to ${targetStatus}`
+    });
+  } catch (err: any) {
+    console.error('[CrmDocStatusUpdate] Error:', err);
+    return res.status(500).json({ error: 'Failed to update document status' });
+  }
+};
+
+app.post('/api/crm/documents/:id/status', jsonDefault, authenticateUser, requirePermissionMiddleware('documents:verify'), updateDocStatusHandler);
+app.patch('/api/crm/documents/:id/status', jsonDefault, authenticateUser, requirePermissionMiddleware('documents:verify'), updateDocStatusHandler);
+app.post('/api/crm/documents/verify', jsonDefault, authenticateUser, requirePermissionMiddleware('documents:verify'), updateDocStatusHandler);
 
 // API: Submit Section 12 Data Erasure Request (Authenticated User)
 app.post('/api/compliance/erasure-request', jsonDefault, rateLimit('erasure-request', 5, 3600), authenticateUser, async (req, res) => {

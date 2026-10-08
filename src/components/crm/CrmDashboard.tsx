@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Users, 
   ShieldCheck, 
@@ -18,25 +18,44 @@ import {
   ShieldAlert,
   UserCheck,
   FileText,
-  Trash2
+  Trash2,
+  RefreshCw
 } from 'lucide-react';
 import { StaffRole } from '../../core/types/auth';
 import { LeadStatus, VerificationTier } from '../../core/types/entities';
 import { AdminErasureQueue } from './AdminErasureQueue';
 import { DocumentVerificationDesk } from './DocumentVerificationDesk';
 
-// Mock CRM Leads across Bengaluru
-interface CrmLead {
+export interface CrmLead {
   id: string;
+  type?: string;
   ownerName: string;
+  name?: string;
   phone: string;
   society: string;
   locality: string;
   bhk: string;
   expectedPrice: string;
   stage: LeadStatus;
+  status?: LeadStatus;
+  assignedStaffId?: string | null;
+  assignedStaffName?: string | null;
   assignedTo: string;
+  propertyId?: string | null;
+  nextFollowUpAt?: string | null;
+  followUpNotes?: string | null;
+  notes?: string | null;
+  isOverdue?: boolean;
   createdAt: string;
+  updatedAt?: string;
+}
+
+export interface CrmStaff {
+  id: string;
+  displayName: string;
+  name?: string;
+  email: string;
+  roles: string[];
 }
 
 const MOCK_LEADS: CrmLead[] = [
@@ -95,15 +114,163 @@ export function CrmDashboard() {
   const [currentRole, setCurrentRole] = useState<StaffRole>('STAFF_INTAKE_AGENT');
   const [activeTab, setActiveTab] = useState<'PIPELINE' | 'VERIFICATION' | 'LISTINGS' | 'DEALS' | 'AUDIT' | 'ERASURE_QUEUE'>('PIPELINE');
 
-  // Leads state
+  // Leads and Staff state
   const [leads, setLeads] = useState<CrmLead[]>(MOCK_LEADS);
+  const [staffList, setStaffList] = useState<CrmStaff[]>([]);
   const [selectedLead, setSelectedLead] = useState<CrmLead | null>(MOCK_LEADS[0]);
+  const [loadingLeads, setLoadingLeads] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  // Form states for selected lead
+  const [callNoteText, setCallNoteText] = useState('');
+  const [followUpDate, setFollowUpDate] = useState('');
+  const [followUpNoteInput, setFollowUpNoteInput] = useState('');
+  const [selectedStaffToAssign, setSelectedStaffToAssign] = useState('');
+
+  const fetchLeads = async () => {
+    setLoadingLeads(true);
+    try {
+      const res = await fetch('/api/crm/leads');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.leads) && data.leads.length > 0) {
+          setLeads(data.leads);
+          setSelectedLead(prev => (prev ? data.leads.find((l: any) => l.id === prev.id) || data.leads[0] : data.leads[0]));
+        }
+      }
+    } catch {
+      // Keep mock fallback
+    } finally {
+      setLoadingLeads(false);
+    }
+  };
+
+  const fetchStaff = async () => {
+    try {
+      const res = await fetch('/api/crm/staff');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.staff)) {
+          setStaffList(data.staff);
+        }
+      }
+    } catch {
+      // Keep empty
+    }
+  };
+
+  useEffect(() => {
+    fetchLeads();
+    fetchStaff();
+  }, [currentRole]);
 
   // Lead Stage Progression
-  const handleStageChange = (leadId: string, newStage: LeadStatus) => {
-    setLeads(prev => prev.map(l => l.id === leadId ? { ...l, stage: newStage } : l));
-    if (selectedLead?.id === leadId) {
-      setSelectedLead(prev => prev ? { ...prev, stage: newStage } : null);
+  const handleStageChange = async (leadId: string, newStage: LeadStatus) => {
+    setIsUpdating(true);
+    try {
+      const res = await fetch(`/api/crm/leads/${leadId}/status`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStage })
+      });
+      if (res.ok) {
+        await fetchLeads();
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.message || err.error || 'Failed to update stage');
+      }
+    } catch {
+      // Fallback local update
+      setLeads(prev => prev.map(l => l.id === leadId ? { ...l, stage: newStage } : l));
+      if (selectedLead?.id === leadId) {
+        setSelectedLead(prev => prev ? { ...prev, stage: newStage } : null);
+      }
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  // Staff Assignment
+  const handleAssignStaff = async (leadId: string) => {
+    if (!selectedStaffToAssign) {
+      alert('Please select a staff member to assign.');
+      return;
+    }
+    setIsUpdating(true);
+    try {
+      const res = await fetch(`/api/crm/leads/${leadId}/assign`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ staffId: selectedStaffToAssign })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.message || data.error || 'Failed to assign staff');
+        return;
+      }
+      await fetchLeads();
+      alert(`Lead assigned successfully.`);
+    } catch (err: any) {
+      alert(err.message || 'Failed to assign staff');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  // Follow-up Scheduling
+  const handleScheduleFollowUp = async (leadId: string) => {
+    if (!followUpDate) {
+      alert('Please select a date and time for follow-up.');
+      return;
+    }
+    setIsUpdating(true);
+    try {
+      const res = await fetch(`/api/crm/leads/${leadId}/follow-up`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nextFollowUpAt: new Date(followUpDate).toISOString(),
+          followUpNotes: followUpNoteInput || undefined
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.message || data.error || 'Failed to schedule follow-up');
+        return;
+      }
+      await fetchLeads();
+      setFollowUpDate('');
+      setFollowUpNoteInput('');
+      alert('Follow-up scheduled successfully.');
+    } catch (err: any) {
+      alert(err.message || 'Failed to schedule follow-up');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  // Note Logging
+  const handleAddNote = async (leadId: string) => {
+    if (!callNoteText.trim()) return;
+    setIsUpdating(true);
+    try {
+      const res = await fetch(`/api/crm/leads/${leadId}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note: callNoteText.trim() })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.message || data.error || 'Failed to add note');
+        return;
+      }
+      await fetchLeads();
+      setCallNoteText('');
+      alert('Call note recorded with audit trail.');
+    } catch (err: any) {
+      alert(err.message || 'Failed to add note');
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -236,13 +403,24 @@ export function CrmDashboard() {
                 <div className="flex items-center space-x-2">
                   <Users className="w-4 h-4 text-[#244B8F]" />
                   <span className="text-xs font-bold font-['Montserrat'] text-[#172033] uppercase tracking-wider">
-                    Seller Lead Pipeline ({leads.length} Active Leads)
+                    Seller & Buyer Lead Pipeline ({leads.length} Leads)
                   </span>
                 </div>
-                <span className="text-[11px] text-gray-500">Auto-deduplicated by Phone & Society</span>
+                <div className="flex items-center space-x-3">
+                  <span className="text-[11px] text-gray-500">Auto-deduplicated</span>
+                  <button
+                    type="button"
+                    onClick={fetchLeads}
+                    disabled={loadingLeads}
+                    className="p-1 rounded hover:bg-gray-200 text-gray-600 transition-colors cursor-pointer"
+                    title="Refresh leads from database"
+                  >
+                    <RefreshCw className={`w-3.5 h-3.5 ${loadingLeads ? 'animate-spin text-[#244B8F]' : ''}`} />
+                  </button>
+                </div>
               </div>
 
-              <div className="divide-y divide-gray-100">
+              <div className="divide-y divide-gray-100 max-h-[680px] overflow-y-auto">
                 {leads.map(lead => (
                   <div
                     key={lead.id}
@@ -253,10 +431,22 @@ export function CrmDashboard() {
                   >
                     <div>
                       <div className="flex items-center space-x-2">
-                        <span className="text-sm font-bold text-gray-900">{lead.ownerName}</span>
+                        <span className="text-sm font-bold text-gray-900">{lead.ownerName || lead.name}</span>
                         <span className="text-[10px] font-mono bg-gray-100 text-gray-600 px-1.5 py-0.5 rounded">
                           {lead.id}
                         </span>
+                        {lead.type && (
+                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                            lead.type === 'SELLER' ? 'bg-blue-100 text-[#244B8F]' : 'bg-purple-100 text-purple-800'
+                          }`}>
+                            {lead.type}
+                          </span>
+                        )}
+                        {lead.isOverdue && (
+                          <span className="text-[9px] font-bold bg-red-100 text-red-700 px-1.5 py-0.5 rounded animate-pulse">
+                            ⚠️ OVERDUE
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-gray-600 mt-0.5">
                         {lead.bhk} • {lead.society}, {lead.locality}
@@ -271,13 +461,19 @@ export function CrmDashboard() {
                     <div className="text-right">
                       <span className={`inline-block px-2.5 py-1 rounded text-[11px] font-semibold ${
                         lead.stage === 'NEW' ? 'bg-amber-100 text-amber-800' :
-                        lead.stage === 'VERIFICATION' ? 'bg-blue-100 text-[#244B8F]' :
-                        lead.stage === 'VISIT' ? 'bg-purple-100 text-purple-800' :
+                        lead.stage === 'CONTACTED' ? 'bg-blue-100 text-[#244B8F]' :
+                        lead.stage === 'FOLLOW_UP' ? 'bg-cyan-100 text-cyan-800' :
+                        lead.stage === 'SITE_VISIT' ? 'bg-purple-100 text-purple-800' :
+                        lead.stage === 'NEGOTIATION' ? 'bg-indigo-100 text-indigo-800' :
+                        lead.stage === 'CONVERTED' ? 'bg-emerald-100 text-emerald-800' :
+                        lead.stage === 'LOST' ? 'bg-red-100 text-red-800' :
                         'bg-gray-100 text-gray-700'
                       }`}>
                         {lead.stage}
                       </span>
-                      <span className="text-[10px] text-gray-400 block mt-1">{lead.assignedTo}</span>
+                      <span className="text-[10px] text-gray-400 block mt-1">
+                        {lead.assignedTo || lead.assignedStaffName || 'Unassigned'}
+                      </span>
                     </div>
                   </div>
                 ))}
@@ -286,16 +482,27 @@ export function CrmDashboard() {
 
             {/* Right Column: Lead Detail & Triage Action Card */}
             {selectedLead && (
-              <div className="bg-white rounded-xl shadow-xs border border-gray-200 p-5 space-y-4">
+              <div className="bg-white rounded-xl shadow-xs border border-gray-200 p-5 space-y-4 max-h-[800px] overflow-y-auto">
                 <div className="flex items-start justify-between pb-3 border-b border-gray-100">
                   <div>
                     <span className="text-[10px] uppercase font-bold text-[#244B8F] tracking-wider">Lead Details</span>
                     <h3 className="text-base font-bold text-gray-900 font-['Montserrat'] mt-0.5">
-                      {selectedLead.ownerName}
+                      {selectedLead.ownerName || selectedLead.name}
                     </h3>
                   </div>
                   <span className="text-xs font-mono font-semibold text-gray-500">{selectedLead.id}</span>
                 </div>
+
+                {/* Overdue Alert Banner */}
+                {selectedLead.isOverdue && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-2.5 flex items-center space-x-2 text-xs text-red-800">
+                    <AlertTriangle className="w-4 h-4 text-red-600 shrink-0" />
+                    <div>
+                      <span className="font-bold">Follow-Up Overdue:</span> Scheduled follow-up was due on{' '}
+                      {selectedLead.nextFollowUpAt ? new Date(selectedLead.nextFollowUpAt).toLocaleString('en-IN') : 'earlier date'}.
+                    </div>
+                  </div>
+                )}
 
                 {/* Role-Sensitive Field Masking Check */}
                 <div className="space-y-2 text-xs">
@@ -324,63 +531,175 @@ export function CrmDashboard() {
                   </div>
 
                   <div className="flex justify-between py-1 border-b border-gray-50">
-                    <span className="text-gray-500">Owner Expectation:</span>
+                    <span className="text-gray-500">Expected Value:</span>
                     <span className="font-bold text-[#244B8F]">{selectedLead.expectedPrice}</span>
+                  </div>
+
+                  <div className="flex justify-between py-1 border-b border-gray-50">
+                    <span className="text-gray-500">Current Assignee:</span>
+                    <span className="font-semibold text-gray-800">
+                      {selectedLead.assignedTo || selectedLead.assignedStaffName || 'Unassigned'}
+                    </span>
                   </div>
                 </div>
 
-                {/* Pipeline Stage Transitions */}
-                <div className="pt-2">
+                {/* Employee Assignment Dropdown */}
+                <div className="pt-2 border-t border-gray-100">
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Assign Lead to Staff (RM):
+                  </label>
+                  <div className="flex items-center space-x-2">
+                    <select
+                      value={selectedStaffToAssign}
+                      onChange={(e) => setSelectedStaffToAssign(e.target.value)}
+                      className="flex-1 p-2 rounded border border-gray-300 text-xs bg-white text-gray-800"
+                    >
+                      <option value="">Select Employee...</option>
+                      {staffList.map(s => (
+                        <option key={s.id} value={s.id}>
+                          {s.displayName || s.name} ({s.roles?.[0] || 'Staff'})
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      disabled={isUpdating || !selectedStaffToAssign}
+                      onClick={() => handleAssignStaff(selectedLead.id)}
+                      className="px-3 py-2 rounded bg-[#244B8F] text-white text-xs font-semibold hover:bg-[#1B396E] disabled:opacity-50 cursor-pointer"
+                    >
+                      Assign
+                    </button>
+                  </div>
+                </div>
+
+                {/* Pipeline Stage Transitions (6 Core Operational Stages) */}
+                <div className="pt-2 border-t border-gray-100">
                   <label className="block text-xs font-semibold text-gray-700 mb-2">
-                    Advance Pipeline Stage:
+                    Advance Operational Stage:
                   </label>
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
-                      onClick={() => handleStageChange(selectedLead.id, 'QUALIFIED')}
-                      className="px-2.5 py-1.5 rounded bg-gray-100 hover:bg-gray-200 text-gray-800 text-xs font-medium cursor-pointer"
+                      disabled={isUpdating}
+                      onClick={() => handleStageChange(selectedLead.id, 'CONTACTED')}
+                      className={`px-2 py-1.5 rounded text-xs font-medium cursor-pointer border ${
+                        selectedLead.stage === 'CONTACTED' ? 'bg-blue-600 text-white border-blue-600' : 'bg-blue-50 text-[#244B8F] border-blue-200 hover:bg-blue-100'
+                      }`}
                     >
-                      Qualify Lead
+                      1. Contacted
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleStageChange(selectedLead.id, 'VERIFICATION')}
-                      className="px-2.5 py-1.5 rounded bg-blue-50 hover:bg-blue-100 text-[#244B8F] text-xs font-semibold cursor-pointer"
+                      disabled={isUpdating}
+                      onClick={() => handleStageChange(selectedLead.id, 'FOLLOW_UP')}
+                      className={`px-2 py-1.5 rounded text-xs font-medium cursor-pointer border ${
+                        selectedLead.stage === 'FOLLOW_UP' ? 'bg-cyan-600 text-white border-cyan-600' : 'bg-cyan-50 text-cyan-800 border-cyan-200 hover:bg-cyan-100'
+                      }`}
                     >
-                      Send to Verification
+                      2. Follow Up
                     </button>
                     <button
                       type="button"
-                      onClick={() => handleStageChange(selectedLead.id, 'VISIT')}
-                      className="px-2.5 py-1.5 rounded bg-purple-50 hover:bg-purple-100 text-purple-700 text-xs font-semibold cursor-pointer"
+                      disabled={isUpdating}
+                      onClick={() => handleStageChange(selectedLead.id, 'SITE_VISIT')}
+                      className={`px-2 py-1.5 rounded text-xs font-medium cursor-pointer border ${
+                        selectedLead.stage === 'SITE_VISIT' ? 'bg-purple-600 text-white border-purple-600' : 'bg-purple-50 text-purple-800 border-purple-200 hover:bg-purple-100'
+                      }`}
                     >
-                      Schedule Visit
+                      3. Site Visit
                     </button>
                     <button
                       type="button"
+                      disabled={isUpdating}
+                      onClick={() => handleStageChange(selectedLead.id, 'NEGOTIATION')}
+                      className={`px-2 py-1.5 rounded text-xs font-medium cursor-pointer border ${
+                        selectedLead.stage === 'NEGOTIATION' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-indigo-50 text-indigo-800 border-indigo-200 hover:bg-indigo-100'
+                      }`}
+                    >
+                      4. Negotiation
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isUpdating}
+                      onClick={() => handleStageChange(selectedLead.id, 'CONVERTED')}
+                      className={`px-2 py-1.5 rounded text-xs font-medium cursor-pointer border ${
+                        selectedLead.stage === 'CONVERTED' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
+                      }`}
+                    >
+                      5. Convert Deal
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isUpdating}
                       onClick={() => handleStageChange(selectedLead.id, 'LOST')}
-                      className="px-2.5 py-1.5 rounded bg-red-50 hover:bg-red-100 text-red-700 text-xs font-medium cursor-pointer"
+                      className={`px-2 py-1.5 rounded text-xs font-medium cursor-pointer border ${
+                        selectedLead.stage === 'LOST' ? 'bg-red-600 text-white border-red-600' : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'
+                      }`}
                     >
-                      Mark Dropped
+                      6. Mark Lost
                     </button>
                   </div>
                 </div>
 
-                {/* Follow-up Note */}
-                <div className="pt-2 border-t border-gray-100">
-                  <textarea
-                    rows={2}
-                    placeholder="Log call notes or follow-up task..."
-                    className="w-full p-2.5 rounded border border-gray-300 text-xs bg-white"
+                {/* Follow-up Scheduler */}
+                <div className="pt-2 border-t border-gray-100 space-y-2">
+                  <label className="block text-xs font-semibold text-gray-700">
+                    Schedule Next Follow-Up:
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={followUpDate}
+                    onChange={(e) => setFollowUpDate(e.target.value)}
+                    className="w-full p-2 rounded border border-gray-300 text-xs bg-white text-gray-800"
+                  />
+                  <input
+                    type="text"
+                    value={followUpNoteInput}
+                    onChange={(e) => setFollowUpNoteInput(e.target.value)}
+                    placeholder="Task reminder notes (optional)..."
+                    className="w-full p-2 rounded border border-gray-300 text-xs bg-white text-gray-800"
                   />
                   <button
                     type="button"
-                    onClick={() => alert('Call log and task recorded with timestamp.')}
-                    className="mt-2 w-full py-1.5 rounded bg-[#244B8F] text-white text-xs font-semibold hover:bg-[#1B396E] cursor-pointer"
+                    disabled={isUpdating || !followUpDate}
+                    onClick={() => handleScheduleFollowUp(selectedLead.id)}
+                    className="w-full py-1.5 rounded bg-cyan-700 text-white text-xs font-semibold hover:bg-cyan-800 disabled:opacity-50 cursor-pointer"
+                  >
+                    Schedule Follow-Up Task
+                  </button>
+                </div>
+
+                {/* Call Log / Note */}
+                <div className="pt-2 border-t border-gray-100">
+                  <label className="block text-xs font-semibold text-gray-700 mb-1">
+                    Log Call & Diligence Notes:
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={callNoteText}
+                    onChange={(e) => setCallNoteText(e.target.value)}
+                    placeholder="Log conversation details, buyer terms, or verification note..."
+                    className="w-full p-2.5 rounded border border-gray-300 text-xs bg-white text-gray-800"
+                  />
+                  <button
+                    type="button"
+                    disabled={isUpdating || !callNoteText.trim()}
+                    onClick={() => handleAddNote(selectedLead.id)}
+                    className="mt-2 w-full py-1.5 rounded bg-[#244B8F] text-white text-xs font-semibold hover:bg-[#1B396E] disabled:opacity-50 cursor-pointer"
                   >
                     Save Call Log
                   </button>
                 </div>
+
+                {/* Existing Notes History */}
+                {selectedLead.notes && (
+                  <div className="pt-2 border-t border-gray-100">
+                    <span className="text-[10px] uppercase font-bold text-gray-400">Activity & Note History:</span>
+                    <pre className="mt-1 p-2 bg-gray-50 border border-gray-200 rounded text-[11px] font-sans text-gray-700 whitespace-pre-wrap max-h-32 overflow-y-auto">
+                      {selectedLead.notes}
+                    </pre>
+                  </div>
+                )}
               </div>
             )}
           </div>

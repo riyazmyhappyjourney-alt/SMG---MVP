@@ -22,6 +22,7 @@ export type Permission =
   | 'leads:read_assigned'
   | 'leads:read_all'
   | 'leads:update_status'
+  | 'leads:assign'
   | 'leads:export'
 
   // Property Permissions

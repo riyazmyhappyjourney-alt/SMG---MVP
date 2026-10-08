@@ -3,6 +3,11 @@ export type PropertyIntent = 'SELL' | 'RENT';
 export type PropertyStageEnum = 
   | 'NEW'
   | 'CONTACTED'
+  | 'FOLLOW_UP'
+  | 'SITE_VISIT'
+  | 'NEGOTIATION'
+  | 'CONVERTED'
+  | 'LOST'
   | 'DOCS_REQUESTED'
   | 'IN_VERIFICATION'
   | 'VERIFIED'
@@ -86,7 +91,14 @@ export interface SellerPropertyItem {
   isNegotiable: boolean;
   furnishing: string;
   status: PropertyStageEnum;
+  crm_status?: PropertyStageEnum;
   stageBadgeLabel: string;
+  progressTracker?: {
+    currentStatus: string;
+    isLost: boolean;
+    activeIndex: number;
+    stages: Array<{ key: string; label: string; shortDesc: string }>;
+  };
   createdAt: string;
   lastUpdated: string;
   photos: string[];

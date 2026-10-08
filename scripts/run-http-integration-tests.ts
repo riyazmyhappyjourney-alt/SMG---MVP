@@ -320,14 +320,14 @@ export async function runHttpIntegrationTests(): Promise<{ passed: number; faile
     }
 
     // 7. SELECT properties with owner_id filter
-    if (sql.includes('FROM properties') && sql.includes('WHERE owner_id = $1')) {
+    if (sql.includes('FROM properties') && sql.includes('owner_id = $1')) {
       const ownerId = params?.[0] as string;
       const matched = Array.from(memoryProperties.values()).filter(p => p.owner_id === ownerId);
       return { rows: matched.map(p => ({ ...p })) };
     }
 
     // 8. SELECT properties without owner filter (staff)
-    if (sql.includes('FROM properties') && !sql.includes('WHERE')) {
+    if (sql.includes('FROM properties') && !sql.includes('owner_id = $1')) {
       return { rows: Array.from(memoryProperties.values()).map(p => ({ ...p })) };
     }
 

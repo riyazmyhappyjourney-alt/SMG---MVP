@@ -24,7 +24,8 @@ import {
   Calendar,
   Users,
   Key,
-  Truck
+  Truck,
+  AlertTriangle
 } from 'lucide-react';
 import { UserAuthProfile } from '../../types/user';
 import {
@@ -245,24 +246,34 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
     return `₹${amount.toLocaleString('en-IN')}`;
   };
 
-  // Amazon-Style 5 Master Delivery Milestones
+  // Authoritative 6 Core Operational CRM Milestones
   const amazonMilestones = [
-    { key: 'NEW', label: 'Intake Registered', shortDesc: 'Unit Specs Digitized' },
-    { key: 'CONTACTED', label: 'RM Assigned', shortDesc: 'Personal Lead Assigned' },
-    { key: 'IN_VERIFICATION', label: 'Legal Diligence', shortDesc: 'Kaveri Title Audit' },
-    { key: 'LISTED', label: 'Live on Market', shortDesc: 'Broadcasted to Buyers/Tenants' },
-    { key: 'SOLD', label: 'Final Handover', shortDesc: 'Registration / Agreement Escrow' },
+    { key: 'NEW', label: 'New Lead', shortDesc: 'Intake Registered' },
+    { key: 'CONTACTED', label: 'Contacted', shortDesc: 'RM Assigned' },
+    { key: 'FOLLOW_UP', label: 'Follow Up', shortDesc: 'Diligence in Progress' },
+    { key: 'SITE_VISIT', label: 'Site Visit', shortDesc: 'Property Tour' },
+    { key: 'NEGOTIATION', label: 'Negotiation', shortDesc: 'Commercial Review' },
+    { key: 'CONVERTED', label: 'Converted', shortDesc: 'Deal Finalized' },
   ];
 
-  const getAmazonMilestoneIndex = (stage: PropertyStageEnum) => {
+  const getAmazonMilestoneIndex = (property: SellerPropertyItem) => {
+    if (property.progressTracker && typeof property.progressTracker.activeIndex === 'number') {
+      return property.progressTracker.activeIndex;
+    }
+    const stage = property.crm_status || property.status;
     switch (stage) {
       case 'NEW': return 0;
       case 'CONTACTED': return 1;
+      case 'FOLLOW_UP': return 2;
+      case 'SITE_VISIT': return 3;
+      case 'NEGOTIATION': return 4;
+      case 'CONVERTED': return 5;
+      case 'LOST': return -1;
       case 'DOCS_REQUESTED':
       case 'IN_VERIFICATION': return 2;
       case 'VERIFIED':
       case 'LISTED': return 3;
-      case 'SOLD': return 4;
+      case 'SOLD': return 5;
       default: return 0;
     }
   };
@@ -820,8 +831,10 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                     {filteredProperties.map((property) => {
                       const isRent = (property.listing_intent || property.intent) === 'RENT';
                       const isListed = property.status === 'LISTED';
+                      const isLost = Boolean(property.progressTracker?.isLost || property.crm_status === 'LOST' || property.status === 'LOST');
                       const verifiedDocCount = Object.values(property.documents).filter(d => d.status === 'VERIFIED').length;
-                      const milestoneActiveIdx = getAmazonMilestoneIndex(property.status);
+                      const milestoneActiveIdx = getAmazonMilestoneIndex(property);
+                      const activeMilestones = property.progressTracker?.stages || amazonMilestones;
 
                       return (
                         <div
@@ -851,7 +864,12 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
 
                             {/* Status Pill Badge */}
                             <div className="flex items-center space-x-2">
-                              {isListed ? (
+                              {isLost ? (
+                                <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase bg-red-100 text-red-800 border border-red-300">
+                                  <AlertTriangle className="w-3 h-3 text-red-700" />
+                                  <span>INQUIRY CLOSED</span>
+                                </span>
+                              ) : isListed ? (
                                 <span className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase bg-emerald-100 text-emerald-800 border border-emerald-300">
                                   <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
                                   <span>{isRent ? 'LIVE FOR RENT' : 'LIVE ON MARKET'}</span>
@@ -1035,61 +1053,75 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                             </div>
 
                             {/* Connected Horizontal Timeline (Dot-by-Dot) */}
-                            <div className="relative pt-2 pb-1">
-                              
-                              {/* Horizontal Connecting Rail */}
-                              <div className="absolute top-5 left-6 right-6 h-1 bg-slate-200 z-0" />
-                              
-                              {/* Active Progress Fill Rail */}
-                              <div 
-                                className="absolute top-5 left-6 h-1 bg-gradient-to-r from-emerald-500 to-[#244B8F] z-0 transition-all duration-500"
-                                style={{ width: `${(milestoneActiveIdx / (amazonMilestones.length - 1)) * 100}%` }}
-                              />
-
-                              {/* 5 Amazon Milestone Dots */}
-                              <div className="relative z-10 grid grid-cols-5 gap-2 text-center">
-                                {amazonMilestones.map((m, mIdx) => {
-                                  const isDone = mIdx < milestoneActiveIdx;
-                                  const isCurrent = mIdx === milestoneActiveIdx;
-
-                                  return (
-                                    <div key={m.key} className="flex flex-col items-center">
-                                      
-                                      {/* Dot Circle */}
-                                      <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
-                                        isDone
-                                          ? 'bg-emerald-600 text-white shadow-sm ring-3 ring-emerald-100'
-                                          : isCurrent
-                                          ? 'bg-[#244B8F] text-white shadow-md ring-4 ring-blue-200 scale-110'
-                                          : 'bg-white text-slate-400 border-2 border-slate-300'
-                                      }`}>
-                                        {isDone ? (
-                                          <Check className="w-4 h-4 stroke-[3]" />
-                                        ) : isCurrent ? (
-                                          <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
-                                        ) : (
-                                          <div className="w-2 h-2 rounded-full bg-slate-300" />
-                                        )}
-                                      </div>
-
-                                      {/* Milestone Label */}
-                                      <span className={`text-[11px] font-extrabold mt-2 leading-tight block ${
-                                        isCurrent ? 'text-[#244B8F]' : isDone ? 'text-slate-800' : 'text-slate-400'
-                                      }`}>
-                                        {m.label}
-                                      </span>
-
-                                      {/* Short Sub-label */}
-                                      <span className="text-[9px] text-slate-500 hidden sm:block mt-0.5 leading-tight">
-                                        {m.shortDesc}
-                                      </span>
-
-                                    </div>
-                                  );
-                                })}
+                            {isLost ? (
+                              <div className="bg-red-50 border border-red-200 rounded-xl p-4 flex items-center space-x-3 text-red-800 my-2">
+                                <AlertTriangle className="w-5 h-5 text-red-600 shrink-0" />
+                                <div>
+                                  <p className="text-xs font-bold font-['Montserrat']">
+                                    Inquiry Closed / Journey Ended
+                                  </p>
+                                  <p className="text-[11px] text-red-700 mt-0.5">
+                                    This property inquiry has been closed. Your dedicated relationship manager ({property.rmName}) is available if you wish to reactivate or re-evaluate.
+                                  </p>
+                                </div>
                               </div>
+                            ) : (
+                              <div className="relative pt-2 pb-1">
+                                
+                                {/* Horizontal Connecting Rail */}
+                                <div className="absolute top-5 left-6 right-6 h-1 bg-slate-200 z-0" />
+                                
+                                {/* Active Progress Fill Rail */}
+                                <div 
+                                  className="absolute top-5 left-6 h-1 bg-gradient-to-r from-emerald-500 to-[#244B8F] z-0 transition-all duration-500"
+                                  style={{ width: `${(Math.max(0, milestoneActiveIdx) / Math.max(1, activeMilestones.length - 1)) * 100}%` }}
+                                />
 
-                            </div>
+                                {/* 6 Core Operational Milestone Dots */}
+                                <div className="relative z-10 grid grid-cols-6 gap-2 text-center">
+                                  {activeMilestones.map((m, mIdx) => {
+                                    const isDone = mIdx < milestoneActiveIdx;
+                                    const isCurrent = mIdx === milestoneActiveIdx;
+
+                                    return (
+                                      <div key={m.key} className="flex flex-col items-center">
+                                        
+                                        {/* Dot Circle */}
+                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center transition-all ${
+                                          isDone
+                                            ? 'bg-emerald-600 text-white shadow-sm ring-3 ring-emerald-100'
+                                            : isCurrent
+                                            ? 'bg-[#244B8F] text-white shadow-md ring-4 ring-blue-200 scale-110'
+                                            : 'bg-white text-slate-400 border-2 border-slate-300'
+                                        }`}>
+                                          {isDone ? (
+                                            <Check className="w-4 h-4 stroke-[3]" />
+                                          ) : isCurrent ? (
+                                            <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping" />
+                                          ) : (
+                                            <div className="w-2 h-2 rounded-full bg-slate-300" />
+                                          )}
+                                        </div>
+
+                                        {/* Milestone Label */}
+                                        <span className={`text-[11px] font-extrabold mt-2 leading-tight block ${
+                                          isCurrent ? 'text-[#244B8F]' : isDone ? 'text-slate-800' : 'text-slate-400'
+                                        }`}>
+                                          {m.label}
+                                        </span>
+
+                                        {/* Short Sub-label */}
+                                        <span className="text-[9px] text-slate-500 hidden sm:block mt-0.5 leading-tight">
+                                          {m.shortDesc}
+                                        </span>
+
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+
+                              </div>
+                            )}
 
                             {/* View Full Timeline Button */}
                             <div className="mt-3 pt-2.5 border-t border-slate-200/80 flex items-center justify-between text-xs">
