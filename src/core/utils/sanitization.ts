@@ -56,7 +56,7 @@ export function toPublicListingProjection(
     photos: sanitizedPhotos,
     amenities: amenitiesList,
     public_verification_badge: verificationBadgeMap[property.verification_tier] || 'OWNER_VERIFIED',
-    status: 'ACTIVE',
+    status: 'PUBLISHED',
     published_at: new Date().toISOString(),
   };
 }

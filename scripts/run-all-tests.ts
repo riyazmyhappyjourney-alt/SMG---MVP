@@ -6,6 +6,8 @@ import { runDocumentVerificationTests } from '../src/server/storage/document-ver
 import { runSecurityRegressionTests } from '../src/server/auth/security-regression.test';
 import { runHttpIntegrationTests } from './run-http-integration-tests';
 import { runCrmWorkflowTests } from './run-crm-workflow-tests';
+import { runPropertyDetailTests } from './run-property-detail-tests';
+import { runCrmPropertyManagementTests } from './run-crm-property-management-tests';
 
 async function runAll() {
   console.log('====================================================');
@@ -87,6 +89,24 @@ async function runAll() {
   totalFailed += crmRes.failed;
   suiteResults.push({ name: 'CRM Core Operational Workflow', passed: crmRes.passed, failed: crmRes.failed, tests: crmRes.results });
   console.log(`Subtotal: ${crmRes.passed} passed, ${crmRes.failed} failed\n`);
+
+  // Suite 9: Public Property Detail & Enquiry Suite
+  console.log('--- 9. Public Property Detail & Privacy-Safe Enquiry Suite ---');
+  const propRes = await runPropertyDetailTests();
+  propRes.results.forEach(r => console.log(' ', r));
+  totalPassed += propRes.passed;
+  totalFailed += propRes.failed;
+  suiteResults.push({ name: 'Public Property Detail & Enquiry', passed: propRes.passed, failed: propRes.failed, tests: propRes.results });
+  console.log(`Subtotal: ${propRes.passed} passed, ${propRes.failed} failed\n`);
+
+  // Suite 10: Phase 2 CRM Property Management Suite
+  console.log('--- 10. Phase 2 CRM Property Management & Public Sync Suite ---');
+  const propMgmtRes = await runCrmPropertyManagementTests();
+  propMgmtRes.results.forEach(r => console.log(' ', r));
+  totalPassed += propMgmtRes.passed;
+  totalFailed += propMgmtRes.failed;
+  suiteResults.push({ name: 'CRM Property Management', passed: propMgmtRes.passed, failed: propMgmtRes.failed, tests: propMgmtRes.results });
+  console.log(`Subtotal: ${propMgmtRes.passed} passed, ${propMgmtRes.failed} failed\n`);
 
   console.log('====================================================');
   console.log(`FINAL RESULTS: ${totalPassed} PASSED, ${totalFailed} FAILED (TOTAL: ${totalPassed + totalFailed}/${totalPassed + totalFailed})`);

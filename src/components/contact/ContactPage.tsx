@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 
 interface ContactPageProps {
-  onNavigate: (route: 'HOME' | 'CRM' | 'CONSENT' | 'POST_PROPERTY' | 'CONTACT') => void;
+  onNavigate: (route: 'HOME' | 'CRM' | 'CONSENT' | 'SELLER_ASSISTED' | 'CONTACT') => void;
   onSignInClick?: () => void;
   onConsentPortalOpen?: () => void;
 }
@@ -25,7 +25,7 @@ export const ContactPage: React.FC<ContactPageProps> = ({
 }) => {
   const handleTabClick = (tab: 'BUY' | 'SELL' | 'ABOUT' | 'CONTACT') => {
     if (tab === 'SELL') {
-      onNavigate('POST_PROPERTY');
+      onNavigate('SELLER_ASSISTED');
     } else if (tab === 'BUY' || tab === 'ABOUT') {
       onNavigate('HOME');
     } else if (tab === 'CONTACT') {
@@ -37,7 +37,7 @@ export const ContactPage: React.FC<ContactPageProps> = ({
     <div className="min-h-screen flex flex-col bg-[#F4F6F9] selection:bg-[#244B8F] selection:text-white font-['Montserrat']">
       {/* Sticky Header */}
       <Header
-        onPostPropertyClick={() => onNavigate('POST_PROPERTY')}
+        onPostPropertyClick={() => onNavigate('SELLER_ASSISTED')}
         onLoginClick={() => {
           if (onSignInClick) onSignInClick();
         }}
@@ -127,23 +127,23 @@ export const ContactPage: React.FC<ContactPageProps> = ({
                 </div>
               </div>
 
-              {/* Direct Post Property Banner for Sellers */}
+              {/* Direct Seller Assistance Banner */}
               <div className="bg-gradient-to-br from-[#244B8F] to-[#1B396E] rounded-2xl p-6 text-white shadow-lg">
                 <span className="text-xs uppercase tracking-wider text-amber-200 font-bold block mb-1">
                   Ready to List Directly?
                 </span>
                 <h4 className="text-lg font-bold text-white mb-2">
-                  Use our Dedicated Property Wizard
+                  Dedicated Seller Assistance
                 </h4>
                 <p className="text-xs text-slate-200 leading-relaxed mb-4">
-                  Provide detailed unit specifications, amenities, and photos to fast-track legal verification and ready-buyer matching.
+                  Partner with our Bengaluru advisor desk for verified legal vetting, professional floor plan mapping, and ready-buyer matching.
                 </p>
                 <button
                   type="button"
-                  onClick={() => onNavigate('POST_PROPERTY')}
+                  onClick={() => onNavigate('SELLER_ASSISTED')}
                   className="w-full inline-flex items-center justify-center px-4 py-3 bg-white text-[#244B8F] hover:bg-slate-100 font-bold text-sm rounded-lg shadow-sm transition-all cursor-pointer group"
                 >
-                  <span>Launch 6-Step Post Property Wizard</span>
+                  <span>Start Assisted Selling</span>
                   <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
                 </button>
               </div>

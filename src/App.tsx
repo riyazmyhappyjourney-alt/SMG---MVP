@@ -5,10 +5,10 @@ import { ConsentPortal } from './components/compliance/ConsentPortal';
 import { SellerFunnel } from './components/seller/SellerFunnel';
 import { StaffLogin } from './components/auth/StaffLogin';
 import { ContactPage } from './components/contact/ContactPage';
-import { PostPropertyWizard } from './components/post-property/PostPropertyWizard';
+import { PropertyDetailPage } from './components/property/PropertyDetailPage';
 import { AuthPage } from './components/auth/AuthPage';
 import { SellerDashboard } from './components/seller/SellerDashboard';
-import { ArrowLeft, Shield, LogOut, User } from 'lucide-react';
+import { ArrowLeft, Shield } from 'lucide-react';
 import { UserAuthProfile } from './types/user';
 
 export type AppRoute = 
@@ -17,11 +17,25 @@ export type AppRoute =
   | 'CONSENT' 
   | 'SELLER_ASSISTED' 
   | 'LOGIN' 
-  | 'POST_PROPERTY' 
   | 'CONTACT'
-  | 'DASHBOARD';
+  | 'DASHBOARD'
+  | 'PROPERTY_DETAIL';
 
 export default function App() {
+  const getInitialPropertyId = (): string | null => {
+    const path = window.location.pathname;
+    const hash = window.location.hash;
+    if (path.startsWith('/property/')) {
+      return path.replace('/property/', '').split('/')[0] || null;
+    }
+    if (hash.startsWith('#/property/')) {
+      return hash.replace('#/property/', '').split('?')[0] || null;
+    }
+    return null;
+  };
+
+  const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(getInitialPropertyId);
+
   const [currentRoute, setCurrentRoute] = useState<AppRoute>(() => {
     const hash = window.location.hash;
     const path = window.location.pathname;
@@ -32,8 +46,8 @@ export default function App() {
     if (hash === '#/dashboard' || hash === '#/seller-dashboard' || path === '/dashboard' || path === '/seller-dashboard') return 'DASHBOARD';
     if (hash === '#/login' || hash === '#/register' || path === '/login' || path === '/register') return 'LOGIN';
     if (hash === '#/consent' || path === '/consent') return 'CONSENT';
-    if (hash === '#/seller-assisted' || path === '/seller-assisted') return 'SELLER_ASSISTED';
-    if (hash === '#/post-property' || path === '/post-property') return 'POST_PROPERTY';
+    if (hash === '#/seller-assisted' || path === '/seller-assisted' || hash === '#/post-property' || path === '/post-property') return 'SELLER_ASSISTED';
+    if (path.startsWith('/property/') || hash.startsWith('#/property/')) return 'PROPERTY_DETAIL';
     if (hash === '#/contact' || path === '/contact') return 'CONTACT';
     return 'HOME';
   });
@@ -82,10 +96,11 @@ export default function App() {
     return null;
   });
 
-  // Sync hash routing
+  // Sync routing on hash and popstate
   useEffect(() => {
-    const handleHashChange = () => {
+    const handleLocationChange = () => {
       const hash = window.location.hash;
+      const path = window.location.pathname;
       const host = window.location.hostname;
 
       if (host.startsWith('crm.') || hash === '#/crm') {
@@ -96,22 +111,34 @@ export default function App() {
         setCurrentRoute('LOGIN');
       } else if (hash === '#/consent') {
         setCurrentRoute('CONSENT');
-      } else if (hash === '#/seller-assisted') {
+      } else if (hash === '#/seller-assisted' || hash === '#/post-property') {
         setCurrentRoute('SELLER_ASSISTED');
-      } else if (hash === '#/post-property') {
-        setCurrentRoute('POST_PROPERTY');
+      } else if (path.startsWith('/property/')) {
+        const propId = path.replace('/property/', '').split('/')[0];
+        setSelectedPropertyId(propId);
+        setCurrentRoute('PROPERTY_DETAIL');
+      } else if (hash.startsWith('#/property/')) {
+        const propId = hash.replace('#/property/', '').split('?')[0];
+        setSelectedPropertyId(propId);
+        setCurrentRoute('PROPERTY_DETAIL');
       } else if (hash === '#/contact') {
         setCurrentRoute('CONTACT');
       } else if (hash === '' || hash === '#/' || hash === '#') {
-        setCurrentRoute('HOME');
+        if (!window.location.pathname.startsWith('/property/')) {
+          setCurrentRoute('HOME');
+        }
       }
     };
 
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
+    window.addEventListener('hashchange', handleLocationChange);
+    window.addEventListener('popstate', handleLocationChange);
+    return () => {
+      window.removeEventListener('hashchange', handleLocationChange);
+      window.removeEventListener('popstate', handleLocationChange);
+    };
   }, []);
 
-  const navigateTo = (route: AppRoute) => {
+  const navigateTo = (route: AppRoute, propId?: string) => {
     setCurrentRoute(route);
     if (route === 'CRM') {
       window.location.hash = '/crm';
@@ -123,13 +150,27 @@ export default function App() {
       window.location.hash = '/consent';
     } else if (route === 'SELLER_ASSISTED') {
       window.location.hash = '/seller-assisted';
-    } else if (route === 'POST_PROPERTY') {
-      window.location.hash = '/post-property';
+    } else if (route === 'PROPERTY_DETAIL') {
+      const id = propId || selectedPropertyId;
+      if (id) {
+        setSelectedPropertyId(id);
+        window.history.pushState({}, '', `/property/${id}`);
+      }
     } else if (route === 'CONTACT') {
       window.location.hash = '/contact';
     } else {
       window.location.hash = '';
+      if (window.location.pathname.startsWith('/property/')) {
+        window.history.pushState({}, '', '/');
+      }
     }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const navigateToProperty = (id: string) => {
+    setSelectedPropertyId(id);
+    setCurrentRoute('PROPERTY_DETAIL');
+    window.history.pushState({}, '', `/property/${id}`);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -150,12 +191,23 @@ export default function App() {
     navigateTo('HOME');
   };
 
+  // Dedicated Property Detail Route (/property/:id or #/property/:id)
+  if (currentRoute === 'PROPERTY_DETAIL') {
+    return (
+      <PropertyDetailPage
+        propertyId={selectedPropertyId || ''}
+        onBackToHome={() => navigateTo('HOME')}
+        onNavigateToProperty={(id) => navigateToProperty(id)}
+      />
+    );
+  }
+
   // Dedicated Seller Dashboard (Matching 99acres-style management portal)
   if (currentRoute === 'DASHBOARD') {
     return (
       <SellerDashboard
         user={activeUser}
-        onPostPropertyClick={() => navigateTo('POST_PROPERTY')}
+        onPostPropertyClick={() => navigateTo('SELLER_ASSISTED')}
         onBackToHome={() => navigateTo('HOME')}
         onLogout={handleUserLogout}
       />
@@ -170,19 +222,6 @@ export default function App() {
         onBackToHome={() => navigateTo('HOME')}
         onSuccess={(user) => {
           setActiveUser(user);
-          navigateTo('DASHBOARD');
-        }}
-      />
-    );
-  }
-
-  // Dedicated Post Property 6-Step Wizard
-  if (currentRoute === 'POST_PROPERTY') {
-    return (
-      <PostPropertyWizard
-        user={activeUser}
-        onBackToHome={() => navigateTo('HOME')}
-        onSuccessRedirect={(_propId, _refId) => {
           navigateTo('DASHBOARD');
         }}
       />
@@ -216,44 +255,11 @@ export default function App() {
     }
 
     return (
-      <div className="min-h-screen bg-[#F4F6F9] flex flex-col font-['Montserrat']">
-        {/* Discrete Staff Bar */}
-        <div className="bg-[#172033] text-white px-4 py-2 flex items-center justify-between text-xs border-b border-slate-800">
-          <div className="flex items-center space-x-2">
-            <span className="font-bold text-[#B68A4A]">SellMyGhar</span>
-            <span className="text-slate-400">|</span>
-            <span className="font-semibold text-slate-200">Internal Desk</span>
-          </div>
-
-          <div className="flex items-center space-x-3">
-            <div className="hidden sm:flex items-center space-x-1.5 text-slate-300 bg-slate-800/80 px-2.5 py-1 rounded">
-              <User className="w-3.5 h-3.5 text-[#B68A4A]" />
-              <span className="font-medium">{staffSession.user?.name || staffSession.user?.email || 'Staff'}</span>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleStaffLogout}
-              className="inline-flex items-center space-x-1 px-2.5 py-1 rounded bg-slate-800 hover:bg-rose-900/60 text-slate-300 hover:text-white transition-colors cursor-pointer"
-              title="Sign out of staff session"
-            >
-              <LogOut className="w-3 h-3" />
-              <span>Log Out</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => navigateTo('HOME')}
-              className="inline-flex items-center space-x-1.5 px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white transition-colors cursor-pointer"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Exit Portal</span>
-            </button>
-          </div>
-        </div>
-
-        <CrmDashboard />
-      </div>
+      <CrmDashboard
+        staffUser={staffSession.user}
+        onLogout={handleStaffLogout}
+        onExit={() => navigateTo('HOME')}
+      />
     );
   }
 
@@ -304,7 +310,7 @@ export default function App() {
   return (
     <HomePage
       activeUser={activeUser}
-      onNavigateToPostProperty={() => navigateTo('POST_PROPERTY')}
+      onNavigateToSellerAssisted={() => navigateTo('SELLER_ASSISTED')}
       onNavigateToContact={() => navigateTo('CONTACT')}
       onNavigateToLogin={() => navigateTo('LOGIN')}
       onNavigateToDashboard={() => navigateTo('DASHBOARD')}

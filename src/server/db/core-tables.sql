@@ -91,6 +91,16 @@ CREATE TABLE IF NOT EXISTS properties (
   reserve_minimum_price_inr BIGINT NOT NULL,
   listing_intent VARCHAR(20) NOT NULL DEFAULT 'SELL',
   crm_status VARCHAR(30) NOT NULL DEFAULT 'NEW',
+  listing_status VARCHAR(30) NOT NULL DEFAULT 'DRAFT',
+  title VARCHAR(255),
+  description TEXT,
+  amenities JSONB DEFAULT '[]'::jsonb,
+  property_type VARCHAR(64) DEFAULT 'Apartment',
+  public_address TEXT,
+  floor_band VARCHAR(64),
+  developer_name VARCHAR(120),
+  landmarks JSONB DEFAULT '[]'::jsonb,
+  highlights JSONB DEFAULT '[]'::jsonb,
   verification_tier VARCHAR(50) NOT NULL DEFAULT 'LEVEL_1_OWNER_DECLARED',
   internal_verification_notes TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -99,6 +109,7 @@ CREATE TABLE IF NOT EXISTS properties (
 
 CREATE INDEX IF NOT EXISTS idx_properties_owner ON properties (owner_id);
 CREATE INDEX IF NOT EXISTS idx_properties_locality ON properties (project_locality_id);
+CREATE INDEX IF NOT EXISTS idx_properties_listing_status ON properties (listing_status);
 
 -- 5. Documents Table
 CREATE TABLE IF NOT EXISTS documents (
@@ -205,6 +216,7 @@ CREATE TABLE IF NOT EXISTS buyer_enquiries (
   phone VARCHAR(64) NOT NULL,
   preferred_locality_or_society VARCHAR(255) NOT NULL,
   bhk_type VARCHAR(20) NOT NULL,
+  property_id VARCHAR(64),
   lead_status VARCHAR(30) NOT NULL DEFAULT 'NEW',
   assigned_staff_id VARCHAR(64),
   assigned_at TIMESTAMPTZ,
@@ -218,4 +230,5 @@ CREATE TABLE IF NOT EXISTS buyer_enquiries (
 CREATE INDEX IF NOT EXISTS idx_buyer_enquiries_phone ON buyer_enquiries (phone);
 CREATE INDEX IF NOT EXISTS idx_buyer_enquiries_status ON buyer_enquiries (lead_status);
 CREATE INDEX IF NOT EXISTS idx_buyer_enquiries_staff ON buyer_enquiries (assigned_staff_id);
+CREATE INDEX IF NOT EXISTS idx_buyer_enquiries_property ON buyer_enquiries (property_id);
 

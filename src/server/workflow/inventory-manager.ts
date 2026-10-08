@@ -36,12 +36,12 @@ export class InventoryManager {
       };
     }
 
-    if (listing.status === 'WITHDRAWN') {
+    if (listing.status === 'ARCHIVED' || (listing.status as any) === 'WITHDRAWN') {
       return {
         httpStatus: 410,
         listing: null,
         metaRobots: 'noindex, nofollow',
-        errorMessage: 'This listing has been withdrawn by the owner and is permanently unavailable (HTTP 410 Gone).',
+        errorMessage: 'This listing has been archived or withdrawn and is permanently unavailable (HTTP 410 Gone).',
       };
     }
 
@@ -67,7 +67,7 @@ export class InventoryManager {
       };
     }
 
-    // Active or Under Offer
+    // Published or paused
     return {
       httpStatus: 200,
       listing,
@@ -76,12 +76,12 @@ export class InventoryManager {
   }
 
   /**
-   * Generates dynamic XML sitemap URLs strictly for ACTIVE listings.
-   * Sold and withdrawn items are completely excluded.
+   * Generates dynamic XML sitemap URLs strictly for PUBLISHED listings.
+   * Sold and archived items are completely excluded.
    */
   static generateSitemapEntries(listings: PublicListingProjection[], baseUrl: string): string[] {
     return listings
-      .filter((l) => l.status === 'ACTIVE')
+      .filter((l) => l.status === 'PUBLISHED' || (l.status as any) === 'ACTIVE')
       .map((l) => `${baseUrl}/buy/${l.slug}`);
   }
 }
