@@ -19,7 +19,9 @@ import {
   Tag,
   ShieldCheck,
   Loader2,
-  Eye
+  Eye,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { PropertyListingStatus, CrmProperty } from './CrmDashboard';
 import { StaffRole } from '../../core/types/auth';
@@ -378,7 +380,7 @@ export function PropertyEditor({
     }
   };
 
-  // Image Upload Handler
+  // Image Upload Handler (Direct secure single-layer upload with ClamAV & Supabase)
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -394,38 +396,22 @@ export function PropertyEditor({
       reader.onload = async () => {
         try {
           const base64 = reader.result as string;
-          // 1. Upload to storage
-          const uploadRes = await fetch('/api/storage/upload-photo', {
+          const res = await fetch(`/api/crm/properties/${property.id}/images`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               fileName: file.name,
               fileBase64: base64,
-              propertyId: property.id,
               isFeatured: images.length === 0,
             }),
           });
-          const uploadData = await uploadRes.json();
-          if (!uploadRes.ok) {
-            alert(uploadData.error || 'Failed to upload photo');
-            return;
-          }
-
-          // 2. Add to property_media
-          const imgUrl = uploadData.url;
-          const addRes = await fetch(`/api/crm/properties/${property.id}/images`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              url: imgUrl,
-              isFeatured: images.length === 0,
-            }),
-          });
-          const addData = await addRes.json();
-          if (addRes.ok && addData.media) {
-            setImages(prev => [...prev, addData.media]);
-            showToast('Photo uploaded and verified');
+          const data = await res.json();
+          if (res.ok && data.media) {
+            setImages(prev => [...prev, data.media]);
+            showToast('Photo verified with ClamAV and uploaded to gallery');
             onSaved();
+          } else {
+            alert(data.message || data.error || 'Failed to upload photo');
           }
         } catch (innerErr: any) {
           alert(innerErr.message || 'Upload processing failed');
@@ -437,6 +423,35 @@ export function PropertyEditor({
     } catch (err: any) {
       alert(err.message || 'Failed to read file');
       setUploadingImage(false);
+    }
+  };
+
+  // Move / Reorder Image
+  const handleMoveImage = async (index: number, direction: 'LEFT' | 'RIGHT') => {
+    if (!property?.id) return;
+    const targetIndex = direction === 'LEFT' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= images.length) return;
+
+    const updated = [...images];
+    const [moved] = updated.splice(index, 1);
+    updated.splice(targetIndex, 0, moved);
+    setImages(updated);
+
+    try {
+      const res = await fetch(`/api/crm/properties/${property.id}/images/reorder`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ imageIds: updated.map(img => img.id) }),
+      });
+      if (res.ok) {
+        showToast('Gallery image ordering saved');
+        onSaved();
+      } else {
+        const data = await res.json();
+        alert(data.message || 'Failed to save image order');
+      }
+    } catch {
+      alert('Network error while reordering images');
     }
   };
 
@@ -1045,7 +1060,7 @@ export function PropertyEditor({
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                    {images.map((img) => (
+                    {images.map((img, index) => (
                       <div
                         key={img.id}
                         className={`relative rounded-xl overflow-hidden border bg-white group shadow-2xs ${
@@ -1064,16 +1079,35 @@ export function PropertyEditor({
                         )}
 
                         <div className="p-2 flex items-center justify-between bg-white border-t border-slate-100">
-                          {!img.is_featured && (
+                          <div className="flex items-center space-x-0.5">
+                            {!img.is_featured && (
+                              <button
+                                type="button"
+                                onClick={() => handleSetPrimary(img.id)}
+                                className="text-[10px] font-bold text-[#244B8F] hover:underline cursor-pointer mr-1"
+                              >
+                                Primary
+                              </button>
+                            )}
                             <button
                               type="button"
-                              onClick={() => handleSetPrimary(img.id)}
-                              className="text-[10px] font-bold text-[#244B8F] hover:underline cursor-pointer"
+                              onClick={() => handleMoveImage(index, 'LEFT')}
+                              disabled={index === 0}
+                              className="p-1 rounded text-slate-400 hover:text-slate-800 disabled:opacity-25 cursor-pointer"
+                              title="Move Left"
                             >
-                              Set Primary
+                              <ChevronLeft className="w-3.5 h-3.5" />
                             </button>
-                          )}
-                          <div className="flex-1" />
+                            <button
+                              type="button"
+                              onClick={() => handleMoveImage(index, 'RIGHT')}
+                              disabled={index === images.length - 1}
+                              className="p-1 rounded text-slate-400 hover:text-slate-800 disabled:opacity-25 cursor-pointer"
+                              title="Move Right"
+                            >
+                              <ChevronRight className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                           <button
                             type="button"
                             onClick={() => handleDeleteImage(img.id)}

@@ -200,6 +200,7 @@ CREATE TABLE IF NOT EXISTS property_media (
   property_id VARCHAR(64) NOT NULL,
   url TEXT NOT NULL,
   is_featured BOOLEAN NOT NULL DEFAULT false,
+  display_order INTEGER NOT NULL DEFAULT 0,
   checksum VARCHAR(64) NOT NULL,
   storage_path VARCHAR(512),
   mime_type VARCHAR(64),

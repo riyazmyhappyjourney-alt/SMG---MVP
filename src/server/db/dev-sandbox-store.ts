@@ -110,6 +110,7 @@ export interface DevPropertyMedia {
   property_id: string;
   url: string;
   is_featured: boolean;
+  display_order?: number;
   checksum: string;
   storage_path?: string | null;
   mime_type?: string | null;
@@ -836,7 +837,12 @@ class DevSandboxStore {
       if (cleanSql.includes('WHERE property_id = $1')) {
         const propId = String(params[0] || '').trim();
         const media = Array.from(this.propertyMedia.values()).filter(m => m.property_id === propId);
-        media.sort((a, b) => (b.is_featured ? 1 : 0) - (a.is_featured ? 1 : 0));
+        media.sort((a, b) => {
+          if (cleanSql.toLowerCase().includes('is_featured desc') && b.is_featured !== a.is_featured) {
+            return (b.is_featured ? 1 : 0) - (a.is_featured ? 1 : 0);
+          }
+          return (a.display_order ?? 0) - (b.display_order ?? 0);
+        });
         return { rows: media.map(m => ({ ...m })) };
       }
       if (cleanSql.includes('WHERE id = $1')) {
@@ -852,16 +858,22 @@ class DevSandboxStore {
       const propId = params[1];
       const url = params[2];
       const isFeatured = Boolean(params[3]);
-      const checksum = params[4] || 'hash-' + mediaId;
-      const mediaItem = {
+      const existingCount = Array.from(this.propertyMedia.values()).filter(m => m.property_id === propId).length;
+      let displayOrder = existingCount;
+      if (cleanSql.includes('display_order') && typeof params[4] === 'number') {
+        displayOrder = params[4];
+      }
+      const checksum = params[5] || params[4] || 'hash-' + mediaId;
+      const mediaItem: DevPropertyMedia = {
         id: mediaId,
         property_id: propId,
         url,
         is_featured: isFeatured,
+        display_order: displayOrder,
         checksum,
-        storage_path: params[5] || null,
-        mime_type: params[6] || 'image/jpeg',
-        file_size_bytes: params[7] || 500000,
+        storage_path: params[6] || params[5] || null,
+        mime_type: params[7] || params[6] || 'image/jpeg',
+        file_size_bytes: params[8] || params[7] || 500000,
         created_at: new Date().toISOString()
       };
       // If this is marked featured, unmark others for the same property
@@ -875,6 +887,16 @@ class DevSandboxStore {
     }
 
     if (cleanSql.includes('UPDATE property_media')) {
+      if (cleanSql.includes('display_order = $1')) {
+        const newOrder = Number(params[0]);
+        const targetId = params[1];
+        const m = this.propertyMedia.get(targetId);
+        if (m) {
+          m.display_order = newOrder;
+          return { rows: [{ ...m }] };
+        }
+        return { rows: [] };
+      }
       if (cleanSql.includes('is_featured = false WHERE property_id = $1')) {
         const propId = params[0];
         for (const m of this.propertyMedia.values()) {

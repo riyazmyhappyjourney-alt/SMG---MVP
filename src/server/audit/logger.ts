@@ -38,7 +38,8 @@ export type AuditableAction =
   | 'PROPERTY_ARCHIVED'
   | 'IMAGE_ADDED'
   | 'IMAGE_REMOVED'
-  | 'PRIMARY_IMAGE_CHANGED';
+  | 'PRIMARY_IMAGE_CHANGED'
+  | 'IMAGE_REORDERED';
 
 export type AlertSeverity = 'ROUTINE' | 'ELEVATED_INSIDER_RISK' | 'CRITICAL_SECURITY_EVENT';
 

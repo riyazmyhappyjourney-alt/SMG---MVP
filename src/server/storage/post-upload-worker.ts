@@ -176,8 +176,16 @@ export class PostUploadVerificationWorker {
 
   /**
    * Evaluates raw binary magic bytes against declared extension.
+   * Supports PDF (%PDF), JPEG (FF D8 FF), PNG (89 50 4E 47), and WebP (RIFF....WEBP).
    */
-  static inspectMagicBytes(buffer: Buffer, declaredExtension: 'pdf' | 'jpg' | 'png'): boolean {
+  static inspectMagicBytes(buffer: Buffer, declaredExtension: 'pdf' | 'jpg' | 'png' | 'webp'): boolean {
+    if (declaredExtension === 'webp') {
+      if (buffer.length < 12) return false;
+      const isRiff = buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46;
+      const isWebp = buffer[8] === 0x57 && buffer[9] === 0x45 && buffer[10] === 0x42 && buffer[11] === 0x50;
+      return isRiff && isWebp;
+    }
+
     const expected = FILE_SIGNATURES[declaredExtension];
     if (!expected || buffer.length < expected.length) {
       return false;
@@ -192,6 +200,17 @@ export class PostUploadVerificationWorker {
   }
 
   /**
+   * Detects whether a raw buffer is a valid JPEG, PNG, or WebP image via magic bytes.
+   * Does NOT trust file extensions or external Content-Type headers.
+   */
+  static detectImageFormat(buffer: Buffer): 'jpg' | 'png' | 'webp' | null {
+    if (this.inspectMagicBytes(buffer, 'jpg')) return 'jpg';
+    if (this.inspectMagicBytes(buffer, 'png')) return 'png';
+    if (this.inspectMagicBytes(buffer, 'webp')) return 'webp';
+    return null;
+  }
+
+  /**
    * Unified Post-Upload Verification Pipeline:
    * 1. Magic bytes MIME verification (anti-spoofing)
    * 2. ClamAV antivirus / malware scan
@@ -203,10 +222,10 @@ export class PostUploadVerificationWorker {
     fileBytes: Buffer,
     context?: UploadVerificationContext
   ): Promise<PostUploadVerificationResult> {
-    const ext = fileName.split('.').pop()?.toLowerCase() as 'pdf' | 'jpg' | 'png';
+    const ext = fileName.split('.').pop()?.toLowerCase() as 'pdf' | 'jpg' | 'png' | 'webp';
 
     // Step 1: Magic bytes verification (Anti-spoofing)
-    if (!['pdf', 'jpg', 'png'].includes(ext)) {
+    if (!['pdf', 'jpg', 'png', 'webp'].includes(ext)) {
       return { 
         status: 'REJECTED', 
         sha256Checksum: '', 
