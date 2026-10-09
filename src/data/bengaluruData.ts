@@ -30,7 +30,9 @@ export const BENGALURU_LOCALITIES: LocalityItem[] = [
   { id: 'electronic-city-2', name: 'Electronic City Phase 2', zone: 'South', popularSubLocalities: ['Tech Mahindra Road', 'Ananth Nagar'] },
   { id: 'jayanagar', name: 'Jayanagar', zone: 'South', popularSubLocalities: ['3rd Block', '4th Block', '7th Block', '9th Block'] },
   { id: 'jp-nagar', name: 'JP Nagar', zone: 'South', popularSubLocalities: ['Phase 1', 'Phase 2', 'Phase 5', 'Phase 7', 'Phase 8'] },
-  { id: 'thanisandra', name: 'Thanisandra Main Road', zone: 'North', popularSubLocalities: ['Bhartiya City', 'Ashwath Nagar', 'Nagawara'] },
+  { id: 'thanisandra', name: 'Thanisandra', zone: 'North', popularSubLocalities: ['Thanisandra Main Road', 'Bhartiya City', 'Ashwath Nagar', 'Nagawara'] },
+  { id: 'jakkur', name: 'Jakkur', zone: 'North', popularSubLocalities: ['Jakkur Plantation', 'Aerodrome Road', 'Agrahara', 'Nehru Nagar'] },
+  { id: 'hennur', name: 'Hennur', zone: 'North', popularSubLocalities: ['Hennur Road', 'Hennur Cross', 'Geddalahalli', 'Bio-tech Corridor'] },
   { id: 'bannerghatta-road', name: 'Bannerghatta Road', zone: 'South', popularSubLocalities: ['Arekere', 'Hulimavu', 'Gottigere', 'Meenakshi Mall'] },
   { id: 'kanakapura-road', name: 'Kanakapura Road', zone: 'South', popularSubLocalities: ['Konanakunte Cross', 'Thalaghattapura', 'Vajarahalli'] },
   { id: 'marathahalli', name: 'Marathahalli', zone: 'East', popularSubLocalities: ['ORR Junction', 'Spice Garden', 'Munnekollal'] },
@@ -88,6 +90,7 @@ export const BENGALURU_SOCIETIES: SocietyItem[] = [
   { id: 'soc-26', name: 'Brigade Exotica', locality: 'Old Madras Road', zone: 'East', builder: 'Brigade Group' },
   
   { id: 'soc-27', name: 'Godrej Woodsman Estate', locality: 'Hebbal', zone: 'North', builder: 'Godrej Properties' },
+  { id: 'soc-27b', name: 'Godrej Woodsman', locality: 'Hebbal', zone: 'North', builder: 'Godrej Properties' },
   { id: 'soc-28', name: 'Godrej Platinum', locality: 'Hebbal', zone: 'North', builder: 'Godrej Properties' },
   { id: 'soc-29', name: 'Godrej Air', locality: 'Whitefield', zone: 'East', builder: 'Godrej Properties' },
   { id: 'soc-30', name: 'Godrej Eternity', locality: 'Kanakapura Road', zone: 'South', builder: 'Godrej Properties' },

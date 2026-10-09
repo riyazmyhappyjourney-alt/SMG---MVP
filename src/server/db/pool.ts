@@ -51,10 +51,18 @@ export function getDbPool(): pg.Pool {
       // In sandbox mode without a real databaseUrl, route queries to stateful devSandboxStore
       poolInstance = {
         query: async (text: string, params?: unknown[]) => {
+          if (testQueryHandler) {
+            const testRes = await testQueryHandler(text, params as any[]);
+            if (testRes !== null) return testRes;
+          }
           return devSandboxStore.handleQuery(text, (params as any[]) || []);
         },
         connect: async () => ({
           query: async (sql: string, params?: unknown[]) => {
+            if (testQueryHandler) {
+              const testRes = await testQueryHandler(sql, params as any[]);
+              if (testRes !== null) return testRes;
+            }
             return devSandboxStore.handleQuery(sql, (params as any[]) || []);
           },
           release: () => {},

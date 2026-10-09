@@ -165,7 +165,12 @@ export function runConfigTests(): { passed: number; failed: number; results: str
       'TEST 5: Sandbox fallback is permitted only when explicitly requested in dev'
     );
   } finally {
-    process.env = originalEnv;
+    for (const key of Object.keys(process.env)) {
+      if (!(key in originalEnv)) {
+        delete process.env[key];
+      }
+    }
+    Object.assign(process.env, originalEnv);
   }
 
   return { passed, failed, results };

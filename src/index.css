@@ -3,12 +3,12 @@
 @theme {
   --font-heading: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-crm: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --color-trust-blue: #244B8F;
   --color-trust-blue-dark: #1B396E;
   --color-trust-blue-light: #3264BA;
   --color-ink: #172033;
-  --color-canvas: #F8FAFC;
-  --color-gold-accent: #B68A4A;
+  --color-canvas: #F4F6F9;
 }
 
 body {
