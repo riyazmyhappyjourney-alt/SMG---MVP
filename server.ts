@@ -35,6 +35,7 @@ import {
 import { DistributedRateLimiter } from './src/server/ratelimit/limiter';
 import { recordAuditEvent, AuditableAction } from './src/server/audit/logger';
 import { AuthenticatedUser, AppRole } from './src/core/types/auth';
+import { getLastDevOtp } from './src/server/notifications/sms-provider';
 
 const app = express();
 const PORT = 3000;
@@ -46,11 +47,10 @@ const isProd = process.env.NODE_ENV === 'production';
 
 app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader(
     'Content-Security-Policy',
-    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: blob:; connect-src 'self' https:; frame-ancestors 'none';"
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: blob:; connect-src 'self' https:;"
   );
   res.setHeader(
     'Permissions-Policy',
@@ -213,6 +213,55 @@ async function initSchemaColumns() {
       CREATE INDEX IF NOT EXISTS idx_buyer_enquiries_status ON buyer_enquiries (lead_status);
       CREATE INDEX IF NOT EXISTS idx_buyer_enquiries_staff ON buyer_enquiries (assigned_staff_id);
       CREATE INDEX IF NOT EXISTS idx_buyer_enquiries_property ON buyer_enquiries (property_id);
+
+      CREATE TABLE IF NOT EXISTS visits (
+        id VARCHAR(64) PRIMARY KEY,
+        property_id VARCHAR(64) NOT NULL,
+        lead_id VARCHAR(64),
+        client_name VARCHAR(120) NOT NULL,
+        client_phone VARCHAR(64) NOT NULL,
+        visit_date VARCHAR(32) NOT NULL,
+        visit_time VARCHAR(32) NOT NULL,
+        status VARCHAR(32) NOT NULL DEFAULT 'SCHEDULED',
+        assigned_staff_id VARCHAR(64),
+        notes TEXT,
+        whatsapp_reminder_sent_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      ALTER TABLE visits ADD COLUMN IF NOT EXISTS lead_id VARCHAR(64);
+      ALTER TABLE visits ADD COLUMN IF NOT EXISTS client_name VARCHAR(120);
+      ALTER TABLE visits ADD COLUMN IF NOT EXISTS client_phone VARCHAR(64);
+      ALTER TABLE visits ADD COLUMN IF NOT EXISTS visit_date VARCHAR(32);
+      ALTER TABLE visits ADD COLUMN IF NOT EXISTS visit_time VARCHAR(32);
+      ALTER TABLE visits ADD COLUMN IF NOT EXISTS assigned_staff_id VARCHAR(64);
+      ALTER TABLE visits ADD COLUMN IF NOT EXISTS notes TEXT;
+      ALTER TABLE visits ADD COLUMN IF NOT EXISTS whatsapp_reminder_sent_at TIMESTAMPTZ;
+      CREATE INDEX IF NOT EXISTS idx_visits_property ON visits (property_id);
+      CREATE INDEX IF NOT EXISTS idx_visits_status ON visits (status);
+      CREATE INDEX IF NOT EXISTS idx_visits_staff ON visits (assigned_staff_id);
+
+      CREATE TABLE IF NOT EXISTS property_offers (
+        id VARCHAR(64) PRIMARY KEY,
+        property_id VARCHAR(64) NOT NULL,
+        lead_id VARCHAR(64),
+        buyer_name VARCHAR(120) NOT NULL,
+        buyer_phone VARCHAR(64) NOT NULL,
+        offer_amount_inr BIGINT NOT NULL,
+        status VARCHAR(32) NOT NULL DEFAULT 'PENDING_REVIEW',
+        notes TEXT,
+        counter_offer_amount_inr BIGINT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      ALTER TABLE property_offers ADD COLUMN IF NOT EXISTS lead_id VARCHAR(64);
+      ALTER TABLE property_offers ADD COLUMN IF NOT EXISTS buyer_name VARCHAR(120);
+      ALTER TABLE property_offers ADD COLUMN IF NOT EXISTS buyer_phone VARCHAR(64);
+      ALTER TABLE property_offers ADD COLUMN IF NOT EXISTS offer_amount_inr BIGINT;
+      ALTER TABLE property_offers ADD COLUMN IF NOT EXISTS notes TEXT;
+      ALTER TABLE property_offers ADD COLUMN IF NOT EXISTS counter_offer_amount_inr BIGINT;
+      CREATE INDEX IF NOT EXISTS idx_property_offers_property ON property_offers (property_id);
+      CREATE INDEX IF NOT EXISTS idx_property_offers_status ON property_offers (status);
     `);
 
     // 2. Initialize Seed Staff with Real scrypt Password Hash (Zero hardcoded fallbacks)
@@ -473,7 +522,12 @@ app.post('/api/auth/otp/request', jsonDefault, rateLimit('otp-req', 10, 900), as
 
     const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
     const otpRes = await OtpService.requestOtp(`+91${cleanPhone}`, clientIp);
-    return res.json(otpRes);
+    const isDev = process.env.NODE_ENV !== 'production' && process.env.ALLOW_DEV_FALLBACKS === 'true';
+    const devCode = isDev ? getLastDevOtp(`+91${cleanPhone}`) : undefined;
+    return res.json({
+      ...otpRes,
+      ...(devCode ? { devOtp: devCode } : {})
+    });
   } catch (err: any) {
     return res.status(400).json({ success: false, error: err.message || 'Failed to request OTP.' });
   }
@@ -1264,6 +1318,7 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
       subLocality,
       societyName,
       houseNo,
+      wingTower,
       bedrooms,
       bathrooms,
       balconies,
@@ -1282,6 +1337,11 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
       isNegotiable,
       maintenanceCharges,
       bookingAmount,
+      securityDeposit,
+      preferredTenant,
+      rentalDuration,
+      moveInAvailability,
+      moveInDate,
       description,
       ownerName,
       ownerPhone,
@@ -1417,8 +1477,10 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
       const baths = parseInt(bathrooms, 10) || 2;
       const balcs = parseInt(balconies, 10) || 1;
       const facingStr = String(facing || 'EAST').toUpperCase();
-      const parks = parseInt(parkingCount, 10) || 1;
+      const isCovered = Boolean(hasCoveredParking);
+      const parks = isCovered ? (parseInt(parkingCount, 10) || 1) : 0;
       const unitNo = houseNo ? String(houseNo).trim() : 'Unit-Declared';
+      const wingTowerStr = wingTower ? String(wingTower).trim() : 'Wing-A';
       const maint = parseInt(maintenanceCharges, 10) || 0;
 
       const notesJson = JSON.stringify({
@@ -1429,9 +1491,15 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
         societyName: societyName.trim(),
         locality: locality.trim(),
         subLocality: subLocality || null,
+        wingTower: wingTowerStr,
         furnishing: furnishing || 'Semi-Furnished',
         propertyAge: propertyAge || '1 to 5 years',
         bookingAmount: isRental ? null : (parseInt(bookingAmount, 10) || null),
+        securityDeposit: isRental ? (parseInt(securityDeposit, 10) || null) : null,
+        preferredTenant: isRental ? (preferredTenant || 'Any') : null,
+        rentalDuration: isRental ? (rentalDuration || '11-Month (Standard)') : null,
+        moveInAvailability: isRental ? (moveInAvailability || 'Immediate') : null,
+        moveInDate: isRental ? (moveInDate || null) : null,
         isNegotiable: Boolean(isNegotiable),
         photos: Array.isArray(photos) ? photos.slice(0, 10) : [],
         videoUrl: videoUrl || null,
@@ -1462,7 +1530,7 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
           userId,
           locality.toLowerCase().replace(/[^a-z0-9]/g, '-'),
           unitNo,
-          'Wing-A',
+          wingTowerStr,
           floor,
           totalFl,
           bhkLabel,
@@ -1472,7 +1540,7 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
           baths,
           facingStr,
           parks,
-          Boolean(hasCoveredParking),
+          isCovered,
           'A_KHATA',
           'CLEAR',
           null,
@@ -1614,6 +1682,31 @@ app.get('/api/properties', authenticateUser, async (req, res) => {
       'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80',
       'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=800&q=80',
     ];
+
+    const propertyIds = sanitizedRows.map((row: any) => row.id);
+    const docsByPropId: Record<string, any> = {};
+    for (const pid of propertyIds) {
+      const docRes = await executeQuery(`SELECT * FROM documents WHERE property_id = $1;`, [pid]);
+      if (docRes.rows && docRes.rows.length > 0) {
+        const docObj: Record<string, any> = {};
+        docRes.rows.forEach((d: any) => {
+          const key = d.doc_type || d.id;
+          docObj[key] = {
+            id: d.id,
+            type: d.doc_type || 'SALE_DEED',
+            label: d.doc_type ? d.doc_type.replace(/_/g, ' ') : 'Property Document',
+            subLabel: d.file_name,
+            status: d.verification_status,
+            fileName: d.file_name,
+            fileSize: `${((d.file_size_bytes || 2048000) / (1024 * 1024)).toFixed(1)} MB`,
+            uploadedAt: new Date(d.created_at).toLocaleDateString(),
+            verifiedAt: d.verified_at ? new Date(d.verified_at).toLocaleDateString() : undefined,
+            legalReviewNote: d.discrepancy_note || (d.verification_status === 'VERIFIED' ? 'Verified by Title Diligence Desk' : undefined)
+          };
+        });
+        docsByPropId[pid] = docObj;
+      }
+    }
 
     let sellerProperties: any[] = sanitizedRows.map((row: any, idx: number) => {
       let notes: any = {};
@@ -1793,68 +1886,18 @@ app.get('/api/properties', authenticateUser, async (req, res) => {
           activeBuyersInCorridor: 84,
           estimatedDaysToClose: 32
         },
-        documents: {
+        documents: docsByPropId[row.id] || {
           TITLE_DEED: {
-            id: 'doc-1',
+            id: 'doc-seed-01',
             type: 'TITLE_DEED',
             label: 'Sale Deed (Registered Title)',
             subLabel: 'Original conveyance registered at Sub-Registrar Office',
-            status: 'VERIFIED',
+            status: (row.verification_tier === 'LEVEL_2_DOCS_REVIEWED' || row.verification_tier === 'LEVEL_3_PHYSICALLY_INSPECTED') ? 'VERIFIED' : 'PENDING_REVIEW',
             fileName: 'Sale_Deed_Registered_Unit.pdf',
             fileSize: '4.2 MB',
             uploadedAt: '03 Oct 2026',
-            verifiedAt: '04 Oct 2026',
-            legalReviewNote: 'Original registration stamp validated with Kaveri Online Services.'
-          },
-          MOTHER_DEED: {
-            id: 'doc-2',
-            type: 'MOTHER_DEED',
-            label: 'Mother Deed (30-Year Chain)',
-            subLabel: 'Unbroken chain of parent title deeds',
-            status: 'VERIFIED',
-            fileName: 'Parent_Title_Chain_30Yrs.pdf',
-            fileSize: '8.7 MB',
-            uploadedAt: '03 Oct 2026',
-            verifiedAt: '04 Oct 2026',
-            legalReviewNote: 'Clear non-agricultural conversion and developer JDA in order.'
-          },
-          KHATA_CERTIFICATE: {
-            id: 'doc-3',
-            type: 'KHATA_CERTIFICATE',
-            label: 'BBMP A-Khata Certificate & Extract',
-            subLabel: 'Valid assessment register extract under BBMP jurisdiction',
-            status: 'VERIFIED',
-            fileName: 'BBMP_A_Khata_Extract_2026.pdf',
-            fileSize: '1.8 MB',
-            uploadedAt: '03 Oct 2026',
-            verifiedAt: '05 Oct 2026',
-            legalReviewNote: 'PID Number active, single owner declaration verified.'
-          },
-          ENCUMBRANCE_CERTIFICATE: {
-            id: 'doc-4',
-            type: 'ENCUMBRANCE_CERTIFICATE',
-            label: 'Encumbrance Certificate (EC Form 15)',
-            subLabel: 'Nil encumbrance statement for past 15 to 30 years',
-            status: status === 'LISTED' ? 'VERIFIED' : 'IN_REVIEW',
-            fileName: 'EC_Form_15_Kaveri.pdf',
-            fileSize: '2.1 MB',
-            uploadedAt: '04 Oct 2026',
-            verifiedAt: status === 'LISTED' ? '05 Oct 2026' : undefined,
-            legalReviewNote: status === 'LISTED' 
-              ? 'Nil mortgage / liability found on property ledger.' 
-              : 'Desk verification underway with Kaveri online portal.'
-          },
-          TAX_RECEIPT: {
-            id: 'doc-5',
-            type: 'TAX_RECEIPT',
-            label: 'BBMP Property Tax Paid Receipt',
-            subLabel: 'Latest annual property tax paid with SAS receipt',
-            status: 'VERIFIED',
-            fileName: 'BBMP_Property_Tax_Challan_2025_26.pdf',
-            fileSize: '890 KB',
-            uploadedAt: '03 Oct 2026',
-            verifiedAt: '04 Oct 2026',
-            legalReviewNote: 'SAS receipt verified with zero outstanding property tax dues.'
+            verifiedAt: (row.verification_tier === 'LEVEL_2_DOCS_REVIEWED' || row.verification_tier === 'LEVEL_3_PHYSICALLY_INSPECTED') ? '04 Oct 2026' : undefined,
+            legalReviewNote: (row.verification_tier === 'LEVEL_2_DOCS_REVIEWED' || row.verification_tier === 'LEVEL_3_PHYSICALLY_INSPECTED') ? 'Original registration stamp validated with Kaveri Online Services.' : undefined
           }
         },
         rmName: row.rm_name || 'Kavitha Ranganathan',
@@ -2994,6 +3037,1190 @@ const updateDocStatusHandler = async (req: Request, res: Response) => {
 app.post('/api/crm/documents/:id/status', jsonDefault, authenticateUser, requirePermissionMiddleware('documents:verify'), updateDocStatusHandler);
 app.patch('/api/crm/documents/:id/status', jsonDefault, authenticateUser, requirePermissionMiddleware('documents:verify'), updateDocStatusHandler);
 app.post('/api/crm/documents/verify', jsonDefault, authenticateUser, requirePermissionMiddleware('documents:verify'), updateDocStatusHandler);
+
+// ====================================================================
+// 7.0 CRM CORE OPERATIONAL WORKFLOW ENDPOINTS
+// Overview, Visits, Offers, Tasks, Audit Logs, Reports
+// ====================================================================
+
+// 1. Overview Metrics (Real PostgreSQL backed metrics & Today's Work)
+app.get('/api/crm/overview-metrics', authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    if (!isStaff) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required for CRM overview.' });
+    }
+
+    const canReadAll = hasPermission(req.user!, 'leads:read_all' as any);
+    const userId = req.user!.uid;
+
+    const [leadsRes, buyerRes, propRes, visitsRes, offersRes] = await Promise.all([
+      executeQuery(`SELECT id, owner_name, apartment_society_name, locality_id, lead_status, assigned_staff_id, next_follow_up_at, created_at, updated_at FROM seller_leads;`),
+      executeQuery(`SELECT id, buyer_name AS owner_name, preferred_locality_or_society AS apartment_society_name, preferred_locality_or_society AS locality_id, lead_status, assigned_staff_id, next_follow_up_at, created_at, updated_at FROM buyer_enquiries;`),
+      executeQuery(`SELECT id, listing_status FROM properties;`),
+      executeQuery(`SELECT * FROM visits;`),
+      executeQuery(`SELECT * FROM property_offers;`)
+    ]);
+
+    let allLeads = [...(leadsRes.rows || []), ...(buyerRes.rows || [])];
+    if (!canReadAll) {
+      allLeads = allLeads.filter(l => l.assigned_staff_id === userId || !l.assigned_staff_id);
+    }
+
+    const pipeline: Record<string, number> = {
+      NEW: 0,
+      CONTACTED: 0,
+      FOLLOW_UP: 0,
+      SITE_VISIT: 0,
+      NEGOTIATION: 0,
+      CONVERTED: 0,
+      LOST: 0
+    };
+
+    allLeads.forEach(l => {
+      const st = String(l.lead_status || 'NEW').toUpperCase();
+      if (pipeline[st] !== undefined) {
+        pipeline[st]++;
+      } else if (st === 'DROPPED') {
+        pipeline.LOST++;
+      }
+    });
+
+    const newLeads = pipeline.NEW;
+    const convertedLeads = pipeline.CONVERTED;
+    const followUpNeeded = allLeads.filter(l => l.lead_status === 'FOLLOW_UP' || Boolean(l.next_follow_up_at)).length;
+
+    const activeProperties = (propRes.rows || []).filter((p: any) => p.listing_status === 'PUBLISHED').length;
+
+    let allVisits = visitsRes.rows || [];
+    if (!canReadAll) {
+      allVisits = allVisits.filter((v: any) => v.assigned_staff_id === userId || !v.assigned_staff_id);
+    }
+    const visitsScheduled = allVisits.filter((v: any) => v.status === 'SCHEDULED').length;
+
+    const allOffers = offersRes.rows || [];
+    const offersAwaitingAction = allOffers.filter((o: any) => o.status === 'PENDING_REVIEW').length;
+
+    // Today's Work calculation
+    const now = Date.now();
+    const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
+    const endOfToday = new Date(); endOfToday.setHours(23, 59, 59, 999);
+
+    const scheduledVisitsToday = allVisits.filter((v: any) => v.status === 'SCHEDULED').slice(0, 5);
+    const overdueFollowUps = allLeads.filter(l => l.next_follow_up_at && new Date(l.next_follow_up_at).getTime() < now && l.lead_status !== 'CONVERTED' && l.lead_status !== 'LOST').slice(0, 5);
+    const followUpsDueToday = allLeads.filter(l => {
+      if (!l.next_follow_up_at) return false;
+      const t = new Date(l.next_follow_up_at).getTime();
+      return t >= startOfToday.getTime() && t <= endOfToday.getTime() && l.lead_status !== 'CONVERTED' && l.lead_status !== 'LOST';
+    }).slice(0, 5);
+    const pendingOffers = allOffers.filter((o: any) => o.status === 'PENDING_REVIEW').slice(0, 5);
+    const assignedToMe = allLeads.filter(l => l.assigned_staff_id === userId || canReadAll);
+    const recentlyUpdatedAssignedLeads = [...assignedToMe].sort((a, b) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime()).slice(0, 5);
+
+    return res.json({
+      success: true,
+      metrics: {
+        newLeads,
+        followUpNeeded,
+        activeProperties,
+        visitsScheduled,
+        offersAwaitingAction,
+        convertedLeads
+      },
+      pipeline,
+      todaysWork: {
+        scheduledVisitsToday,
+        overdueFollowUps,
+        followUpsDueToday,
+        offersAwaitingAction: pendingOffers,
+        recentlyUpdatedAssignedLeads
+      }
+    });
+  } catch (err: any) {
+    console.error('[CrmOverviewMetrics] Error:', err);
+    return res.status(500).json({ error: 'Failed to retrieve overview metrics' });
+  }
+});
+
+// 2. Visits List
+app.get('/api/crm/visits', authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    if (!isStaff) return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
+
+    const canReadAll = hasPermission(req.user!, 'leads:read_all' as any);
+    const { status, propertyId, leadId, assignedStaffId } = req.query;
+
+    let query = `SELECT * FROM visits WHERE 1=1`;
+    const params: any[] = [];
+
+    if (!canReadAll) {
+      params.push(req.user!.uid);
+      query += ` AND (assigned_staff_id = $${params.length} OR assigned_staff_id IS NULL)`;
+    } else if (assignedStaffId) {
+      params.push(assignedStaffId);
+      query += ` AND assigned_staff_id = $${params.length}`;
+    }
+
+    if (status) {
+      params.push(status);
+      query += ` AND status = $${params.length}`;
+    }
+    if (propertyId) {
+      params.push(propertyId);
+      query += ` AND property_id = $${params.length}`;
+    }
+    if (leadId) {
+      params.push(leadId);
+      query += ` AND lead_id = $${params.length}`;
+    }
+
+    query += ` ORDER BY created_at DESC;`;
+    const result = await executeQuery(query, params);
+
+    return res.json({
+      success: true,
+      count: result.rows.length,
+      visits: result.rows
+    });
+  } catch (err: any) {
+    console.error('[CrmVisitsList] Error:', err);
+    return res.status(500).json({ error: 'Failed to fetch visits' });
+  }
+});
+
+// 3. Schedule Visit
+app.post('/api/crm/visits', jsonDefault, authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    if (!isStaff) return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
+
+    const { property_id, propertyId, lead_id, leadId, client_name, clientName, client_phone, clientPhone, visit_date, visitDate, visit_time, visitTime, assigned_staff_id, assignedStaffId, notes } = req.body;
+    const resolvedPropId = property_id || propertyId;
+    const resolvedLeadId = lead_id || leadId || null;
+    const resolvedName = client_name || clientName;
+    const resolvedPhone = client_phone || clientPhone;
+    const resolvedDate = visit_date || visitDate || 'Upcoming';
+    const resolvedTime = visit_time || visitTime || '11:00 AM';
+    const resolvedStaffId = assigned_staff_id || assignedStaffId || req.user!.uid;
+
+    if (!resolvedPropId || !resolvedName || !resolvedPhone) {
+      return res.status(400).json({ error: 'INVALID_INPUT', message: 'Property ID, client name, and phone are required.' });
+    }
+
+    const visitId = `vis-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
+    const insertRes = await executeQuery(`
+      INSERT INTO visits (id, property_id, lead_id, client_name, client_phone, visit_date, visit_time, status, assigned_staff_id, notes, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, 'SCHEDULED', $8, $9, NOW(), NOW())
+      RETURNING *;
+    `, [visitId, resolvedPropId, resolvedLeadId, resolvedName, resolvedPhone, resolvedDate, resolvedTime, resolvedStaffId, notes || null]);
+
+    if (resolvedLeadId) {
+      await executeQuery(`
+        UPDATE seller_leads SET lead_status = 'SITE_VISIT', updated_at = NOW() WHERE id = $1 AND lead_status IN ('NEW', 'CONTACTED', 'FOLLOW_UP');
+      `, [resolvedLeadId]);
+    }
+
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    await recordAuditEvent({
+      actor: req.user!,
+      action: 'VISIT_SCHEDULED',
+      targetEntity: 'visits',
+      targetEntityId: visitId,
+      clientIp,
+      diffSummary: {
+        propertyId: resolvedPropId,
+        leadId: resolvedLeadId,
+        clientName: resolvedName,
+        visitDate: resolvedDate,
+        visitTime: resolvedTime
+      }
+    });
+
+    return res.json({
+      success: true,
+      visit: insertRes.rows[0],
+      message: 'Visit scheduled successfully.'
+    });
+  } catch (err: any) {
+    console.error('[CrmVisitCreate] Error:', err);
+    return res.status(500).json({ error: 'Failed to schedule visit' });
+  }
+});
+
+// 4. Update Visit Status
+app.patch('/api/crm/visits/:id/status', jsonDefault, authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    if (!isStaff) return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
+
+    const { id } = req.params;
+    const { status, notes, visit_date, visit_time } = req.body;
+    const targetStatus = String(status || '').toUpperCase();
+
+    if (!['SCHEDULED', 'COMPLETED', 'CANCELLED', 'RESCHEDULED'].includes(targetStatus)) {
+      return res.status(400).json({ error: 'INVALID_STATUS', message: 'Valid statuses: SCHEDULED, COMPLETED, CANCELLED, RESCHEDULED.' });
+    }
+
+    const existingRes = await executeQuery(`SELECT * FROM visits WHERE id = $1 LIMIT 1;`, [id]);
+    if (!existingRes.rows || existingRes.rows.length === 0) {
+      return res.status(404).json({ error: 'VISIT_NOT_FOUND', message: 'Visit not found.' });
+    }
+    const existing = existingRes.rows[0];
+
+    let updateRes;
+    if (visit_date && visit_time) {
+      updateRes = await executeQuery(`
+        UPDATE visits SET visit_date = $1, visit_time = $2, status = $3, notes = COALESCE($4, notes), updated_at = NOW() WHERE id = $5 RETURNING *;
+      `, [visit_date, visit_time, targetStatus, notes || null, id]);
+    } else {
+      updateRes = await executeQuery(`
+        UPDATE visits SET status = $1, notes = COALESCE($2, notes), updated_at = NOW() WHERE id = $3 RETURNING *;
+      `, [targetStatus, notes || null, id]);
+    }
+
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    await recordAuditEvent({
+      actor: req.user!,
+      action: 'VISIT_STATUS_CHANGED',
+      targetEntity: 'visits',
+      targetEntityId: id,
+      clientIp,
+      diffSummary: {
+        oldStatus: existing.status,
+        newStatus: targetStatus,
+        propertyId: existing.property_id
+      }
+    });
+
+    return res.json({
+      success: true,
+      visit: updateRes.rows[0],
+      message: `Visit marked as ${targetStatus}`
+    });
+  } catch (err: any) {
+    console.error('[CrmVisitStatusUpdate] Error:', err);
+    return res.status(500).json({ error: 'Failed to update visit status' });
+  }
+});
+
+// 5. WhatsApp Reminder Dispatcher (Statutory check & truthful integration)
+app.post('/api/crm/visits/:id/whatsapp-reminder', jsonDefault, authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    if (!isStaff) return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
+
+    const { id } = req.params;
+    const visitRes = await executeQuery(`SELECT * FROM visits WHERE id = $1 LIMIT 1;`, [id]);
+    if (!visitRes.rows || visitRes.rows.length === 0) {
+      return res.status(404).json({ error: 'VISIT_NOT_FOUND', message: 'Visit not found.' });
+    }
+    const visit = visitRes.rows[0];
+
+    if (visit.status !== 'SCHEDULED') {
+      return res.status(400).json({
+        error: 'VISIT_NOT_SCHEDULED',
+        message: `Reminders can only be dispatched for SCHEDULED visits. Current status is ${visit.status}.`
+      });
+    }
+
+    const recipientPhone = visit.client_phone;
+    if (!recipientPhone || recipientPhone.length < 10) {
+      return res.status(400).json({
+        error: 'INVALID_PHONE_NUMBER',
+        message: 'The stored client phone number for this visit is missing or invalid.'
+      });
+    }
+
+    if (visit.whatsapp_reminder_sent_at) {
+      const lastSent = new Date(visit.whatsapp_reminder_sent_at).getTime();
+      const elapsedHours = (Date.now() - lastSent) / (1000 * 3600);
+      if (elapsedHours < 4) {
+        return res.status(429).json({
+          error: 'DUPLICATE_REMINDER_BLOCKED',
+          message: `A WhatsApp reminder was already dispatched at ${new Date(visit.whatsapp_reminder_sent_at).toLocaleTimeString()}. Duplicate sends are rate-limited.`
+        });
+      }
+    }
+
+    const isEligible = 
+      (await SellerWorkflowService.isEligibleForOutreach(recipientPhone, 'VISIT_COORDINATION')) ||
+      (await SellerWorkflowService.isEligibleForOutreach(recipientPhone, 'SELLER_ONBOARDING')) ||
+      (await SellerWorkflowService.isEligibleForOutreach(recipientPhone, 'BUYER_ASSISTANCE'));
+    if (!isEligible) {
+      return res.status(403).json({
+        error: 'DPDP_CONSENT_BLOCKED',
+        message: 'Client has not provided or has withdrawn DPDP statutory outreach consent.'
+      });
+    }
+
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    const isWhatsAppConfigured = Boolean(process.env.WHATSAPP_API_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID);
+
+    if (!isWhatsAppConfigured) {
+      await recordAuditEvent({
+        actor: req.user!,
+        action: 'WHATSAPP_REMINDER_UNAVAILABLE',
+        targetEntity: 'visits',
+        targetEntityId: id,
+        clientIp,
+        diffSummary: {
+          recipientPhone,
+          reason: 'WHATSAPP_API_TOKEN_UNCONFIGURED'
+        }
+      });
+
+      return res.status(200).json({
+        success: false,
+        configured: false,
+        status: 'UNCONFIGURED',
+        error: 'WHATSAPP_GATEWAY_NOT_CONFIGURED',
+        message: 'WhatsApp Business API is not configured on this server. Automated reminders require WHATSAPP_API_TOKEN and WHATSAPP_PHONE_NUMBER_ID in the environment. Dispatch cannot proceed.'
+      });
+    }
+
+    try {
+      const metaUrl = `https://graph.facebook.com/v19.0/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`;
+      const formattedPhone = recipientPhone.replace(/\D/g, '');
+      const metaRes = await fetch(metaUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.WHATSAPP_API_TOKEN}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          to: formattedPhone,
+          type: 'template',
+          template: {
+            name: 'site_visit_reminder',
+            language: { code: 'en' },
+            components: [
+              {
+                type: 'body',
+                parameters: [
+                  { type: 'text', text: visit.client_name },
+                  { type: 'text', text: visit.visit_date },
+                  { type: 'text', text: visit.visit_time }
+                ]
+              }
+            ]
+          }
+        })
+      });
+
+      const metaData = await metaRes.json();
+      if (!metaRes.ok) {
+        throw new Error(metaData?.error?.message || 'Meta API returned error');
+      }
+
+      const msgId = metaData?.messages?.[0]?.id || `wa-${Date.now()}`;
+      await executeQuery(`UPDATE visits SET whatsapp_reminder_sent_at = NOW(), updated_at = NOW() WHERE id = $1;`, [id]);
+
+      await recordAuditEvent({
+        actor: req.user!,
+        action: 'WHATSAPP_REMINDER_SENT',
+        targetEntity: 'visits',
+        targetEntityId: id,
+        clientIp,
+        diffSummary: {
+          recipientPhone,
+          messageId: msgId,
+          provider: 'META_WHATSAPP_CLOUD_API'
+        }
+      });
+
+      return res.json({
+        success: true,
+        configured: true,
+        status: 'SENT',
+        messageId: msgId,
+        message: `WhatsApp reminder dispatched successfully to ${recipientPhone}.`
+      });
+    } catch (apiErr: any) {
+      console.error('[WhatsAppDispatchError]:', apiErr);
+      return res.status(502).json({
+        success: false,
+        configured: true,
+        status: 'PROVIDER_ERROR',
+        error: 'WHATSAPP_PROVIDER_FAILED',
+        message: `WhatsApp provider rejected message: ${apiErr.message}`
+      });
+    }
+  } catch (err: any) {
+    console.error('[CrmWhatsAppReminder] Error:', err);
+    return res.status(500).json({ error: 'Failed to process WhatsApp reminder request' });
+  }
+});
+
+// 6. Offers List
+app.get('/api/crm/offers', authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    if (!isStaff) return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
+
+    const { status, propertyId } = req.query;
+    let query = `SELECT * FROM property_offers WHERE 1=1`;
+    const params: any[] = [];
+
+    if (status) {
+      params.push(status);
+      query += ` AND status = $${params.length}`;
+    }
+    if (propertyId) {
+      params.push(propertyId);
+      query += ` AND property_id = $${params.length}`;
+    }
+    query += ` ORDER BY created_at DESC;`;
+
+    const result = await executeQuery(query, params);
+
+    const canSeeReserve = req.user!.roles.includes('STAFF_SUPER_ADMIN') || req.user!.roles.includes('STAFF_DEAL_CLOSER');
+    const sanitized = result.rows.map((r: any) => {
+      const copy = { ...r };
+      if (!canSeeReserve) {
+        delete copy.reserve_minimum_price_inr;
+      }
+      return copy;
+    });
+
+    return res.json({
+      success: true,
+      count: sanitized.length,
+      offers: sanitized
+    });
+  } catch (err: any) {
+    console.error('[CrmOffersList] Error:', err);
+    return res.status(500).json({ error: 'Failed to fetch property offers' });
+  }
+});
+
+// 7. Record Formal Offer
+app.post('/api/crm/offers', jsonDefault, authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    if (!isStaff) return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
+
+    const { property_id, propertyId, lead_id, leadId, buyer_name, buyerName, buyer_phone, buyerPhone, offer_amount_inr, offerAmountInr, notes } = req.body;
+    const resolvedPropId = property_id || propertyId;
+    const resolvedLeadId = lead_id || leadId || null;
+    const resolvedName = buyer_name || buyerName;
+    const resolvedPhone = buyer_phone || buyerPhone;
+    const resolvedAmount = Number(offer_amount_inr || offerAmountInr);
+
+    if (!resolvedPropId || !resolvedName || !resolvedPhone || !resolvedAmount || isNaN(resolvedAmount)) {
+      return res.status(400).json({ error: 'INVALID_INPUT', message: 'Property ID, buyer name, phone, and offer amount are required.' });
+    }
+
+    const offerId = `off-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
+    const insertRes = await executeQuery(`
+      INSERT INTO property_offers (id, property_id, lead_id, buyer_name, buyer_phone, offer_amount_inr, status, notes, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, 'PENDING_REVIEW', $7, NOW(), NOW())
+      RETURNING *;
+    `, [offerId, resolvedPropId, resolvedLeadId, resolvedName, resolvedPhone, resolvedAmount, notes || null]);
+
+    if (resolvedLeadId) {
+      await executeQuery(`
+        UPDATE seller_leads SET lead_status = 'NEGOTIATION', updated_at = NOW() WHERE id = $1 AND lead_status IN ('NEW', 'CONTACTED', 'FOLLOW_UP', 'SITE_VISIT');
+      `, [resolvedLeadId]);
+    }
+
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    await recordAuditEvent({
+      actor: req.user!,
+      action: 'OFFER_RECORDED',
+      targetEntity: 'property_offers',
+      targetEntityId: offerId,
+      clientIp,
+      diffSummary: {
+        propertyId: resolvedPropId,
+        leadId: resolvedLeadId,
+        buyerName: resolvedName,
+        offerAmountInr: resolvedAmount
+      }
+    });
+
+    return res.json({
+      success: true,
+      offer: insertRes.rows[0],
+      message: 'Offer recorded successfully.'
+    });
+  } catch (err: any) {
+    console.error('[CrmOfferCreate] Error:', err);
+    return res.status(500).json({ error: 'Failed to record offer' });
+  }
+});
+
+// 8. Update Offer Status
+app.patch('/api/crm/offers/:id/status', jsonDefault, authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    if (!isStaff) return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
+
+    const canNegotiate = req.user!.roles.includes('STAFF_SUPER_ADMIN') || req.user!.roles.includes('STAFF_DEAL_CLOSER') || hasPermission(req.user!, 'deals:negotiate' as any);
+    if (!canNegotiate) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Closer or Super Admin privilege required to decide on offers.' });
+    }
+
+    const { id } = req.params;
+    const { status, notes, counterOfferAmountInr, counter_offer_amount_inr } = req.body;
+    const targetStatus = String(status || '').toUpperCase();
+
+    if (!['ACCEPTED', 'REJECTED', 'COUNTER_OFFERED', 'PENDING_REVIEW'].includes(targetStatus)) {
+      return res.status(400).json({ error: 'INVALID_STATUS', message: 'Valid statuses: ACCEPTED, REJECTED, COUNTER_OFFERED, PENDING_REVIEW.' });
+    }
+
+    const existingRes = await executeQuery(`SELECT * FROM property_offers WHERE id = $1 LIMIT 1;`, [id]);
+    if (!existingRes.rows || existingRes.rows.length === 0) {
+      return res.status(404).json({ error: 'OFFER_NOT_FOUND', message: 'Offer not found.' });
+    }
+    const existing = existingRes.rows[0];
+
+    const counterAmount = counterOfferAmountInr || counter_offer_amount_inr || null;
+    const updateRes = await executeQuery(`
+      UPDATE property_offers
+      SET status = $1, notes = COALESCE($2, notes), updated_at = NOW()
+      WHERE id = $3
+      RETURNING *;
+    `, [targetStatus, notes || null, id]);
+
+    if (targetStatus === 'ACCEPTED' && existing.lead_id) {
+      await executeQuery(`UPDATE seller_leads SET lead_status = 'CONVERTED', updated_at = NOW() WHERE id = $1;`, [existing.lead_id]);
+    }
+
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    await recordAuditEvent({
+      actor: req.user!,
+      action: 'OFFER_STATUS_CHANGED',
+      targetEntity: 'property_offers',
+      targetEntityId: id,
+      clientIp,
+      diffSummary: {
+        oldStatus: existing.status,
+        newStatus: targetStatus,
+        counterOfferAmountInr: counterAmount
+      }
+    });
+
+    return res.json({
+      success: true,
+      offer: updateRes.rows[0],
+      message: `Offer status updated to ${targetStatus}`
+    });
+  } catch (err: any) {
+    console.error('[CrmOfferStatusUpdate] Error:', err);
+    return res.status(500).json({ error: 'Failed to update offer status' });
+  }
+});
+
+// 9. Tasks and Follow-ups List
+app.get('/api/crm/tasks', authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    if (!isStaff) return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
+
+    const canReadAll = hasPermission(req.user!, 'leads:read_all' as any);
+    const userId = req.user!.uid;
+
+    const leadsRes = await executeQuery(`
+      SELECT sl.id, sl.owner_name AS name, sl.phone, sl.apartment_society_name AS society, sl.locality_id AS locality, sl.lead_status, sl.assigned_staff_id, staff.display_name AS assigned_staff_name, sl.next_follow_up_at, sl.follow_up_notes
+      FROM seller_leads sl
+      LEFT JOIN users staff ON staff.id = sl.assigned_staff_id
+      WHERE sl.next_follow_up_at IS NOT NULL
+      ORDER BY sl.next_follow_up_at ASC;
+    `);
+
+    let tasks = leadsRes.rows || [];
+    if (!canReadAll) {
+      tasks = tasks.filter((t: any) => t.assigned_staff_id === userId);
+    }
+
+    const now = Date.now();
+    const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
+    const endOfToday = new Date(); endOfToday.setHours(23, 59, 59, 999);
+
+    const overdue = tasks.filter((t: any) => new Date(t.next_follow_up_at).getTime() < now);
+    const dueToday = tasks.filter((t: any) => {
+      const time = new Date(t.next_follow_up_at).getTime();
+      return time >= startOfToday.getTime() && time <= endOfToday.getTime();
+    });
+    const upcoming = tasks.filter((t: any) => new Date(t.next_follow_up_at).getTime() > endOfToday.getTime());
+
+    return res.json({
+      success: true,
+      count: tasks.length,
+      overdue,
+      dueToday,
+      upcoming
+    });
+  } catch (err: any) {
+    console.error('[CrmTasksList] Error:', err);
+    return res.status(500).json({ error: 'Failed to fetch tasks' });
+  }
+});
+
+// 10. Audit Logs List (Super Admin compliance view)
+app.get('/api/crm/audit-logs', authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const isSuperAdmin = req.user!.roles.includes('STAFF_SUPER_ADMIN');
+    if (!isSuperAdmin) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Audit logs require Super Admin compliance role.' });
+    }
+
+    const { action, targetEntity, limit } = req.query;
+    const max = Math.min(Number(limit) || 50, 100);
+
+    const logsRes = await executeQuery(`SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT $1;`, [max]);
+
+    let logs = logsRes.rows || [];
+    if (action) logs = logs.filter((l: any) => l.action === action);
+    if (targetEntity) logs = logs.filter((l: any) => l.target_entity === targetEntity);
+
+    return res.json({
+      success: true,
+      count: logs.length,
+      logs
+    });
+  } catch (err: any) {
+    console.error('[CrmAuditLogs] Error:', err);
+    return res.status(500).json({ error: 'Failed to fetch audit logs' });
+  }
+});
+
+// 11. Reports (Truthful operational analytics)
+app.get('/api/crm/reports', authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    if (!isStaff) return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
+
+    const [leadsRes, propRes, visitsRes, staffRes] = await Promise.all([
+      executeQuery(`SELECT id, lead_status, assigned_staff_id, created_at FROM seller_leads;`),
+      executeQuery(`SELECT id, listing_status, crm_status FROM properties;`),
+      executeQuery(`SELECT id, status, assigned_staff_id FROM visits;`),
+      executeQuery(`SELECT id, display_name FROM users WHERE roles && '{STAFF_INTAKE_AGENT,STAFF_VERIFICATION_AGENT,STAFF_LISTING_MANAGER,STAFF_DEAL_CLOSER,STAFF_SUPER_ADMIN}';`)
+    ]);
+
+    const leads = leadsRes.rows || [];
+    const properties = propRes.rows || [];
+    const visits = visitsRes.rows || [];
+    const staff = staffRes.rows || [];
+
+    const stageCounts: Record<string, number> = {
+      NEW: 0,
+      CONTACTED: 0,
+      FOLLOW_UP: 0,
+      SITE_VISIT: 0,
+      NEGOTIATION: 0,
+      CONVERTED: 0,
+      LOST: 0
+    };
+    leads.forEach((l: any) => {
+      const st = (l.lead_status || 'NEW').toUpperCase();
+      if (stageCounts[st] !== undefined) stageCounts[st]++;
+    });
+
+    const totalLeads = leads.length;
+    const converted = stageCounts.CONVERTED;
+    const overallConversionRate = totalLeads > 0 ? Number(((converted / totalLeads) * 100).toFixed(1)) : 0;
+
+    const propStatusCounts: Record<string, number> = {
+      PUBLISHED: 0,
+      DRAFT: 0,
+      PAUSED: 0,
+      SOLD: 0,
+      ARCHIVED: 0
+    };
+    properties.forEach((p: any) => {
+      const st = (p.listing_status || 'DRAFT').toUpperCase();
+      if (propStatusCounts[st] !== undefined) propStatusCounts[st]++;
+    });
+
+    const staffMetrics = staff.map((s: any) => {
+      const assignedCount = leads.filter((l: any) => l.assigned_staff_id === s.id).length;
+      const visitsCount = visits.filter((v: any) => v.assigned_staff_id === s.id).length;
+      return {
+        id: s.id,
+        name: s.display_name,
+        assignedLeads: assignedCount,
+        assignedVisits: visitsCount
+      };
+    });
+
+    return res.json({
+      success: true,
+      reports: {
+        totalLeads,
+        overallConversionRate,
+        stageCounts,
+        propStatusCounts,
+        staffMetrics,
+        totalVisits: visits.length,
+        scheduledVisits: visits.filter((v: any) => v.status === 'SCHEDULED').length,
+        completedVisits: visits.filter((v: any) => v.status === 'COMPLETED').length
+      }
+    });
+  } catch (err: any) {
+    console.error('[CrmReports] Error:', err);
+    return res.status(500).json({ error: 'Failed to generate operational reports' });
+  }
+});
+
+// 11b. Reports CSV Export (Filtered, Formula Injection Protected & RBAC Gated)
+app.get('/api/crm/reports/export-csv', authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    if (!isStaff) return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
+
+    const { type = 'leads', status, assignedStaffId } = req.query;
+    const isSuperAdmin = req.user!.roles.includes('STAFF_SUPER_ADMIN');
+
+    // Helper: Escape CSV cell and defend against spreadsheet formula injection (=, +, -, @)
+    const sanitizeCsvCell = (val: any): string => {
+      if (val === null || val === undefined) return '""';
+      let str = String(val).replace(/"/g, '""');
+      if (/^[=+\-@\t\r]/.test(str)) {
+        str = "'" + str; // neutralize formula prefix
+      }
+      return `"${str}"`;
+    };
+
+    if (type === 'leads') {
+      let query = `
+        SELECT sl.id, sl.owner_name, sl.phone, sl.apartment_society_name, sl.locality_id, sl.bhk_type, sl.expected_price_inr, sl.lead_status, sl.assigned_staff_id, staff.display_name AS assigned_staff_name, sl.created_at, sl.updated_at
+        FROM seller_leads sl
+        LEFT JOIN users staff ON staff.id = sl.assigned_staff_id
+        WHERE 1=1
+      `;
+      const params: any[] = [];
+      if (!isSuperAdmin) {
+        params.push(req.user!.uid);
+        query += ` AND sl.assigned_staff_id = $${params.length}`;
+      } else if (assignedStaffId) {
+        params.push(assignedStaffId);
+        query += ` AND sl.assigned_staff_id = $${params.length}`;
+      }
+      if (status && status !== 'ALL') {
+        params.push(status);
+        query += ` AND sl.lead_status = $${params.length}`;
+      }
+      query += ` ORDER BY sl.created_at DESC;`;
+
+      const result = await executeQuery(query, params);
+      const rows = result.rows || [];
+
+      const headers = ['Lead ID', 'Client Name', 'Phone', 'Society', 'Locality', 'BHK', 'Expected Price (INR)', 'Status', 'Assigned RM', 'Created At'];
+      const csvLines = [
+        headers.map(sanitizeCsvCell).join(','),
+        ...rows.map((r: any) => [
+          r.id,
+          r.owner_name,
+          r.phone,
+          r.apartment_society_name,
+          r.locality_id,
+          r.bhk_type,
+          r.expected_price_inr,
+          r.lead_status,
+          r.assigned_staff_name || 'Unassigned',
+          r.created_at
+        ].map(sanitizeCsvCell).join(','))
+      ];
+
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="sellmyghar_leads_report_${new Date().toISOString().slice(0, 10)}.csv"`);
+      return res.status(200).send(csvLines.join('\n'));
+    }
+
+    if (type === 'visits') {
+      let query = `
+        SELECT v.id, v.property_id, p.title AS property_title, v.client_name, v.client_phone, v.visit_date, v.visit_time, v.status, staff.display_name AS assigned_staff_name, v.created_at
+        FROM visits v
+        LEFT JOIN properties p ON p.id = v.property_id
+        LEFT JOIN users staff ON staff.id = v.assigned_staff_id
+        WHERE 1=1
+      `;
+      const params: any[] = [];
+      if (status && status !== 'ALL') {
+        params.push(status);
+        query += ` AND v.status = $${params.length}`;
+      }
+      query += ` ORDER BY v.created_at DESC;`;
+
+      const result = await executeQuery(query, params);
+      const rows = result.rows || [];
+
+      const headers = ['Visit ID', 'Property Title', 'Client Name', 'Client Phone', 'Date', 'Time Slot', 'Status', 'Assigned Staff', 'Created At'];
+      const csvLines = [
+        headers.map(sanitizeCsvCell).join(','),
+        ...rows.map((r: any) => [
+          r.id,
+          r.property_title || r.property_id,
+          r.client_name,
+          r.client_phone,
+          r.visit_date,
+          r.visit_time,
+          r.status,
+          r.assigned_staff_name || 'Unassigned',
+          r.created_at
+        ].map(sanitizeCsvCell).join(','))
+      ];
+
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="sellmyghar_visits_report_${new Date().toISOString().slice(0, 10)}.csv"`);
+      return res.status(200).send(csvLines.join('\n'));
+    }
+
+    if (type === 'offers') {
+      let query = `
+        SELECT o.id, o.property_id, p.title AS property_title, p.asking_price_inr, o.buyer_name, o.buyer_phone, o.offer_amount_inr, o.status, o.created_at
+        FROM property_offers o
+        LEFT JOIN properties p ON p.id = o.property_id
+        WHERE 1=1
+      `;
+      const params: any[] = [];
+      if (status && status !== 'ALL') {
+        params.push(status);
+        query += ` AND o.status = $${params.length}`;
+      }
+      query += ` ORDER BY o.created_at DESC;`;
+
+      const result = await executeQuery(query, params);
+      const rows = result.rows || [];
+
+      const headers = ['Offer ID', 'Property Title', 'Asking Price (INR)', 'Buyer Name', 'Buyer Phone', 'Offer Amount (INR)', 'Status', 'Date'];
+      const csvLines = [
+        headers.map(sanitizeCsvCell).join(','),
+        ...rows.map((r: any) => [
+          r.id,
+          r.property_title || r.property_id,
+          r.asking_price_inr,
+          r.buyer_name,
+          r.buyer_phone,
+          r.offer_amount_inr,
+          r.status,
+          r.created_at
+        ].map(sanitizeCsvCell).join(','))
+      ];
+
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="sellmyghar_offers_report_${new Date().toISOString().slice(0, 10)}.csv"`);
+      return res.status(200).send(csvLines.join('\n'));
+    }
+
+    return res.status(400).json({ error: 'INVALID_REPORT_TYPE', message: 'Supported types: leads, visits, offers.' });
+  } catch (err: any) {
+    console.error('[CrmCsvExport] Error:', err);
+    return res.status(500).json({ error: 'Failed to export CSV report' });
+  }
+});
+
+// 11c. Super Admin: Create Staff User (Strict @sellmyghar.in domain enforcement, scrypt hash & audit log)
+app.post('/api/crm/users', jsonDefault, authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const isSuperAdmin = req.user!.roles.includes('STAFF_SUPER_ADMIN');
+    if (!isSuperAdmin) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Only Super Admin can provision staff accounts.' });
+    }
+
+    const { fullName, email, phone, role, initialPassword } = req.body;
+    if (!fullName || !email || !phone || !role || !initialPassword) {
+      return res.status(400).json({
+        error: 'MISSING_FIELDS',
+        message: 'Full name, email, phone, role, and initial password are required.'
+      });
+    }
+
+    // 1. Exact Domain Validation: MUST end with @sellmyghar.in (reject lookalikes / external domains)
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const emailParts = normalizedEmail.split('@');
+    if (emailParts.length !== 2 || emailParts[1] !== 'sellmyghar.in' || !/^[a-z0-9._%+-]+$/.test(emailParts[0])) {
+      return res.status(400).json({
+        error: 'INVALID_DOMAIN',
+        message: 'Staff account email must belong strictly to the verified @sellmyghar.in domain.'
+      });
+    }
+
+    // 2. Validate Allowed Role
+    const validRoles = [
+      'STAFF_SUPER_ADMIN',
+      'STAFF_INTAKE_AGENT',
+      'STAFF_VERIFICATION_AGENT',
+      'STAFF_LISTING_MANAGER',
+      'STAFF_DEAL_CLOSER'
+    ];
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({
+        error: 'INVALID_ROLE',
+        message: `Role must be one of: ${validRoles.join(', ')}`
+      });
+    }
+
+    // 3. Password Complexity (Minimum 8 chars, mixed chars)
+    if (typeof initialPassword !== 'string' || initialPassword.length < 8) {
+      return res.status(400).json({
+        error: 'WEAK_PASSWORD',
+        message: 'Initial password must be at least 8 characters long.'
+      });
+    }
+
+    // 4. Duplicate checks
+    const existingEmail = await executeQuery(`SELECT id FROM users WHERE LOWER(email) = $1 LIMIT 1;`, [normalizedEmail]);
+    if (existingEmail.rows && existingEmail.rows.length > 0) {
+      return res.status(409).json({ error: 'EMAIL_EXISTS', message: 'A user with this email already exists.' });
+    }
+
+    const cleanPhone = phone.trim();
+    const existingPhone = await executeQuery(`SELECT id FROM users WHERE phone = $1 LIMIT 1;`, [cleanPhone]);
+    if (existingPhone.rows && existingPhone.rows.length > 0) {
+      return res.status(409).json({ error: 'PHONE_EXISTS', message: 'A user with this phone number already exists.' });
+    }
+
+    // 5. Hash Password & Persist
+    const newUserId = `usr-staff-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
+    const passHash = await hashPassword(initialPassword);
+
+    await executeQuery(`
+      INSERT INTO users (id, phone, email, display_name, password_hash, roles, is_active, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, ARRAY[$6]::varchar[], true, NOW(), NOW());
+    `, [newUserId, cleanPhone, normalizedEmail, fullName.trim(), passHash, role]);
+
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    await recordAuditEvent({
+      actor: req.user!,
+      action: 'STAFF_USER_CREATED',
+      targetEntity: 'users',
+      targetEntityId: newUserId,
+      clientIp,
+      diffSummary: {
+        createdUserId: newUserId,
+        email: normalizedEmail,
+        role,
+        displayName: fullName.trim()
+      }
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: `Staff account provisioned for ${fullName} (${normalizedEmail})`,
+      user: {
+        id: newUserId,
+        displayName: fullName.trim(),
+        email: normalizedEmail,
+        phone: cleanPhone,
+        roles: [role],
+        isActive: true
+      }
+    });
+  } catch (err: any) {
+    console.error('[CrmUserCreate] Error:', err);
+    return res.status(500).json({ error: 'Failed to create staff account' });
+  }
+});
+
+// 11d. Super Admin: Update Staff User Role / Status (Protect Last Super Admin)
+app.patch('/api/crm/users/:id/role', jsonDefault, authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const isSuperAdmin = req.user!.roles.includes('STAFF_SUPER_ADMIN');
+    if (!isSuperAdmin) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Only Super Admin can modify staff roles.' });
+    }
+
+    const { id } = req.params;
+    const { role } = req.body;
+
+    const validRoles = [
+      'STAFF_SUPER_ADMIN',
+      'STAFF_INTAKE_AGENT',
+      'STAFF_VERIFICATION_AGENT',
+      'STAFF_LISTING_MANAGER',
+      'STAFF_DEAL_CLOSER'
+    ];
+    if (!validRoles.includes(role)) {
+      return res.status(400).json({ error: 'INVALID_ROLE', message: 'Invalid staff role provided.' });
+    }
+
+    // Safety: Prevent demoting the last active Super Admin
+    if (role !== 'STAFF_SUPER_ADMIN') {
+      const targetUser = await executeQuery(`SELECT roles FROM users WHERE id = $1 LIMIT 1;`, [id]);
+      const isTargetAdmin = targetUser.rows?.[0]?.roles?.includes('STAFF_SUPER_ADMIN');
+      if (isTargetAdmin) {
+        const adminCountRes = await executeQuery(`
+          SELECT COUNT(*)::int as count FROM users WHERE 'STAFF_SUPER_ADMIN' = ANY(roles) AND is_active = true;
+        `);
+        const adminCount = adminCountRes.rows?.[0]?.count || 0;
+        if (adminCount <= 1) {
+          return res.status(400).json({
+            error: 'CANNOT_DEMOTE_LAST_ADMIN',
+            message: 'Cannot demote the last active Compliance Super Admin.'
+          });
+        }
+      }
+    }
+
+    await executeQuery(`
+      UPDATE users SET roles = ARRAY[$1]::varchar[], updated_at = NOW() WHERE id = $2;
+    `, [role, id]);
+
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    await recordAuditEvent({
+      actor: req.user!,
+      action: 'STAFF_ROLE_CHANGED',
+      targetEntity: 'users',
+      targetEntityId: id,
+      clientIp,
+      diffSummary: { targetUserId: id, newRole: role }
+    });
+
+    return res.json({
+      success: true,
+      message: `User role updated to ${role}`
+    });
+  } catch (err: any) {
+    console.error('[CrmUserRoleUpdate] Error:', err);
+    return res.status(500).json({ error: 'Failed to update user role' });
+  }
+});
+
+// 12. Full Lead Details (Enriched with property, visits, offers, documents, audit logs)
+app.get('/api/crm/leads/:id/details', authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    if (!isStaff) return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
+
+    const { id } = req.params;
+    const canReadAll = hasPermission(req.user!, 'leads:read_all' as any);
+    const canReadAssigned = hasPermission(req.user!, 'leads:read_assigned' as any);
+
+    let leadRes = await executeQuery(`
+      SELECT sl.*, staff.display_name AS assigned_staff_name, staff.phone AS assigned_staff_phone
+      FROM seller_leads sl
+      LEFT JOIN users staff ON staff.id = sl.assigned_staff_id
+      WHERE sl.id = $1 LIMIT 1;
+    `, [id]);
+
+    let leadType = 'SELLER';
+    if (!leadRes.rows || leadRes.rows.length === 0) {
+      leadRes = await executeQuery(`
+        SELECT be.*, staff.display_name AS assigned_staff_name, staff.phone AS assigned_staff_phone
+        FROM buyer_enquiries be
+        LEFT JOIN users staff ON staff.id = be.assigned_staff_id
+        WHERE be.id = $1 LIMIT 1;
+      `, [id]);
+      leadType = 'BUYER';
+    }
+
+    if (!leadRes.rows || leadRes.rows.length === 0) {
+      return res.status(404).json({ error: 'LEAD_NOT_FOUND', message: 'Lead not found.' });
+    }
+
+    const lead = leadRes.rows[0];
+
+    if (!canReadAll && canReadAssigned && lead.assigned_staff_id !== req.user!.uid) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Access restricted to assigned leads.' });
+    }
+
+    let property: any = null;
+    let documents: any[] = [];
+    if (lead.property_id) {
+      const propRes = await executeQuery(`SELECT * FROM properties WHERE id = $1 LIMIT 1;`, [lead.property_id]);
+      if (propRes.rows && propRes.rows.length > 0) {
+        property = { ...propRes.rows[0] };
+        if (!req.user!.roles.includes('STAFF_SUPER_ADMIN') && !req.user!.roles.includes('STAFF_DEAL_CLOSER')) {
+          delete property.reserve_minimum_price_inr;
+        }
+        const docsRes = await executeQuery(`SELECT * FROM documents WHERE property_id = $1;`, [lead.property_id]);
+        documents = docsRes.rows || [];
+      }
+    }
+
+    const visitsRes = await executeQuery(`SELECT * FROM visits WHERE lead_id = $1 OR (property_id = $2 AND $2 IS NOT NULL);`, [id, lead.property_id || null]);
+    const visits = visitsRes.rows || [];
+
+    const offersRes = await executeQuery(`SELECT * FROM property_offers WHERE lead_id = $1 OR (property_id = $2 AND $2 IS NOT NULL);`, [id, lead.property_id || null]);
+    const canSeeReserve = req.user!.roles.includes('STAFF_SUPER_ADMIN') || req.user!.roles.includes('STAFF_DEAL_CLOSER');
+    const offers = (offersRes.rows || []).map((o: any) => {
+      const copy = { ...o };
+      if (!canSeeReserve) delete copy.reserve_minimum_price_inr;
+      return copy;
+    });
+
+    const auditRes = await executeQuery(`
+      SELECT id, action, actor_user_id, client_ip, diff_summary, created_at
+      FROM audit_logs
+      WHERE target_entity_id = $1 OR (target_entity_id = $2 AND $2 IS NOT NULL)
+      ORDER BY created_at DESC LIMIT 20;
+    `, [id, lead.property_id || null]);
+    const auditLogs = auditRes.rows || [];
+
+    return res.json({
+      success: true,
+      lead: {
+        ...lead,
+        type: leadType,
+        isOverdue: Boolean(lead.next_follow_up_at && new Date(lead.next_follow_up_at).getTime() < Date.now())
+      },
+      property,
+      documents,
+      visits,
+      offers,
+      auditLogs
+    });
+  } catch (err: any) {
+    console.error('[CrmLeadDetails] Error:', err);
+    return res.status(500).json({ error: 'Failed to fetch lead details' });
+  }
+});
+
+// 13. Full Property Details (Enriched with documents, visits, offers, owner, lead)
+app.get('/api/crm/properties/:id/details', authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    if (!isStaff) return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
+
+    const { id } = req.params;
+    const propRes = await executeQuery(`SELECT * FROM properties WHERE id = $1 LIMIT 1;`, [id]);
+    if (!propRes.rows || propRes.rows.length === 0) {
+      return res.status(404).json({ error: 'PROPERTY_NOT_FOUND', message: 'Property not found.' });
+    }
+    const property = { ...propRes.rows[0] };
+
+    if (!req.user!.roles.includes('STAFF_SUPER_ADMIN') && !req.user!.roles.includes('STAFF_DEAL_CLOSER')) {
+      delete property.reserve_minimum_price_inr;
+    }
+
+    const docsRes = await executeQuery(`SELECT * FROM documents WHERE property_id = $1;`, [id]);
+    const documents = docsRes.rows || [];
+
+    const visitsRes = await executeQuery(`SELECT * FROM visits WHERE property_id = $1;`, [id]);
+    const visits = visitsRes.rows || [];
+
+    const offersRes = await executeQuery(`SELECT * FROM property_offers WHERE property_id = $1;`, [id]);
+    const canSeeReserve = req.user!.roles.includes('STAFF_SUPER_ADMIN') || req.user!.roles.includes('STAFF_DEAL_CLOSER');
+    const offers = (offersRes.rows || []).map((o: any) => {
+      const copy = { ...o };
+      if (!canSeeReserve) delete copy.reserve_minimum_price_inr;
+      return copy;
+    });
+
+    const leadRes = await executeQuery(`SELECT * FROM seller_leads WHERE property_id = $1 LIMIT 1;`, [id]);
+    const linkedLead = leadRes.rows?.[0] || null;
+
+    const ownerRes = await executeQuery(`SELECT id, display_name, phone, email FROM users WHERE id = $1 LIMIT 1;`, [property.owner_id]);
+    const owner = ownerRes.rows?.[0] || null;
+
+    return res.json({
+      success: true,
+      property,
+      owner,
+      linkedLead,
+      documents,
+      visits,
+      offers
+    });
+  } catch (err: any) {
+    console.error('[CrmPropertyDetails] Error:', err);
+    return res.status(500).json({ error: 'Failed to fetch property details' });
+  }
+});
 
 // ====================================================================
 // 7.1. CRM PROPERTY MANAGEMENT & LIFECYCLE (Phase 2 Canonical)

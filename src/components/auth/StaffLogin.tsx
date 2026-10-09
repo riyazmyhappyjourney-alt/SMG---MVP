@@ -90,6 +90,42 @@ export const StaffLogin: React.FC<StaffLoginProps> = ({ onSuccess, onBackToHome 
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
+            {/* Quick Fill Credentials Banner for Dev Testing */}
+            <div className="p-3 bg-blue-50/70 border border-blue-200/80 rounded-lg text-xs text-slate-700">
+              <div className="font-semibold text-[#244B8F] mb-1.5 flex items-center justify-between">
+                <span>Default Portal Credentials</span>
+                <span className="text-[10px] bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded font-mono font-normal">Internal Desk</span>
+              </div>
+              <div className="space-y-1 font-mono text-[11px] text-slate-600">
+                <div className="flex justify-between items-center">
+                  <span>Staff: <strong className="text-slate-800">staff@sellmyghar.in</strong></span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEmail('staff@sellmyghar.in');
+                      setPassword('SetStrongInitialStaffPassword#2026!');
+                    }}
+                    className="text-[#244B8F] hover:underline font-sans text-[11px] font-semibold cursor-pointer"
+                  >
+                    Auto-fill
+                  </button>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span>Admin: <strong className="text-slate-800">admin@sellmyghar.in</strong></span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEmail('admin@sellmyghar.in');
+                      setPassword('SetStrongInitialAdminPassword#2026!');
+                    }}
+                    className="text-[#244B8F] hover:underline font-sans text-[11px] font-semibold cursor-pointer"
+                  >
+                    Auto-fill
+                  </button>
+                </div>
+              </div>
+            </div>
+
             <div>
               <label htmlFor="staff-email" className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
                 Staff Email

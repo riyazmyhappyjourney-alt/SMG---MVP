@@ -290,20 +290,11 @@ export default function App() {
   // If on Seller Assisted Multi-Step Funnel
   if (currentRoute === 'SELLER_ASSISTED') {
     return (
-      <div className="min-h-screen bg-[#F4F6F9] flex flex-col font-['Montserrat']">
-        <div className="bg-[#172033] text-white px-4 py-2 flex items-center justify-between text-xs border-b border-slate-800">
-          <span className="font-semibold text-slate-200">Seller Onboarding Assistance</span>
-          <button
-            type="button"
-            onClick={() => navigateTo('HOME')}
-            className="inline-flex items-center space-x-1 px-3 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white transition-colors cursor-pointer"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Return to Homepage</span>
-          </button>
-        </div>
-        <SellerFunnel />
-      </div>
+      <SellerFunnel
+        onBackToHome={() => navigateTo('HOME')}
+        onViewDashboard={() => navigateTo('DASHBOARD')}
+        onViewCrm={() => navigateTo('CRM')}
+      />
     );
   }
 

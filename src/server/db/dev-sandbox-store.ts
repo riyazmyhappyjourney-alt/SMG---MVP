@@ -173,6 +173,36 @@ export interface DevAuditLog {
   created_at: string;
 }
 
+export interface DevVisit {
+  id: string;
+  property_id: string;
+  lead_id: string | null;
+  client_name: string;
+  client_phone: string;
+  visit_date: string;
+  visit_time: string;
+  status: 'SCHEDULED' | 'COMPLETED' | 'CANCELLED' | 'RESCHEDULED';
+  assigned_staff_id: string | null;
+  notes: string | null;
+  whatsapp_reminder_sent_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DevOffer {
+  id: string;
+  property_id: string;
+  lead_id: string | null;
+  buyer_name: string;
+  buyer_phone: string;
+  offer_amount_inr: number;
+  status: 'PENDING_REVIEW' | 'ACCEPTED' | 'REJECTED' | 'COUNTER_OFFERED';
+  notes: string | null;
+  counter_offer_amount_inr?: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
 class DevSandboxStore {
   public users = new Map<string, DevUser>();
   public sellerLeads = new Map<string, DevSellerLead>();
@@ -184,6 +214,8 @@ class DevSandboxStore {
   public auditLogs: DevAuditLog[] = [];
   public otpVerifications = new Map<string, DevOtpVerification>();
   public userIdentities = new Map<string, DevUserIdentity>();
+  public visits = new Map<string, DevVisit>();
+  public offers = new Map<string, DevOffer>();
 
   private initialized = false;
 
@@ -198,6 +230,8 @@ class DevSandboxStore {
     this.auditLogs = [];
     this.otpVerifications.clear();
     this.userIdentities.clear();
+    this.visits.clear();
+    this.offers.clear();
     this.initialized = false;
     this.initInitialSeeds();
   }
@@ -231,6 +265,32 @@ class DevSandboxStore {
       phone: owner.phone,
       is_verified: true,
       created_at: new Date().toISOString(),
+    });
+
+    // Seed DPDP consent records for initial leads
+    this.consents.set('cst-01', {
+      id: 'cst-01',
+      phone: '+919845012345',
+      user_id: owner.id,
+      purpose: 'SELLER_ONBOARDING',
+      notice_version: 'v1.0',
+      is_consented: true,
+      consented_at: new Date(Date.now() - 3600000 * 48).toISOString(),
+      is_withdrawn: false,
+      ip_hash: 'hash-01',
+      user_agent_hash: 'ua-01'
+    });
+    this.consents.set('cst-01-vis', {
+      id: 'cst-01-vis',
+      phone: '+919845012345',
+      user_id: owner.id,
+      purpose: 'VISIT_COORDINATION',
+      notice_version: 'v1.0',
+      is_consented: true,
+      consented_at: new Date(Date.now() - 3600000 * 48).toISOString(),
+      is_withdrawn: false,
+      ip_hash: 'hash-01',
+      user_agent_hash: 'ua-01'
     });
 
     // Seed sample seller leads for initial CRM visualization
@@ -478,6 +538,106 @@ class DevSandboxStore {
         created_at: new Date().toISOString()
       });
     }
+
+    // Seed sample visits
+    const visit1: DevVisit = {
+      id: 'vis-dev-seed-01',
+      property_id: 'prop-dev-seed-01',
+      lead_id: 'lead-dev-seed-01',
+      client_name: 'Vikramaditya Hegde',
+      client_phone: '+919845012345',
+      visit_date: 'Today',
+      visit_time: '11:30 AM',
+      status: 'SCHEDULED',
+      assigned_staff_id: 'usr-staff-intake-01',
+      notes: 'Escorted site inspection for 3BHK unit.',
+      whatsapp_reminder_sent_at: null,
+      created_at: new Date(Date.now() - 3600000 * 24).toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    const visit2: DevVisit = {
+      id: 'vis-dev-seed-02',
+      property_id: 'prop-dev-seed-02',
+      lead_id: 'lead-dev-seed-02',
+      client_name: 'Priyanka Nair',
+      client_phone: '+919845088990',
+      visit_date: 'Tomorrow',
+      visit_time: '04:00 PM',
+      status: 'SCHEDULED',
+      assigned_staff_id: 'usr-staff-closer-01',
+      notes: 'Buyer viewing with family.',
+      whatsapp_reminder_sent_at: null,
+      created_at: new Date(Date.now() - 3600000 * 12).toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    const visit3: DevVisit = {
+      id: 'vis-dev-seed-03',
+      property_id: 'prop-dev-seed-03',
+      lead_id: 'lead-dev-seed-03',
+      client_name: 'Anand Murthy',
+      client_phone: '+919845077112',
+      visit_date: 'Yesterday',
+      visit_time: '02:00 PM',
+      status: 'COMPLETED',
+      assigned_staff_id: 'usr-staff-closer-01',
+      notes: 'First walkthrough completed. Title review follow-up requested.',
+      whatsapp_reminder_sent_at: new Date(Date.now() - 3600000 * 30).toISOString(),
+      created_at: new Date(Date.now() - 3600000 * 48).toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    this.visits.set(visit1.id, visit1);
+    this.visits.set(visit2.id, visit2);
+    this.visits.set(visit3.id, visit3);
+
+    // Seed sample offers
+    const offer1: DevOffer = {
+      id: 'off-dev-seed-01',
+      property_id: 'prop-dev-seed-01',
+      lead_id: 'lead-dev-seed-01',
+      buyer_name: 'Rohan Mehra',
+      buyer_phone: '+919876500111',
+      offer_amount_inr: 14000000,
+      status: 'PENDING_REVIEW',
+      notes: 'Pre-approved loan sanction letter attached with HDFC Bank.',
+      counter_offer_amount_inr: null,
+      created_at: new Date(Date.now() - 3600000 * 18).toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    const offer2: DevOffer = {
+      id: 'off-dev-seed-02',
+      property_id: 'prop-dev-seed-02',
+      lead_id: 'lead-dev-seed-02',
+      buyer_name: 'Ananya Sharma',
+      buyer_phone: '+919876500222',
+      offer_amount_inr: 10500000,
+      status: 'COUNTER_OFFERED',
+      notes: 'Counter-offered at ₹1.08 Cr following seller guidance.',
+      counter_offer_amount_inr: 10800000,
+      created_at: new Date(Date.now() - 3600000 * 36).toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    this.offers.set(offer1.id, offer1);
+    this.offers.set(offer2.id, offer2);
+
+    // Seed legitimate document for prop1 awaiting review
+    const seedDoc: DevDocument = {
+      id: 'doc-seed-01',
+      property_id: 'prop-dev-seed-01',
+      uploader_user_id: owner.id,
+      doc_type: 'SALE_DEED',
+      file_name: 'Sobha_DreamAcres_Registered_SaleDeed.pdf',
+      file_size_bytes: 4210000,
+      mime_type: 'application/pdf',
+      storage_path: 'properties/prop-dev-seed-01/Sobha_DreamAcres_Registered_SaleDeed.pdf',
+      checksum: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+      verification_status: 'PENDING_REVIEW',
+      verified_by_staff_id: null,
+      verified_at: null,
+      discrepancy_note: null,
+      created_at: new Date(Date.now() - 3600000 * 24).toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    this.documents.set(seedDoc.id, seedDoc);
   }
 
   public handleQuery(sql: string, params: any[] = []): { rows: any[] } {
@@ -873,7 +1033,7 @@ class DevSandboxStore {
     }
 
     // 13. SELLER_LEADS: List query (CRM dashboard)
-    if (cleanSql.includes('FROM seller_leads sl')) {
+    if (cleanSql.includes('FROM seller_leads')) {
       let leads = Array.from(this.sellerLeads.values());
 
       // Status filter
@@ -1441,6 +1601,32 @@ class DevSandboxStore {
       const d = this.documents.get(id);
       return d ? { rows: [{ ...d }] } : { rows: [] };
     }
+    if (cleanSql.includes('FROM documents') && cleanSql.includes('WHERE property_id = $1')) {
+      const propId = params[0];
+      const docs = Array.from(this.documents.values()).filter(d => d.property_id === propId);
+      return { rows: docs.map(d => ({ ...d })) };
+    }
+    if (cleanSql.includes('FROM documents')) {
+      return { rows: Array.from(this.documents.values()).map(d => ({ ...d })) };
+    }
+    if (cleanSql.includes('INSERT INTO documents')) {
+      const doc: DevDocument = {
+        id: params[0] || `doc-${Date.now()}`,
+        property_id: params[1],
+        uploader_user_id: params[2] || 'usr-customer-seller-01',
+        doc_type: params[3] || 'SALE_DEED',
+        file_name: params[4] || 'Document.pdf',
+        file_size_bytes: Number(params[5]) || 2048000,
+        mime_type: params[6] || 'application/pdf',
+        storage_path: params[7] || '',
+        checksum: params[8] || 'hash',
+        verification_status: params[9] || 'PENDING_REVIEW',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      this.documents.set(doc.id, doc);
+      return { rows: [{ ...doc }] };
+    }
     if (cleanSql.includes('UPDATE documents') && cleanSql.includes('verification_status = $1')) {
       const docId = params[3];
       const d = this.documents.get(docId);
@@ -1451,6 +1637,179 @@ class DevSandboxStore {
         d.verified_at = new Date().toISOString();
         d.updated_at = new Date().toISOString();
         return { rows: [{ ...d }] };
+      }
+      return { rows: [] };
+    }
+
+    // 23b. VISITS: Select, Insert, Update
+    if (cleanSql.includes('FROM visits')) {
+      let list = Array.from(this.visits.values());
+      if (cleanSql.includes('WHERE id = $1') || cleanSql.includes('WHERE v.id = $1')) {
+        const id = params[0];
+        const v = this.visits.get(id);
+        if (!v) return { rows: [] };
+        const p = this.properties.get(v.property_id);
+        const s = v.assigned_staff_id ? this.users.get(v.assigned_staff_id) : null;
+        return {
+          rows: [{
+            ...v,
+            property_title: p?.title || p?.project_locality_id || 'Property',
+            property_locality: p?.public_address || p?.project_locality_id || 'Bengaluru',
+            property_price: p?.asking_price_inr || 0,
+            assigned_staff_name: s?.display_name || null,
+            assigned_staff_phone: s?.phone || null
+          }]
+        };
+      }
+      if (cleanSql.includes('property_id = $')) {
+        const propId = params.find(p => typeof p === 'string' && (p.startsWith('prop-') || p.startsWith('prp-')));
+        if (propId) list = list.filter(v => v.property_id === propId);
+      }
+      if (cleanSql.includes('lead_id = $')) {
+        const leadId = params.find(p => typeof p === 'string' && p.startsWith('lead-'));
+        if (leadId) list = list.filter(v => v.lead_id === leadId);
+      }
+      if (cleanSql.includes('status = $')) {
+        const st = params.find(p => ['SCHEDULED', 'COMPLETED', 'CANCELLED', 'RESCHEDULED'].includes(p));
+        if (st) list = list.filter(v => v.status === st);
+      }
+      if (cleanSql.includes('assigned_staff_id = $')) {
+        const stf = params.find(p => typeof p === 'string' && p.startsWith('usr-staff'));
+        if (stf) list = list.filter(v => v.assigned_staff_id === stf);
+      }
+
+      const rows = list.map(v => {
+        const p = this.properties.get(v.property_id);
+        const s = v.assigned_staff_id ? this.users.get(v.assigned_staff_id) : null;
+        return {
+          ...v,
+          property_title: p?.title || p?.project_locality_id || 'Property',
+          property_locality: p?.public_address || p?.project_locality_id || 'Bengaluru',
+          property_price: p?.asking_price_inr || 0,
+          assigned_staff_name: s?.display_name || null,
+          assigned_staff_phone: s?.phone || null
+        };
+      }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      return { rows };
+    }
+
+    if (cleanSql.includes('INSERT INTO visits')) {
+      const v: DevVisit = {
+        id: params[0] || `vis-${Date.now()}`,
+        property_id: params[1],
+        lead_id: params[2] || null,
+        client_name: params[3],
+        client_phone: params[4],
+        visit_date: params[5],
+        visit_time: params[6],
+        status: params[7] || 'SCHEDULED',
+        assigned_staff_id: params[8] || null,
+        notes: params[9] || null,
+        whatsapp_reminder_sent_at: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      this.visits.set(v.id, v);
+      return { rows: [{ ...v }] };
+    }
+
+    if (cleanSql.includes('UPDATE visits')) {
+      const id = params[params.length - 1];
+      const v = this.visits.get(id);
+      if (v) {
+        if (cleanSql.includes('status = $1')) {
+          v.status = params[0];
+          if (params[1]) v.notes = v.notes ? `${v.notes}\n${params[1]}` : params[1];
+        }
+        if (cleanSql.includes('whatsapp_reminder_sent_at = NOW()') || cleanSql.includes('whatsapp_reminder_sent_at = $1')) {
+          v.whatsapp_reminder_sent_at = new Date().toISOString();
+        }
+        if (cleanSql.includes('visit_date = $1') && cleanSql.includes('visit_time = $2')) {
+          v.visit_date = params[0];
+          v.visit_time = params[1];
+          if (params[2]) v.status = params[2];
+        }
+        v.updated_at = new Date().toISOString();
+        return { rows: [{ ...v }] };
+      }
+      return { rows: [] };
+    }
+
+    // 23c. PROPERTY_OFFERS: Select, Insert, Update
+    if (cleanSql.includes('FROM property_offers')) {
+      let list = Array.from(this.offers.values());
+      if (cleanSql.includes('WHERE id = $1') || cleanSql.includes('WHERE po.id = $1')) {
+        const id = params[0];
+        const o = this.offers.get(id);
+        if (!o) return { rows: [] };
+        const p = this.properties.get(o.property_id);
+        return {
+          rows: [{
+            ...o,
+            property_title: p?.title || p?.project_locality_id || 'Property',
+            property_locality: p?.public_address || p?.project_locality_id || 'Bengaluru',
+            asking_price_inr: p?.asking_price_inr || 0,
+            reserve_minimum_price_inr: p?.reserve_minimum_price_inr || 0
+          }]
+        };
+      }
+      if (cleanSql.includes('property_id = $')) {
+        const propId = params.find(p => typeof p === 'string' && (p.startsWith('prop-') || p.startsWith('prp-')));
+        if (propId) list = list.filter(o => o.property_id === propId);
+      }
+      if (cleanSql.includes('lead_id = $')) {
+        const leadId = params.find(p => typeof p === 'string' && p.startsWith('lead-'));
+        if (leadId) list = list.filter(o => o.lead_id === leadId);
+      }
+      if (cleanSql.includes('status = $')) {
+        const st = params.find(p => ['PENDING_REVIEW', 'ACCEPTED', 'REJECTED', 'COUNTER_OFFERED'].includes(p));
+        if (st) list = list.filter(o => o.status === st);
+      }
+
+      const rows = list.map(o => {
+        const p = this.properties.get(o.property_id);
+        return {
+          ...o,
+          property_title: p?.title || p?.project_locality_id || 'Property',
+          property_locality: p?.public_address || p?.project_locality_id || 'Bengaluru',
+          asking_price_inr: p?.asking_price_inr || 0,
+          reserve_minimum_price_inr: p?.reserve_minimum_price_inr || 0
+        };
+      }).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      return { rows };
+    }
+
+    if (cleanSql.includes('INSERT INTO property_offers')) {
+      const o: DevOffer = {
+        id: params[0] || `off-${Date.now()}`,
+        property_id: params[1],
+        lead_id: params[2] || null,
+        buyer_name: params[3],
+        buyer_phone: params[4],
+        offer_amount_inr: Number(params[5]) || 0,
+        status: params[6] || 'PENDING_REVIEW',
+        notes: params[7] || null,
+        counter_offer_amount_inr: null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      this.offers.set(o.id, o);
+      return { rows: [{ ...o }] };
+    }
+
+    if (cleanSql.includes('UPDATE property_offers')) {
+      const id = params[params.length - 1];
+      const o = this.offers.get(id);
+      if (o) {
+        if (cleanSql.includes('status = $1')) {
+          o.status = params[0];
+          if (params[1]) o.notes = o.notes ? `${o.notes}\n${params[1]}` : params[1];
+          if (params[2] !== undefined && params[2] !== null) o.counter_offer_amount_inr = Number(params[2]);
+        }
+        o.updated_at = new Date().toISOString();
+        return { rows: [{ ...o }] };
       }
       return { rows: [] };
     }
