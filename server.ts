@@ -14,8 +14,12 @@ import {
   authenticateUser, 
   optionalAuthenticateUser, 
   requireRole, 
-  requirePermissionMiddleware 
+  requirePermissionMiddleware,
+  requireModule,
+  hasModulePermission,
+  resolveLegacyModulePermissions
 } from './src/server/auth/middleware';
+import { CrmModule } from './src/core/types/auth';
 import { assertCanAccessProperty, assertCanAccessDocument, AuthorizationError } from './src/server/auth/ownership';
 import { requirePermission, hasPermission } from './src/server/auth/rbac';
 import { hashPassword, verifyPassword } from './src/server/auth/passwords';
@@ -138,6 +142,7 @@ async function initSchemaColumns() {
       ALTER TABLE users ALTER COLUMN phone DROP NOT NULL;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_login_attempts INT NOT NULL DEFAULT 0;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_until TIMESTAMPTZ;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS module_permissions TEXT[] DEFAULT '{}';
       CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_lower ON users (LOWER(email)) WHERE email IS NOT NULL;
       ALTER TABLE consents ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMPTZ;
 
@@ -693,7 +698,6 @@ app.post('/api/auth/logout', async (req, res) => {
 app.post('/api/leads', jsonDefault, rateLimit('leads-submit', 5, 900), async (req, res) => {
   try {
     const { 
-      fullName, 
       phone, 
       societyName, 
       locality, 
@@ -703,9 +707,19 @@ app.post('/api/leads', jsonDefault, rateLimit('leads-submit', 5, 900), async (re
       intent 
     } = req.body;
 
-    if (!fullName || typeof fullName !== 'string' || fullName.trim().length < 2) {
+    const rawName = (
+      req.body.fullName || 
+      req.body.full_name || 
+      req.body.name || 
+      req.body.buyer_name || 
+      req.body.client_name || 
+      ''
+    ).trim();
+
+    if (!rawName || rawName.length < 2) {
       return res.status(400).json({ error: 'Full Name is required (minimum 2 characters).' });
     }
+    const fullName = rawName;
 
     const cleanPhone = String(phone || '').replace(/\D/g, '').slice(-10);
     if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
@@ -866,6 +880,9 @@ app.post('/api/leads', jsonDefault, rateLimit('leads-submit', 5, 900), async (re
         propertyId: enquiryPropertyId,
         enquiry: result.rows[0],
         clientName: fullName.trim(),
+        name: fullName.trim(),
+        ownerName: fullName.trim(),
+        buyerName: fullName.trim(),
         societyName: finalSociety,
         locality: finalLocality,
         bhkType: validBhk,
@@ -2245,13 +2262,13 @@ app.post('/api/compliance/withdraw-consent', jsonDefault, rateLimit('consent-wit
 // 7. CRM OPERATIONAL WORKFLOW ENDPOINTS (Staff Protected & Audited)
 // ====================================================================
 
-// API: List CRM Leads (Protected: leads:read_all or leads:read_assigned)
-app.get('/api/crm/leads', authenticateUser, async (req: Request, res: Response) => {
+// API: List CRM Leads (Protected: requireModule('LEADS'))
+app.get('/api/crm/leads', authenticateUser, requireModule('LEADS'), async (req: Request, res: Response) => {
   try {
     const canReadAll = hasPermission(req.user!, 'leads:read_all' as any);
     const canReadAssigned = hasPermission(req.user!, 'leads:read_assigned' as any);
 
-    if (!canReadAll && !canReadAssigned) {
+    if (!canReadAll && !canReadAssigned && !req.user!.roles.includes('STAFF_SUPER_ADMIN')) {
       return res.status(403).json({
         error: 'FORBIDDEN',
         message: 'Access denied: CRM leads require authorized staff permissions.'
@@ -2268,6 +2285,7 @@ app.get('/api/crm/leads', authenticateUser, async (req: Request, res: Response) 
         sl.id,
         'SELLER' AS lead_type,
         sl.owner_name AS name,
+        sl.owner_name,
         sl.phone,
         sl.apartment_society_name AS society,
         sl.locality_id AS locality,
@@ -2296,6 +2314,8 @@ app.get('/api/crm/leads', authenticateUser, async (req: Request, res: Response) 
         be.id,
         'BUYER' AS lead_type,
         be.buyer_name AS name,
+        be.buyer_name AS owner_name,
+        be.buyer_name,
         be.phone,
         be.preferred_locality_or_society AS society,
         be.preferred_locality_or_society AS locality,
@@ -2369,11 +2389,15 @@ app.get('/api/crm/leads', authenticateUser, async (req: Request, res: Response) 
 
     const leads = rows.map(r => {
       const isOverdue = Boolean(r.next_follow_up_at && new Date(r.next_follow_up_at).getTime() < Date.now());
+      const displayName = String(r.name || r.owner_name || r.buyer_name || r.client_name || (r.lead_type === 'BUYER' ? 'Buyer Enquiry' : 'Property Lead')).trim();
       return {
         id: r.id,
         type: r.lead_type,
-        ownerName: r.name,
-        name: r.name,
+        ownerName: displayName,
+        name: displayName,
+        buyer_name: displayName,
+        owner_name: displayName,
+        client_name: displayName,
         phone: r.phone,
         society: r.society,
         locality: r.locality,
@@ -2409,14 +2433,14 @@ app.get('/api/crm/leads', authenticateUser, async (req: Request, res: Response) 
   }
 });
 
-// API: Get Single CRM Lead Detail (Protected)
-app.get('/api/crm/leads/:id', authenticateUser, async (req: Request, res: Response) => {
+// API: Get Single CRM Lead Detail (Protected: requireModule('LEADS'))
+app.get('/api/crm/leads/:id', authenticateUser, requireModule('LEADS'), async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const canReadAll = hasPermission(req.user!, 'leads:read_all' as any);
     const canReadAssigned = hasPermission(req.user!, 'leads:read_assigned' as any);
 
-    if (!canReadAll && !canReadAssigned) {
+    if (!canReadAll && !canReadAssigned && !req.user!.roles.includes('STAFF_SUPER_ADMIN')) {
       return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required for CRM lead.' });
     }
 
@@ -2484,8 +2508,10 @@ app.get('/api/crm/leads/:id', authenticateUser, async (req: Request, res: Respon
       lead: {
         id: leadRow.id,
         type: leadRow.lead_type,
-        ownerName: leadRow.owner_name || leadRow.buyer_name,
-        name: leadRow.owner_name || leadRow.buyer_name,
+        ownerName: leadRow.owner_name || leadRow.buyer_name || leadRow.name || 'Customer',
+        name: leadRow.owner_name || leadRow.buyer_name || leadRow.name || 'Customer',
+        buyer_name: leadRow.buyer_name || leadRow.owner_name,
+        owner_name: leadRow.owner_name || leadRow.buyer_name,
         phone: leadRow.phone,
         society: leadRow.apartment_society_name || leadRow.preferred_locality_or_society,
         locality: leadRow.locality_id || leadRow.preferred_locality_or_society,
@@ -2908,36 +2934,45 @@ app.post('/api/crm/leads/:id/notes', jsonDefault, authenticateUser, async (req: 
   }
 });
 
-// API: List Available Staff for Assignment
-app.get('/api/crm/staff', authenticateUser, async (req: Request, res: Response) => {
+// API: List Available Staff for Assignment (Protected: requireModule('TEAM'))
+app.get('/api/crm/staff', authenticateUser, requireModule('TEAM'), async (req: Request, res: Response) => {
   try {
-    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_')) || (req.user!.module_permissions && req.user!.module_permissions.length > 0);
     if (!isStaff) {
       return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
     }
 
     const staffRes = await executeQuery(`
-      SELECT id, display_name, email, phone, roles, is_active, created_at
+      SELECT id, display_name, email, phone, roles, module_permissions, is_active, created_at
       FROM users
-      WHERE is_active = true
-        AND (
+      WHERE (
           'STAFF_SUPER_ADMIN' = ANY(roles) OR
           'STAFF_INTAKE_AGENT' = ANY(roles) OR
           'STAFF_VERIFICATION_AGENT' = ANY(roles) OR
           'STAFF_LISTING_MANAGER' = ANY(roles) OR
-          'STAFF_DEAL_CLOSER' = ANY(roles)
+          'STAFF_DEAL_CLOSER' = ANY(roles) OR
+          'STAFF_USER' = ANY(roles) OR
+          cardinality(module_permissions) > 0
         )
       ORDER BY display_name ASC;
     `);
 
-    const staff = staffRes.rows.map(s => ({
-      id: s.id,
-      displayName: s.display_name,
-      name: s.display_name,
-      email: s.email,
-      phone: s.phone,
-      roles: s.roles
-    }));
+    const staff = staffRes.rows.map(s => {
+      const legacyPerms = resolveLegacyModulePermissions(s.roles || []);
+      const userPerms = (s.module_permissions && s.module_permissions.length > 0) ? s.module_permissions : legacyPerms;
+      return {
+        id: s.id,
+        displayName: s.display_name,
+        name: s.display_name,
+        email: s.email,
+        phone: s.phone,
+        roles: s.roles,
+        module_permissions: userPerms,
+        modules: userPerms,
+        isActive: s.is_active !== false,
+        createdAt: s.created_at
+      };
+    });
 
     return res.json({
       success: true,
@@ -3047,10 +3082,10 @@ app.post('/api/crm/documents/verify', jsonDefault, authenticateUser, requirePerm
 // Overview, Visits, Offers, Tasks, Audit Logs, Reports
 // ====================================================================
 
-// 1. Overview Metrics (Real PostgreSQL backed metrics & Today's Work)
-app.get('/api/crm/overview-metrics', authenticateUser, async (req: Request, res: Response) => {
+// 1. Overview Metrics (Real PostgreSQL backed metrics & Today's Work; Protected: requireModule('OVERVIEW'))
+app.get('/api/crm/overview-metrics', authenticateUser, requireModule('OVERVIEW'), async (req: Request, res: Response) => {
   try {
-    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_')) || (req.user!.module_permissions && req.user!.module_permissions.length > 0);
     if (!isStaff) {
       return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required for CRM overview.' });
     }
@@ -3059,14 +3094,19 @@ app.get('/api/crm/overview-metrics', authenticateUser, async (req: Request, res:
     const userId = req.user!.uid;
 
     const [leadsRes, buyerRes, propRes, visitsRes, offersRes] = await Promise.all([
-      executeQuery(`SELECT id, owner_name, apartment_society_name, locality_id, lead_status, assigned_staff_id, next_follow_up_at, created_at, updated_at FROM seller_leads;`),
-      executeQuery(`SELECT id, buyer_name AS owner_name, preferred_locality_or_society AS apartment_society_name, preferred_locality_or_society AS locality_id, lead_status, assigned_staff_id, next_follow_up_at, created_at, updated_at FROM buyer_enquiries;`),
+      executeQuery(`SELECT id, owner_name, owner_name AS name, apartment_society_name, apartment_society_name AS society, locality_id, locality_id AS locality, lead_status, assigned_staff_id, next_follow_up_at, created_at, updated_at FROM seller_leads;`),
+      executeQuery(`SELECT id, buyer_name AS owner_name, buyer_name AS name, preferred_locality_or_society AS apartment_society_name, preferred_locality_or_society AS society, preferred_locality_or_society AS locality_id, preferred_locality_or_society AS locality, lead_status, assigned_staff_id, next_follow_up_at, created_at, updated_at FROM buyer_enquiries;`),
       executeQuery(`SELECT id, listing_status FROM properties;`),
       executeQuery(`SELECT * FROM visits;`),
       executeQuery(`SELECT * FROM property_offers;`)
     ]);
 
-    let allLeads = [...(leadsRes.rows || []), ...(buyerRes.rows || [])];
+    let allLeads = [...(leadsRes.rows || []), ...(buyerRes.rows || [])].map(l => ({
+      ...l,
+      name: l.name || l.owner_name || 'Customer',
+      ownerName: l.owner_name || l.name || 'Customer',
+      owner_name: l.owner_name || l.name || 'Customer'
+    }));
     if (!canReadAll) {
       allLeads = allLeads.filter(l => l.assigned_staff_id === userId || !l.assigned_staff_id);
     }
@@ -3146,10 +3186,10 @@ app.get('/api/crm/overview-metrics', authenticateUser, async (req: Request, res:
   }
 });
 
-// 2. Visits List
-app.get('/api/crm/visits', authenticateUser, async (req: Request, res: Response) => {
+// 2. Visits List (Protected: requireModule('VISITS'))
+app.get('/api/crm/visits', authenticateUser, requireModule('VISITS'), async (req: Request, res: Response) => {
   try {
-    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_')) || (req.user!.module_permissions && req.user!.module_permissions.length > 0);
     if (!isStaff) return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
 
     const canReadAll = hasPermission(req.user!, 'leads:read_all' as any);
@@ -3193,10 +3233,10 @@ app.get('/api/crm/visits', authenticateUser, async (req: Request, res: Response)
   }
 });
 
-// 3. Schedule Visit
-app.post('/api/crm/visits', jsonDefault, authenticateUser, async (req: Request, res: Response) => {
+// 3. Schedule Visit (Protected: requireModule('VISITS'))
+app.post('/api/crm/visits', jsonDefault, authenticateUser, requireModule('VISITS'), async (req: Request, res: Response) => {
   try {
-    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_')) || (req.user!.module_permissions && req.user!.module_permissions.length > 0);
     if (!isStaff) return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
 
     const { property_id, propertyId, lead_id, leadId, client_name, clientName, client_phone, clientPhone, visit_date, visitDate, visit_time, visitTime, assigned_staff_id, assignedStaffId, notes } = req.body;
@@ -3252,10 +3292,10 @@ app.post('/api/crm/visits', jsonDefault, authenticateUser, async (req: Request, 
   }
 });
 
-// 4. Update Visit Status
-app.patch('/api/crm/visits/:id/status', jsonDefault, authenticateUser, async (req: Request, res: Response) => {
+// 4. Update Visit Status (Protected: requireModule('VISITS'))
+app.patch('/api/crm/visits/:id/status', jsonDefault, authenticateUser, requireModule('VISITS'), async (req: Request, res: Response) => {
   try {
-    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_')) || (req.user!.module_permissions && req.user!.module_permissions.length > 0);
     if (!isStaff) return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
 
     const { id } = req.params;
@@ -3308,10 +3348,10 @@ app.patch('/api/crm/visits/:id/status', jsonDefault, authenticateUser, async (re
   }
 });
 
-// 5. WhatsApp Reminder Dispatcher (Statutory check & truthful integration)
-app.post('/api/crm/visits/:id/whatsapp-reminder', jsonDefault, authenticateUser, async (req: Request, res: Response) => {
+// 5. WhatsApp Reminder Dispatcher (Statutory check & truthful integration; Protected: requireModule('VISITS'))
+app.post('/api/crm/visits/:id/whatsapp-reminder', jsonDefault, authenticateUser, requireModule('VISITS'), async (req: Request, res: Response) => {
   try {
-    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_')) || (req.user!.module_permissions && req.user!.module_permissions.length > 0);
     if (!isStaff) return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
 
     const { id } = req.params;
@@ -3457,10 +3497,10 @@ app.post('/api/crm/visits/:id/whatsapp-reminder', jsonDefault, authenticateUser,
   }
 });
 
-// 6. Offers List
-app.get('/api/crm/offers', authenticateUser, async (req: Request, res: Response) => {
+// 6. Offers List (Protected: requireModule('OFFERS'))
+app.get('/api/crm/offers', authenticateUser, requireModule('OFFERS'), async (req: Request, res: Response) => {
   try {
-    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_')) || (req.user!.module_permissions && req.user!.module_permissions.length > 0);
     if (!isStaff) return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
 
     const { status, propertyId } = req.query;
@@ -3499,10 +3539,10 @@ app.get('/api/crm/offers', authenticateUser, async (req: Request, res: Response)
   }
 });
 
-// 7. Record Formal Offer
-app.post('/api/crm/offers', jsonDefault, authenticateUser, async (req: Request, res: Response) => {
+// 7. Record Formal Offer (Protected: requireModule('OFFERS'))
+app.post('/api/crm/offers', jsonDefault, authenticateUser, requireModule('OFFERS'), async (req: Request, res: Response) => {
   try {
-    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_')) || (req.user!.module_permissions && req.user!.module_permissions.length > 0);
     if (!isStaff) return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
 
     const { property_id, propertyId, lead_id, leadId, buyer_name, buyerName, buyer_phone, buyerPhone, offer_amount_inr, offerAmountInr, notes } = req.body;
@@ -3555,10 +3595,10 @@ app.post('/api/crm/offers', jsonDefault, authenticateUser, async (req: Request, 
   }
 });
 
-// 8. Update Offer Status
-app.patch('/api/crm/offers/:id/status', jsonDefault, authenticateUser, async (req: Request, res: Response) => {
+// 8. Update Offer Status (Protected: requireModule('OFFERS'))
+app.patch('/api/crm/offers/:id/status', jsonDefault, authenticateUser, requireModule('OFFERS'), async (req: Request, res: Response) => {
   try {
-    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_')) || (req.user!.module_permissions && req.user!.module_permissions.length > 0);
     if (!isStaff) return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
 
     const canNegotiate = req.user!.roles.includes('STAFF_SUPER_ADMIN') || req.user!.roles.includes('STAFF_DEAL_CLOSER') || hasPermission(req.user!, 'deals:negotiate' as any);
@@ -3617,24 +3657,37 @@ app.patch('/api/crm/offers/:id/status', jsonDefault, authenticateUser, async (re
   }
 });
 
-// 9. Tasks and Follow-ups List
-app.get('/api/crm/tasks', authenticateUser, async (req: Request, res: Response) => {
+// 9. Tasks and Follow-ups List (Protected: requireModule('TASKS'))
+app.get('/api/crm/tasks', authenticateUser, requireModule('TASKS'), async (req: Request, res: Response) => {
   try {
-    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_')) || (req.user!.module_permissions && req.user!.module_permissions.length > 0);
     if (!isStaff) return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
 
     const canReadAll = hasPermission(req.user!, 'leads:read_all' as any);
     const userId = req.user!.uid;
 
     const leadsRes = await executeQuery(`
-      SELECT sl.id, sl.owner_name AS name, sl.phone, sl.apartment_society_name AS society, sl.locality_id AS locality, sl.lead_status, sl.assigned_staff_id, staff.display_name AS assigned_staff_name, sl.next_follow_up_at, sl.follow_up_notes
+      SELECT sl.id, sl.owner_name AS name, sl.owner_name, sl.phone, sl.apartment_society_name AS society, sl.locality_id AS locality, sl.lead_status, sl.assigned_staff_id, staff.display_name AS assigned_staff_name, sl.next_follow_up_at, sl.follow_up_notes, 'SELLER' AS lead_type
       FROM seller_leads sl
       LEFT JOIN users staff ON staff.id = sl.assigned_staff_id
       WHERE sl.next_follow_up_at IS NOT NULL
-      ORDER BY sl.next_follow_up_at ASC;
+      UNION ALL
+      SELECT be.id, be.buyer_name AS name, be.buyer_name AS owner_name, be.phone, be.preferred_locality_or_society AS society, be.preferred_locality_or_society AS locality, be.lead_status, be.assigned_staff_id, staff.display_name AS assigned_staff_name, be.next_follow_up_at, be.follow_up_notes, 'BUYER' AS lead_type
+      FROM buyer_enquiries be
+      LEFT JOIN users staff ON staff.id = be.assigned_staff_id
+      WHERE be.next_follow_up_at IS NOT NULL
+      ORDER BY next_follow_up_at ASC;
     `);
 
-    let tasks = leadsRes.rows || [];
+    let tasks = (leadsRes.rows || []).map((t: any) => {
+      const displayName = String(t.name || t.owner_name || 'Client').trim();
+      return {
+        ...t,
+        name: displayName,
+        owner_name: displayName,
+        ownerName: displayName
+      };
+    });
     if (!canReadAll) {
       tasks = tasks.filter((t: any) => t.assigned_staff_id === userId);
     }
@@ -3663,10 +3716,10 @@ app.get('/api/crm/tasks', authenticateUser, async (req: Request, res: Response) 
   }
 });
 
-// 10. Audit Logs List (Super Admin compliance view)
-app.get('/api/crm/audit-logs', authenticateUser, async (req: Request, res: Response) => {
+// 10. Audit Logs List (Super Admin compliance view; Protected: requireModule('AUDIT_LOGS'))
+app.get('/api/crm/audit-logs', authenticateUser, requireModule('AUDIT_LOGS'), async (req: Request, res: Response) => {
   try {
-    const isSuperAdmin = req.user!.roles.includes('STAFF_SUPER_ADMIN');
+    const isSuperAdmin = req.user!.roles.includes('STAFF_SUPER_ADMIN') || hasModulePermission(req.user!, 'AUDIT_LOGS');
     if (!isSuperAdmin) {
       return res.status(403).json({ error: 'FORBIDDEN', message: 'Audit logs require Super Admin compliance role.' });
     }
@@ -3691,10 +3744,10 @@ app.get('/api/crm/audit-logs', authenticateUser, async (req: Request, res: Respo
   }
 });
 
-// 11. Reports (Truthful operational analytics)
-app.get('/api/crm/reports', authenticateUser, async (req: Request, res: Response) => {
+// 11. Reports (Truthful operational analytics; Protected: requireModule('REPORTS'))
+app.get('/api/crm/reports', authenticateUser, requireModule('REPORTS'), async (req: Request, res: Response) => {
   try {
-    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_')) || (req.user!.module_permissions && req.user!.module_permissions.length > 0);
     if (!isStaff) return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
 
     const [leadsRes, propRes, visitsRes, staffRes] = await Promise.all([
@@ -3769,10 +3822,10 @@ app.get('/api/crm/reports', authenticateUser, async (req: Request, res: Response
   }
 });
 
-// 11b. Reports CSV Export (Filtered, Formula Injection Protected & RBAC Gated)
-app.get('/api/crm/reports/export-csv', authenticateUser, async (req: Request, res: Response) => {
+// 11b. Reports CSV Export (Filtered, Formula Injection Protected & RBAC Gated; Protected: requireModule('REPORTS'))
+app.get('/api/crm/reports/export-csv', authenticateUser, requireModule('REPORTS'), async (req: Request, res: Response) => {
   try {
-    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_')) || (req.user!.module_permissions && req.user!.module_permissions.length > 0);
     if (!isStaff) return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
 
     const { type = 'leads', status, assignedStaffId } = req.query;
@@ -3957,7 +4010,7 @@ app.get('/api/crm/reports/export-csv', authenticateUser, async (req: Request, re
   }
 });
 
-// 11c. Super Admin: Create Staff User (Strict @sellmyghar.in domain enforcement, scrypt hash & audit log)
+// 11c. Super Admin: Create Staff User (Strict @sellmyghar.in domain enforcement, scrypt hash, module permissions & audit log)
 app.post('/api/crm/users', jsonDefault, authenticateUser, async (req: Request, res: Response) => {
   try {
     const isSuperAdmin = req.user!.roles.includes('STAFF_SUPER_ADMIN');
@@ -3965,11 +4018,11 @@ app.post('/api/crm/users', jsonDefault, authenticateUser, async (req: Request, r
       return res.status(403).json({ error: 'FORBIDDEN', message: 'Only Super Admin can provision staff accounts.' });
     }
 
-    const { fullName, email, phone, role, initialPassword } = req.body;
-    if (!fullName || !email || !phone || !role || !initialPassword) {
+    const { fullName, email, phone, role, modules, initialPassword } = req.body;
+    if (!fullName || !email || !phone || !initialPassword) {
       return res.status(400).json({
         error: 'MISSING_FIELDS',
-        message: 'Full name, email, phone, role, and initial password are required.'
+        message: 'Full name, email, phone, and initial password are required.'
       });
     }
 
@@ -3983,19 +4036,29 @@ app.post('/api/crm/users', jsonDefault, authenticateUser, async (req: Request, r
       });
     }
 
-    // 2. Validate Allowed Role
+    // 2. Validate Allowed Role & Modules
     const validRoles = [
       'STAFF_SUPER_ADMIN',
       'STAFF_INTAKE_AGENT',
       'STAFF_VERIFICATION_AGENT',
       'STAFF_LISTING_MANAGER',
-      'STAFF_DEAL_CLOSER'
+      'STAFF_DEAL_CLOSER',
+      'STAFF_USER'
     ];
-    if (!validRoles.includes(role)) {
-      return res.status(400).json({
-        error: 'INVALID_ROLE',
-        message: `Role must be one of: ${validRoles.join(', ')}`
-      });
+    const userRole = role && validRoles.includes(role) ? role : 'STAFF_USER';
+
+    const ALL_CRM_MODULES: CrmModule[] = [
+      'OVERVIEW', 'LEADS', 'PROPERTIES', 'VISITS', 'OFFERS',
+      'TASKS', 'CALENDAR', 'REPORTS', 'TEAM', 'AUDIT_LOGS', 'SETTINGS'
+    ];
+
+    let assignedModules: string[] = [];
+    if (userRole === 'STAFF_SUPER_ADMIN') {
+      assignedModules = [...ALL_CRM_MODULES];
+    } else if (Array.isArray(modules) && modules.length > 0) {
+      assignedModules = modules.filter(m => ALL_CRM_MODULES.includes(m as CrmModule));
+    } else {
+      assignedModules = resolveLegacyModulePermissions([userRole]);
     }
 
     // 3. Password Complexity (Minimum 8 chars, mixed chars)
@@ -4023,9 +4086,9 @@ app.post('/api/crm/users', jsonDefault, authenticateUser, async (req: Request, r
     const passHash = await hashPassword(initialPassword);
 
     await executeQuery(`
-      INSERT INTO users (id, phone, email, display_name, password_hash, roles, is_active, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, ARRAY[$6]::varchar[], true, NOW(), NOW());
-    `, [newUserId, cleanPhone, normalizedEmail, fullName.trim(), passHash, role]);
+      INSERT INTO users (id, phone, email, display_name, password_hash, roles, module_permissions, is_active, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, ARRAY[$6]::varchar[], $7::text[], true, NOW(), NOW());
+    `, [newUserId, cleanPhone, normalizedEmail, fullName.trim(), passHash, userRole, assignedModules]);
 
     const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
     await recordAuditEvent({
@@ -4037,7 +4100,8 @@ app.post('/api/crm/users', jsonDefault, authenticateUser, async (req: Request, r
       diffSummary: {
         createdUserId: newUserId,
         email: normalizedEmail,
-        role,
+        role: userRole,
+        modules: assignedModules,
         displayName: fullName.trim()
       }
     });
@@ -4050,7 +4114,9 @@ app.post('/api/crm/users', jsonDefault, authenticateUser, async (req: Request, r
         displayName: fullName.trim(),
         email: normalizedEmail,
         phone: cleanPhone,
-        roles: [role],
+        roles: [userRole],
+        module_permissions: assignedModules,
+        modules: assignedModules,
         isActive: true
       }
     });
@@ -4060,7 +4126,110 @@ app.post('/api/crm/users', jsonDefault, authenticateUser, async (req: Request, r
   }
 });
 
-// 11d. Super Admin: Update Staff User Role / Status (Protect Last Super Admin)
+// 11d. Super Admin: Update Staff User (Roles, Explicit Module Permissions, Active State, Details)
+app.patch('/api/crm/users/:id', jsonDefault, authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const isSuperAdmin = req.user!.roles.includes('STAFF_SUPER_ADMIN');
+    if (!isSuperAdmin) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Only Super Admin can modify staff accounts.' });
+    }
+
+    const { id } = req.params;
+    const { role, modules, isActive, displayName, phone } = req.body;
+
+    const ALL_CRM_MODULES: CrmModule[] = [
+      'OVERVIEW', 'LEADS', 'PROPERTIES', 'VISITS', 'OFFERS',
+      'TASKS', 'CALENDAR', 'REPORTS', 'TEAM', 'AUDIT_LOGS', 'SETTINGS'
+    ];
+
+    const targetUserRes = await executeQuery(`SELECT * FROM users WHERE id = $1 LIMIT 1;`, [id]);
+    if (!targetUserRes.rows || targetUserRes.rows.length === 0) {
+      return res.status(404).json({ error: 'USER_NOT_FOUND', message: 'Staff user not found.' });
+    }
+    const targetUser = targetUserRes.rows[0];
+    const isTargetAdmin = targetUser.roles?.includes('STAFF_SUPER_ADMIN');
+
+    // Protect last active Super Admin from demotion or deactivation
+    if (isTargetAdmin && (isActive === false || (role && role !== 'STAFF_SUPER_ADMIN'))) {
+      const adminCountRes = await executeQuery(`
+        SELECT COUNT(*)::int as count FROM users WHERE 'STAFF_SUPER_ADMIN' = ANY(roles) AND is_active = true;
+      `);
+      const adminCount = adminCountRes.rows?.[0]?.count || 0;
+      if (adminCount <= 1) {
+        return res.status(400).json({
+          error: 'CANNOT_DEMOTE_LAST_ADMIN',
+          message: 'Cannot demote or deactivate the last active Compliance Super Admin.'
+        });
+      }
+    }
+
+    // Determine updated fields
+    let newRoles = targetUser.roles;
+    if (role) {
+      newRoles = [role];
+    }
+
+    let newModules = targetUser.module_permissions || [];
+    if (Array.isArray(modules)) {
+      newModules = modules.filter(m => ALL_CRM_MODULES.includes(m as CrmModule));
+    } else if (role && role === 'STAFF_SUPER_ADMIN') {
+      newModules = [...ALL_CRM_MODULES];
+    } else if (role && (!targetUser.module_permissions || targetUser.module_permissions.length === 0)) {
+      newModules = resolveLegacyModulePermissions([role]);
+    }
+
+    const newIsActive = typeof isActive === 'boolean' ? isActive : targetUser.is_active;
+    const newDisplayName = displayName && typeof displayName === 'string' ? displayName.trim() : targetUser.display_name;
+    const newPhone = phone && typeof phone === 'string' ? phone.trim() : targetUser.phone;
+
+    await executeQuery(`
+      UPDATE users 
+      SET roles = $1::varchar[],
+          module_permissions = $2::text[],
+          is_active = $3,
+          display_name = $4,
+          phone = $5,
+          updated_at = NOW()
+      WHERE id = $6;
+    `, [newRoles, newModules, newIsActive, newDisplayName, newPhone, id]);
+
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    await recordAuditEvent({
+      actor: req.user!,
+      action: 'STAFF_USER_UPDATED',
+      targetEntity: 'users',
+      targetEntityId: id,
+      clientIp,
+      diffSummary: {
+        targetUserId: id,
+        roles: newRoles,
+        modules: newModules,
+        isActive: newIsActive,
+        displayName: newDisplayName
+      }
+    });
+
+    return res.json({
+      success: true,
+      message: `Staff user updated successfully`,
+      user: {
+        id,
+        displayName: newDisplayName,
+        email: targetUser.email,
+        phone: newPhone,
+        roles: newRoles,
+        module_permissions: newModules,
+        modules: newModules,
+        isActive: newIsActive
+      }
+    });
+  } catch (err: any) {
+    console.error('[CrmUserUpdate] Error:', err);
+    return res.status(500).json({ error: 'Failed to update user' });
+  }
+});
+
+// 11e. Super Admin: Update Staff User Role (Legacy alias)
 app.patch('/api/crm/users/:id/role', jsonDefault, authenticateUser, async (req: Request, res: Response) => {
   try {
     const isSuperAdmin = req.user!.roles.includes('STAFF_SUPER_ADMIN');
@@ -4100,9 +4269,10 @@ app.patch('/api/crm/users/:id/role', jsonDefault, authenticateUser, async (req: 
       }
     }
 
+    const newModules = resolveLegacyModulePermissions([role]);
     await executeQuery(`
-      UPDATE users SET roles = ARRAY[$1]::varchar[], updated_at = NOW() WHERE id = $2;
-    `, [role, id]);
+      UPDATE users SET roles = ARRAY[$1]::varchar[], module_permissions = $2::text[], updated_at = NOW() WHERE id = $3;
+    `, [role, newModules, id]);
 
     const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
     await recordAuditEvent({
@@ -4111,12 +4281,13 @@ app.patch('/api/crm/users/:id/role', jsonDefault, authenticateUser, async (req: 
       targetEntity: 'users',
       targetEntityId: id,
       clientIp,
-      diffSummary: { targetUserId: id, newRole: role }
+      diffSummary: { targetUserId: id, newRole: role, modules: newModules }
     });
 
     return res.json({
       success: true,
-      message: `User role updated to ${role}`
+      message: `User role updated to ${role}`,
+      modules: newModules
     });
   } catch (err: any) {
     console.error('[CrmUserRoleUpdate] Error:', err);
@@ -4124,10 +4295,10 @@ app.patch('/api/crm/users/:id/role', jsonDefault, authenticateUser, async (req: 
   }
 });
 
-// 12. Full Lead Details (Enriched with property, visits, offers, documents, audit logs)
-app.get('/api/crm/leads/:id/details', authenticateUser, async (req: Request, res: Response) => {
+// 12. Full Lead Details (Enriched with property, visits, offers, documents, audit logs; Protected: requireModule('LEADS'))
+app.get('/api/crm/leads/:id/details', authenticateUser, requireModule('LEADS'), async (req: Request, res: Response) => {
   try {
-    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_'));
+    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_')) || (req.user!.module_permissions && req.user!.module_permissions.length > 0);
     if (!isStaff) return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
 
     const { id } = req.params;
@@ -4200,6 +4371,10 @@ app.get('/api/crm/leads/:id/details', authenticateUser, async (req: Request, res
       lead: {
         ...lead,
         type: leadType,
+        name: lead.name || lead.owner_name || lead.buyer_name || 'Customer',
+        ownerName: lead.owner_name || lead.buyer_name || lead.name || 'Customer',
+        owner_name: lead.owner_name || lead.buyer_name || lead.name || 'Customer',
+        buyer_name: lead.buyer_name || lead.owner_name || lead.name || 'Customer',
         isOverdue: Boolean(lead.next_follow_up_at && new Date(lead.next_follow_up_at).getTime() < Date.now())
       },
       property,
@@ -4370,7 +4545,7 @@ export function validatePropertyForPublish(property: any, images: any[] = []): {
 app.get(
   '/api/crm/properties',
   authenticateUser,
-  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER', 'STAFF_DEAL_CLOSER', 'STAFF_INTAKE_AGENT', 'STAFF_VERIFICATION_AGENT'),
+  requireModule('PROPERTIES'),
   async (req: Request, res: Response) => {
     try {
 
@@ -4493,7 +4668,7 @@ app.get(
 app.get(
   '/api/crm/properties/:id',
   authenticateUser,
-  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER', 'STAFF_DEAL_CLOSER', 'STAFF_INTAKE_AGENT', 'STAFF_VERIFICATION_AGENT'),
+  requireModule('PROPERTIES'),
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
@@ -5461,7 +5636,7 @@ app.post(
 app.get(
   '/api/crm/properties/:id/activity',
   authenticateUser,
-  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER', 'STAFF_DEAL_CLOSER', 'STAFF_INTAKE_AGENT', 'STAFF_VERIFICATION_AGENT'),
+  requireModule('PROPERTIES'),
   async (req: Request, res: Response) => {
     try {
 

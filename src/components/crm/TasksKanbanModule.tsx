@@ -12,7 +12,8 @@ import {
   Kanban,
   Table as TableIcon,
   User,
-  ArrowRight
+  ArrowRight,
+  GripVertical
 } from 'lucide-react';
 import { formatPhoneNumber, formatReadableDate, formatReadableTime } from '../../utils/formatters';
 import { DateTimePicker } from '../common/DateTimePicker';
@@ -44,26 +45,66 @@ export const TasksKanbanModule: React.FC<TasksKanbanModuleProps> = ({
   const [rescheduleLeadId, setRescheduleLeadId] = useState<string | null>(null);
   const [isRescheduleOpen, setIsRescheduleOpen] = useState(false);
 
+  // Drag and Drop & Optimistic movement state
+  const [draggedLeadId, setDraggedLeadId] = useState<string | null>(null);
+  const [dragOverCol, setDragOverCol] = useState<'OVERDUE' | 'TODAY' | 'UPCOMING' | 'COMPLETED' | null>(null);
+  const [optimisticOverrides, setOptimisticOverrides] = useState<Record<string, 'OVERDUE' | 'TODAY' | 'UPCOMING' | 'COMPLETED'>>({});
+  const [actionError, setActionError] = useState<string | null>(null);
+
   // Completed items from leads (leads with lead_status === 'CONTACTED' or 'CONVERTED' or null next_follow_up_at)
   const completedLeads = useMemo(() => {
     return (leads || []).filter((l) => ['CONTACTED', 'CONVERTED', 'SITE_VISIT'].includes(l.lead_status) && !l.next_follow_up_at);
   }, [leads]);
 
+  // Unified item partitioning taking optimistic moves into account
+  const { effectiveOverdue, effectiveDueToday, effectiveUpcoming, effectiveCompleted } = useMemo(() => {
+    const allItems = new Map<string, { item: any; baseCol: 'OVERDUE' | 'TODAY' | 'UPCOMING' | 'COMPLETED' }>();
+
+    (tasks.overdue || []).forEach((t) => allItems.set(t.id, { item: t, baseCol: 'OVERDUE' }));
+    (tasks.dueToday || []).forEach((t) => allItems.set(t.id, { item: t, baseCol: 'TODAY' }));
+    (tasks.upcoming || []).forEach((t) => allItems.set(t.id, { item: t, baseCol: 'UPCOMING' }));
+    (completedLeads || []).forEach((l) => {
+      if (!allItems.has(l.id)) {
+        allItems.set(l.id, { item: l, baseCol: 'COMPLETED' });
+      }
+    });
+
+    const overdueList: any[] = [];
+    const todayList: any[] = [];
+    const upcomingList: any[] = [];
+    const completedList: any[] = [];
+
+    allItems.forEach(({ item, baseCol }, id) => {
+      const col = optimisticOverrides[id] || baseCol;
+      if (col === 'OVERDUE') overdueList.push(item);
+      else if (col === 'TODAY') todayList.push(item);
+      else if (col === 'UPCOMING') upcomingList.push(item);
+      else if (col === 'COMPLETED') completedList.push(item);
+    });
+
+    return {
+      effectiveOverdue: overdueList,
+      effectiveDueToday: todayList,
+      effectiveUpcoming: upcomingList,
+      effectiveCompleted: completedList
+    };
+  }, [tasks, completedLeads, optimisticOverrides]);
+
   // Combined and filtered task lists
   const filterTask = (item: any) => {
     if (!searchQuery.trim()) return true;
     const q = searchQuery.toLowerCase();
-    const nameMatch = (item.name || item.owner_name || '').toLowerCase().includes(q);
+    const nameMatch = (item.displayName || item.name || item.owner_name || item.buyer_name || item.client_name || '').toLowerCase().includes(q);
     const phoneMatch = (item.phone || '').includes(q);
     const societyMatch = (item.society || item.apartment_society_name || '').toLowerCase().includes(q);
     const localityMatch = (item.locality || item.locality_id || '').toLowerCase().includes(q);
     return nameMatch || phoneMatch || societyMatch || localityMatch;
   };
 
-  const filteredOverdue = useMemo(() => tasks.overdue.filter(filterTask), [tasks.overdue, searchQuery]);
-  const filteredDueToday = useMemo(() => tasks.dueToday.filter(filterTask), [tasks.dueToday, searchQuery]);
-  const filteredUpcoming = useMemo(() => tasks.upcoming.filter(filterTask), [tasks.upcoming, searchQuery]);
-  const filteredCompleted = useMemo(() => completedLeads.filter(filterTask), [completedLeads, searchQuery]);
+  const filteredOverdue = useMemo(() => effectiveOverdue.filter(filterTask), [effectiveOverdue, searchQuery]);
+  const filteredDueToday = useMemo(() => effectiveDueToday.filter(filterTask), [effectiveDueToday, searchQuery]);
+  const filteredUpcoming = useMemo(() => effectiveUpcoming.filter(filterTask), [effectiveUpcoming, searchQuery]);
+  const filteredCompleted = useMemo(() => effectiveCompleted.filter(filterTask), [effectiveCompleted, searchQuery]);
 
   // Flattened for table view
   const allTableRows = useMemo(() => {
@@ -96,6 +137,79 @@ export const TasksKanbanModule: React.FC<TasksKanbanModuleProps> = ({
     }
     setIsRescheduleOpen(false);
     setRescheduleLeadId(null);
+  };
+
+  const handleMoveTo = async (leadId: string, targetCol: 'TODAY' | 'UPCOMING' | 'COMPLETED') => {
+    setActionError(null);
+    setOptimisticOverrides(prev => ({ ...prev, [leadId]: targetCol }));
+
+    try {
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const tomorrowStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+
+      if (targetCol === 'TODAY') {
+        if (onRescheduleLead) {
+          await onRescheduleLead(leadId, todayStr, '11:00');
+        }
+      } else if (targetCol === 'UPCOMING') {
+        if (onRescheduleLead) {
+          await onRescheduleLead(leadId, tomorrowStr, '11:00');
+        }
+      } else if (targetCol === 'COMPLETED') {
+        if (onMarkLeadContacted) {
+          await onMarkLeadContacted(leadId);
+        }
+      }
+    } catch (err: any) {
+      console.error('Failed to move task:', err);
+      // Rollback optimistic update
+      setOptimisticOverrides(prev => {
+        const next = { ...prev };
+        delete next[leadId];
+        return next;
+      });
+      setActionError(err?.message || 'Failed to move task. Reverted changes.');
+    }
+  };
+
+  const handleDragStart = (e: React.DragEvent, leadId: string) => {
+    e.dataTransfer.setData('text/plain', leadId);
+    e.dataTransfer.effectAllowed = 'move';
+    setDraggedLeadId(leadId);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedLeadId(null);
+    setDragOverCol(null);
+  };
+
+  const handleDragOver = (e: React.DragEvent, col: 'OVERDUE' | 'TODAY' | 'UPCOMING' | 'COMPLETED') => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverCol !== col) {
+      setDragOverCol(col);
+    }
+  };
+
+  const handleDragLeave = (e: React.DragEvent, col: 'OVERDUE' | 'TODAY' | 'UPCOMING' | 'COMPLETED') => {
+    e.preventDefault();
+    if (dragOverCol === col) {
+      setDragOverCol(null);
+    }
+  };
+
+  const handleDrop = async (e: React.DragEvent, targetCol: 'OVERDUE' | 'TODAY' | 'UPCOMING' | 'COMPLETED') => {
+    e.preventDefault();
+    setDragOverCol(null);
+    const leadId = e.dataTransfer.getData('text/plain') || draggedLeadId;
+    setDraggedLeadId(null);
+
+    if (!leadId) return;
+    if (targetCol === 'OVERDUE') return; // Cannot manually make something overdue
+    await handleMoveTo(leadId, targetCol);
   };
 
   return (
@@ -282,7 +396,7 @@ export const TasksKanbanModule: React.FC<TasksKanbanModuleProps> = ({
                   </tr>
                 ) : (
                   allTableRows.map(({ item, queue }) => {
-                    const clientName = item.name || item.owner_name || 'Client';
+                    const clientName = item.displayName || item.name || item.owner_name || item.buyer_name || item.client_name || 'Client';
                     const clientPhone = item.phone || '';
                     const society = item.society || item.apartment_society_name || '—';
                     const locality = item.locality || item.locality_id || 'Bengaluru';
@@ -394,11 +508,37 @@ export const TasksKanbanModule: React.FC<TasksKanbanModuleProps> = ({
         </div>
       )}
 
+      {/* Inline Action Error Alert */}
+      {actionError && (
+        <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-rose-800 text-xs flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>{actionError}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setActionError(null)}
+            className="text-xs font-bold text-rose-700 hover:underline cursor-pointer"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* VIEW 2: KANBAN BOARD */}
       {viewMode === 'kanban' && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 items-start">
           {/* COLUMN 1: OVERDUE */}
-          <div className="bg-slate-50/80 rounded-2xl border border-rose-200/70 p-3.5 space-y-3">
+          <div
+            onDragOver={(e) => handleDragOver(e, 'OVERDUE')}
+            onDragLeave={(e) => handleDragLeave(e, 'OVERDUE')}
+            onDrop={(e) => handleDrop(e, 'OVERDUE')}
+            className={`rounded-2xl border p-3.5 space-y-3 transition-all ${
+              dragOverCol === 'OVERDUE'
+                ? 'ring-2 ring-[#244B8F] bg-blue-50/50 border-[#244B8F]'
+                : 'bg-slate-50/80 border-rose-200/70'
+            }`}
+          >
             <div className="flex items-center justify-between pb-2 border-b border-rose-100">
               <div className="flex items-center space-x-1.5">
                 <span className="w-2 h-2 rounded-full bg-rose-500" />
@@ -413,55 +553,93 @@ export const TasksKanbanModule: React.FC<TasksKanbanModuleProps> = ({
               {filteredOverdue.length === 0 ? (
                 <p className="text-[11px] text-slate-400 italic text-center py-6">No overdue follow-ups</p>
               ) : (
-                filteredOverdue.map((t) => (
-                  <div
-                    key={t.id}
-                    onClick={() => onOpenLead(t.id)}
-                    className="p-3 bg-white rounded-xl border border-rose-200/80 shadow-2xs hover:shadow-xs transition-shadow cursor-pointer space-y-2"
-                  >
-                    <div className="flex items-start justify-between gap-1">
-                      <div>
-                        <h4 className="font-bold text-slate-900 text-xs">{t.name}</h4>
-                        <p className="text-[11px] text-slate-500 tabular-nums font-medium">
-                          {formatPhoneNumber(t.phone)}
-                        </p>
-                      </div>
-                      <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded">
-                        OVERDUE
-                      </span>
-                    </div>
-
-                    <p className="text-xs text-slate-700 font-medium">
-                      {t.society || 'Residential Lead'}
-                    </p>
-
-                    <div className="text-[11px] text-slate-500 flex items-center justify-between pt-1 border-t border-slate-100">
-                      <span className="tabular-nums font-semibold text-rose-700">
-                        {formatReadableDate(t.next_follow_up_at)}
-                      </span>
-                      <span className="text-[10px] text-slate-400">{t.assigned_staff_name || 'Unassigned'}</span>
-                    </div>
-
+                filteredOverdue.map((t) => {
+                  const leadName = t.displayName || t.name || t.owner_name || t.buyer_name || t.client_name || 'Client';
+                  const isDragging = draggedLeadId === t.id;
+                  return (
                     <div
-                      className="pt-2 flex items-center justify-end space-x-1"
-                      onClick={(e) => e.stopPropagation()}
+                      key={t.id}
+                      draggable={true}
+                      onDragStart={(e) => handleDragStart(e, t.id)}
+                      onDragEnd={handleDragEnd}
+                      onClick={() => onOpenLead(t.id)}
+                      className={`p-3 bg-white rounded-xl border border-rose-200/80 shadow-2xs hover:shadow-xs transition-all cursor-pointer space-y-2 ${
+                        isDragging ? 'opacity-40 scale-98 border-[#244B8F]' : ''
+                      }`}
                     >
-                      <button
-                        type="button"
-                        onClick={() => handleStartReschedule(t.id)}
-                        className="px-2 py-0.5 text-[10px] font-bold text-[#244B8F] hover:bg-blue-50 rounded"
+                      <div className="flex items-start justify-between gap-1">
+                        <div className="flex items-start space-x-1.5 min-w-0">
+                          <GripVertical className="w-3.5 h-3.5 text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing shrink-0 mt-0.5" />
+                          <div className="min-w-0">
+                            <h4 className="font-bold text-slate-900 text-xs truncate">{leadName}</h4>
+                            <p className="text-[11px] text-slate-500 tabular-nums font-medium">
+                              {formatPhoneNumber(t.phone)}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded shrink-0">
+                          OVERDUE
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-slate-700 font-medium truncate">
+                        {t.society || t.apartment_society_name || 'Residential Lead'}
+                      </p>
+
+                      <div className="text-[11px] text-slate-500 flex items-center justify-between pt-1 border-t border-slate-100">
+                        <span className="tabular-nums font-semibold text-rose-700">
+                          {formatReadableDate(t.next_follow_up_at)}
+                        </span>
+                        <span className="text-[10px] text-slate-400">{t.assigned_staff_name || 'Unassigned'}</span>
+                      </div>
+
+                      <div
+                        className="pt-2 flex items-center justify-between gap-1 border-t border-slate-100/70"
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        Reschedule
-                      </button>
+                        <select
+                          aria-label="Move task to another queue"
+                          defaultValue=""
+                          onChange={(e) => {
+                            const val = e.target.value as 'TODAY' | 'UPCOMING' | 'COMPLETED';
+                            if (val) {
+                              handleMoveTo(t.id, val);
+                              e.target.value = '';
+                            }
+                          }}
+                          className="text-[10px] font-semibold text-slate-600 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded px-1.5 py-0.5 cursor-pointer focus:outline-hidden"
+                        >
+                          <option value="" disabled>Move to...</option>
+                          <option value="TODAY">Due Today</option>
+                          <option value="UPCOMING">Upcoming</option>
+                          <option value="COMPLETED">Completed</option>
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => handleStartReschedule(t.id)}
+                          className="px-2 py-0.5 text-[10px] font-bold text-[#244B8F] hover:bg-blue-50 rounded cursor-pointer"
+                        >
+                          Reschedule
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
 
           {/* COLUMN 2: DUE TODAY */}
-          <div className="bg-slate-50/80 rounded-2xl border border-amber-200/70 p-3.5 space-y-3">
+          <div
+            onDragOver={(e) => handleDragOver(e, 'TODAY')}
+            onDragLeave={(e) => handleDragLeave(e, 'TODAY')}
+            onDrop={(e) => handleDrop(e, 'TODAY')}
+            className={`rounded-2xl border p-3.5 space-y-3 transition-all ${
+              dragOverCol === 'TODAY'
+                ? 'ring-2 ring-[#244B8F] bg-blue-50/50 border-[#244B8F]'
+                : 'bg-slate-50/80 border-amber-200/70'
+            }`}
+          >
             <div className="flex items-center justify-between pb-2 border-b border-amber-100">
               <div className="flex items-center space-x-1.5">
                 <span className="w-2 h-2 rounded-full bg-amber-500" />
@@ -476,55 +654,92 @@ export const TasksKanbanModule: React.FC<TasksKanbanModuleProps> = ({
               {filteredDueToday.length === 0 ? (
                 <p className="text-[11px] text-slate-400 italic text-center py-6">No tasks due today</p>
               ) : (
-                filteredDueToday.map((t) => (
-                  <div
-                    key={t.id}
-                    onClick={() => onOpenLead(t.id)}
-                    className="p-3 bg-white rounded-xl border border-amber-200/80 shadow-2xs hover:shadow-xs transition-shadow cursor-pointer space-y-2"
-                  >
-                    <div className="flex items-start justify-between gap-1">
-                      <div>
-                        <h4 className="font-bold text-slate-900 text-xs">{t.name}</h4>
-                        <p className="text-[11px] text-slate-500 tabular-nums font-medium">
-                          {formatPhoneNumber(t.phone)}
-                        </p>
-                      </div>
-                      <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">
-                        TODAY
-                      </span>
-                    </div>
-
-                    <p className="text-xs text-slate-700 font-medium">
-                      {t.society || 'Residential Lead'}
-                    </p>
-
-                    <div className="text-[11px] text-slate-500 flex items-center justify-between pt-1 border-t border-slate-100">
-                      <span className="tabular-nums font-semibold text-amber-800">
-                        {formatReadableTime(t.next_follow_up_at)}
-                      </span>
-                      <span className="text-[10px] text-slate-400">{t.assigned_staff_name || 'Unassigned'}</span>
-                    </div>
-
+                filteredDueToday.map((t) => {
+                  const leadName = t.displayName || t.name || t.owner_name || t.buyer_name || t.client_name || 'Client';
+                  const isDragging = draggedLeadId === t.id;
+                  return (
                     <div
-                      className="pt-2 flex items-center justify-end space-x-1"
-                      onClick={(e) => e.stopPropagation()}
+                      key={t.id}
+                      draggable={true}
+                      onDragStart={(e) => handleDragStart(e, t.id)}
+                      onDragEnd={handleDragEnd}
+                      onClick={() => onOpenLead(t.id)}
+                      className={`p-3 bg-white rounded-xl border border-amber-200/80 shadow-2xs hover:shadow-xs transition-all cursor-pointer space-y-2 ${
+                        isDragging ? 'opacity-40 scale-98 border-[#244B8F]' : ''
+                      }`}
                     >
-                      <button
-                        type="button"
-                        onClick={() => handleStartReschedule(t.id)}
-                        className="px-2 py-0.5 text-[10px] font-bold text-[#244B8F] hover:bg-blue-50 rounded"
+                      <div className="flex items-start justify-between gap-1">
+                        <div className="flex items-start space-x-1.5 min-w-0">
+                          <GripVertical className="w-3.5 h-3.5 text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing shrink-0 mt-0.5" />
+                          <div className="min-w-0">
+                            <h4 className="font-bold text-slate-900 text-xs truncate">{leadName}</h4>
+                            <p className="text-[11px] text-slate-500 tabular-nums font-medium">
+                              {formatPhoneNumber(t.phone)}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded shrink-0">
+                          TODAY
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-slate-700 font-medium truncate">
+                        {t.society || t.apartment_society_name || 'Residential Lead'}
+                      </p>
+
+                      <div className="text-[11px] text-slate-500 flex items-center justify-between pt-1 border-t border-slate-100">
+                        <span className="tabular-nums font-semibold text-amber-800">
+                          {formatReadableTime(t.next_follow_up_at)}
+                        </span>
+                        <span className="text-[10px] text-slate-400">{t.assigned_staff_name || 'Unassigned'}</span>
+                      </div>
+
+                      <div
+                        className="pt-2 flex items-center justify-between gap-1 border-t border-slate-100/70"
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        Reschedule
-                      </button>
+                        <select
+                          aria-label="Move task to another queue"
+                          defaultValue=""
+                          onChange={(e) => {
+                            const val = e.target.value as 'TODAY' | 'UPCOMING' | 'COMPLETED';
+                            if (val) {
+                              handleMoveTo(t.id, val);
+                              e.target.value = '';
+                            }
+                          }}
+                          className="text-[10px] font-semibold text-slate-600 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded px-1.5 py-0.5 cursor-pointer focus:outline-hidden"
+                        >
+                          <option value="" disabled>Move to...</option>
+                          <option value="UPCOMING">Upcoming</option>
+                          <option value="COMPLETED">Completed</option>
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => handleStartReschedule(t.id)}
+                          className="px-2 py-0.5 text-[10px] font-bold text-[#244B8F] hover:bg-blue-50 rounded cursor-pointer"
+                        >
+                          Reschedule
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
 
           {/* COLUMN 3: UPCOMING */}
-          <div className="bg-slate-50/80 rounded-2xl border border-emerald-200/70 p-3.5 space-y-3">
+          <div
+            onDragOver={(e) => handleDragOver(e, 'UPCOMING')}
+            onDragLeave={(e) => handleDragLeave(e, 'UPCOMING')}
+            onDrop={(e) => handleDrop(e, 'UPCOMING')}
+            className={`rounded-2xl border p-3.5 space-y-3 transition-all ${
+              dragOverCol === 'UPCOMING'
+                ? 'ring-2 ring-[#244B8F] bg-blue-50/50 border-[#244B8F]'
+                : 'bg-slate-50/80 border-emerald-200/70'
+            }`}
+          >
             <div className="flex items-center justify-between pb-2 border-b border-emerald-100">
               <div className="flex items-center space-x-1.5">
                 <span className="w-2 h-2 rounded-full bg-emerald-500" />
@@ -539,55 +754,92 @@ export const TasksKanbanModule: React.FC<TasksKanbanModuleProps> = ({
               {filteredUpcoming.length === 0 ? (
                 <p className="text-[11px] text-slate-400 italic text-center py-6">No upcoming tasks</p>
               ) : (
-                filteredUpcoming.map((t) => (
-                  <div
-                    key={t.id}
-                    onClick={() => onOpenLead(t.id)}
-                    className="p-3 bg-white rounded-xl border border-emerald-200/80 shadow-2xs hover:shadow-xs transition-shadow cursor-pointer space-y-2"
-                  >
-                    <div className="flex items-start justify-between gap-1">
-                      <div>
-                        <h4 className="font-bold text-slate-900 text-xs">{t.name}</h4>
-                        <p className="text-[11px] text-slate-500 tabular-nums font-medium">
-                          {formatPhoneNumber(t.phone)}
-                        </p>
-                      </div>
-                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
-                        UPCOMING
-                      </span>
-                    </div>
-
-                    <p className="text-xs text-slate-700 font-medium">
-                      {t.society || 'Residential Lead'}
-                    </p>
-
-                    <div className="text-[11px] text-slate-500 flex items-center justify-between pt-1 border-t border-slate-100">
-                      <span className="tabular-nums font-semibold text-emerald-800">
-                        {formatReadableDate(t.next_follow_up_at)}
-                      </span>
-                      <span className="text-[10px] text-slate-400">{t.assigned_staff_name || 'Unassigned'}</span>
-                    </div>
-
+                filteredUpcoming.map((t) => {
+                  const leadName = t.displayName || t.name || t.owner_name || t.buyer_name || t.client_name || 'Client';
+                  const isDragging = draggedLeadId === t.id;
+                  return (
                     <div
-                      className="pt-2 flex items-center justify-end space-x-1"
-                      onClick={(e) => e.stopPropagation()}
+                      key={t.id}
+                      draggable={true}
+                      onDragStart={(e) => handleDragStart(e, t.id)}
+                      onDragEnd={handleDragEnd}
+                      onClick={() => onOpenLead(t.id)}
+                      className={`p-3 bg-white rounded-xl border border-emerald-200/80 shadow-2xs hover:shadow-xs transition-all cursor-pointer space-y-2 ${
+                        isDragging ? 'opacity-40 scale-98 border-[#244B8F]' : ''
+                      }`}
                     >
-                      <button
-                        type="button"
-                        onClick={() => handleStartReschedule(t.id)}
-                        className="px-2 py-0.5 text-[10px] font-bold text-[#244B8F] hover:bg-blue-50 rounded"
+                      <div className="flex items-start justify-between gap-1">
+                        <div className="flex items-start space-x-1.5 min-w-0">
+                          <GripVertical className="w-3.5 h-3.5 text-slate-300 hover:text-slate-500 cursor-grab active:cursor-grabbing shrink-0 mt-0.5" />
+                          <div className="min-w-0">
+                            <h4 className="font-bold text-slate-900 text-xs truncate">{leadName}</h4>
+                            <p className="text-[11px] text-slate-500 tabular-nums font-medium">
+                              {formatPhoneNumber(t.phone)}
+                            </p>
+                          </div>
+                        </div>
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded shrink-0">
+                          UPCOMING
+                        </span>
+                      </div>
+
+                      <p className="text-xs text-slate-700 font-medium truncate">
+                        {t.society || t.apartment_society_name || 'Residential Lead'}
+                      </p>
+
+                      <div className="text-[11px] text-slate-500 flex items-center justify-between pt-1 border-t border-slate-100">
+                        <span className="tabular-nums font-semibold text-emerald-800">
+                          {formatReadableDate(t.next_follow_up_at)}
+                        </span>
+                        <span className="text-[10px] text-slate-400">{t.assigned_staff_name || 'Unassigned'}</span>
+                      </div>
+
+                      <div
+                        className="pt-2 flex items-center justify-between gap-1 border-t border-slate-100/70"
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        Reschedule
-                      </button>
+                        <select
+                          aria-label="Move task to another queue"
+                          defaultValue=""
+                          onChange={(e) => {
+                            const val = e.target.value as 'TODAY' | 'UPCOMING' | 'COMPLETED';
+                            if (val) {
+                              handleMoveTo(t.id, val);
+                              e.target.value = '';
+                            }
+                          }}
+                          className="text-[10px] font-semibold text-slate-600 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded px-1.5 py-0.5 cursor-pointer focus:outline-hidden"
+                        >
+                          <option value="" disabled>Move to...</option>
+                          <option value="TODAY">Due Today</option>
+                          <option value="COMPLETED">Completed</option>
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => handleStartReschedule(t.id)}
+                          className="px-2 py-0.5 text-[10px] font-bold text-[#244B8F] hover:bg-blue-50 rounded cursor-pointer"
+                        >
+                          Reschedule
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
 
           {/* COLUMN 4: COMPLETED */}
-          <div className="bg-slate-50/80 rounded-2xl border border-slate-200/80 p-3.5 space-y-3">
+          <div
+            onDragOver={(e) => handleDragOver(e, 'COMPLETED')}
+            onDragLeave={(e) => handleDragLeave(e, 'COMPLETED')}
+            onDrop={(e) => handleDrop(e, 'COMPLETED')}
+            className={`rounded-2xl border p-3.5 space-y-3 transition-all ${
+              dragOverCol === 'COMPLETED'
+                ? 'ring-2 ring-[#244B8F] bg-blue-50/50 border-[#244B8F]'
+                : 'bg-slate-50/80 border-slate-200/80'
+            }`}
+          >
             <div className="flex items-center justify-between pb-2 border-b border-slate-200">
               <div className="flex items-center space-x-1.5">
                 <span className="w-2 h-2 rounded-full bg-slate-500" />
@@ -602,34 +854,37 @@ export const TasksKanbanModule: React.FC<TasksKanbanModuleProps> = ({
               {filteredCompleted.length === 0 ? (
                 <p className="text-[11px] text-slate-400 italic text-center py-6">No completed tasks yet</p>
               ) : (
-                filteredCompleted.slice(0, 10).map((l) => (
-                  <div
-                    key={l.id}
-                    onClick={() => onOpenLead(l.id)}
-                    className="p-3 bg-white/80 rounded-xl border border-slate-200 shadow-2xs hover:shadow-xs transition-shadow cursor-pointer space-y-2 opacity-90"
-                  >
-                    <div className="flex items-start justify-between gap-1">
-                      <div>
-                        <h4 className="font-bold text-slate-800 text-xs">{l.owner_name}</h4>
-                        <p className="text-[11px] text-slate-400 tabular-nums">
-                          {formatPhoneNumber(l.phone)}
-                        </p>
+                filteredCompleted.slice(0, 15).map((l) => {
+                  const leadName = l.displayName || l.name || l.owner_name || l.buyer_name || l.client_name || 'Client';
+                  return (
+                    <div
+                      key={l.id}
+                      onClick={() => onOpenLead(l.id)}
+                      className="p-3 bg-white/90 rounded-xl border border-slate-200 shadow-2xs hover:shadow-xs transition-all cursor-pointer space-y-2 opacity-95"
+                    >
+                      <div className="flex items-start justify-between gap-1">
+                        <div>
+                          <h4 className="font-bold text-slate-800 text-xs truncate">{leadName}</h4>
+                          <p className="text-[11px] text-slate-400 tabular-nums">
+                            {formatPhoneNumber(l.phone)}
+                          </p>
+                        </div>
+                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+                          {l.lead_status || 'COMPLETED'}
+                        </span>
                       </div>
-                      <span className="text-[10px] font-bold text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded">
-                        {l.lead_status}
-                      </span>
-                    </div>
 
-                    <p className="text-xs text-slate-600">
-                      {l.apartment_society_name}
-                    </p>
+                      <p className="text-xs text-slate-600 truncate">
+                        {l.society || l.apartment_society_name || 'Residential Unit'}
+                      </p>
 
-                    <div className="text-[11px] text-slate-400 pt-1 border-t border-slate-100 flex items-center justify-between">
-                      <span>Status updated</span>
-                      <span>RM: {l.assigned_staff_name || 'Unassigned'}</span>
+                      <div className="text-[11px] text-slate-400 pt-1 border-t border-slate-100 flex items-center justify-between">
+                        <span>Marked Contacted</span>
+                        <span>RM: {l.assigned_staff_name || 'Unassigned'}</span>
+                      </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>

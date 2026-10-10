@@ -47,7 +47,7 @@ import {
   Download,
   UserPlus
 } from 'lucide-react';
-import { StaffRole } from '../../core/types/auth';
+import { StaffRole, CrmModule, ALL_CRM_MODULES, resolveLegacyModulePermissions } from '../../core/types/auth';
 import { LeadStatus } from '../../core/types/entities';
 import { AdminErasureQueue } from './AdminErasureQueue';
 import { PropertyEditor } from './PropertyEditor';
@@ -69,6 +69,9 @@ export interface CrmLead {
   type?: 'SELLER' | 'BUYER' | string;
   ownerName: string;
   name?: string;
+  displayName?: string;
+  buyer_name?: string;
+  client_name?: string;
   phone: string;
   society: string;
   locality: string;
@@ -133,6 +136,8 @@ export interface CrmStaff {
   email: string;
   phone?: string;
   roles: string[];
+  modules?: CrmModule[];
+  isActive?: boolean;
 }
 
 export interface CrmVisit {
@@ -242,6 +247,45 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
     return 'STAFF_SUPER_ADMIN';
   });
 
+  // User Explicit Module Permissions RBAC
+  const userModules = useMemo<CrmModule[]>(() => {
+    if (staffUser?.module_permissions && staffUser.module_permissions.length > 0) {
+      return staffUser.module_permissions;
+    }
+    return resolveLegacyModulePermissions([currentRole]);
+  }, [staffUser, currentRole]);
+
+  const hasAccess = useCallback((mod: CrmModule): boolean => {
+    return userModules.includes(mod);
+  }, [userModules]);
+
+  // Auto-fallback if the current section is restricted for this user
+  useEffect(() => {
+    const sectionToModuleMap: Record<NavSection, CrmModule> = {
+      OVERVIEW: 'OVERVIEW',
+      LEADS: 'LEADS',
+      PROPERTIES: 'PROPERTIES',
+      VISITS: 'VISITS',
+      OFFERS: 'OFFERS',
+      TASKS: 'TASKS',
+      CALENDAR: 'CALENDAR',
+      TEAM: 'TEAM',
+      REPORTS: 'REPORTS',
+      AUDIT: 'AUDIT_LOGS',
+      SETTINGS: 'SETTINGS',
+    };
+    const requiredModule = sectionToModuleMap[activeSection];
+    if (requiredModule && !hasAccess(requiredModule)) {
+      const allowedSections: NavSection[] = [
+        'OVERVIEW', 'LEADS', 'PROPERTIES', 'VISITS', 'OFFERS', 'TASKS', 'CALENDAR', 'TEAM', 'REPORTS', 'AUDIT', 'SETTINGS'
+      ];
+      const fallback = allowedSections.find(s => hasAccess(sectionToModuleMap[s]));
+      if (fallback) {
+        setActiveSection(fallback);
+      }
+    }
+  }, [activeSection, hasAccess]);
+
   // Global Data State
   const [leads, setLeads] = useState<CrmLead[]>([]);
   const [properties, setProperties] = useState<CrmProperty[]>([]);
@@ -303,9 +347,27 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
     email: '',
     phone: '',
     role: 'STAFF_INTAKE_AGENT' as StaffRole,
-    initialPassword: ''
+    initialPassword: '',
+    modules: resolveLegacyModulePermissions(['STAFF_INTAKE_AGENT']) as CrmModule[]
   });
   const [isCreatingUser, setIsCreatingUser] = useState<boolean>(false);
+
+  // Super Admin: Edit Staff Permissions Modal State
+  const [editingStaffUser, setEditingStaffUser] = useState<CrmStaff | null>(null);
+  const [editUserForm, setEditUserForm] = useState<{
+    displayName: string;
+    phone: string;
+    role: StaffRole;
+    modules: CrmModule[];
+    isActive: boolean;
+  }>({
+    displayName: '',
+    phone: '',
+    role: 'STAFF_INTAKE_AGENT',
+    modules: [],
+    isActive: true
+  });
+  const [isUpdatingUser, setIsUpdatingUser] = useState<boolean>(false);
 
   // Modals
   const [isPropertyEditorOpen, setIsPropertyEditorOpen] = useState<boolean>(false);
@@ -1005,7 +1067,8 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
           email: '',
           phone: '',
           role: 'STAFF_INTAKE_AGENT',
-          initialPassword: ''
+          initialPassword: '',
+          modules: resolveLegacyModulePermissions(['STAFF_INTAKE_AGENT']) as CrmModule[]
         });
         refreshAll();
       } else {
@@ -1018,7 +1081,53 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
     }
   };
 
-  // 13. Super Admin: Update Staff Role
+  // 13. Super Admin: Edit Staff Permissions & Role
+  const handleOpenEditUser = (staff: CrmStaff) => {
+    setEditingStaffUser(staff);
+    const assignedModules = staff.modules && staff.modules.length > 0
+      ? staff.modules
+      : resolveLegacyModulePermissions(staff.roles || []);
+    setEditUserForm({
+      displayName: staff.displayName || staff.name || '',
+      phone: staff.phone || '',
+      role: (staff.roles?.[0] as StaffRole) || 'STAFF_INTAKE_AGENT',
+      modules: assignedModules,
+      isActive: staff.isActive !== false
+    });
+  };
+
+  const handleSaveUserPermissions = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingStaffUser) return;
+    setIsUpdatingUser(true);
+    try {
+      const res = await fetch(`/api/crm/users/${editingStaffUser.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          displayName: editUserForm.displayName,
+          phone: editUserForm.phone,
+          role: editUserForm.role,
+          modules: editUserForm.modules,
+          isActive: editUserForm.isActive
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(`Updated permissions for ${editUserForm.displayName}`, 'success');
+        setEditingStaffUser(null);
+        refreshAll();
+      } else {
+        showToast(data.message || 'Failed to update user permissions', 'error');
+      }
+    } catch {
+      showToast('Network error updating user permissions', 'error');
+    } finally {
+      setIsUpdatingUser(false);
+    }
+  };
+
+  // Legacy role update alias
   const handleUpdateUserRole = async (userId: string, newRole: StaffRole) => {
     try {
       const res = await fetch(`/api/crm/users/${userId}/role`, {
@@ -1212,8 +1321,8 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
   }, [tasks, taskFilter, taskSearch, globalSearch]);
 
   // Permission Checks
-  const canSeeTeam = currentRole === 'STAFF_SUPER_ADMIN' || currentRole === 'STAFF_LISTING_MANAGER';
-  const canSeeAudit = currentRole === 'STAFF_SUPER_ADMIN';
+  const canSeeTeam = hasAccess('TEAM');
+  const canSeeAudit = hasAccess('AUDIT_LOGS');
   const canSeeReservePrice = currentRole === 'STAFF_SUPER_ADMIN' || currentRole === 'STAFF_DEAL_CLOSER';
 
 
@@ -1222,7 +1331,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
       {/* Toast Notification */}
       {toastMessage && (
         <div
-          className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl shadow-lg border text-xs font-semibold flex items-center space-x-2 transition-all duration-200 ${
+          className={`fixed top-4 right-4 z-[100] px-4 py-3 rounded-xl shadow-lg border text-xs font-semibold flex items-center space-x-2 transition-all duration-200 ${
             toastMessage.type === 'success'
               ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
               : toastMessage.type === 'error'
@@ -1265,156 +1374,170 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
           {/* Navigation Items (11 Sections) */}
           <nav className="p-3 space-y-1 overflow-y-auto max-h-[calc(100vh-210px)]">
             {/* 1. Overview */}
-            <button
-              type="button"
-              onClick={() => setActiveSection('OVERVIEW')}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                activeSection === 'OVERVIEW'
-                  ? 'bg-[#244B8F] text-white shadow-xs'
-                  : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
-              }`}
-            >
-              <div className="flex items-center space-x-3">
-                <LayoutDashboard className="w-4 h-4 shrink-0" />
-                <span>Overview</span>
-              </div>
-            </button>
+            {hasAccess('OVERVIEW') && (
+              <button
+                type="button"
+                onClick={() => setActiveSection('OVERVIEW')}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  activeSection === 'OVERVIEW'
+                    ? 'bg-[#244B8F] text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
+                }`}
+              >
+                <div className="flex items-center space-x-3">
+                  <LayoutDashboard className="w-4 h-4 shrink-0" />
+                  <span>Overview</span>
+                </div>
+              </button>
+            )}
 
             {/* 2. Leads */}
-            <button
-              type="button"
-              onClick={() => setActiveSection('LEADS')}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                activeSection === 'LEADS'
-                  ? 'bg-[#244B8F] text-white shadow-xs'
-                  : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
-              }`}
-            >
-              <div className="flex items-center space-x-3">
-                <Users className="w-4 h-4 shrink-0" />
-                <span>Leads</span>
-              </div>
-              <span
-                className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
-                  activeSection === 'LEADS' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+            {hasAccess('LEADS') && (
+              <button
+                type="button"
+                onClick={() => setActiveSection('LEADS')}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  activeSection === 'LEADS'
+                    ? 'bg-[#244B8F] text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
                 }`}
               >
-                {leads.length}
-              </span>
-            </button>
-
-            {/* 3. Properties */}
-            <button
-              type="button"
-              onClick={() => setActiveSection('PROPERTIES')}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                activeSection === 'PROPERTIES'
-                  ? 'bg-[#244B8F] text-white shadow-xs'
-                  : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
-              }`}
-            >
-              <div className="flex items-center space-x-3">
-                <Building2 className="w-4 h-4 shrink-0" />
-                <span>Properties</span>
-              </div>
-              <span
-                className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
-                  activeSection === 'PROPERTIES' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
-                }`}
-              >
-                {properties.length}
-              </span>
-            </button>
-
-            {/* 4. Visits */}
-            <button
-              type="button"
-              onClick={() => setActiveSection('VISITS')}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                activeSection === 'VISITS'
-                  ? 'bg-[#244B8F] text-white shadow-xs'
-                  : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
-              }`}
-            >
-              <div className="flex items-center space-x-3">
-                <CalendarCheck className="w-4 h-4 shrink-0" />
-                <span>Visits</span>
-              </div>
-              <span
-                className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
-                  activeSection === 'VISITS' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
-                }`}
-              >
-                {visits.filter(v => v.status === 'SCHEDULED').length}
-              </span>
-            </button>
-
-            {/* 5. Offers */}
-            <button
-              type="button"
-              onClick={() => setActiveSection('OFFERS')}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                activeSection === 'OFFERS'
-                  ? 'bg-[#244B8F] text-white shadow-xs'
-                  : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
-              }`}
-            >
-              <div className="flex items-center space-x-3">
-                <Tag className="w-4 h-4 shrink-0" />
-                <span>Offers</span>
-              </div>
-              <span
-                className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
-                  activeSection === 'OFFERS' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
-                }`}
-              >
-                {offers.filter(o => o.status === 'PENDING_REVIEW').length}
-              </span>
-            </button>
-
-            {/* 6. Tasks */}
-            <button
-              type="button"
-              onClick={() => setActiveSection('TASKS')}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                activeSection === 'TASKS'
-                  ? 'bg-[#244B8F] text-white shadow-xs'
-                  : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
-              }`}
-            >
-              <div className="flex items-center space-x-3">
-                <Clock className="w-4 h-4 shrink-0" />
-                <span>Tasks</span>
-              </div>
-              {tasks.overdue.length > 0 && (
+                <div className="flex items-center space-x-3">
+                  <Users className="w-4 h-4 shrink-0" />
+                  <span>Leads</span>
+                </div>
                 <span
                   className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
-                    activeSection === 'TASKS' ? 'bg-rose-500 text-white' : 'bg-rose-100 text-rose-700'
+                    activeSection === 'LEADS' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
                   }`}
                 >
-                  {tasks.overdue.length}
+                  {leads.length}
                 </span>
-              )}
-            </button>
+              </button>
+            )}
+
+            {/* 3. Properties */}
+            {hasAccess('PROPERTIES') && (
+              <button
+                type="button"
+                onClick={() => setActiveSection('PROPERTIES')}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  activeSection === 'PROPERTIES'
+                    ? 'bg-[#244B8F] text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
+                }`}
+              >
+                <div className="flex items-center space-x-3">
+                  <Building2 className="w-4 h-4 shrink-0" />
+                  <span>Properties</span>
+                </div>
+                <span
+                  className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                    activeSection === 'PROPERTIES' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                  }`}
+                >
+                  {properties.length}
+                </span>
+              </button>
+            )}
+
+            {/* 4. Visits */}
+            {hasAccess('VISITS') && (
+              <button
+                type="button"
+                onClick={() => setActiveSection('VISITS')}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  activeSection === 'VISITS'
+                    ? 'bg-[#244B8F] text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
+                }`}
+              >
+                <div className="flex items-center space-x-3">
+                  <CalendarCheck className="w-4 h-4 shrink-0" />
+                  <span>Visits</span>
+                </div>
+                <span
+                  className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                    activeSection === 'VISITS' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                  }`}
+                >
+                  {visits.filter(v => v.status === 'SCHEDULED').length}
+                </span>
+              </button>
+            )}
+
+            {/* 5. Offers */}
+            {hasAccess('OFFERS') && (
+              <button
+                type="button"
+                onClick={() => setActiveSection('OFFERS')}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  activeSection === 'OFFERS'
+                    ? 'bg-[#244B8F] text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
+                }`}
+              >
+                <div className="flex items-center space-x-3">
+                  <Tag className="w-4 h-4 shrink-0" />
+                  <span>Offers</span>
+                </div>
+                <span
+                  className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                    activeSection === 'OFFERS' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                  }`}
+                >
+                  {offers.filter(o => o.status === 'PENDING_REVIEW').length}
+                </span>
+              </button>
+            )}
+
+            {/* 6. Tasks */}
+            {hasAccess('TASKS') && (
+              <button
+                type="button"
+                onClick={() => setActiveSection('TASKS')}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  activeSection === 'TASKS'
+                    ? 'bg-[#244B8F] text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
+                }`}
+              >
+                <div className="flex items-center space-x-3">
+                  <Clock className="w-4 h-4 shrink-0" />
+                  <span>Tasks</span>
+                </div>
+                {tasks.overdue.length > 0 && (
+                  <span
+                    className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                      activeSection === 'TASKS' ? 'bg-rose-500 text-white' : 'bg-rose-100 text-rose-700'
+                    }`}
+                  >
+                    {tasks.overdue.length}
+                  </span>
+                )}
+              </button>
+            )}
 
             {/* 7. Calendar */}
-            <button
-              type="button"
-              onClick={() => setActiveSection('CALENDAR')}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                activeSection === 'CALENDAR'
-                  ? 'bg-[#244B8F] text-white shadow-xs'
-                  : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
-              }`}
-            >
-              <div className="flex items-center space-x-3">
-                <Calendar className="w-4 h-4 shrink-0" />
-                <span>Calendar</span>
-              </div>
-            </button>
+            {hasAccess('CALENDAR') && (
+              <button
+                type="button"
+                onClick={() => setActiveSection('CALENDAR')}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  activeSection === 'CALENDAR'
+                    ? 'bg-[#244B8F] text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
+                }`}
+              >
+                <div className="flex items-center space-x-3">
+                  <Calendar className="w-4 h-4 shrink-0" />
+                  <span>Calendar</span>
+                </div>
+              </button>
+            )}
 
             {/* 8. Team */}
-            {canSeeTeam && (
+            {hasAccess('TEAM') && (
               <button
                 type="button"
                 onClick={() => setActiveSection('TEAM')}
@@ -1432,23 +1555,25 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
             )}
 
             {/* 9. Reports */}
-            <button
-              type="button"
-              onClick={() => setActiveSection('REPORTS')}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                activeSection === 'REPORTS'
-                  ? 'bg-[#244B8F] text-white shadow-xs'
-                  : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
-              }`}
-            >
-              <div className="flex items-center space-x-3">
-                <BarChart3 className="w-4 h-4 shrink-0" />
-                <span>Reports</span>
-              </div>
-            </button>
+            {hasAccess('REPORTS') && (
+              <button
+                type="button"
+                onClick={() => setActiveSection('REPORTS')}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  activeSection === 'REPORTS'
+                    ? 'bg-[#244B8F] text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
+                }`}
+              >
+                <div className="flex items-center space-x-3">
+                  <BarChart3 className="w-4 h-4 shrink-0" />
+                  <span>Reports</span>
+                </div>
+              </button>
+            )}
 
             {/* 10. Audit Logs */}
-            {canSeeAudit && (
+            {hasAccess('AUDIT_LOGS') && (
               <button
                 type="button"
                 onClick={() => setActiveSection('AUDIT')}
@@ -1466,20 +1591,22 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
             )}
 
             {/* 11. Settings */}
-            <button
-              type="button"
-              onClick={() => setActiveSection('SETTINGS')}
-              className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
-                activeSection === 'SETTINGS'
-                  ? 'bg-[#244B8F] text-white shadow-xs'
-                  : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
-              }`}
-            >
-              <div className="flex items-center space-x-3">
-                <Settings className="w-4 h-4 shrink-0" />
-                <span>Settings</span>
-              </div>
-            </button>
+            {hasAccess('SETTINGS') && (
+              <button
+                type="button"
+                onClick={() => setActiveSection('SETTINGS')}
+                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  activeSection === 'SETTINGS'
+                    ? 'bg-[#244B8F] text-white shadow-xs'
+                    : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
+                }`}
+              >
+                <div className="flex items-center space-x-3">
+                  <Settings className="w-4 h-4 shrink-0" />
+                  <span>Settings</span>
+                </div>
+              </button>
+            )}
           </nav>
         </div>
 
@@ -1843,7 +1970,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                             <div className="min-w-0 pr-2">
                               <p className="font-bold text-slate-900 truncate">{visit.client_name}</p>
                               <p className="text-[11px] text-slate-500 truncate">
-                                {visit.property_title || 'Unit viewing'} • {visit.visit_date} at {visit.visit_time}
+                                {visit.property_title || 'Unit viewing'} • {formatReadableDate(visit.visit_date)} at {formatReadableTime(visit.visit_time)}
                               </p>
                               <p className="text-[10px] text-slate-400">
                                 Staff: {visit.assigned_staff_name || 'Unassigned'}
@@ -2243,80 +2370,92 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                         </td>
                       </tr>
                     ) : (
-                      filteredLeads.map((lead) => (
-                        <tr
-                          key={lead.id}
-                          onClick={() => setSelectedLeadId(lead.id)}
-                          className="hover:bg-slate-50/70 transition-colors cursor-pointer group"
-                        >
-                          {/* Client / Contact */}
-                          <td className="py-3.5 px-4">
-                            <div className="flex items-center space-x-3">
-                              <div className="w-8 h-8 rounded-full bg-blue-50 border border-blue-200/60 text-[#244B8F] flex items-center justify-center font-bold text-xs shrink-0">
-                                {lead.ownerName ? lead.ownerName[0] : 'L'}
+                      filteredLeads.map((lead) => {
+                        const clientName = lead.displayName || lead.ownerName || lead.name || lead.buyer_name || lead.client_name || 'Client';
+                        const isNewLead = lead.stage === 'NEW';
+
+                        return (
+                          <tr
+                            key={lead.id}
+                            onClick={() => setSelectedLeadId(lead.id)}
+                            className={`transition-colors cursor-pointer group ${
+                              isNewLead
+                                ? 'bg-blue-50/40 hover:bg-blue-50/70 border-l-4 border-l-[#244B8F]'
+                                : 'hover:bg-slate-50/70'
+                            }`}
+                          >
+                            {/* Client / Contact */}
+                            <td className="py-3.5 px-4">
+                              <div className="flex items-center space-x-3">
+                                <div className={`w-8 h-8 rounded-full border flex items-center justify-center font-bold text-xs shrink-0 ${
+                                  isNewLead
+                                    ? 'bg-[#244B8F] text-white border-[#244B8F]'
+                                    : 'bg-blue-50 border-blue-200/60 text-[#244B8F]'
+                                }`}>
+                                  {clientName[0] || 'L'}
+                                </div>
+                                <div className="min-w-0">
+                                  <p className="font-bold text-slate-900 group-hover:text-[#244B8F] transition-colors truncate">
+                                    {clientName}
+                                  </p>
+                                  <p className="text-[11px] text-slate-500 font-mono">
+                                    {lead.phone}
+                                  </p>
+                                </div>
                               </div>
-                              <div className="min-w-0">
-                                <p className="font-bold text-slate-900 group-hover:text-[#244B8F] transition-colors truncate">
-                                  {lead.ownerName}
-                                </p>
-                                <p className="text-[11px] text-slate-500 font-mono">
-                                  {lead.phone}
-                                </p>
+                            </td>
+
+                            {/* Inquiry Type */}
+                            <td className="py-3.5 px-4">
+                              <span
+                                className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                                  lead.type === 'SELLER'
+                                    ? 'bg-blue-50 text-[#244B8F] border border-blue-200/60'
+                                    : 'bg-emerald-50 text-emerald-800 border border-emerald-200/60'
+                                }`}
+                              >
+                                {lead.type || 'SELLER'}
+                              </span>
+                            </td>
+
+                            {/* Property & Locality */}
+                            <td className="py-3.5 px-4 text-slate-700">
+                              <div className="font-semibold text-slate-900 truncate max-w-[180px]">
+                                {lead.society || 'Residential Unit'}
                               </div>
-                            </div>
-                          </td>
+                              <div className="text-[10px] text-slate-400 truncate max-w-[180px]">
+                                {lead.locality}
+                              </div>
+                            </td>
 
-                          {/* Inquiry Type */}
-                          <td className="py-3.5 px-4">
-                            <span
-                              className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                                lead.type === 'SELLER'
-                                  ? 'bg-blue-50 text-[#244B8F] border border-blue-200/60'
-                                  : 'bg-emerald-50 text-emerald-800 border border-emerald-200/60'
-                              }`}
-                            >
-                              {lead.type || 'SELLER'}
-                            </span>
-                          </td>
+                            {/* BHK & Budget */}
+                            <td className="py-3.5 px-4 text-slate-700">
+                              <div className="font-bold text-slate-900">{lead.bhk || '2 BHK'}</div>
+                              <div className="text-[11px] text-slate-500 font-medium">{lead.expectedPrice || 'Market'}</div>
+                            </td>
 
-                          {/* Property & Locality */}
-                          <td className="py-3.5 px-4 text-slate-700">
-                            <div className="font-semibold text-slate-900 truncate max-w-[180px]">
-                              {lead.society || 'Residential Unit'}
-                            </div>
-                            <div className="text-[10px] text-slate-400 truncate max-w-[180px]">
-                              {lead.locality}
-                            </div>
-                          </td>
-
-                          {/* BHK & Budget */}
-                          <td className="py-3.5 px-4 text-slate-700">
-                            <div className="font-bold text-slate-900">{lead.bhk || '2 BHK'}</div>
-                            <div className="text-[11px] text-slate-500 font-medium">{lead.expectedPrice || 'Market'}</div>
-                          </td>
-
-                          {/* Lifecycle Stage */}
-                          <td className="py-3.5 px-4">
-                            <span
-                              className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                                lead.stage === 'NEW'
-                                  ? 'bg-blue-50 text-[#244B8F]'
-                                  : lead.stage === 'CONTACTED'
-                                  ? 'bg-indigo-50 text-indigo-700'
-                                  : lead.stage === 'FOLLOW_UP'
-                                  ? 'bg-amber-50 text-amber-800'
-                                  : lead.stage === 'SITE_VISIT'
-                                  ? 'bg-sky-50 text-sky-800'
-                                  : lead.stage === 'NEGOTIATION'
-                                  ? 'bg-purple-50 text-purple-800'
-                                  : lead.stage === 'CONVERTED'
-                                  ? 'bg-emerald-50 text-emerald-800'
-                                  : 'bg-slate-100 text-slate-600'
-                              }`}
-                            >
-                              {lead.stage}
-                            </span>
-                          </td>
+                            {/* Lifecycle Stage */}
+                            <td className="py-3.5 px-4">
+                              <span
+                                className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                                  isNewLead
+                                    ? 'bg-[#244B8F] text-white font-extrabold tracking-wide shadow-xs'
+                                    : lead.stage === 'CONTACTED'
+                                    ? 'bg-indigo-50 text-indigo-700'
+                                    : lead.stage === 'FOLLOW_UP'
+                                    ? 'bg-amber-50 text-amber-800'
+                                    : lead.stage === 'SITE_VISIT'
+                                    ? 'bg-sky-50 text-sky-800'
+                                    : lead.stage === 'NEGOTIATION'
+                                    ? 'bg-purple-50 text-purple-800'
+                                    : lead.stage === 'CONVERTED'
+                                    ? 'bg-emerald-50 text-emerald-800'
+                                    : 'bg-slate-100 text-slate-600'
+                                }`}
+                              >
+                                {lead.stage}
+                              </span>
+                            </td>
 
                           {/* Assigned Staff */}
                           <td className="py-3.5 px-4 text-slate-600">
@@ -2365,8 +2504,9 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                             </button>
                           </td>
                         </tr>
-                      ))
-                    )}
+                      );
+                    })
+                  )}
                   </tbody>
                 </table>
 
@@ -2882,8 +3022,8 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                             <div className="text-[10px] text-slate-400">{visit.property_locality}</div>
                           </td>
                           <td className="py-3.5 px-4">
-                            <span className="font-bold text-slate-900">{visit.visit_date}</span>
-                            <span className="text-slate-400 ml-1.5 font-mono">{visit.visit_time}</span>
+                            <span className="font-bold text-slate-900">{formatReadableDate(visit.visit_date)}</span>
+                            <span className="text-slate-500 ml-1.5 font-medium tabular-nums">{formatReadableTime(visit.visit_time)}</span>
                           </td>
                           <td className="py-3.5 px-4 text-slate-600">
                             {visit.assigned_staff_name ? (
@@ -3244,6 +3384,9 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               onRescheduleLead={async (leadId, dateStr, timeStr) => {
                 await handleScheduleFollowUpWithDateTime(leadId, dateStr, timeStr);
               }}
+              onMarkLeadContacted={async (leadId) => {
+                await handleUpdateLeadStatus(leadId, 'CONTACTED');
+              }}
             />
           )}
 
@@ -3320,62 +3463,80 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                       <th className="py-3.5 px-4">Staff Member</th>
                       <th className="py-3.5 px-4">Email Address</th>
                       <th className="py-3.5 px-4">Phone</th>
-                      <th className="py-3.5 px-4">Assigned Roles</th>
+                      <th className="py-3.5 px-4">Operational Role</th>
+                      <th className="py-3.5 px-4">Module Permissions</th>
                       <th className="py-3.5 px-4">Active Leads</th>
                       {currentRole === 'STAFF_SUPER_ADMIN' && (
-                        <th className="py-3.5 px-4 text-right">Role Governance</th>
+                        <th className="py-3.5 px-4 text-right">Governance</th>
                       )}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {staffList.map((staff) => (
-                      <tr key={staff.id} className="hover:bg-slate-50/70 transition-colors">
-                        <td className="py-3.5 px-4">
-                          <div className="flex items-center space-x-3">
-                            <div className="w-8 h-8 rounded-full bg-[#172033] text-white flex items-center justify-center font-bold text-xs shrink-0">
-                              {staff.displayName[0]}
+                    {staffList.map((staff) => {
+                      const assignedModules = staff.modules && staff.modules.length > 0
+                        ? staff.modules
+                        : resolveLegacyModulePermissions(staff.roles || []);
+
+                      return (
+                        <tr key={staff.id} className="hover:bg-slate-50/70 transition-colors">
+                          <td className="py-3.5 px-4">
+                            <div className="flex items-center space-x-3">
+                              <div className="w-8 h-8 rounded-full bg-[#172033] text-white flex items-center justify-center font-bold text-xs shrink-0">
+                                {staff.displayName[0]}
+                              </div>
+                              <div>
+                                <span className="font-bold text-slate-900 block">{staff.displayName}</span>
+                                {staff.isActive === false && (
+                                  <span className="text-[10px] text-rose-600 font-bold bg-rose-50 px-1.5 py-0.2 rounded">
+                                    Deactivated
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                            <span className="font-bold text-slate-900">{staff.displayName}</span>
-                          </div>
-                        </td>
-                        <td className="py-3.5 px-4 text-slate-500 font-mono">
-                          {staff.email}
-                        </td>
-                        <td className="py-3.5 px-4 text-slate-500 font-mono">
-                          {staff.phone || '—'}
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <div className="flex flex-wrap gap-1">
-                            {staff.roles.map((role) => (
-                              <span
-                                key={role}
-                                className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200/80"
-                              >
-                                {role.replace('STAFF_', '')}
-                              </span>
-                            ))}
-                          </div>
-                        </td>
-                        <td className="py-3.5 px-4 font-bold text-slate-900">
-                          {leads.filter(l => l.assignedStaffId === staff.id).length}
-                        </td>
-                        {currentRole === 'STAFF_SUPER_ADMIN' && (
-                          <td className="py-3.5 px-4 text-right">
-                            <select
-                              value={staff.roles[0] || 'STAFF_INTAKE_AGENT'}
-                              onChange={(e) => handleUpdateUserRole(staff.id, e.target.value as StaffRole)}
-                              className="p-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 cursor-pointer"
-                            >
-                              <option value="STAFF_INTAKE_AGENT">Intake Agent</option>
-                              <option value="STAFF_VERIFICATION_AGENT">Verification Agent</option>
-                              <option value="STAFF_LISTING_MANAGER">Listing Manager</option>
-                              <option value="STAFF_DEAL_CLOSER">Deal Closer</option>
-                              <option value="STAFF_SUPER_ADMIN">Super Admin</option>
-                            </select>
                           </td>
-                        )}
-                      </tr>
-                    ))}
+                          <td className="py-3.5 px-4 text-slate-500 font-mono">
+                            {staff.email}
+                          </td>
+                          <td className="py-3.5 px-4 text-slate-500 font-mono">
+                            {staff.phone || '—'}
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200/80">
+                              {(staff.roles[0] || 'STAFF_INTAKE_AGENT').replace('STAFF_', '')}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <div className="flex flex-wrap gap-1 max-w-xs">
+                              {assignedModules.length === 11 ? (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-[#244B8F] border border-blue-200">
+                                  All 11 Modules
+                                </span>
+                              ) : (
+                                assignedModules.map(m => (
+                                  <span key={m} className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
+                                    {m}
+                                  </span>
+                                ))
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4 font-bold text-slate-900">
+                            {leads.filter(l => l.assignedStaffId === staff.id).length}
+                          </td>
+                          {currentRole === 'STAFF_SUPER_ADMIN' && (
+                            <td className="py-3.5 px-4 text-right">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditUser(staff)}
+                                className="px-2.5 py-1.5 text-xs font-bold bg-slate-100 hover:bg-[#244B8F] hover:text-white text-slate-700 rounded-xl transition-colors cursor-pointer border border-slate-200 shadow-2xs"
+                              >
+                                Edit Permissions
+                              </button>
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
 
@@ -3700,16 +3861,21 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
             <div className="px-6 py-4 border-b border-slate-200/80 flex items-center justify-between bg-white shrink-0">
               <div className="flex items-center space-x-3.5">
                 <div className="w-10 h-10 rounded-full bg-[#244B8F] text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
-                  {(leadDetailData?.lead?.owner_name || leadDetailData?.lead?.ownerName || 'C')[0]}
+                  {((leadDetailData?.lead?.displayName || leadDetailData?.lead?.owner_name || leadDetailData?.lead?.ownerName || leadDetailData?.lead?.buyer_name || leadDetailData?.lead?.name || 'C'))[0]}
                 </div>
                 <div>
                   <div className="flex items-center space-x-2">
                     <h3 className="text-base font-bold text-[#172033]">
-                      {leadDetailData?.lead?.owner_name || leadDetailData?.lead?.ownerName || 'Customer Details'}
+                      {leadDetailData?.lead?.displayName || leadDetailData?.lead?.owner_name || leadDetailData?.lead?.ownerName || leadDetailData?.lead?.buyer_name || leadDetailData?.lead?.name || 'Customer Details'}
                     </h3>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-[#244B8F]">
                       {leadDetailData?.lead?.type || 'SELLER'}
                     </span>
+                    {(leadDetailData?.lead?.lead_status === 'NEW' || leadDetailData?.lead?.stage === 'NEW') && (
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-[#244B8F] text-white shadow-xs">
+                        NEW
+                      </span>
+                    )}
                   </div>
                   <span className="font-mono text-[10px] text-slate-400">{selectedLeadId}</span>
                 </div>
@@ -3948,7 +4114,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                           setScheduleVisitForm(prev => ({
                             ...prev,
                             leadId: selectedLeadId,
-                            clientName: leadDetailData.lead.owner_name || '',
+                            clientName: leadDetailData.lead.displayName || leadDetailData.lead.owner_name || leadDetailData.lead.name || leadDetailData.lead.buyer_name || '',
                             clientPhone: leadDetailData.lead.phone || '',
                             propertyId: leadDetailData.lead.property_id || properties[0]?.id || ''
                           }));
@@ -3967,7 +4133,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                         {leadDetailData.visits.map((v: any) => (
                           <div key={v.id} className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/70 flex items-center justify-between">
                             <div>
-                              <strong className="text-slate-900 block">{v.visit_date} at {v.visit_time}</strong>
+                              <strong className="text-slate-900 block">{formatReadableDate(v.visit_date)} at {formatReadableTime(v.visit_time)}</strong>
                               <span className="text-[10px] text-slate-500">{v.status}</span>
                             </div>
                             {v.status === 'SCHEDULED' && (
@@ -4068,7 +4234,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                             ...prev,
                             leadId: selectedLeadId,
                             propertyId: leadDetailData.lead.property_id || properties[0]?.id || '',
-                            buyerName: leadDetailData.lead.type === 'BUYER' ? (leadDetailData.lead.owner_name || '') : '',
+                            buyerName: leadDetailData.lead.type === 'BUYER' ? (leadDetailData.lead.displayName || leadDetailData.lead.buyer_name || leadDetailData.lead.owner_name || leadDetailData.lead.name || '') : '',
                             buyerPhone: leadDetailData.lead.type === 'BUYER' ? (leadDetailData.lead.phone || '') : ''
                           }));
                           setIsRecordOfferOpen(true);
@@ -4417,7 +4583,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                           <div key={v.id} className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/70 flex items-center justify-between">
                             <div>
                               <strong className="text-slate-900">{v.client_name}</strong>
-                              <p className="text-[10px] text-slate-500">{v.visit_date} at {v.visit_time}</p>
+                              <p className="text-[10px] text-slate-500">{formatReadableDate(v.visit_date)} at {formatReadableTime(v.visit_time)}</p>
                               {v.assigned_staff_name && (
                                 <p className="text-[10px] text-slate-400">Assigned: {v.assigned_staff_name}</p>
                               )}
@@ -4947,7 +5113,14 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 <select
                   required
                   value={addUserForm.role}
-                  onChange={(e) => setAddUserForm({ ...addUserForm, role: e.target.value as StaffRole })}
+                  onChange={(e) => {
+                    const newRole = e.target.value as StaffRole;
+                    setAddUserForm({
+                      ...addUserForm,
+                      role: newRole,
+                      modules: resolveLegacyModulePermissions([newRole])
+                    });
+                  }}
                   className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-medium text-slate-900 text-xs cursor-pointer"
                 >
                   <option value="STAFF_INTAKE_AGENT">Intake Agent (Inquiries & Lead Onboarding)</option>
@@ -4973,6 +5146,71 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 />
               </div>
 
+              {/* 11 Module Checkboxes for New Account */}
+              <div className="pt-2 border-t border-slate-100 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                    Assigned Module Permissions (11 Modules)
+                  </label>
+                  <div className="flex items-center space-x-2 text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() => setAddUserForm({ ...addUserForm, modules: ALL_CRM_MODULES.map(m => m.key) })}
+                      className="text-[#244B8F] font-bold hover:underline cursor-pointer"
+                    >
+                      Select All
+                    </button>
+                    <span className="text-slate-300">|</span>
+                    <button
+                      type="button"
+                      onClick={() => setAddUserForm({ ...addUserForm, modules: resolveLegacyModulePermissions([addUserForm.role]) })}
+                      className="text-slate-600 font-semibold hover:underline cursor-pointer"
+                    >
+                      Reset Defaults
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto pr-1">
+                  {ALL_CRM_MODULES.map((mod) => {
+                    const isChecked = addUserForm.modules.includes(mod.key);
+                    return (
+                      <label
+                        key={mod.key}
+                        className={`flex items-start space-x-2 p-2 rounded-xl border transition-all cursor-pointer ${
+                          isChecked
+                            ? 'bg-blue-50/50 border-[#244B8F]/40 text-slate-900'
+                            : 'bg-slate-50/50 border-slate-200 text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setAddUserForm({
+                                ...addUserForm,
+                                modules: [...addUserForm.modules, mod.key]
+                              });
+                            } else {
+                              setAddUserForm({
+                                ...addUserForm,
+                                modules: addUserForm.modules.filter(m => m !== mod.key)
+                              });
+                            }
+                          }}
+                          className="mt-0.5 rounded border-slate-300 text-[#244B8F] focus:ring-[#244B8F]"
+                        />
+                        <div className="min-w-0">
+                          <p className="font-bold text-xs">{mod.label}</p>
+                          <p className="text-[10px] text-slate-500 leading-tight">{mod.description}</p>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div className="pt-2 flex justify-end space-x-2">
                 <button
                   type="button"
@@ -4987,6 +5225,180 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   className="px-5 py-2 rounded-xl bg-[#244B8F] text-white font-bold hover:bg-[#1B396E] disabled:opacity-50 cursor-pointer shadow-xs"
                 >
                   {isCreatingUser ? 'Creating Account...' : 'Provision Staff'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* MODAL: EDIT STAFF PERMISSIONS & ROLES                          */}
+      {/* ============================================================== */}
+      {editingStaffUser && (
+        <div className="fixed inset-0 z-50 overflow-hidden flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+          <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200/80 overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-200/80 bg-slate-50/50 flex items-center justify-between">
+              <h3 className="font-bold text-sm text-slate-900 flex items-center space-x-2">
+                <ShieldCheck className="w-4 h-4 text-[#244B8F]" />
+                <span>Edit Permissions: {editingStaffUser.displayName}</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setEditingStaffUser(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveUserPermissions} className="p-6 space-y-4 text-xs max-h-[85vh] overflow-y-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Display Name
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editUserForm.displayName}
+                    onChange={(e) => setEditUserForm({ ...editUserForm, displayName: e.target.value })}
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                    Phone Number
+                  </label>
+                  <input
+                    type="tel"
+                    value={editUserForm.phone}
+                    onChange={(e) => setEditUserForm({ ...editUserForm, phone: e.target.value })}
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Assigned Operational Role
+                </label>
+                <select
+                  value={editUserForm.role}
+                  onChange={(e) => {
+                    const newRole = e.target.value as StaffRole;
+                    setEditUserForm({
+                      ...editUserForm,
+                      role: newRole,
+                      modules: resolveLegacyModulePermissions([newRole])
+                    });
+                  }}
+                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-medium text-slate-900 text-xs cursor-pointer"
+                >
+                  <option value="STAFF_INTAKE_AGENT">Intake Agent (Inquiries & Lead Onboarding)</option>
+                  <option value="STAFF_VERIFICATION_AGENT">Verification Agent (Document & Physical Verification)</option>
+                  <option value="STAFF_LISTING_MANAGER">Listing Manager (Catalog & Publishing)</option>
+                  <option value="STAFF_DEAL_CLOSER">Deal Closer (Negotiations & Reserve Price Access)</option>
+                  <option value="STAFF_SUPER_ADMIN">Super Admin (Full Governance & Security)</option>
+                </select>
+              </div>
+
+              {/* 11 Module Checkboxes */}
+              <div className="pt-2 border-t border-slate-100 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                    Module Access Permissions (11 Modules)
+                  </label>
+                  <div className="flex items-center space-x-2 text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() => setEditUserForm({ ...editUserForm, modules: ALL_CRM_MODULES.map(m => m.key) })}
+                      className="text-[#244B8F] font-bold hover:underline cursor-pointer"
+                    >
+                      Select All
+                    </button>
+                    <span className="text-slate-300">|</span>
+                    <button
+                      type="button"
+                      onClick={() => setEditUserForm({ ...editUserForm, modules: resolveLegacyModulePermissions([editUserForm.role]) })}
+                      className="text-slate-600 font-semibold hover:underline cursor-pointer"
+                    >
+                      Reset Defaults
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
+                  {ALL_CRM_MODULES.map((mod) => {
+                    const isChecked = editUserForm.modules.includes(mod.key);
+                    return (
+                      <label
+                        key={mod.key}
+                        className={`flex items-start space-x-2.5 p-2 rounded-xl border transition-all cursor-pointer ${
+                          isChecked
+                            ? 'bg-blue-50/50 border-[#244B8F]/40 text-slate-900'
+                            : 'bg-slate-50/50 border-slate-200 text-slate-600 hover:bg-slate-50'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setEditUserForm({
+                                ...editUserForm,
+                                modules: [...editUserForm.modules, mod.key]
+                              });
+                            } else {
+                              setEditUserForm({
+                                ...editUserForm,
+                                modules: editUserForm.modules.filter(m => m !== mod.key)
+                              });
+                            }
+                          }}
+                          className="mt-0.5 rounded border-slate-300 text-[#244B8F] focus:ring-[#244B8F]"
+                        />
+                        <div className="min-w-0">
+                          <p className="font-bold text-xs">{mod.label}</p>
+                          <p className="text-[10px] text-slate-500 leading-tight">{mod.description}</p>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Active Account Status Switch */}
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                <div>
+                  <span className="font-bold text-xs text-slate-900 block">Account Status</span>
+                  <span className="text-[10px] text-slate-500">Enable or disable staff access to the CRM</span>
+                </div>
+                <label className="relative inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={editUserForm.isActive}
+                    onChange={(e) => setEditUserForm({ ...editUserForm, isActive: e.target.checked })}
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-slate-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#244B8F]"></div>
+                </label>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingStaffUser(null)}
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isUpdatingUser}
+                  className="px-5 py-2 rounded-xl bg-[#244B8F] text-white font-bold hover:bg-[#1B396E] disabled:opacity-50 cursor-pointer shadow-xs"
+                >
+                  {isUpdatingUser ? 'Saving Changes...' : 'Save Permissions'}
                 </button>
               </div>
             </form>

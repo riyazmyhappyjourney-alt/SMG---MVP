@@ -128,17 +128,6 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                   Grievance Officer
                 </button>
               </li>
-              {onConsentPortalOpen && (
-                <li>
-                  <button
-                    type="button"
-                    onClick={onConsentPortalOpen}
-                    className="hover:text-white transition-colors cursor-pointer text-slate-400"
-                  >
-                    Manage My Consents
-                  </button>
-                </li>
-              )}
             </ul>
           </div>
 

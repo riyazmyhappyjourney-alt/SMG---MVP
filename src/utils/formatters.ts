@@ -73,15 +73,30 @@ export function formatReadableDate(dateInput: string | Date | null | undefined):
  */
 export function formatReadableTime(timeInput: string | Date | null | undefined): string {
   if (!timeInput) return '—';
-  if (typeof timeInput === 'string' && /^(0?[1-9]|1[0-2]):[0-5][0-9]\s*(AM|PM)$/i.test(timeInput.trim())) {
-    return timeInput.toUpperCase().trim();
+  if (typeof timeInput === 'string') {
+    const trimmed = timeInput.trim();
+    // 1. Matches 12-hour format e.g. "11:30 AM", "4:00 PM", "09:15 am"
+    const match12 = trimmed.match(/^(\d{1,2}):(\d{2})(?::\d{2})?\s*(AM|PM)$/i);
+    if (match12) {
+      const h = parseInt(match12[1], 10);
+      const m = match12[2];
+      const period = match12[3].toUpperCase();
+      const hour12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+      return `${String(hour12).padStart(2, '0')}:${m} ${period}`;
+    }
+
+    // 2. Matches 24-hour time format e.g. "14:30", "09:00", "00:30", "23:59:00"
+    const match24 = trimmed.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+    if (match24) {
+      const h = parseInt(match24[1], 10);
+      const m = match24[2];
+      const period = h >= 12 ? 'PM' : 'AM';
+      const hour12 = h % 12 === 0 ? 12 : h % 12;
+      return `${String(hour12).padStart(2, '0')}:${m} ${period}`;
+    }
   }
-  if (typeof timeInput === 'string' && /^\d{2}:\d{2}$/.test(timeInput.trim())) {
-    const [h, m] = timeInput.split(':').map(Number);
-    const period = h >= 12 ? 'PM' : 'AM';
-    const hour12 = h % 12 === 0 ? 12 : h % 12;
-    return `${String(hour12).padStart(2, '0')}:${String(m).padStart(2, '0')} ${period}`;
-  }
+
+  // 3. Fallback to Date object or ISO string
   const d = new Date(timeInput);
   if (isNaN(d.getTime()) || d.getTime() === 0 || d.getFullYear() <= 1970) {
     return '—';

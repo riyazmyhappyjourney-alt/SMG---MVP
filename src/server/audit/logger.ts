@@ -62,6 +62,7 @@ export type AuditableAction =
   | 'OFFER_RECORDED'
   | 'OFFER_STATUS_CHANGED'
   | 'STAFF_USER_CREATED'
+  | 'STAFF_USER_UPDATED'
   | 'STAFF_ROLE_CHANGED';
 
 export type AlertSeverity = 'ROUTINE' | 'ELEVATED_INSIDER_RISK' | 'CRITICAL_SECURITY_EVENT';
