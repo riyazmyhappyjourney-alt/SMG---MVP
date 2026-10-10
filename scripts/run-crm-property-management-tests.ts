@@ -856,6 +856,151 @@ export async function runCrmPropertyManagementTests(): Promise<{ passed: number;
       'TEST 41d: Public property gallery follows persisted display order with featured cover first'
     );
 
+    // =============================================================
+    // TEST 42: CRM PROPERTY DETAILS WORKFLOW & SECURITY GATE
+    // =============================================================
+    // 42a: Staff Deal Closer gets 200 with enriched property, owner, linkedLead, documents, visits, offers
+    const propDetailsRes = await dispatchRequest(app, `/api/crm/properties/prop-dev-seed-01/details`, {
+      method: 'GET',
+      headers: { authorization: `Bearer ${staffCloserToken}` },
+    });
+    const propDetailsJson = await propDetailsRes.json();
+    assert(
+      propDetailsRes.status === 200 &&
+      propDetailsJson?.success === true &&
+      propDetailsJson?.property?.id === 'prop-dev-seed-01' &&
+      propDetailsJson?.owner?.id === 'usr-customer-seller-01' &&
+      Array.isArray(propDetailsJson?.documents) &&
+      Array.isArray(propDetailsJson?.visits) &&
+      Array.isArray(propDetailsJson?.offers),
+      'TEST 42a: GET /api/crm/properties/:id/details returns 200 with property, owner, documents, visits, and offers for staff'
+    );
+
+    // 42b: Sensitive auth internals (password_hash, token_version) are strictly never returned
+    const ownerObj = propDetailsJson?.owner;
+    assert(
+      ownerObj !== null &&
+      ownerObj?.password_hash === undefined &&
+      ownerObj?.token_version === undefined &&
+      ownerObj?.failed_login_attempts === undefined,
+      'TEST 42b: Property owner DTO strictly excludes password_hash and all authentication internals'
+    );
+
+    // 42c: Authorized staff (STAFF_DEAL_CLOSER) can see reserve_minimum_price_inr
+    assert(
+      propDetailsJson?.property?.reserve_minimum_price_inr !== undefined &&
+      propDetailsJson?.property?.reserve_minimum_price_inr > 0,
+      'TEST 42c: Authorized STAFF_DEAL_CLOSER role can see reserve_minimum_price_inr'
+    );
+
+    // 42d: Unauthorized staff role (STAFF_INTAKE_AGENT) cannot see reserve_minimum_price_inr
+    const intakeDetailsRes = await dispatchRequest(app, `/api/crm/properties/prop-dev-seed-01/details`, {
+      method: 'GET',
+      headers: { authorization: `Bearer ${staffIntakeToken}` },
+    });
+    const intakeDetailsJson = await intakeDetailsRes.json();
+    assert(
+      intakeDetailsRes.status === 200 &&
+      intakeDetailsJson?.property?.reserve_minimum_price_inr === undefined &&
+      (intakeDetailsJson?.linkedLead === null || intakeDetailsJson?.linkedLead?.reserve_minimum_price_inr === undefined),
+      'TEST 42d: STAFF_INTAKE_AGENT has reserve_minimum_price_inr stripped from property and linkedLead DTO'
+    );
+
+    // 42e: Non-staff role (BUYER) is rejected with 403 FORBIDDEN
+    const customerDetailsRes = await dispatchRequest(app, `/api/crm/properties/prop-dev-seed-01/details`, {
+      method: 'GET',
+      headers: { authorization: `Bearer ${customerToken}` },
+    });
+    assert(
+      customerDetailsRes.status === 403,
+      'TEST 42e: Non-staff (BUYER) access to property details is rejected with HTTP 403 FORBIDDEN'
+    );
+
+    // 42f: Requesting a non-existent property returns 404 PROPERTY_NOT_FOUND
+    const missingPropRes = await dispatchRequest(app, `/api/crm/properties/prop-does-not-exist/details`, {
+      method: 'GET',
+      headers: { authorization: `Bearer ${staffCloserToken}` },
+    });
+    const missingPropJson = await missingPropRes.json();
+    assert(
+      missingPropRes.status === 404 && missingPropJson?.error === 'PROPERTY_NOT_FOUND',
+      'TEST 42f: Non-existent property returns 404 with error PROPERTY_NOT_FOUND'
+    );
+
+    // 42g: Assigned staff fields are populated when assignment exists
+    const hasAssignedVisit = propDetailsJson?.visits?.some((v: any) => v.assigned_staff_name !== undefined);
+    assert(
+      hasAssignedVisit === true,
+      'TEST 42g: Assigned staff name is populated via users join on visits'
+    );
+
+    // 42h: Properties CSV export strictly omits confidential reserve price
+    const propCsvRes = await dispatchRequest(app, `/api/crm/reports/export-csv?type=properties`, {
+      method: 'GET',
+      headers: { authorization: `Bearer ${staffToken}` },
+    });
+    const propCsvText = propCsvRes.body;
+    assert(
+      propCsvRes.status === 200 &&
+      String(propCsvRes.headers['content-type'] || '').includes('text/csv') &&
+      !propCsvText.includes('reserve_minimum_price_inr') &&
+      !propCsvText.includes('27500000'),
+      'TEST 42h: GET /api/crm/reports/export-csv?type=properties succeeds and strictly omits reserve_minimum_price_inr'
+    );
+
+    // 42i: Provision staff user with strict @sellmyghar.in domain validation
+    const newUserEmail = `ops.${Date.now()}@sellmyghar.in`;
+    const createStaffRes = await dispatchRequest(app, `/api/crm/users`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${staffAdminToken}` },
+      body: {
+        fullName: 'Operations Agent',
+        email: newUserEmail,
+        phone: '+919845099881',
+        role: 'STAFF_INTAKE_AGENT',
+        initialPassword: 'SecurePassword123!',
+      },
+    });
+    const createStaffJson = await createStaffRes.json();
+    assert(
+      createStaffRes.status === 201 &&
+      createStaffJson?.success === true &&
+      createStaffJson?.user?.email === newUserEmail &&
+      createStaffJson?.user?.roles?.includes('STAFF_INTAKE_AGENT'),
+      'TEST 42i: POST /api/crm/users by STAFF_SUPER_ADMIN provisions new staff account with verified @sellmyghar.in domain'
+    );
+
+    // 42j: Provision staff user rejects non-sellmyghar.in domain
+    const badDomainRes = await dispatchRequest(app, `/api/crm/users`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${staffAdminToken}` },
+      body: {
+        fullName: 'External User',
+        email: 'attacker@external.com',
+        phone: '+919845099882',
+        role: 'STAFF_INTAKE_AGENT',
+        initialPassword: 'SecurePassword123!',
+      },
+    });
+    const badDomainJson = await badDomainRes.json();
+    assert(
+      badDomainRes.status === 400 && badDomainJson?.error === 'INVALID_DOMAIN',
+      'TEST 42j: POST /api/crm/users fails closed with 400 INVALID_DOMAIN when email domain is not @sellmyghar.in'
+    );
+
+    // 42k: Super Admin updates staff role
+    const createdUserId = createStaffJson?.user?.id;
+    const updateRoleRes = await dispatchRequest(app, `/api/crm/users/${createdUserId}/role`, {
+      method: 'PATCH',
+      headers: { authorization: `Bearer ${staffAdminToken}` },
+      body: { role: 'STAFF_VERIFICATION_AGENT' },
+    });
+    const updateRoleJson = await updateRoleRes.json();
+    assert(
+      updateRoleRes.status === 200 && updateRoleJson?.success === true,
+      'TEST 42k: PATCH /api/crm/users/:id/role updates staff role to STAFF_VERIFICATION_AGENT'
+    );
+
   } catch (err: any) {
     results.push(`[FATAL] Unhandled test exception: ${err.message}`);
     failed++;

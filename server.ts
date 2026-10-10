@@ -3906,7 +3906,47 @@ app.get('/api/crm/reports/export-csv', authenticateUser, async (req: Request, re
       return res.status(200).send(csvLines.join('\n'));
     }
 
-    return res.status(400).json({ error: 'INVALID_REPORT_TYPE', message: 'Supported types: leads, visits, offers.' });
+    if (type === 'properties') {
+      let query = `
+        SELECT p.id, p.title, p.property_type, p.public_address, p.bhk_type, p.super_builtup_area_sqft, p.asking_price_inr, p.listing_status, p.crm_status, p.verification_tier, p.created_at
+        FROM properties p
+        WHERE 1=1
+      `;
+      const params: any[] = [];
+      if (status && status !== 'ALL') {
+        params.push(status);
+        query += ` AND p.listing_status = $${params.length}`;
+      }
+      query += ` ORDER BY p.created_at DESC;`;
+
+      const result = await executeQuery(query, params);
+      const rows = result.rows || [];
+
+      // STRICT CONFIDENTIALITY: reserve_minimum_price_inr is NEVER exported to CSV
+      const headers = ['Property ID', 'Title', 'Type', 'Location', 'BHK', 'Area (Sqft)', 'Asking Price (INR)', 'Listing Status', 'CRM Status', 'Verification Tier', 'Created At'];
+      const csvLines = [
+        headers.map(sanitizeCsvCell).join(','),
+        ...rows.map((r: any) => [
+          r.id,
+          r.title,
+          r.property_type,
+          r.public_address,
+          r.bhk_type,
+          r.super_builtup_area_sqft,
+          r.asking_price_inr,
+          r.listing_status,
+          r.crm_status,
+          r.verification_tier,
+          r.created_at
+        ].map(sanitizeCsvCell).join(','))
+      ];
+
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="sellmyghar_properties_report_${new Date().toISOString().slice(0, 10)}.csv"`);
+      return res.status(200).send(csvLines.join('\n'));
+    }
+
+    return res.status(400).json({ error: 'INVALID_REPORT_TYPE', message: 'Supported types: leads, visits, offers, properties.' });
   } catch (err: any) {
     console.error('[CrmCsvExport] Error:', err);
     return res.status(500).json({ error: 'Failed to export CSV report' });
@@ -4190,7 +4230,12 @@ app.get('/api/crm/properties/:id/details', authenticateUser, async (req: Request
     const docsRes = await executeQuery(`SELECT * FROM documents WHERE property_id = $1;`, [id]);
     const documents = docsRes.rows || [];
 
-    const visitsRes = await executeQuery(`SELECT * FROM visits WHERE property_id = $1;`, [id]);
+    const visitsRes = await executeQuery(`
+      SELECT v.*, staff.display_name AS assigned_staff_name, staff.phone AS assigned_staff_phone
+      FROM visits v
+      LEFT JOIN users staff ON staff.id = v.assigned_staff_id
+      WHERE v.property_id = $1;
+    `, [id]);
     const visits = visitsRes.rows || [];
 
     const offersRes = await executeQuery(`SELECT * FROM property_offers WHERE property_id = $1;`, [id]);
@@ -4201,11 +4246,32 @@ app.get('/api/crm/properties/:id/details', authenticateUser, async (req: Request
       return copy;
     });
 
-    const leadRes = await executeQuery(`SELECT * FROM seller_leads WHERE property_id = $1 LIMIT 1;`, [id]);
-    const linkedLead = leadRes.rows?.[0] || null;
+    const leadRes = await executeQuery(`
+      SELECT sl.*, staff.display_name AS assigned_staff_name, staff.phone AS assigned_staff_phone
+      FROM seller_leads sl
+      LEFT JOIN users staff ON staff.id = sl.assigned_staff_id
+      WHERE sl.property_id = $1 LIMIT 1;
+    `, [id]);
+    let linkedLead = leadRes.rows?.[0] || null;
+    if (linkedLead && !canSeeReserve) {
+      const sanitizedLead = { ...linkedLead };
+      delete sanitizedLead.reserve_minimum_price_inr;
+      linkedLead = sanitizedLead;
+    }
 
-    const ownerRes = await executeQuery(`SELECT id, display_name, phone, email FROM users WHERE id = $1 LIMIT 1;`, [property.owner_id]);
-    const owner = ownerRes.rows?.[0] || null;
+    let owner: any = null;
+    if (property.owner_id) {
+      const ownerRes = await executeQuery(`SELECT id, display_name, phone, email FROM users WHERE id = $1 LIMIT 1;`, [property.owner_id]);
+      const rawOwner = ownerRes.rows?.[0] || null;
+      if (rawOwner) {
+        owner = {
+          id: rawOwner.id,
+          display_name: rawOwner.display_name,
+          phone: rawOwner.phone,
+          email: rawOwner.email
+        };
+      }
+    }
 
     return res.json({
       success: true,
