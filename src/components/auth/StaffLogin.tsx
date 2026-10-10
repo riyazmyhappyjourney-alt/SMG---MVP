@@ -103,7 +103,7 @@ export const StaffLogin: React.FC<StaffLoginProps> = ({ onSuccess, onBackToHome 
                     type="button"
                     onClick={() => {
                       setEmail('staff@sellmyghar.in');
-                      setPassword('SetStrongInitialStaffPassword#2026!');
+                      setPassword('StaffBootstrapPassword#2026!');
                     }}
                     className="text-[#244B8F] hover:underline font-sans text-[11px] font-semibold cursor-pointer"
                   >
@@ -116,7 +116,7 @@ export const StaffLogin: React.FC<StaffLoginProps> = ({ onSuccess, onBackToHome 
                     type="button"
                     onClick={() => {
                       setEmail('admin@sellmyghar.in');
-                      setPassword('SetStrongInitialAdminPassword#2026!');
+                      setPassword('AdminBootstrapPassword#2026!');
                     }}
                     className="text-[#244B8F] hover:underline font-sans text-[11px] font-semibold cursor-pointer"
                   >

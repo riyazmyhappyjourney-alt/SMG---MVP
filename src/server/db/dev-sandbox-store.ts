@@ -145,8 +145,10 @@ export interface DevPropertyMedia {
 export interface DevDocument {
   id: string;
   property_id: string;
-  user_id: string;
-  document_type: string;
+  user_id?: string;
+  uploader_user_id?: string;
+  doc_type?: string;
+  document_type?: string;
   file_name: string;
   file_size_bytes: number;
   mime_type: string;
@@ -245,7 +247,7 @@ class DevSandboxStore {
       id: 'usr-customer-seller-01',
       phone: '+919845012345',
       email: 'seller@example.com',
-      display_name: 'Harish Babu',
+      display_name: 'Vikramaditya Hegde',
       password_hash: null,
       token_version: 1,
       roles: ['OWNER'],
@@ -674,7 +676,11 @@ class DevSandboxStore {
     if (cleanSql.includes('FROM users') && cleanSql.includes('WHERE id = $1')) {
       const id = params[0];
       const u = this.users.get(id);
-      return u ? { rows: [{ ...u }] } : { rows: [] };
+      if (!u) return { rows: [] };
+      if (cleanSql.includes('id, display_name, phone, email')) {
+        return { rows: [{ id: u.id, display_name: u.display_name, phone: u.phone, email: u.email }] };
+      }
+      return { rows: [{ ...u }] };
     }
 
     // 5. USERS: Select Staff List
@@ -761,6 +767,8 @@ class DevSandboxStore {
         email = null;
         display_name = params[2] || 'User';
         password_hash = null;
+      } else if (params[5]) {
+        roles = Array.isArray(params[5]) ? params[5] : [params[5]];
       } else {
         const match = cleanSql.match(/'\{(.*?)\}'/);
         if (match && match[1]) {
@@ -864,6 +872,38 @@ class DevSandboxStore {
         return { rows: [{ ...u }] };
       }
       return { rows: [] };
+    }
+
+    // 9c-1. USERS: Update roles
+    if (cleanSql.includes('UPDATE users') && cleanSql.includes('roles =')) {
+      const role = params[0];
+      const id = params[1];
+      const u = this.users.get(id);
+      if (u) {
+        u.roles = Array.isArray(role) ? role : [role];
+        u.updated_at = new Date().toISOString();
+        return { rows: [{ ...u }] };
+      }
+      return { rows: [] };
+    }
+
+    // 9c-2. USERS: Update is_active
+    if (cleanSql.includes('UPDATE users') && cleanSql.includes('is_active =')) {
+      const isActive = Boolean(params[0]);
+      const id = params[1];
+      const u = this.users.get(id);
+      if (u) {
+        u.is_active = isActive;
+        u.updated_at = new Date().toISOString();
+        return { rows: [{ ...u }] };
+      }
+      return { rows: [] };
+    }
+
+    // 9c-3. USERS: Count active admins
+    if (cleanSql.includes('COUNT(*)') && cleanSql.includes('FROM users') && cleanSql.includes('STAFF_SUPER_ADMIN')) {
+      const activeAdmins = Array.from(this.users.values()).filter(x => x.roles.includes('STAFF_SUPER_ADMIN') && x.is_active);
+      return { rows: [{ count: activeAdmins.length }] };
     }
 
     // 9d. OTP_VERIFICATIONS Handlers
@@ -1010,10 +1050,16 @@ class DevSandboxStore {
       return { rows: [] };
     }
 
-    // 12. SELLER_LEADS: Single lead detail query
-    if (cleanSql.includes('FROM seller_leads') && (cleanSql.includes('WHERE sl.id = $1') || cleanSql.includes('WHERE id = $1'))) {
-      const id = params[0];
-      const lead = this.sellerLeads.get(id);
+    // 12. SELLER_LEADS: Single lead detail query (by ID or by property_id)
+    if (cleanSql.includes('FROM seller_leads') && (cleanSql.includes('WHERE sl.id = $1') || cleanSql.includes('WHERE id = $1') || cleanSql.includes('WHERE sl.property_id = $1') || cleanSql.includes('WHERE property_id = $1'))) {
+      let lead: DevSellerLead | undefined;
+      if (cleanSql.includes('property_id = $1')) {
+        const propId = params[0];
+        lead = Array.from(this.sellerLeads.values()).find(l => l.property_id === propId);
+      } else {
+        const id = params[0];
+        lead = this.sellerLeads.get(id);
+      }
       if (!lead) return { rows: [] };
 
       const staff = lead.assigned_staff_id ? this.users.get(lead.assigned_staff_id) : null;
@@ -1378,7 +1424,11 @@ class DevSandboxStore {
       }
 
       // 5. All active properties (CRM inventory table)
-      const all = Array.from(this.properties.values());
+      let all = Array.from(this.properties.values());
+      if (cleanSql.includes('p.listing_status = $1') || cleanSql.includes('listing_status = $1')) {
+        const targetStatus = params[0];
+        all = all.filter(p => p.listing_status === targetStatus);
+      }
       return {
         rows: all.map(p => {
           const lead = Array.from(this.sellerLeads.values()).find(l => l.property_id === p.id);
