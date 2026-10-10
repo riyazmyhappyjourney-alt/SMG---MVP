@@ -51,6 +51,16 @@ import { StaffRole } from '../../core/types/auth';
 import { LeadStatus } from '../../core/types/entities';
 import { AdminErasureQueue } from './AdminErasureQueue';
 import { PropertyEditor } from './PropertyEditor';
+import { CalendarModule } from './CalendarModule';
+import { TasksKanbanModule } from './TasksKanbanModule';
+import { DateTimePicker } from '../common/DateTimePicker';
+import {
+  formatIndianCurrency,
+  formatIndianNumberFull,
+  formatPhoneNumber,
+  formatReadableDate,
+  formatReadableTime
+} from '../../utils/formatters';
 
 export type PropertyListingStatus = 'DRAFT' | 'PUBLISHED' | 'PAUSED' | 'SOLD' | 'ARCHIVED';
 
@@ -332,6 +342,14 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
   const [newFollowUpDate, setNewFollowUpDate] = useState<string>('');
   const [newFollowUpNote, setNewFollowUpNote] = useState<string>('');
   const [newCallNote, setNewCallNote] = useState<string>('');
+
+  // Document Rejection Reason Modal State
+  const [rejectDocModal, setRejectDocModal] = useState<{ isOpen: boolean; docId: string; docName: string } | null>(null);
+  const [rejectDocReason, setRejectDocReason] = useState<string>('');
+
+  // Custom DateTimePicker Trigger States
+  const [isFollowUpPickerOpen, setIsFollowUpPickerOpen] = useState<boolean>(false);
+  const [isVisitPickerOpen, setIsVisitPickerOpen] = useState<boolean>(false);
 
   const showToast = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
     setToastMessage({ text, type });
@@ -669,6 +687,47 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
         body: JSON.stringify({
           nextFollowUpAt: new Date(newFollowUpDate).toISOString(),
           followUpNotes: newFollowUpNote || 'Scheduled follow-up call'
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast('Follow-up scheduled successfully', 'success');
+        setNewFollowUpDate('');
+        setNewFollowUpNote('');
+        refreshAll();
+        if (selectedLeadId === leadId) {
+          setSelectedLeadId(null);
+          setTimeout(() => setSelectedLeadId(leadId), 50);
+        }
+      } else {
+        showToast(data.message || 'Failed to schedule follow-up', 'error');
+      }
+    } catch {
+      showToast('Network error scheduling follow-up', 'error');
+    }
+  };
+
+  const handleScheduleFollowUpWithDateTime = async (leadId: string, dateStr: string, timeStr: string, note?: string) => {
+    try {
+      let hours = 11;
+      let minutes = 0;
+      if (timeStr) {
+        const parts = timeStr.split(':');
+        hours = parseInt(parts[0], 10) || 11;
+        const minPart = parts[1]?.slice(0, 2);
+        minutes = parseInt(minPart, 10) || 0;
+        if (timeStr.toUpperCase().includes('PM') && hours < 12) hours += 12;
+        if (timeStr.toUpperCase().includes('AM') && hours === 12) hours = 0;
+      }
+      const [y, m, d] = dateStr.split('-').map(Number);
+      const targetDate = new Date(y, m - 1, d, hours, minutes, 0);
+
+      const res = await fetch(`/api/crm/leads/${leadId}/follow-up`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          nextFollowUpAt: targetDate.toISOString(),
+          followUpNotes: note || newFollowUpNote || 'Scheduled diligence follow-up call'
         })
       });
       const data = await res.json();
@@ -1956,9 +2015,6 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <h2 className="text-xl font-bold tracking-tight text-[#172033]">Leads & Inquiries</h2>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Active inbound seller registrations & buyer inquiries under pipeline management
-                  </p>
                 </div>
                 <div className="flex items-center space-x-2">
                   <button
@@ -2318,13 +2374,8 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 <div className="px-5 py-3.5 bg-slate-50/60 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
                   <div className="flex items-center space-x-2">
                     <span>
-                      Showing <strong className="text-slate-800">{filteredLeads.length}</strong> of{' '}
-                      <strong className="text-slate-800">{leads.length}</strong> lead inquiries
-                    </span>
-                    <span className="text-slate-300">•</span>
-                    <span className="flex items-center text-emerald-700 font-medium">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span>
-                      PostgreSQL Real-Time Synced
+                      Showing <strong className="text-slate-800 tabular-nums">{filteredLeads.length}</strong> of{' '}
+                      <strong className="text-slate-800 tabular-nums">{leads.length}</strong> lead inquiries
                     </span>
                   </div>
                   <div className="flex items-center space-x-2">
@@ -2352,9 +2403,6 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <h2 className="text-xl font-bold tracking-tight text-[#172033]">Properties Inventory</h2>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Active residential inventory listings, verification tiers & assigned relationship managers
-                  </p>
                 </div>
                 <div className="flex items-center space-x-2">
                   <button
@@ -2626,13 +2674,8 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 <div className="px-5 py-3.5 bg-slate-50/60 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
                   <div className="flex items-center space-x-2">
                     <span>
-                      Showing <strong className="text-slate-800">{filteredProperties.length}</strong> of{' '}
-                      <strong className="text-slate-800">{properties.length}</strong> property listings
-                    </span>
-                    <span className="text-slate-300">•</span>
-                    <span className="flex items-center text-emerald-700 font-medium">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span>
-                      PostgreSQL Real-Time Synced
+                      Showing <strong className="text-slate-800 tabular-nums">{filteredProperties.length}</strong> of{' '}
+                      <strong className="text-slate-800 tabular-nums">{properties.length}</strong> property listings
                     </span>
                   </div>
                   <div className="flex items-center space-x-2">
@@ -2660,9 +2703,6 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <h2 className="text-xl font-bold tracking-tight text-[#172033]">Site Visits & Escorts</h2>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Physical property viewings, assigned escorts & automated WhatsApp reminders
-                  </p>
                 </div>
                 <div className="flex items-center space-x-2">
                   <button
@@ -2900,13 +2940,8 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 <div className="px-5 py-3.5 bg-slate-50/60 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
                   <div className="flex items-center space-x-2">
                     <span>
-                      Showing <strong className="text-slate-800">{filteredVisits.length}</strong> of{' '}
-                      <strong className="text-slate-800">{visits.length}</strong> site visits
-                    </span>
-                    <span className="text-slate-300">•</span>
-                    <span className="flex items-center text-emerald-700 font-medium">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span>
-                      PostgreSQL Real-Time Synced
+                      Showing <strong className="text-slate-800 tabular-nums">{filteredVisits.length}</strong> of{' '}
+                      <strong className="text-slate-800 tabular-nums">{visits.length}</strong> site visits
                     </span>
                   </div>
                   <div className="flex items-center space-x-2">
@@ -2934,9 +2969,6 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <h2 className="text-xl font-bold tracking-tight text-[#172033]">Offers & Negotiations</h2>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Formal buyer purchase proposals, negotiations & owner reserve price protections
-                  </p>
                 </div>
                 <div className="flex items-center space-x-2">
                   <button
@@ -3181,13 +3213,8 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 <div className="px-5 py-3.5 bg-slate-50/60 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
                   <div className="flex items-center space-x-2">
                     <span>
-                      Showing <strong className="text-slate-800">{filteredOffers.length}</strong> of{' '}
-                      <strong className="text-slate-800">{offers.length}</strong> purchase offers
-                    </span>
-                    <span className="text-slate-300">•</span>
-                    <span className="flex items-center text-emerald-700 font-medium">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span>
-                      PostgreSQL Real-Time Synced
+                      Showing <strong className="text-slate-800 tabular-nums">{filteredOffers.length}</strong> of{' '}
+                      <strong className="text-slate-800 tabular-nums">{offers.length}</strong> purchase offers
                     </span>
                   </div>
                   <div className="flex items-center space-x-2">
@@ -3207,341 +3234,33 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
           )}
 
           {/* ============================================================== */}
-          {/* VIEW 6: TASKS & FOLLOW-UPS (INFLUMO WORKBENCH)                  */}
+          {/* VIEW 6: TASKS & FOLLOW-UPS (WORKBENCH & KANBAN)                 */}
           {/* ============================================================== */}
           {activeSection === 'TASKS' && (
-            <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-xl font-bold tracking-tight text-[#172033]">Tasks & Follow-ups</h2>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Actionable client diligence queues, overdue follow-ups & scheduled touchpoints
-                  </p>
-                </div>
-              </div>
-
-              {/* Search & Filter Tabs Strip */}
-              <div className="p-3 bg-white rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 text-xs">
-                {/* Search */}
-                <div className="relative flex-1 max-w-md">
-                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Search follow-ups by client, phone, society..."
-                    value={taskSearch}
-                    onChange={(e) => setTaskSearch(e.target.value)}
-                    className="w-full bg-slate-50/70 border border-slate-200/80 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:border-[#244B8F] focus:outline-hidden"
-                  />
-                  {taskSearch && (
-                    <button
-                      type="button"
-                      onClick={() => setTaskSearch('')}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-
-                {/* Queue Filter Tabs */}
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
-                  <button
-                    type="button"
-                    onClick={() => setTaskFilter('ALL')}
-                    className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl font-semibold text-xs transition-colors cursor-pointer ${
-                      taskFilter === 'ALL'
-                        ? 'bg-[#244B8F] text-white shadow-xs'
-                        : 'bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                    }`}
-                  >
-                    <span>All Follow-ups</span>
-                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                      taskFilter === 'ALL' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
-                    }`}>
-                      {tasks.overdue.length + tasks.dueToday.length + tasks.upcoming.length}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setTaskFilter('OVERDUE')}
-                    className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl font-semibold text-xs transition-colors cursor-pointer ${
-                      taskFilter === 'OVERDUE'
-                        ? 'bg-rose-600 text-white shadow-xs'
-                        : 'bg-rose-50 text-rose-700 hover:bg-rose-100'
-                    }`}
-                  >
-                    <AlertTriangle className="w-3 h-3" />
-                    <span>Overdue</span>
-                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                      taskFilter === 'OVERDUE' ? 'bg-white/20 text-white' : 'bg-rose-200 text-rose-800'
-                    }`}>
-                      {tasks.overdue.length}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setTaskFilter('TODAY')}
-                    className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl font-semibold text-xs transition-colors cursor-pointer ${
-                      taskFilter === 'TODAY'
-                        ? 'bg-amber-600 text-white shadow-xs'
-                        : 'bg-amber-50 text-amber-800 hover:bg-amber-100'
-                    }`}
-                  >
-                    <Clock className="w-3 h-3" />
-                    <span>Due Today</span>
-                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                      taskFilter === 'TODAY' ? 'bg-white/20 text-white' : 'bg-amber-200 text-amber-900'
-                    }`}>
-                      {tasks.dueToday.length}
-                    </span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setTaskFilter('UPCOMING')}
-                    className={`inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl font-semibold text-xs transition-colors cursor-pointer ${
-                      taskFilter === 'UPCOMING'
-                        ? 'bg-slate-700 text-white shadow-xs'
-                        : 'bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-slate-900'
-                    }`}
-                  >
-                    <Calendar className="w-3 h-3" />
-                    <span>Upcoming</span>
-                    <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                      taskFilter === 'UPCOMING' ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'
-                    }`}>
-                      {tasks.upcoming.length}
-                    </span>
-                  </button>
-                </div>
-              </div>
-
-              {/* Unified High-Density Operations Table */}
-              <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-                <table className="w-full text-left text-xs divide-y divide-slate-100">
-                  <thead className="bg-slate-50/70 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                    <tr>
-                      <th className="py-3.5 px-4">Client / Contact</th>
-                      <th className="py-3.5 px-4">Property / Society</th>
-                      <th className="py-3.5 px-4">Queue Status</th>
-                      <th className="py-3.5 px-4">Scheduled Due Date</th>
-                      <th className="py-3.5 px-4">Call Objective / Notes</th>
-                      <th className="py-3.5 px-4">Assigned Staff</th>
-                      <th className="py-3.5 px-4 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {filteredTasks.length === 0 ? (
-                      <tr>
-                        <td colSpan={7} className="py-16 text-center text-slate-400 text-xs">
-                          <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2 opacity-80" />
-                          <p className="font-semibold text-slate-700">No follow-ups match this filter.</p>
-                          <p className="text-[11px] text-slate-400 mt-0.5">All scheduled tasks in this queue are completed or up to date.</p>
-                        </td>
-                      </tr>
-                    ) : (
-                      filteredTasks.map((task) => (
-                        <tr
-                          key={task.id}
-                          onClick={() => setSelectedLeadId(task.id)}
-                          className="hover:bg-slate-50/70 transition-colors cursor-pointer group"
-                        >
-                          {/* Client / Contact */}
-                          <td className="py-3.5 px-4">
-                            <div className="flex items-center space-x-3">
-                              <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 text-[#244B8F] flex items-center justify-center font-bold text-xs shrink-0">
-                                {(task.name || 'C')[0]}
-                              </div>
-                              <div className="min-w-0">
-                                <p className="font-bold text-slate-900 group-hover:text-[#244B8F] transition-colors truncate">
-                                  {task.name}
-                                </p>
-                                <p className="text-[11px] text-slate-500 font-mono">
-                                  {task.phone}
-                                </p>
-                              </div>
-                            </div>
-                          </td>
-
-                          {/* Society / Property */}
-                          <td className="py-3.5 px-4 text-slate-700">
-                            <span className="font-medium text-slate-900">{task.society || '—'}</span>
-                            {task.locality && (
-                              <span className="block text-[10px] text-slate-400 truncate">{task.locality}</span>
-                            )}
-                          </td>
-
-                          {/* Queue Status */}
-                          <td className="py-3.5 px-4">
-                            {task.queueType === 'OVERDUE' ? (
-                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200/60">
-                                <AlertTriangle className="w-3 h-3 mr-1 text-rose-600" /> OVERDUE
-                              </span>
-                            ) : task.queueType === 'TODAY' ? (
-                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200/60">
-                                <Clock className="w-3 h-3 mr-1 text-amber-600" /> DUE TODAY
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200/60">
-                                <Calendar className="w-3 h-3 mr-1 text-slate-500" /> UPCOMING
-                              </span>
-                            )}
-                          </td>
-
-                          {/* Scheduled Due Date */}
-                          <td className="py-3.5 px-4">
-                            <div className={`font-semibold ${task.queueType === 'OVERDUE' ? 'text-rose-700 font-bold' : 'text-slate-800'}`}>
-                              {new Date(task.next_follow_up_at).toLocaleDateString([], {
-                                month: 'short',
-                                day: 'numeric',
-                                year: 'numeric'
-                              })}
-                            </div>
-                            <div className="text-[10px] text-slate-400">
-                              {new Date(task.next_follow_up_at).toLocaleTimeString([], {
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
-                            </div>
-                          </td>
-
-                          {/* Call Objective / Notes */}
-                          <td className="py-3.5 px-4 text-slate-600 max-w-xs">
-                            <p className="truncate text-xs font-medium text-slate-700">
-                              {task.follow_up_notes || 'Scheduled diligence check'}
-                            </p>
-                          </td>
-
-                          {/* Assigned Staff */}
-                          <td className="py-3.5 px-4 text-slate-600">
-                            {task.assigned_staff_name ? (
-                              <span className="font-medium text-slate-800">{task.assigned_staff_name}</span>
-                            ) : (
-                              <span className="text-slate-400 italic">Unassigned</span>
-                            )}
-                          </td>
-
-                          {/* Actions */}
-                          <td className="py-3.5 px-4 text-right">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedLeadId(task.id);
-                              }}
-                              className="px-3 py-1.5 bg-[#244B8F] text-white text-[11px] font-semibold rounded-lg hover:bg-[#1B396E] transition-colors cursor-pointer shadow-2xs inline-flex items-center space-x-1"
-                            >
-                              <span>Manage Lead</span>
-                            </button>
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-
-                {/* Table Footer / Pagination */}
-                <div className="px-5 py-3.5 bg-slate-50/60 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
-                  <div className="flex items-center space-x-2">
-                    <span>
-                      Showing <strong className="text-slate-800">{filteredTasks.length}</strong> of{' '}
-                      <strong className="text-slate-800">{tasks.overdue.length + tasks.dueToday.length + tasks.upcoming.length}</strong> follow-up tasks
-                    </span>
-                    <span className="text-slate-300">•</span>
-                    <span className="flex items-center text-emerald-700 font-medium">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span>
-                      PostgreSQL Real-Time Synced
-                    </span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-[11px] text-slate-400">Page 1 of 1</span>
-                    <div className="inline-flex rounded-lg border border-slate-200/80 shadow-2xs overflow-hidden">
-                      <button disabled className="px-2.5 py-1 bg-white text-slate-300 text-xs font-semibold cursor-not-allowed">
-                        Previous
-                      </button>
-                      <button disabled className="px-2.5 py-1 bg-white text-slate-300 text-xs font-semibold border-l border-slate-200/80 cursor-not-allowed">
-                        Next
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
+            <TasksKanbanModule
+              tasks={tasks}
+              leads={leads}
+              onOpenLead={(id) => setSelectedLeadId(id)}
+              onRescheduleLead={async (leadId, dateStr, timeStr) => {
+                await handleScheduleFollowUpWithDateTime(leadId, dateStr, timeStr);
+              }}
+            />
           )}
 
           {/* ============================================================== */}
-          {/* VIEW 7: CALENDAR AGENDA                                        */}
+          {/* VIEW 7: CALENDAR MODULE (MONTH, WEEK, DAY, AGENDA)             */}
           {/* ============================================================== */}
           {activeSection === 'CALENDAR' && (
-            <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-6 space-y-6">
-              <div>
-                <h2 className="text-xl font-bold tracking-tight text-[#172033]">Operational Calendar</h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Combined schedule of physical site visits, tour escorts & scheduled follow-up calls
-                </p>
-              </div>
-
-              {/* Combined Agenda Timeline */}
-              <div className="space-y-4">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Scheduled Agenda</h3>
-                <div className="space-y-3">
-                  {visits.length === 0 && tasks.dueToday.length === 0 ? (
-                    <p className="text-xs text-slate-400 text-center py-12">No scheduled events on the operational calendar.</p>
-                  ) : (
-                    <>
-                      {visits.map((v) => (
-                        <div
-                          key={v.id}
-                          className="p-4 rounded-xl border border-blue-200/80 bg-blue-50/30 flex items-center justify-between text-xs"
-                        >
-                          <div className="flex items-center space-x-3.5">
-                            <div className="w-10 h-10 rounded-xl bg-[#244B8F] text-white flex flex-col items-center justify-center font-bold text-[10px]">
-                              <span>VISIT</span>
-                            </div>
-                            <div>
-                              <h4 className="font-bold text-slate-900">{v.client_name} • Physical Site Tour</h4>
-                              <p className="text-slate-500">{v.property_title || 'Unit Tour'} ({v.property_locality})</p>
-                              <p className="text-[10px] text-slate-400">Time: {v.visit_date} at {v.visit_time}</p>
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => handleSendWhatsAppReminder(v.id)}
-                            className="px-3 py-1.5 bg-white border border-slate-200 text-[#244B8F] font-bold text-xs rounded-xl hover:bg-slate-50 cursor-pointer shadow-2xs"
-                          >
-                            Send WhatsApp
-                          </button>
-                        </div>
-                      ))}
-
-                      {tasks.dueToday.map((t) => (
-                        <div
-                          key={t.id}
-                          onClick={() => setSelectedLeadId(t.id)}
-                          className="p-4 rounded-xl border border-amber-200/80 bg-amber-50/30 flex items-center justify-between text-xs cursor-pointer hover:bg-amber-50/60 transition-colors"
-                        >
-                          <div className="flex items-center space-x-3.5">
-                            <div className="w-10 h-10 rounded-xl bg-amber-600 text-white flex flex-col items-center justify-center font-bold text-[10px]">
-                              <span>CALL</span>
-                            </div>
-                            <div>
-                              <h4 className="font-bold text-slate-900">{t.name} • Diligence Follow-up Call</h4>
-                              <p className="text-slate-500">{t.society} ({t.locality})</p>
-                              <p className="text-[10px] text-amber-700 font-semibold">{t.follow_up_notes || 'Scheduled today'}</p>
-                            </div>
-                          </div>
-                          <span className="px-3 py-1.5 bg-white border border-amber-300 text-amber-800 font-bold rounded-xl text-xs shadow-2xs">
-                            Open Lead
-                          </span>
-                        </div>
-                      ))}
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
+            <CalendarModule
+              visits={visits}
+              tasks={tasks}
+              staffList={staffList}
+              onOpenLead={(id) => setSelectedLeadId(id)}
+              onOpenProperty={(id) => setSelectedPropertyId(id)}
+              onScheduleVisit={() => setIsScheduleVisitOpen(true)}
+              onSendWhatsAppReminder={handleSendWhatsAppReminder}
+              onUpdateVisitStatus={handleUpdateVisitStatus}
+            />
           )}
 
           {/* ============================================================== */}
@@ -3552,9 +3271,6 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <h2 className="text-xl font-bold tracking-tight text-[#172033]">Staff & Role Governance</h2>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Operations team directory, RBAC privilege levels & active workload distribution
-                  </p>
                 </div>
                 {currentRole === 'STAFF_SUPER_ADMIN' && (
                   <button
@@ -3667,13 +3383,8 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 <div className="px-5 py-3.5 bg-slate-50/60 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
                   <div className="flex items-center space-x-2">
                     <span>
-                      Showing <strong className="text-slate-800">{staffList.length}</strong> of{' '}
-                      <strong className="text-slate-800">{staffList.length}</strong> team members
-                    </span>
-                    <span className="text-slate-300">•</span>
-                    <span className="flex items-center text-emerald-700 font-medium">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span>
-                      PostgreSQL Real-Time Synced
+                      Showing <strong className="text-slate-800 tabular-nums">{staffList.length}</strong> of{' '}
+                      <strong className="text-slate-800 tabular-nums">{staffList.length}</strong> team members
                     </span>
                   </div>
                   <div className="flex items-center space-x-2">
@@ -3700,9 +3411,6 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <h2 className="text-xl font-bold tracking-tight text-[#172033]">Reports & Analytics</h2>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Operational pipeline conversion, site tour volume & stage distributions
-                  </p>
                 </div>
                 <div className="flex items-center space-x-2">
                   <button
@@ -3800,9 +3508,6 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
             <div className="space-y-6">
               <div>
                 <h2 className="text-xl font-bold tracking-tight text-[#172033]">Security & Audit Logs</h2>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Immutable system audit trail, actor role tracking & DPDP compliance auditing
-                </p>
               </div>
 
               {/* Audit Table */}
@@ -3858,12 +3563,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 <div className="px-5 py-3.5 bg-slate-50/60 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
                   <div className="flex items-center space-x-2">
                     <span>
-                      Showing <strong className="text-slate-800">{auditLogs.length}</strong> immutable audit records
-                    </span>
-                    <span className="text-slate-300">•</span>
-                    <span className="flex items-center text-emerald-700 font-medium">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span>
-                      PostgreSQL Real-Time Synced
+                      Showing <strong className="text-slate-800 tabular-nums">{auditLogs.length}</strong> immutable audit records
                     </span>
                   </div>
                   <div className="flex items-center space-x-2">
@@ -3896,9 +3596,6 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               <div className="flex items-center justify-between">
                 <div>
                   <h2 className="text-xl font-bold tracking-tight text-[#172033]">System & Security Settings</h2>
-                  <p className="text-xs text-slate-500 mt-0.5">
-                    Authenticated operator profile, security controls & session safeguards
-                  </p>
                 </div>
                 {currentRole === 'STAFF_SUPER_ADMIN' && (
                   <button
@@ -4137,7 +3834,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
 
                       <div>
                         <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
-                          Relationship Manager
+                          Assigned Relationship Manager
                         </label>
                         <select
                           value={assigneeSelect}
@@ -4145,30 +3842,48 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                             setAssigneeSelect(e.target.value);
                             handleAssignLead(selectedLeadId, e.target.value);
                           }}
-                          className="w-full bg-white border border-slate-200/80 rounded-xl px-3 py-2 font-medium text-xs text-slate-800 shadow-2xs"
+                          className="w-full bg-white border border-slate-200/80 rounded-xl px-3 py-2 font-medium text-xs text-slate-800 shadow-2xs focus:border-[#244B8F]"
                         >
                           <option value="">Unassigned</option>
-                          {staffList.map(s => (
-                            <option key={s.id} value={s.id}>{s.displayName} ({s.email})</option>
+                          {staffList.map((s) => (
+                            <option key={s.id} value={s.id}>
+                              {s.displayName || s.email} • {s.roles?.join(', ')}
+                            </option>
                           ))}
                         </select>
+                        <p className="text-[10px] text-slate-400 mt-1">
+                          Owns client diligence, follow-up scheduling & site tour coordination.
+                        </p>
                       </div>
                     </div>
                   </div>
 
                   {/* 3. Schedule Next Follow-up */}
                   <div className="border-t border-slate-100 pt-5 space-y-3">
-                    <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                      Schedule Next Follow-up
-                    </h4>
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                        Schedule Next Follow-up
+                      </h4>
+                      {leadDetailData.lead.next_follow_up_at && (
+                        <span className="text-[10px] font-bold text-[#244B8F] tabular-nums">
+                          Due: {formatReadableDate(leadDetailData.lead.next_follow_up_at)} at {formatReadableTime(leadDetailData.lead.next_follow_up_at)}
+                        </span>
+                      )}
+                    </div>
                     <div className="space-y-2">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <input
-                          type="datetime-local"
-                          value={newFollowUpDate}
-                          onChange={(e) => setNewFollowUpDate(e.target.value)}
-                          className="bg-white border border-slate-200/80 rounded-xl px-3 py-2 text-xs text-slate-800 shadow-2xs"
-                        />
+                        <button
+                          type="button"
+                          onClick={() => setIsFollowUpPickerOpen(true)}
+                          className="w-full bg-white border border-slate-200/80 rounded-xl px-3 py-2 text-xs text-left font-medium text-slate-800 hover:bg-slate-50 flex items-center justify-between shadow-2xs cursor-pointer"
+                        >
+                          <span className="truncate tabular-nums">
+                            {newFollowUpDate
+                              ? `Selected: ${formatReadableDate(newFollowUpDate)}`
+                              : 'Select Date & Time Slot...'}
+                          </span>
+                          <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0 ml-1" />
+                        </button>
                         <input
                           type="text"
                           placeholder="Instructions or call objective..."
@@ -4180,9 +3895,14 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                       <button
                         type="button"
                         onClick={() => handleScheduleFollowUp(selectedLeadId)}
-                        className="w-full py-2 bg-[#244B8F] text-white font-bold rounded-xl hover:bg-[#1B396E] transition-colors cursor-pointer shadow-xs text-xs"
+                        disabled={!newFollowUpDate}
+                        className={`w-full py-2 font-bold rounded-xl transition-colors cursor-pointer shadow-xs text-xs ${
+                          newFollowUpDate
+                            ? 'bg-[#244B8F] text-white hover:bg-[#1B396E]'
+                            : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                        }`}
                       >
-                        Set Follow-up Due Date
+                        Confirm Follow-up Due Date
                       </button>
                     </div>
                   </div>
@@ -4301,15 +4021,33 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                                 </span>
                               </div>
 
-                              {doc.verification_status !== 'VERIFIED' && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleVerifyDocument(doc.id, 'VERIFIED')}
-                                  className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] rounded-lg cursor-pointer"
-                                >
-                                  Verify Document
-                                </button>
-                              )}
+                              <div className="flex items-center space-x-1.5">
+                                {doc.verification_status !== 'VERIFIED' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleVerifyDocument(doc.id, 'VERIFIED')}
+                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] rounded-lg cursor-pointer"
+                                  >
+                                    Verify Document
+                                  </button>
+                                )}
+                                {doc.verification_status !== 'REJECTED' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setRejectDocModal({
+                                        isOpen: true,
+                                        docId: doc.id,
+                                        docName: doc.file_name
+                                      });
+                                      setRejectDocReason('');
+                                    }}
+                                    className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white font-bold text-[10px] rounded-lg cursor-pointer"
+                                  >
+                                    Reject Document
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           ))}
                         </div>
@@ -4574,6 +4312,28 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                       </span>
                     </div>
 
+                    {/* Verification Model Explanatory Banner */}
+                    <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/80 text-xs space-y-1.5">
+                      <div className="flex items-center space-x-1.5 text-slate-800 font-bold text-[11px]">
+                        <Info className="w-3.5 h-3.5 text-[#244B8F]" />
+                        <span>Title Verification Framework</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 text-[10px] text-slate-600">
+                        <div className="p-1.5 bg-white rounded-lg border border-slate-100">
+                          <strong className="text-slate-800 block">L1: Declared</strong>
+                          Seller-uploaded deed copies.
+                        </div>
+                        <div className="p-1.5 bg-white rounded-lg border border-slate-100">
+                          <strong className="text-blue-900 block">L2: Due Diligence</strong>
+                          Verified tax receipts & EC review.
+                        </div>
+                        <div className="p-1.5 bg-white rounded-lg border border-slate-100">
+                          <strong className="text-emerald-900 block">L3: Certified</strong>
+                          Advocate clearance certificate.
+                        </div>
+                      </div>
+                    </div>
+
                     {(propertyDetailData.documents || []).length === 0 ? (
                       <p className="text-slate-400 italic text-[11px]">No documents uploaded for review.</p>
                     ) : (
@@ -4581,12 +4341,19 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                         {(propertyDetailData.documents || []).map((doc: any) => (
                           <div
                             key={doc.id}
-                            className="p-3 bg-white rounded-xl border border-slate-200/80 flex items-center justify-between shadow-2xs"
+                            className="p-3 bg-white rounded-xl border border-slate-200/80 space-y-2 shadow-2xs"
                           >
-                            <div>
-                              <strong className="text-slate-900 block truncate max-w-[220px]">{doc.file_name}</strong>
+                            <div className="flex items-start justify-between gap-2">
+                              <div>
+                                <strong className="text-slate-900 text-xs block truncate max-w-[220px]">
+                                  {doc.file_name}
+                                </strong>
+                                <span className="text-[10px] text-slate-400 block mt-0.5">
+                                  Category: {doc.doc_type || 'Title Deed'} • Uploaded: {formatReadableDate(doc.created_at)}
+                                </span>
+                              </div>
                               <span
-                                className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                                className={`px-2 py-0.5 rounded-full text-[9px] font-bold shrink-0 ${
                                   doc.verification_status === 'VERIFIED'
                                     ? 'bg-emerald-50 text-emerald-800'
                                     : doc.verification_status === 'REJECTED'
@@ -4598,23 +4365,36 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                               </span>
                             </div>
 
-                            <div className="flex items-center space-x-1.5">
+                            {doc.discrepancy_note && (
+                              <div className="p-2 bg-rose-50/70 border border-rose-200/60 rounded-lg text-[10px] text-rose-800">
+                                <strong>Discrepancy Note:</strong> {doc.discrepancy_note}
+                              </div>
+                            )}
+
+                            <div className="flex items-center justify-end space-x-1.5 pt-1 border-t border-slate-100">
                               {doc.verification_status !== 'VERIFIED' && (
                                 <button
                                   type="button"
                                   onClick={() => handleVerifyDocument(doc.id, 'VERIFIED')}
                                   className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] rounded-lg cursor-pointer"
                                 >
-                                  Verify
+                                  Verify Document
                                 </button>
                               )}
                               {doc.verification_status !== 'REJECTED' && (
                                 <button
                                   type="button"
-                                  onClick={() => handleVerifyDocument(doc.id, 'REJECTED')}
+                                  onClick={() => {
+                                    setRejectDocModal({
+                                      isOpen: true,
+                                      docId: doc.id,
+                                      docName: doc.file_name
+                                    });
+                                    setRejectDocReason('');
+                                  }}
                                   className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 text-white font-bold text-[10px] rounded-lg cursor-pointer"
                                 >
-                                  Reject
+                                  Reject Document
                                 </button>
                               )}
                             </div>
@@ -4679,6 +4459,53 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                             </span>
                           </div>
                         ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Related Purchase Orders & Deals */}
+                  <div className="border-t border-slate-100 pt-5 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                        Related Purchase Orders & Deals
+                      </h4>
+                      <span className="text-[10px] font-bold text-slate-500 tabular-nums">
+                        {(propertyDetailData.offers || []).filter((o: any) => ['ACCEPTED', 'IN_ESCROW'].includes(o.status)).length} Executed
+                      </span>
+                    </div>
+
+                    {(propertyDetailData.offers || []).filter((o: any) => ['ACCEPTED', 'IN_ESCROW'].includes(o.status)).length === 0 ? (
+                      <div className="p-3 bg-slate-50/70 rounded-xl border border-slate-200/80 text-xs text-slate-500 space-y-1">
+                        <p className="font-semibold text-slate-700">No formal purchase order or deal contract executed yet.</p>
+                        <p className="text-[11px] text-slate-400">
+                          Purchase orders are automatically established upon formal closing and acceptance of a buyer purchase offer.
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {(propertyDetailData.offers || [])
+                          .filter((o: any) => ['ACCEPTED', 'IN_ESCROW'].includes(o.status))
+                          .map((po: any) => (
+                            <div key={po.id} className="p-3 bg-blue-50/40 rounded-xl border border-blue-200 text-xs space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-[#244B8F] text-[11px]">
+                                  PO-SMG-{po.id.slice(-6).toUpperCase()}
+                                </span>
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                                  {po.status === 'ACCEPTED' ? 'AGREED PURCHASE ORDER' : po.status}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between text-slate-700">
+                                <span>Buyer: <strong>{po.buyer_name}</strong></span>
+                                <span className="font-bold text-slate-900 tabular-nums">
+                                  {formatIndianCurrency(po.offer_amount_inr)}
+                                </span>
+                              </div>
+                              <p className="text-[10px] text-slate-400">
+                                Created: {formatReadableDate(po.created_at)}
+                              </p>
+                            </div>
+                          ))}
                       </div>
                     )}
                   </div>
@@ -4780,30 +4607,43 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Visit Date *
-                  </label>
-                  <input
-                    type="date"
-                    required
-                    value={scheduleVisitForm.visitDate}
-                    onChange={(e) => setScheduleVisitForm({ ...scheduleVisitForm, visitDate: e.target.value })}
-                    className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Visit Time *
-                  </label>
-                  <input
-                    type="time"
-                    required
-                    value={scheduleVisitForm.visitTime}
-                    onChange={(e) => setScheduleVisitForm({ ...scheduleVisitForm, visitTime: e.target.value })}
-                    className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900"
-                  />
+              <div className="space-y-2">
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                  Visit Schedule (Date & Time) *
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setIsVisitPickerOpen(true)}
+                  className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-300 hover:border-[#244B8F] rounded-xl px-3 py-2 text-xs text-left font-semibold text-slate-800 flex items-center justify-between cursor-pointer transition-colors shadow-2xs"
+                >
+                  <span className="tabular-nums">
+                    {scheduleVisitForm.visitDate
+                      ? `${formatReadableDate(scheduleVisitForm.visitDate)} ${scheduleVisitForm.visitTime ? `at ${scheduleVisitForm.visitTime}` : ''}`
+                      : 'Select Slot via Calendar Grid...'}
+                  </span>
+                  <Calendar className="w-4 h-4 text-[#244B8F] shrink-0" />
+                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <span className="block text-[10px] text-slate-500 font-medium mb-0.5">Date</span>
+                    <input
+                      type="date"
+                      required
+                      value={scheduleVisitForm.visitDate}
+                      onChange={(e) => setScheduleVisitForm({ ...scheduleVisitForm, visitDate: e.target.value })}
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <span className="block text-[10px] text-slate-500 font-medium mb-0.5">Time Slot</span>
+                    <input
+                      type="time"
+                      required
+                      value={scheduleVisitForm.visitTime}
+                      onChange={(e) => setScheduleVisitForm({ ...scheduleVisitForm, visitTime: e.target.value })}
+                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -5172,6 +5012,108 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
           }}
           staffRole={currentRole}
         />
+      )}
+
+      {/* MODAL: FOLLOW-UP DATE & TIME PICKER                            */}
+      {/* ============================================================== */}
+      {isFollowUpPickerOpen && (
+        <DateTimePicker
+          isOpen={isFollowUpPickerOpen}
+          onClose={() => setIsFollowUpPickerOpen(false)}
+          title="Schedule Next Follow-Up"
+          initialDate={newFollowUpDate ? newFollowUpDate.split('T')[0] : undefined}
+          onConfirm={(_dateStr, _timeStr, combinedIso) => {
+            setNewFollowUpDate(combinedIso);
+            setIsFollowUpPickerOpen(false);
+          }}
+        />
+      )}
+
+      {/* ============================================================== */}
+      {/* MODAL: SITE VISIT DATE & TIME PICKER                           */}
+      {/* ============================================================== */}
+      {isVisitPickerOpen && (
+        <DateTimePicker
+          isOpen={isVisitPickerOpen}
+          onClose={() => setIsVisitPickerOpen(false)}
+          title="Select Site Visit Slot"
+          initialDate={scheduleVisitForm.visitDate || undefined}
+          initialTime={scheduleVisitForm.visitTime || undefined}
+          onConfirm={(dateStr, timeStr) => {
+            setScheduleVisitForm(prev => ({
+              ...prev,
+              visitDate: dateStr,
+              visitTime: timeStr
+            }));
+            setIsVisitPickerOpen(false);
+          }}
+        />
+      )}
+
+      {/* ============================================================== */}
+      {/* MODAL: REJECT DOCUMENT REASON                                  */}
+      {/* ============================================================== */}
+      {rejectDocModal?.isOpen && (
+        <div className="fixed inset-0 z-50 overflow-hidden flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200/80 overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-200/80 bg-rose-50/50 flex items-center justify-between">
+              <h3 className="font-bold text-sm text-rose-950 flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 text-rose-600" />
+                <span>Reject Property Document</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setRejectDocModal(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4 text-xs">
+              <div>
+                <p className="text-slate-700 font-medium mb-1">
+                  Document: <strong className="text-slate-900">{rejectDocModal.docName}</strong>
+                </p>
+                <p className="text-slate-500 text-[11px]">
+                  Provide a mandatory discrepancy note explaining why this title document cannot be legally verified.
+                </p>
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Discrepancy / Rejection Reason *
+                </label>
+                <textarea
+                  rows={3}
+                  required
+                  placeholder="e.g. Encumbrance Certificate missing for period 2018-2022, unnotarized power of attorney, stamp mismatch..."
+                  value={rejectDocReason}
+                  onChange={(e) => setRejectDocReason(e.target.value)}
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-hidden focus:border-rose-500"
+                />
+              </div>
+              <div className="pt-2 flex justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setRejectDocModal(null)}
+                  className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold hover:bg-slate-50 cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={!rejectDocReason.trim()}
+                  onClick={() => {
+                    handleVerifyDocument(rejectDocModal.docId, 'REJECTED', rejectDocReason.trim());
+                    setRejectDocModal(null);
+                  }}
+                  className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white font-bold cursor-pointer shadow-xs"
+                >
+                  Confirm Document Rejection
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
