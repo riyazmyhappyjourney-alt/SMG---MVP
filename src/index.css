@@ -20,6 +20,20 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Disable unwanted browser-native number input spin buttons */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] {
+  -moz-appearance: textfield;
+}
+
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
 h1, h2, h3, h4, h5, h6 {
   font-family: var(--font-heading);
   letter-spacing: -0.025em;

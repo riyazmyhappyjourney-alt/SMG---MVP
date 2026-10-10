@@ -2655,6 +2655,10 @@ const assignLeadHandler = async (req: Request, res: Response) => {
     if (!staffUser.is_active) {
       return res.status(400).json({ error: 'STAFF_INACTIVE', message: 'Cannot assign lead to an inactive staff account.' });
     }
+    const isStaffRole = Array.isArray(staffUser.roles) && staffUser.roles.some((r: string) => r.startsWith('STAFF_'));
+    if (!isStaffRole) {
+      return res.status(400).json({ error: 'STAFF_ROLE_REQUIRED', message: 'Assigned relationship manager must possess an operational staff role.' });
+    }
 
     const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
 
