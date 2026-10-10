@@ -24,6 +24,7 @@ export interface DevUser {
   is_active: boolean;
   failed_login_attempts: number;
   locked_until: string | null;
+  module_permissions?: string[];
   created_at: string;
   updated_at: string;
 }
@@ -640,6 +641,42 @@ class DevSandboxStore {
       updated_at: new Date().toISOString()
     };
     this.documents.set(seedDoc.id, seedDoc);
+
+    // Seed sample buyer enquiries
+    const buyerEnq1: DevBuyerEnquiry = {
+      id: 'enq-dev-seed-01',
+      buyer_name: 'Aditya Kashyap',
+      phone: '+919876543210',
+      preferred_locality_or_society: 'Sobha Dream Acres, Panathur',
+      bhk_type: '3BHK',
+      property_id: 'prop-dev-seed-01',
+      lead_status: 'NEW',
+      assigned_staff_id: null,
+      assigned_at: null,
+      next_follow_up_at: null,
+      follow_up_notes: null,
+      notes: 'Interested in high-floor 3BHK unit facing East.',
+      created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    const buyerEnq2: DevBuyerEnquiry = {
+      id: 'enq-dev-seed-02',
+      buyer_name: 'Meera Nambiar',
+      phone: '+919876543219',
+      preferred_locality_or_society: 'Prestige Falcon City, Kanakapura Road',
+      bhk_type: '2BHK',
+      property_id: 'prop-dev-seed-02',
+      lead_status: 'CONTACTED',
+      assigned_staff_id: 'usr-staff-intake-01',
+      assigned_at: new Date(Date.now() - 3600000 * 4).toISOString(),
+      next_follow_up_at: new Date(Date.now() + 86400000 * 2).toISOString(),
+      follow_up_notes: 'Discussed funding timeline and pre-approved loan status.',
+      notes: 'Looking for prompt registration and ready possession.',
+      created_at: new Date(Date.now() - 3600000 * 24).toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    this.buyerEnquiries.set(buyerEnq1.id, buyerEnq1);
+    this.buyerEnquiries.set(buyerEnq2.id, buyerEnq2);
   }
 
   public handleQuery(sql: string, params: any[] = []): { rows: any[] } {
@@ -1203,6 +1240,16 @@ class DevSandboxStore {
         return {
           rows: [{
             ...be,
+            name: be.buyer_name,
+            owner_name: be.buyer_name,
+            client_name: be.buyer_name,
+            fullName: be.buyer_name,
+            society: be.preferred_locality_or_society,
+            locality: be.preferred_locality_or_society,
+            apartment_society_name: be.preferred_locality_or_society,
+            locality_id: be.preferred_locality_or_society,
+            bhk: be.bhk_type,
+            lead_type: 'BUYER',
             property_id: be.property_id || null,
             assigned_staff_name: staff?.display_name || null,
             assigned_staff_phone: staff?.phone || null,
@@ -1214,9 +1261,29 @@ class DevSandboxStore {
         const match = Array.from(this.buyerEnquiries.values()).filter(b => 
           b.phone === params[0] || b.phone?.replace(/\D/g, '').slice(-10) === rawPhone
         );
-        return { rows: match.map(b => ({ ...b, property_id: b.property_id || null })) };
+        return { rows: match.map(b => ({ ...b, name: b.buyer_name, owner_name: b.buyer_name, client_name: b.buyer_name, property_id: b.property_id || null })) };
       }
-      return { rows: Array.from(this.buyerEnquiries.values()).map(b => ({ ...b, property_id: b.property_id || null })) };
+      return {
+        rows: Array.from(this.buyerEnquiries.values()).map(b => {
+          const staff = b.assigned_staff_id ? this.users.get(b.assigned_staff_id) : null;
+          return {
+            ...b,
+            name: b.buyer_name,
+            owner_name: b.buyer_name,
+            client_name: b.buyer_name,
+            fullName: b.buyer_name,
+            society: b.preferred_locality_or_society,
+            locality: b.preferred_locality_or_society,
+            apartment_society_name: b.preferred_locality_or_society,
+            locality_id: b.preferred_locality_or_society,
+            bhk: b.bhk_type,
+            lead_type: 'BUYER',
+            property_id: b.property_id || null,
+            assigned_staff_name: staff?.display_name || null,
+            assigned_staff_phone: staff?.phone || null,
+          };
+        })
+      };
     }
 
     // 17. BUYER_ENQUIRIES: Insert
@@ -1229,7 +1296,7 @@ class DevSandboxStore {
         preferred_locality_or_society: params[3],
         bhk_type: params[4],
         property_id: hasProp ? (params[5] || null) : null,
-        lead_status: params.length >= 8 ? (params[6] || 'NEW') : 'NEW',
+        lead_status: 'NEW',
         assigned_staff_id: null,
         assigned_at: null,
         next_follow_up_at: null,
@@ -1239,7 +1306,7 @@ class DevSandboxStore {
         updated_at: new Date().toISOString(),
       };
       this.buyerEnquiries.set(be.id, be);
-      return { rows: [{ ...be }] };
+      return { rows: [{ ...be, name: be.buyer_name, owner_name: be.buyer_name, client_name: be.buyer_name }] };
     }
 
     // 18. BUYER_ENQUIRIES: Update

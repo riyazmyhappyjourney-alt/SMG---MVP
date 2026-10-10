@@ -161,7 +161,7 @@ export function ConsentPortal() {
           <div>
             <div className="flex items-center space-x-2">
               <ShieldCheck className="w-5 h-5 text-[#244B8F]" />
-              <h1 className="text-xl font-bold font-['Montserrat'] text-[#172033]">
+              <h1 className="text-xl font-bold font-['Poppins',sans-serif] text-[#172033]">
                 DPDP Act Consent Preferences & Withdrawal Portal
               </h1>
             </div>
@@ -178,7 +178,7 @@ export function ConsentPortal() {
         {/* Phase 1: Phone Entry */}
         {step === 'PHONE' && (
           <div className="bg-white rounded-xl shadow-xs border border-gray-200 p-6 max-w-md mx-auto">
-            <h2 className="text-sm font-bold font-['Montserrat'] text-gray-900 mb-1">
+            <h2 className="text-sm font-bold font-['Poppins',sans-serif] text-gray-900 mb-1">
               Verify Your Phone to View Consents
             </h2>
             <p className="text-xs text-gray-500 mb-4">
@@ -227,7 +227,7 @@ export function ConsentPortal() {
             <div className="w-10 h-10 rounded-full bg-blue-50 text-[#244B8F] flex items-center justify-center mx-auto mb-3">
               <Lock className="w-5 h-5" />
             </div>
-            <h2 className="text-sm font-bold font-['Montserrat'] text-gray-900">
+            <h2 className="text-sm font-bold font-['Poppins',sans-serif] text-gray-900">
               Enter 6-Digit Verification Code
             </h2>
             <p className="text-xs text-gray-500 mt-1">
@@ -288,7 +288,7 @@ export function ConsentPortal() {
             <div className="bg-white rounded-xl shadow-xs border border-gray-200 p-6 space-y-6">
               <div className="flex items-center justify-between pb-4 border-b border-gray-200">
                 <div>
-                  <h2 className="text-base font-bold font-['Montserrat'] text-gray-900">
+                  <h2 className="text-base font-bold font-['Poppins',sans-serif] text-gray-900">
                     Consent Records for +91 {phone}
                   </h2>
                   <p className="text-xs text-gray-500">

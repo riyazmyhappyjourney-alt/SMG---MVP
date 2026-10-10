@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { verifySessionToken } from './tokens';
 import { ROLE_PERMISSIONS, hasPermission } from './rbac';
-import { AppRole, Permission, AuthenticatedUser } from '../../core/types/auth';
+import { AppRole, Permission, AuthenticatedUser, CrmModule } from '../../core/types/auth';
 import { executeQuery } from '../db/pool';
 import { getValidatedConfig } from '../config/env';
 
@@ -45,6 +45,52 @@ export function resolveUserPermissions(roles: AppRole[]): Permission[] {
 }
 
 /**
+ * Resolves default module access for backward compatibility with legacy staff roles.
+ */
+export function resolveLegacyModulePermissions(roles: AppRole[]): CrmModule[] {
+  if (roles.includes('STAFF_SUPER_ADMIN')) {
+    return [
+      'OVERVIEW',
+      'LEADS',
+      'PROPERTIES',
+      'VISITS',
+      'OFFERS',
+      'TASKS',
+      'CALENDAR',
+      'REPORTS',
+      'TEAM',
+      'AUDIT_LOGS',
+      'SETTINGS'
+    ];
+  }
+  const perms = new Set<CrmModule>();
+  for (const r of roles) {
+    if (r === 'STAFF_INTAKE_AGENT') {
+      (['OVERVIEW', 'LEADS', 'TASKS', 'CALENDAR'] as CrmModule[]).forEach(m => perms.add(m));
+    } else if (r === 'STAFF_VERIFICATION_AGENT') {
+      (['OVERVIEW', 'LEADS', 'PROPERTIES', 'TASKS', 'CALENDAR'] as CrmModule[]).forEach(m => perms.add(m));
+    } else if (r === 'STAFF_LISTING_MANAGER') {
+      (['OVERVIEW', 'PROPERTIES', 'REPORTS'] as CrmModule[]).forEach(m => perms.add(m));
+    } else if (r === 'STAFF_DEAL_CLOSER') {
+      (['OVERVIEW', 'LEADS', 'PROPERTIES', 'VISITS', 'OFFERS', 'TASKS', 'CALENDAR'] as CrmModule[]).forEach(m => perms.add(m));
+    }
+  }
+  return Array.from(perms);
+}
+
+/**
+ * Checks whether an authenticated user has access to a specific CRM module
+ */
+export function hasModulePermission(user: AuthenticatedUser, module: CrmModule): boolean {
+  if (user.roles.includes('STAFF_SUPER_ADMIN')) return true;
+  if (!user.module_permissions || !Array.isArray(user.module_permissions)) {
+    const fallback = resolveLegacyModulePermissions(user.roles);
+    return fallback.includes(module);
+  }
+  return user.module_permissions.includes(module);
+}
+
+/**
  * Mandatory authentication middleware. Rejects unauthenticated requests with 401.
  * Validates cryptographic JWT signature, account active status, and token_version.
  */
@@ -71,8 +117,9 @@ export async function authenticateUser(req: Request, res: Response, next: NextFu
         roles: string[];
         is_active: boolean;
         token_version: number;
+        module_permissions?: string[];
       }>(
-        `SELECT id, phone, email, roles, is_active, token_version FROM users WHERE id = $1 LIMIT 1;`,
+        `SELECT id, phone, email, roles, is_active, token_version, module_permissions FROM users WHERE id = $1 LIMIT 1;`,
         [payload.uid]
       );
       if (dbRes.rows && dbRes.rows.length > 0) {
@@ -99,6 +146,9 @@ export async function authenticateUser(req: Request, res: Response, next: NextFu
 
       const roles = (dbUser.roles || ['OWNER']) as AppRole[];
       const permissions = resolveUserPermissions(roles);
+      const module_permissions = (dbUser.module_permissions && Array.isArray(dbUser.module_permissions) && dbUser.module_permissions.length > 0)
+        ? (dbUser.module_permissions as CrmModule[])
+        : resolveLegacyModulePermissions(roles);
 
       req.user = {
         uid: dbUser.id,
@@ -106,6 +156,7 @@ export async function authenticateUser(req: Request, res: Response, next: NextFu
         email: dbUser.email,
         roles,
         permissions,
+        module_permissions,
       };
     } else {
       const config = getValidatedConfig();
@@ -117,12 +168,14 @@ export async function authenticateUser(req: Request, res: Response, next: NextFu
       }
       const roles = (payload.roles || ['OWNER']) as AppRole[];
       const permissions = resolveUserPermissions(roles);
+      const module_permissions = resolveLegacyModulePermissions(roles);
       req.user = {
         uid: payload.uid,
         phone: payload.phone,
         email: payload.email,
         roles,
         permissions,
+        module_permissions,
       };
     }
 
@@ -159,8 +212,9 @@ export async function optionalAuthenticateUser(req: Request, _res: Response, nex
         roles: string[];
         is_active: boolean;
         token_version: number;
+        module_permissions?: string[];
       }>(
-        `SELECT id, phone, email, roles, is_active, token_version FROM users WHERE id = $1 LIMIT 1;`,
+        `SELECT id, phone, email, roles, is_active, token_version, module_permissions FROM users WHERE id = $1 LIMIT 1;`,
         [payload.uid]
       );
       if (dbRes.rows && dbRes.rows.length > 0) {
@@ -177,22 +231,28 @@ export async function optionalAuthenticateUser(req: Request, _res: Response, nex
       }
       const roles = (dbUser.roles || ['OWNER']) as AppRole[];
       const permissions = resolveUserPermissions(roles);
+      const module_permissions = (dbUser.module_permissions && Array.isArray(dbUser.module_permissions) && dbUser.module_permissions.length > 0)
+        ? (dbUser.module_permissions as CrmModule[])
+        : resolveLegacyModulePermissions(roles);
       req.user = {
         uid: dbUser.id,
         phone: dbUser.phone,
         email: dbUser.email,
         roles,
         permissions,
+        module_permissions,
       };
     } else {
       const roles = (payload.roles || ['OWNER']) as AppRole[];
       const permissions = resolveUserPermissions(roles);
+      const module_permissions = resolveLegacyModulePermissions(roles);
       req.user = {
         uid: payload.uid,
         phone: payload.phone,
         email: payload.email,
         roles,
         permissions,
+        module_permissions,
       };
     }
   } catch {
@@ -246,3 +306,25 @@ export function requirePermissionMiddleware(permission: Permission) {
     next();
   };
 }
+
+/**
+ * Module-Based Access Control middleware.
+ * Verifies that the authenticated user has explicit permission for the given CRM module.
+ */
+export function requireModule(module: CrmModule) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    if (!req.user) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Authentication required.' });
+    }
+
+    if (!hasModulePermission(req.user, module)) {
+      return res.status(403).json({
+        error: 'FORBIDDEN',
+        message: `Forbidden: module permission required (${module}).`,
+      });
+    }
+
+    next();
+  };
+}
+
