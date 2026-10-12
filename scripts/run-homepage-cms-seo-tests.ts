@@ -219,6 +219,12 @@ export async function runHomepageCmsSeoTests() {
       ownerEmail: 'vikram.mehta@example.com',
     };
 
+    // Install mock provider during automated test run to avoid external HTTP calls
+    EmailNotificationService.setMockProvider(async (payload) => ({
+      success: true,
+      messageId: `re_mock_qa_${Date.now()}`
+    }));
+
     const notifRes1 = await EmailNotificationService.handlePropertyPublished(mockProperty);
     assert(
       'Property publication triggers idempotent notification entry',
@@ -230,6 +236,9 @@ export async function runHomepageCmsSeoTests() {
       'Re-publishing same property does not send duplicate notifications (idempotent)',
       Boolean(notifRes2 && notifRes2.notificationId === notifRes1.notificationId && notifRes2.dispatched === false && notifRes2.reason === 'ALREADY_DISPATCHED')
     );
+
+    // Reset mock provider after test completes
+    EmailNotificationService.setMockProvider(null);
   } catch (err: any) {
     assert('Email Notification operations run without exception', false, err.message);
   }
