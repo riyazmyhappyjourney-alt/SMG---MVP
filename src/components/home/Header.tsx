@@ -129,7 +129,7 @@ export const Header: React.FC<HeaderProps> = ({
       {/* =========================================================================
           1. PRIMARY HEADER (Royal Blue Design matching Reference Header)
          ========================================================================= */}
-      <header className="sticky top-0 z-40 bg-[#244B8F] text-white border-b border-blue-900/60 shadow-md font-['Montserrat']">
+      <header className="relative z-40 bg-[#244B8F] text-white border-b border-blue-900/60 shadow-md font-['Montserrat']">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 sm:h-18">
             

@@ -319,37 +319,37 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
   // Helper to resolve clean, authentic icons for society amenities
   const getAmenityIcon = (name: string) => {
     const lower = name.toLowerCase();
-    if (lower.includes('pool') || lower.includes('swimming')) return <Waves className="w-4 h-4 text-[#244B8F] shrink-0" />;
-    if (lower.includes('gym') || lower.includes('fitness')) return <Dumbbell className="w-4 h-4 text-[#244B8F] shrink-0" />;
-    if (lower.includes('club') || lower.includes('hall')) return <Building className="w-4 h-4 text-[#244B8F] shrink-0" />;
+    if (lower.includes('pool') || lower.includes('swimming')) return <Waves className="w-5 h-5 text-[#244B8F] shrink-0" />;
+    if (lower.includes('gym') || lower.includes('fitness')) return <Dumbbell className="w-5 h-5 text-[#244B8F] shrink-0" />;
+    if (lower.includes('club') || lower.includes('hall')) return <Building className="w-5 h-5 text-[#244B8F] shrink-0" />;
     if (lower.includes('tennis') || lower.includes('court') || lower.includes('badminton') || lower.includes('squash')) {
-      return <Activity className="w-4 h-4 text-[#244B8F] shrink-0" />;
+      return <Activity className="w-5 h-5 text-[#244B8F] shrink-0" />;
     }
-    if (lower.includes('power') || lower.includes('backup') || lower.includes('generator')) return <Zap className="w-4 h-4 text-amber-600 shrink-0" />;
-    if (lower.includes('security') || lower.includes('cctv') || lower.includes('guard')) return <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />;
-    if (lower.includes('garden') || lower.includes('park') || lower.includes('lawn')) return <Trees className="w-4 h-4 text-emerald-600 shrink-0" />;
-    if (lower.includes('play') || lower.includes('kids') || lower.includes('children')) return <Smile className="w-4 h-4 text-orange-500 shrink-0" />;
-    if (lower.includes('parking') || lower.includes('car')) return <Car className="w-4 h-4 text-[#244B8F] shrink-0" />;
-    if (lower.includes('water') || lower.includes('rainwater')) return <Droplets className="w-4 h-4 text-sky-500 shrink-0" />;
-    return <CheckCircle2 className="w-4 h-4 text-[#244B8F] shrink-0" />;
+    if (lower.includes('power') || lower.includes('backup') || lower.includes('generator')) return <Zap className="w-5 h-5 text-amber-600 shrink-0" />;
+    if (lower.includes('security') || lower.includes('cctv') || lower.includes('guard')) return <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0" />;
+    if (lower.includes('garden') || lower.includes('park') || lower.includes('lawn')) return <Trees className="w-5 h-5 text-emerald-600 shrink-0" />;
+    if (lower.includes('play') || lower.includes('kids') || lower.includes('children')) return <Smile className="w-5 h-5 text-orange-500 shrink-0" />;
+    if (lower.includes('parking') || lower.includes('car')) return <Car className="w-5 h-5 text-[#244B8F] shrink-0" />;
+    if (lower.includes('water') || lower.includes('rainwater')) return <Droplets className="w-5 h-5 text-sky-500 shrink-0" />;
+    return <CheckCircle2 className="w-5 h-5 text-[#244B8F] shrink-0" />;
   };
 
   // Helper to resolve authentic icons for nearby landmarks
   const getLandmarkIcon = (name: string) => {
     const lower = name.toLowerCase();
     if (lower.includes('metro') || lower.includes('station') || lower.includes('transit')) {
-      return <TrainFront className="w-4 h-4 text-[#244B8F] shrink-0" />;
+      return <TrainFront className="w-5 h-5 text-[#244B8F] shrink-0" />;
     }
     if (lower.includes('tech') || lower.includes('prestige') || lower.includes('cisco') || lower.includes('park') || lower.includes('office')) {
-      return <Briefcase className="w-4 h-4 text-[#244B8F] shrink-0" />;
+      return <Briefcase className="w-5 h-5 text-[#244B8F] shrink-0" />;
     }
     if (lower.includes('hospital') || lower.includes('medical') || lower.includes('manipal') || lower.includes('columbia') || lower.includes('clinic')) {
-      return <Stethoscope className="w-4 h-4 text-rose-600 shrink-0" />;
+      return <Stethoscope className="w-5 h-5 text-rose-600 shrink-0" />;
     }
     if (lower.includes('school') || lower.includes('dps') || lower.includes('academy') || lower.includes('greenwood') || lower.includes('college')) {
-      return <GraduationCap className="w-4 h-4 text-indigo-600 shrink-0" />;
+      return <GraduationCap className="w-5 h-5 text-indigo-600 shrink-0" />;
     }
-    return <MapPin className="w-4 h-4 text-slate-500 shrink-0" />;
+    return <MapPin className="w-5 h-5 text-slate-500 shrink-0" />;
   };
 
   const handleHeaderTabClick = (tab: 'BUY' | 'SELL' | 'ABOUT' | 'CONTACT') => {
@@ -667,78 +667,78 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 font-['Poppins']">
                 
                 {/* Super Built-Up Sqft */}
-                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80">
-                  <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1">
-                    <Maximize2 className="w-3.5 h-3.5 text-[#244B8F]" />
+                <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80">
+                  <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1.5 font-medium">
+                    <Maximize2 className="w-5 h-5 text-[#244B8F] shrink-0" />
                     <span>Super Built-up</span>
                   </div>
-                  <span className="text-base font-bold text-slate-900 font-['Montserrat']">{property.superBuiltUpSqft} sq.ft</span>
+                  <span className="text-base font-bold text-slate-900 font-['Montserrat'] block">{property.superBuiltUpSqft} sq.ft</span>
                 </div>
 
                 {/* Carpet Area Sqft */}
-                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80">
-                  <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1">
-                    <Maximize2 className="w-3.5 h-3.5 text-emerald-600" />
+                <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80">
+                  <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1.5 font-medium">
+                    <Maximize2 className="w-5 h-5 text-emerald-600 shrink-0" />
                     <span>Carpet Area</span>
                   </div>
-                  <span className="text-base font-bold text-slate-900 font-['Montserrat']">{property.carpetAreaSqft} sq.ft</span>
-                  <span className="text-[10px] text-slate-400 block mt-0.5">~{Math.round((property.carpetAreaSqft / property.superBuiltUpSqft) * 100)}% usable</span>
+                  <span className="text-base font-bold text-slate-900 font-['Montserrat'] block">{property.carpetAreaSqft} sq.ft</span>
+                  <span className="text-[10px] text-slate-400 block mt-0.5 font-medium">~{Math.round((property.carpetAreaSqft / property.superBuiltUpSqft) * 100)}% usable</span>
                 </div>
 
                 {/* Floor Level */}
-                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80">
-                  <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1">
-                    <Building2 className="w-3.5 h-3.5 text-[#244B8F]" />
+                <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80">
+                  <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1.5 font-medium">
+                    <Building2 className="w-5 h-5 text-[#244B8F] shrink-0" />
                     <span>Floor Level</span>
                   </div>
-                  <span className="text-sm font-bold text-slate-900 font-['Montserrat']">{property.floorBand}</span>
+                  <span className="text-sm font-bold text-slate-900 font-['Montserrat'] block">{property.floorBand}</span>
                 </div>
 
                 {/* Facing */}
-                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80">
-                  <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1">
-                    <Compass className="w-3.5 h-3.5 text-[#244B8F]" />
+                <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80">
+                  <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1.5 font-medium">
+                    <Compass className="w-5 h-5 text-[#244B8F] shrink-0" />
                     <span>Facing</span>
                   </div>
-                  <span className="text-base font-bold text-slate-900 font-['Montserrat']">{property.facing}</span>
+                  <span className="text-base font-bold text-slate-900 font-['Montserrat'] block">{property.facing}</span>
                 </div>
 
                 {/* Bathrooms */}
-                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80">
-                  <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1">
-                    <Bath className="w-3.5 h-3.5 text-[#244B8F]" />
+                <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80">
+                  <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1.5 font-medium">
+                    <Bath className="w-5 h-5 text-[#244B8F] shrink-0" />
                     <span>Bathrooms</span>
                   </div>
-                  <span className="text-base font-bold text-slate-900 font-['Montserrat']">{property.bathroomsCount} Baths</span>
+                  <span className="text-base font-bold text-slate-900 font-['Montserrat'] block">{property.bathroomsCount} Baths</span>
                 </div>
 
                 {/* Parking */}
-                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80">
-                  <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1">
-                    <Car className="w-3.5 h-3.5 text-[#244B8F]" />
+                <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80">
+                  <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1.5 font-medium">
+                    <Car className="w-5 h-5 text-[#244B8F] shrink-0" />
                     <span>Parking</span>
                   </div>
-                  <span className="text-base font-bold text-slate-900 font-['Montserrat']">
+                  <span className="text-base font-bold text-slate-900 font-['Montserrat'] block">
                     {property.carParksCount} {property.isCoveredParking ? 'Covered' : 'Open'}
                   </span>
                 </div>
 
                 {/* Occupancy Status */}
-                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80">
-                  <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1">
-                    <Clock className="w-3.5 h-3.5 text-emerald-600" />
+                <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80">
+                  <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1.5 font-medium">
+                    <Clock className="w-5 h-5 text-emerald-600 shrink-0" />
                     <span>Occupancy</span>
                   </div>
-                  <span className="text-sm font-bold text-slate-900 font-['Montserrat']">Ready to Move</span>
+                  <span className="text-sm font-bold text-slate-900 font-['Montserrat'] block">Ready to Move</span>
                 </div>
 
                 {/* Monthly Maintenance */}
-                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80">
-                  <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1">
-                    <IndianRupee className="w-3.5 h-3.5 text-blue-600" />
+                <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80">
+                  <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1.5 font-medium">
+                    <IndianRupee className="w-5 h-5 text-blue-600 shrink-0" />
                     <span>Est. Maintenance</span>
                   </div>
-                  <span className="text-sm font-bold text-slate-900 font-['Montserrat'] font-mono">
+                  <span className="text-sm font-bold text-slate-900 font-['Montserrat'] block font-mono">
                     ₹{(property.monthlyMaintenanceInr || 4500).toLocaleString('en-IN')}/mo
                   </span>
                 </div>
@@ -883,15 +883,46 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
 
             {/* 7. Developer & Project Information */}
             {property.developer && (
-              <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-7 shadow-xs space-y-3 font-['Poppins']">
-                <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider font-['Montserrat']">
-                  Developer & Project Information
-                </h2>
-                <div className="space-y-1">
-                  <h3 className="text-base font-bold text-slate-900 font-['Montserrat']">{property.developer.name}</h3>
-                  <p className="text-xs text-slate-500 font-mono">
-                    RERA ID: {property.developer.reraNumber} • Launched: {property.developer.launchYear}
-                  </p>
+              <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-7 shadow-xs space-y-4">
+                <div className="flex items-center justify-between flex-wrap gap-2 pb-3 border-b border-slate-100">
+                  <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider font-['Montserrat']">
+                    Developer & Project Information
+                  </h2>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50 text-[#244B8F] text-[11px] font-bold font-['Montserrat']">
+                    <ShieldCheck className="w-3.5 h-3.5 text-[#244B8F]" />
+                    <span>RERA Registered</span>
+                  </span>
+                </div>
+                
+                <div className="space-y-3">
+                  <div>
+                    <h3 className="text-xl font-extrabold text-[#172033] font-['Montserrat'] tracking-tight">
+                      {property.developer.name}
+                    </h3>
+                    <p className="text-xs text-slate-500 font-['Poppins'] mt-0.5">
+                      Master Township & Residential Developer
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block font-['Montserrat']">
+                        Statutory RERA ID
+                      </span>
+                      <span className="text-xs font-semibold text-slate-800 font-mono block mt-0.5">
+                        {property.developer.reraNumber}
+                      </span>
+                    </div>
+
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/80">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block font-['Montserrat']">
+                        Project Launch Year
+                      </span>
+                      <span className="text-xs font-bold text-slate-800 font-['Montserrat'] block mt-0.5">
+                        {property.developer.launchYear}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
@@ -1195,7 +1226,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                     {/* 3 Specifications Tiles: SBUA Area | Facing | Floor */}
                     <div className="grid grid-cols-3 gap-2">
                       <div className="bg-slate-50/80 rounded-xl p-2.5 text-center border border-slate-100 flex flex-col items-center justify-center">
-                        <Maximize2 className="w-3.5 h-3.5 text-[#244B8F] mb-1" />
+                        <Maximize2 className="w-5 h-5 text-[#244B8F] mb-1" />
                         <span className="text-xs font-bold text-slate-800 font-['Montserrat'] leading-tight">
                           {sim.superBuiltUpSqft.toLocaleString('en-IN')} sq.ft
                         </span>
@@ -1203,7 +1234,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                       </div>
 
                       <div className="bg-slate-50/80 rounded-xl p-2.5 text-center border border-slate-100 flex flex-col items-center justify-center">
-                        <Compass className="w-3.5 h-3.5 text-[#244B8F] mb-1" />
+                        <Compass className="w-5 h-5 text-[#244B8F] mb-1" />
                         <span className="text-xs font-bold text-slate-800 font-['Montserrat'] uppercase leading-tight">
                           {sim.facing || 'EAST'}
                         </span>
@@ -1211,9 +1242,9 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                       </div>
 
                       <div className="bg-slate-50/80 rounded-xl p-2.5 text-center border border-slate-100 flex flex-col items-center justify-center">
-                        <Bed className="w-3.5 h-3.5 text-[#244B8F] mb-1" />
+                        <Building2 className="w-5 h-5 text-[#244B8F] mb-1" />
                         <span className="text-xs font-bold text-slate-800 font-['Montserrat'] leading-tight truncate w-full">
-                          {sim.floorBand || 'Floor 11 of 18'}
+                          {sim.floorBand || 'Floor 8 of 8'}
                         </span>
                         <span className="text-[10px] text-slate-400 font-['Poppins'] mt-0.5">Floor</span>
                       </div>
