@@ -8,6 +8,7 @@ import {
   Search,
   ChevronDown
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { searchSocieties, SocietyItem } from '../../data/bengaluruData';
 import { trackEvent } from '../../utils/analytics';
 
@@ -73,8 +74,6 @@ export const Hero: React.FC<HeroProps> = ({
   const [isPaused, setIsPaused] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // Active locality index for robust, non-breaking vertical rolling ticker
-  const [activeLocalityIndex, setActiveLocalityIndex] = useState(0);
 
   // Dynamic CMS Slides Fetching
   useEffect(() => {
@@ -153,14 +152,18 @@ export const Hero: React.FC<HeroProps> = ({
     return () => clearInterval(timer);
   }, [isPaused, slideCount]);
 
-  // Robust, self-contained timer for locality vertical rolling ticker (advances every 2.4s)
+  // Continuous, perpetual ticking loop for locality ticker (advances every 2.0s)
+  const [localityTick, setLocalityTick] = useState(0);
+
   useEffect(() => {
     const ticker = setInterval(() => {
-      setActiveLocalityIndex((prev) => (prev + 1) % LOCALITIES.length);
-    }, 2400);
+      setLocalityTick((prev) => prev + 1);
+    }, 2000);
 
     return () => clearInterval(ticker);
   }, []);
+
+  const currentLocality = LOCALITIES[localityTick % LOCALITIES.length];
 
   // Marketplace Card Tab & Form State
   const [activeTab, setActiveTab] = useState<'SELL' | 'BUY' | 'RENT'>('SELL');
@@ -293,7 +296,7 @@ export const Hero: React.FC<HeroProps> = ({
 
           {/* Credible, commercially grounded supporting copy */}
           <p className="text-sm sm:text-base text-slate-200 font-normal leading-relaxed drop-shadow-[0_1px_6px_rgba(0,0,0,0.95)] max-w-2xl">
-            A structured resale process with Kaveri 2.0 deed benchmarking, legal title diligence, and pre-screened buyers across Bengaluru apartment corridors.
+            A transparent resale process with verified registry pricing, legal diligence, and pre-qualified buyers across Bengaluru.
           </p>
 
           {/* Action CTAs */}
@@ -326,22 +329,25 @@ export const Hero: React.FC<HeroProps> = ({
               <span>Active buyer demand in:</span>
             </div>
 
-            {/* Robust Vertical Capsule: Exact 28px height, overflow hidden, vertical clip */}
-            <div className="relative inline-flex h-7 overflow-hidden rounded-md bg-slate-900/80 backdrop-blur-md border border-white/20 shadow-xs px-2.5 items-center">
-              <div 
-                className="transition-transform duration-500 ease-out flex flex-col will-change-transform"
-                style={{ transform: `translateY(-${activeLocalityIndex * 28}px)` }}
-              >
-                {LOCALITIES.map((loc, idx) => (
-                  <div
-                    key={`${loc}-${idx}`}
-                    className="h-7 flex items-center text-white font-bold text-xs tracking-wide select-none whitespace-nowrap leading-none"
-                  >
-                    {loc}
-                  </div>
-                ))}
-              </div>
-            </div>
+            {/* Dynamic Glassmorphic Capsule with Smooth Rolling Text and Auto-Resizing Width in Continuous Loop */}
+            <motion.div 
+              layout
+              transition={{ layout: { duration: 0.35, ease: [0.25, 1, 0.5, 1] } }}
+              className="relative inline-flex h-7 items-center overflow-hidden rounded-lg bg-white/10 backdrop-blur-md border border-white/20 shadow-xs px-3"
+            >
+              <AnimatePresence mode="popLayout" initial={false}>
+                <motion.div
+                  key={localityTick}
+                  initial={{ y: 18, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  exit={{ y: -18, opacity: 0 }}
+                  transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+                  className="text-white font-bold text-xs tracking-wide select-none whitespace-nowrap leading-none flex items-center"
+                >
+                  {currentLocality}
+                </motion.div>
+              </AnimatePresence>
+            </motion.div>
           </div>
 
         </div>
@@ -472,7 +478,13 @@ export const Hero: React.FC<HeroProps> = ({
                     type="submit"
                     className="w-full py-2.5 px-4 bg-[#244B8F] hover:bg-[#1B396E] text-white text-xs font-bold rounded-xl shadow-md hover:shadow-lg transition-all cursor-pointer flex items-center justify-center space-x-1.5 group"
                   >
-                    <span>Get 45-Day Plan</span>
+                    <span>
+                      {activeTab === 'BUY'
+                        ? 'Search Verified Flats'
+                        : activeTab === 'RENT'
+                        ? 'Explore Rental Flats'
+                        : 'Sell Your Flat Now'}
+                    </span>
                     <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                   </button>
                 </div>

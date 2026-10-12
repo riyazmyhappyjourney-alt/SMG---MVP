@@ -1,10 +1,13 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Header } from './Header';
 import { Hero } from './Hero';
 import { TrustedPartnersMarquee } from './TrustedPartnersMarquee';
 import { HoldingCostCalculator } from './HoldingCostCalculator';
 import { ListedProperties } from './ListedProperties';
 import { Footer } from './Footer';
+import { SellFlatPopupModal } from './SellFlatPopupModal';
+import { BuyerSearchPopupModal } from './BuyerSearchPopupModal';
+import { GuideModal } from './GuideModal';
 import { UserAuthProfile } from '../../types/user';
 import { trackEvent } from '../../utils/analytics';
 
@@ -26,6 +29,11 @@ export const HomePage: React.FC<HomePageProps> = ({
   onNavigateToDashboard,
   onConsentPortalOpen,
 }) => {
+  const [isSellModalOpen, setIsSellModalOpen] = useState(false);
+  const [isBuyerModalOpen, setIsBuyerModalOpen] = useState(false);
+  const [activeGuideId, setActiveGuideId] = useState<string | null>(null);
+  const [isGuideModalOpen, setIsGuideModalOpen] = useState(false);
+
   const scrollToListings = () => {
     const el = document.getElementById('listings');
     if (el) {
@@ -42,11 +50,9 @@ export const HomePage: React.FC<HomePageProps> = ({
 
   const handleTabClick = (tab: 'BUY' | 'SELL' | 'ABOUT' | 'CONTACT') => {
     if (tab === 'BUY') {
-      scrollToListings();
+      setIsBuyerModalOpen(true);
     } else if (tab === 'SELL') {
-      if (onNavigateToSellerAssisted) {
-        onNavigateToSellerAssisted();
-      }
+      setIsSellModalOpen(true);
     } else if (tab === 'ABOUT') {
       scrollToCalculator();
     } else if (tab === 'CONTACT') {
@@ -56,11 +62,14 @@ export const HomePage: React.FC<HomePageProps> = ({
     }
   };
 
+  const handlePostProperty = () => {
+    trackEvent('SELLER_FUNNEL_START', { source: 'header_post_property' });
+    setIsSellModalOpen(true);
+  };
+
   const handleStartSelling = (prefillLocality?: string) => {
     trackEvent('SELLER_FUNNEL_START', { source: 'homepage', locality: prefillLocality || 'DIRECT' });
-    if (onNavigateToSellerAssisted) {
-      onNavigateToSellerAssisted(prefillLocality);
-    }
+    setIsSellModalOpen(true);
   };
 
   return (
@@ -69,7 +78,7 @@ export const HomePage: React.FC<HomePageProps> = ({
       {/* 1. Sticky Responsive Header */}
       <Header
         user={activeUser}
-        onPostPropertyClick={() => handleStartSelling()}
+        onPostPropertyClick={handlePostProperty}
         onLoginClick={() => {
           if (onNavigateToLogin) onNavigateToLogin();
         }}
@@ -77,13 +86,17 @@ export const HomePage: React.FC<HomePageProps> = ({
           if (onNavigateToDashboard) onNavigateToDashboard();
         }}
         onTabClick={handleTabClick}
+        onOpenGuide={(guideId) => {
+          setActiveGuideId(guideId);
+          setIsGuideModalOpen(true);
+        }}
       />
 
       <main className="flex-1">
         
         {/* 2. Hero Section: 45-day Proposition, Controlled Rolling Ticker, 99acres Inspired Quick Action Card */}
         <Hero
-          onSellClick={() => handleStartSelling()}
+          onSellClick={() => setIsSellModalOpen(true)}
           onExploreClick={scrollToListings}
           onUnderstandProcessClick={scrollToCalculator}
         />
@@ -92,7 +105,7 @@ export const HomePage: React.FC<HomePageProps> = ({
         <TrustedPartnersMarquee />
 
         {/* 4. Financial Cost of an Unsold Flat Calculator */}
-        <HoldingCostCalculator onExploreSellingOptions={() => handleStartSelling()} />
+        <HoldingCostCalculator onExploreSellingOptions={() => setIsSellModalOpen(true)} />
 
         {/* 5. Verified Resale Inventory */}
         <div id="listings">
@@ -109,6 +122,31 @@ export const HomePage: React.FC<HomePageProps> = ({
       <Footer
         onNavClick={handleTabClick}
         onConsentPortalOpen={onConsentPortalOpen}
+      />
+
+      {/* Interactive Modal Popups for Header Actions (No Full-Page Disruption) */}
+      <SellFlatPopupModal
+        isOpen={isSellModalOpen}
+        onClose={() => setIsSellModalOpen(false)}
+        onOpenFullWizard={() => {
+          if (onNavigateToSellerAssisted) {
+            onNavigateToSellerAssisted();
+          }
+        }}
+      />
+
+      <BuyerSearchPopupModal
+        isOpen={isBuyerModalOpen}
+        onClose={() => setIsBuyerModalOpen(false)}
+        onBrowseListings={() => {
+          scrollToListings();
+        }}
+      />
+
+      <GuideModal
+        isOpen={isGuideModalOpen}
+        guideId={activeGuideId}
+        onClose={() => setIsGuideModalOpen(false)}
       />
     </div>
   );

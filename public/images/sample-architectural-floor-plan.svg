@@ -1,0 +1,206 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 700" width="100%" height="100%" style="background-color: #FAFAF8; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+  <defs>
+    <!-- Grid Pattern for Blueprint feel -->
+    <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
+      <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#E2E8F0" stroke-width="0.5" stroke-dasharray="2 2" />
+    </pattern>
+    <!-- Wood floor texture simulation -->
+    <pattern id="wood-light" width="40" height="8" patternUnits="userSpaceOnUse">
+      <rect width="40" height="8" fill="#FBF8F3" />
+      <line x1="0" y1="0" x2="40" y2="0" stroke="#E8E2D7" stroke-width="0.6" />
+      <line x1="20" y1="0" x2="20" y2="8" stroke="#E8E2D7" stroke-width="0.6" />
+    </pattern>
+    <pattern id="tile-bath" width="16" height="16" patternUnits="userSpaceOnUse">
+      <rect width="16" height="16" fill="#F1F5F9" />
+      <path d="M 16 0 L 0 0 0 16" fill="none" stroke="#CBD5E1" stroke-width="0.6" />
+    </pattern>
+    <pattern id="balcony-deck" width="8" height="60" patternUnits="userSpaceOnUse">
+      <rect width="8" height="60" fill="#EAE5DE" />
+      <line x1="0" y1="0" x2="0" y2="60" stroke="#D3CBC2" stroke-width="0.8" />
+    </pattern>
+  </defs>
+
+  <!-- Background Grid -->
+  <rect width="1000" height="700" fill="url(#grid)" />
+
+  <!-- Outer Boundary Margin & Blueprint Border -->
+  <rect x="25" y="25" width="950" height="650" fill="none" stroke="#CBD5E1" stroke-width="1.2" stroke-dasharray="6 3" rx="8" />
+
+  <!-- APARTMENT ROOM FLOOR FILLS -->
+  <!-- Living & Dining Hall -->
+  <rect x="70" y="80" width="460" height="340" fill="url(#wood-light)" />
+  <!-- Foyer Entrance -->
+  <rect x="70" y="420" width="140" height="120" fill="#F1EFEA" />
+  <!-- Balcony Deck -->
+  <rect x="70" y="80" width="90" height="240" fill="url(#balcony-deck)" />
+  <!-- Kitchen & Utility -->
+  <rect x="210" y="420" width="320" height="180" fill="url(#tile-bath)" />
+  <!-- Master Bedroom Suite -->
+  <rect x="540" y="80" width="380" height="240" fill="url(#wood-light)" />
+  <!-- Master Bathroom Ensuite -->
+  <rect x="760" y="80" width="160" height="130" fill="url(#tile-bath)" />
+  <!-- Bedroom 2 -->
+  <rect x="540" y="330" width="230" height="270" fill="url(#wood-light)" />
+  <!-- Bedroom 3 / Study -->
+  <rect x="780" y="330" width="140" height="160" fill="url(#wood-light)" />
+  <!-- Common Bathroom -->
+  <rect x="780" y="500" width="140" height="100" fill="url(#tile-bath)" />
+
+  <!-- THICK STRUCTURAL WALLS (Architectural standard: 10px solid dark slate) -->
+  <!-- Outer Perimeter Walls -->
+  <path d="M 70 80 L 920 80 L 920 600 L 70 600 Z" fill="none" stroke="#1E293B" stroke-width="8" stroke-linejoin="round" />
+  <!-- Dividing Wall: Living to Bedrooms Corridor -->
+  <line x1="535" y1="80" x2="535" y2="600" stroke="#1E293B" stroke-width="7" />
+  <!-- Dividing Wall: Kitchen to Foyer -->
+  <line x1="210" y1="420" x2="210" y2="600" stroke="#334155" stroke-width="6" />
+  <!-- Dividing Wall: Kitchen to Living -->
+  <line x1="210" y1="420" x2="535" y2="420" stroke="#334155" stroke-width="6" />
+  <!-- Dividing Wall: Balcony to Living -->
+  <line x1="160" y1="80" x2="160" y2="320" stroke="#64748B" stroke-width="4" stroke-dasharray="14 6" />
+  <!-- Dividing Wall: Master Bed to Master Bath -->
+  <line x1="760" y1="80" x2="760" y2="210" stroke="#334155" stroke-width="6" />
+  <line x1="760" y1="210" x2="920" y2="210" stroke="#334155" stroke-width="6" />
+  <!-- Dividing Wall: Master Bed to Bed 2 -->
+  <line x1="535" y1="325" x2="920" y2="325" stroke="#1E293B" stroke-width="7" />
+  <!-- Dividing Wall: Bed 2 to Bed 3 & Bath -->
+  <line x1="775" y1="325" x2="775" y2="600" stroke="#334155" stroke-width="6" />
+  <!-- Dividing Wall: Bed 3 to Common Bath -->
+  <line x1="775" y1="495" x2="920" y2="495" stroke="#334155" stroke-width="6" />
+
+  <!-- WINDOW OPENINGS WITH ARCHITECTURAL DOUBLE LINES -->
+  <!-- Balcony Sliding Door -->
+  <rect x="70" y="100" width="8" height="120" fill="#93C5FD" stroke="#1E3A8A" stroke-width="2" />
+  <!-- Master Bed Window -->
+  <rect x="580" y="74" width="130" height="9" fill="#93C5FD" stroke="#1E3A8A" stroke-width="2" />
+  <!-- Bed 2 Window -->
+  <rect x="914" y="360" width="9" height="110" fill="#93C5FD" stroke="#1E3A8A" stroke-width="2" />
+  <!-- Bed 3 Window -->
+  <rect x="914" y="520" width="9" height="60" fill="#93C5FD" stroke="#1E3A8A" stroke-width="2" />
+  <!-- Kitchen Utility Window -->
+  <rect x="300" y="594" width="110" height="9" fill="#93C5FD" stroke="#1E3A8A" stroke-width="2" />
+
+  <!-- DOOR SWING ARCS (Standard 90° Swing Blueprint) -->
+  <!-- Main Entrance Door (Foyer) -->
+  <path d="M 70 540 A 50 50 0 0 1 120 590" fill="none" stroke="#0284C7" stroke-width="1.8" stroke-dasharray="3 2" />
+  <line x1="70" y1="540" x2="70" y2="590" stroke="#0284C7" stroke-width="2.5" />
+  <!-- Master Bedroom Door -->
+  <path d="M 540 270 A 45 45 0 0 1 585 315" fill="none" stroke="#0284C7" stroke-width="1.5" stroke-dasharray="3 2" />
+  <line x1="540" y1="270" x2="540" y2="315" stroke="#0284C7" stroke-width="2" />
+  <!-- Master Bath Door -->
+  <path d="M 760 170 A 35 35 0 0 1 795 205" fill="none" stroke="#0284C7" stroke-width="1.5" stroke-dasharray="3 2" />
+  <line x1="760" y1="170" x2="760" y2="205" stroke="#0284C7" stroke-width="2" />
+  <!-- Bedroom 2 Door -->
+  <path d="M 540 370 A 45 45 0 0 0 585 325" fill="none" stroke="#0284C7" stroke-width="1.5" stroke-dasharray="3 2" />
+  <line x1="540" y1="370" x2="540" y2="325" stroke="#0284C7" stroke-width="2" />
+  <!-- Bedroom 3 Door -->
+  <path d="M 775 375 A 40 40 0 0 1 815 415" fill="none" stroke="#0284C7" stroke-width="1.5" stroke-dasharray="3 2" />
+  <!-- Common Bath Door -->
+  <path d="M 775 540 A 35 35 0 0 1 810 575" fill="none" stroke="#0284C7" stroke-width="1.5" stroke-dasharray="3 2" />
+
+  <!-- FURNITURE LAYOUT INDICATORS (Muted Elegance) -->
+  <!-- Living Room Sofa (L-Shape) -->
+  <rect x="230" y="110" width="160" height="40" rx="6" fill="#E2E8F0" stroke="#64748B" stroke-width="1.5" />
+  <rect x="350" y="150" width="40" height="80" rx="6" fill="#E2E8F0" stroke="#64748B" stroke-width="1.5" />
+  <rect x="250" y="165" width="80" height="45" rx="4" fill="#F8FAFC" stroke="#94A3B8" stroke-width="1.2" />
+  <!-- TV Credenza -->
+  <rect x="230" y="300" width="170" height="18" rx="3" fill="#CBD5E1" stroke="#475569" stroke-width="1.2" />
+
+  <!-- Dining Table with 6 Chairs -->
+  <rect x="420" y="160" width="85" height="120" rx="8" fill="#F1F5F9" stroke="#64748B" stroke-width="1.5" />
+  <!-- Chairs -->
+  <rect x="400" y="175" width="15" height="25" rx="3" fill="#E2E8F0" stroke="#94A3B8" />
+  <rect x="400" y="235" width="15" height="25" rx="3" fill="#E2E8F0" stroke="#94A3B8" />
+  <rect x="510" y="175" width="15" height="25" rx="3" fill="#E2E8F0" stroke="#94A3B8" />
+  <rect x="510" y="235" width="15" height="25" rx="3" fill="#E2E8F0" stroke="#94A3B8" />
+
+  <!-- Kitchen Counters (L-Shape Granite) -->
+  <rect x="220" y="430" width="60" height="160" fill="#E2E8F0" stroke="#64748B" stroke-width="1.5" />
+  <rect x="280" y="530" width="240" height="60" fill="#E2E8F0" stroke="#64748B" stroke-width="1.5" />
+  <!-- 4-Burner Hob -->
+  <circle cx="340" cy="555" r="8" fill="#CBD5E1" stroke="#475569" stroke-width="1" />
+  <circle cx="365" cy="555" r="8" fill="#CBD5E1" stroke="#475569" stroke-width="1" />
+  <circle cx="340" cy="572" r="7" fill="#CBD5E1" stroke="#475569" stroke-width="1" />
+  <circle cx="365" cy="572" r="7" fill="#CBD5E1" stroke="#475569" stroke-width="1" />
+  <!-- Double Sink -->
+  <rect x="440" y="542" width="55" height="36" rx="4" fill="#F8FAFC" stroke="#64748B" stroke-width="1.5" />
+
+  <!-- Master Bedroom King Bed & Wardrobes -->
+  <rect x="600" y="120" width="120" height="135" rx="8" fill="#F1F5F9" stroke="#64748B" stroke-width="1.8" />
+  <rect x="610" y="125" width="45" height="25" rx="4" fill="#E2E8F0" stroke="#94A3B8" />
+  <rect x="665" y="125" width="45" height="25" rx="4" fill="#E2E8F0" stroke="#94A3B8" />
+  <!-- Bedside Tables -->
+  <rect x="568" y="120" width="26" height="28" rx="3" fill="#E2E8F0" stroke="#94A3B8" />
+  <rect x="725" y="120" width="26" height="28" rx="3" fill="#E2E8F0" stroke="#94A3B8" />
+  <!-- Wardrobe Bank -->
+  <rect x="550" y="270" width="170" height="35" rx="4" fill="#E2E8F0" stroke="#64748B" stroke-width="1.2" />
+
+  <!-- Master Bath Sanitary Fixtures -->
+  <rect x="850" y="90" width="60" height="40" rx="6" fill="#F8FAFC" stroke="#64748B" stroke-width="1.5" />
+  <circle cx="795" cy="115" r="14" fill="#FFFFFF" stroke="#64748B" stroke-width="1.5" />
+  <rect x="840" y="150" width="70" height="50" rx="4" fill="#E2E8F0" stroke="#94A3B8" stroke-dasharray="3 2" />
+
+  <!-- Bedroom 2 Queen Bed & Wardrobes -->
+  <rect x="575" y="440" width="110" height="120" rx="8" fill="#F1F5F9" stroke="#64748B" stroke-width="1.5" />
+  <rect x="570" y="340" width="120" height="30" rx="4" fill="#E2E8F0" stroke="#64748B" stroke-width="1.2" />
+
+  <!-- TEXT LABELS & ARCHITECTURAL DIMENSIONS -->
+  <!-- Living & Dining -->
+  <text x="320" y="235" font-size="14" font-weight="800" fill="#0F172A" text-anchor="middle" letter-spacing="0.5">LIVING &amp; DINING HALL</text>
+  <text x="320" y="255" font-size="11" font-weight="600" fill="#64748B" text-anchor="middle">22' 0" × 14' 6" (319 SQ.FT)</text>
+
+  <!-- Balcony Deck -->
+  <text x="115" y="195" font-size="11" font-weight="700" fill="#475569" text-anchor="middle" transform="rotate(-90 115 195)">BALCONY DECK 12' 0" × 5' 0"</text>
+
+  <!-- Foyer / Entry -->
+  <text x="135" y="475" font-size="11" font-weight="700" fill="#475569" text-anchor="middle">ENTRANCE FOYER</text>
+  <text x="135" y="492" font-size="9" font-weight="600" fill="#64748B" text-anchor="middle">7' 0" × 5' 6"</text>
+  <!-- Main Entrance Arrow -->
+  <path d="M 60 565 L 85 565 M 80 558 L 87 565 L 80 572" stroke="#0284C7" stroke-width="2.5" fill="none" />
+  <text x="75" y="583" font-size="9" font-weight="800" fill="#0284C7">ENTRY</text>
+
+  <!-- Kitchen -->
+  <text x="380" y="480" font-size="12" font-weight="800" fill="#0F172A" text-anchor="middle">MODULAR KITCHEN</text>
+  <text x="380" y="498" font-size="10" font-weight="600" fill="#64748B" text-anchor="middle">10' 6" × 8' 6" + UTILITY</text>
+
+  <!-- Master Bedroom Suite -->
+  <text x="655" y="190" font-size="13" font-weight="800" fill="#0F172A" text-anchor="middle">MASTER SUITE</text>
+  <text x="655" y="208" font-size="10" font-weight="600" fill="#64748B" text-anchor="middle">14' 0" × 12' 0"</text>
+
+  <!-- Master Bath -->
+  <text x="840" y="140" font-size="10" font-weight="700" fill="#475569" text-anchor="middle">ENSUITE</text>
+  <text x="840" y="154" font-size="8.5" font-weight="600" fill="#64748B" text-anchor="middle">8' 6" × 5' 6"</text>
+
+  <!-- Bedroom 2 -->
+  <text x="630" y="405" font-size="12" font-weight="800" fill="#0F172A" text-anchor="middle">BEDROOM 2</text>
+  <text x="630" y="422" font-size="10" font-weight="600" fill="#64748B" text-anchor="middle">12' 6" × 11' 0"</text>
+
+  <!-- Bedroom 3 / Study -->
+  <text x="848" y="405" font-size="11" font-weight="800" fill="#0F172A" text-anchor="middle">BED 3 / STUDY</text>
+  <text x="848" y="420" font-size="9" font-weight="600" fill="#64748B" text-anchor="middle">11' 0" × 10' 0"</text>
+
+  <!-- Common Bath -->
+  <text x="848" y="550" font-size="10" font-weight="700" fill="#475569" text-anchor="middle">COMMON BATH</text>
+  <text x="848" y="565" font-size="8.5" font-weight="600" fill="#64748B" text-anchor="middle">8' 0" × 5' 0"</text>
+
+  <!-- VASTU COMPASS NORTH INDICATOR (Top Right) -->
+  <g transform="translate(945, 60)">
+    <circle cx="0" cy="0" r="22" fill="#FFFFFF" stroke="#94A3B8" stroke-width="1.2" shadow="drop-shadow" />
+    <path d="M 0 -18 L 6 0 L 0 -4 L -6 0 Z" fill="#DC2626" />
+    <path d="M 0 18 L 6 0 L 0 4 L -6 0 Z" fill="#64748B" />
+    <text x="0" y="-22" font-size="10" font-weight="900" fill="#DC2626" text-anchor="middle">N</text>
+    <text x="0" y="7" font-size="7" font-weight="700" fill="#1E293B" text-anchor="middle">VASTU</text>
+  </g>
+
+  <!-- ARCHITECTURAL BLUEPRINT TITLE BLOCK (Bottom Footer Banner) -->
+  <g transform="translate(70, 620)">
+    <rect x="0" y="0" width="850" height="42" rx="8" fill="#172033" />
+    <text x="24" y="26" font-size="12" font-weight="800" fill="#FFFFFF" letter-spacing="0.5">
+      3 BHK ARCHITECTURAL SPECIFICATION PLAN · TYPICAL RESALE UNIT
+    </text>
+    <text x="490" y="25" font-size="10.5" font-weight="600" fill="#93C5FD">
+      SBUA: 1,580 SQ.FT · CARPET: 1,232 SQ.FT (78%) · KAVERI 2.0 BENCHMARKED
+    </text>
+    <rect x="750" y="9" width="84" height="24" rx="4" fill="#0284C7" />
+    <text x="792" y="25" font-size="9" font-weight="800" fill="#FFFFFF" text-anchor="middle">VERIFIED 2D</text>
+  </g>
+</svg>
