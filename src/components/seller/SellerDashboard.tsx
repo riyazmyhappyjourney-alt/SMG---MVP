@@ -32,6 +32,7 @@ import {
   SellerPropertyItem,
   PropertyStageEnum
 } from '../../types/seller';
+import { getDistinctCommunityPhoto } from '../../utils/propertyImages';
 
 interface SellerDashboardProps {
   user: UserAuthProfile | null;
@@ -1129,13 +1130,14 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                             {/* Left: Thumbnail Image + Badges */}
                             <div className="md:col-span-4 relative rounded-xl overflow-hidden bg-slate-100 aspect-4/3 sm:aspect-16/10">
                               <img
-                                src={property.photos[0] || 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80'}
+                                src={property.photos[0] || getDistinctCommunityPhoto(property.id || property.societyName, 800)}
                                 alt={property.societyName}
                                 className="w-full h-full object-cover"
                                 onError={(e) => {
                                   const target = e.target as HTMLImageElement;
-                                  if (!target.src.includes('images.unsplash.com')) {
-                                    target.src = 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80';
+                                  if (!target.dataset.hasFallback) {
+                                    target.dataset.hasFallback = 'true';
+                                    target.src = getDistinctCommunityPhoto(property.id || property.societyName, 800);
                                   }
                                 }}
                               />

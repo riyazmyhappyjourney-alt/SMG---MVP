@@ -1,6 +1,7 @@
 import { executeQuery } from '../db/pool';
 import { recordAuditEvent } from '../audit/logger';
 import { AuthenticatedUser } from '../../core/types/auth';
+import { getDistinctCommunityPhoto } from '../../utils/propertyImages';
 
 export interface EmailTemplateRecord {
   template_key: string;
@@ -1580,7 +1581,7 @@ export class EmailNotificationService {
       ? `₹${(priceNum / 10000000).toFixed(2)} Cr`
       : `₹${(priceNum / 100000).toFixed(2)} Lakh`;
     
-    const primaryImg = images.find(i => i.is_featured)?.url || images[0]?.url || 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80';
+    const primaryImg = images.find(i => i.is_featured)?.url || images[0]?.url || getDistinctCommunityPhoto(propId || title || locality, 800);
     const baseUrl = process.env.APP_BASE_URL || 'https://sellmyghar.in';
     const propertyUrl = `${baseUrl}/#/property/${propId}`;
 

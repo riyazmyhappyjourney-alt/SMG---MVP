@@ -184,7 +184,7 @@ export async function runApprovalAndImageFixTests(): Promise<{ passed: number; f
     // TEST 9: Frontend cards contain onError fallback handlers
     const homeListingsSrc = fs.readFileSync(path.resolve('src/components/home/ListedProperties.tsx'), 'utf-8');
     const detailSrc = fs.readFileSync(path.resolve('src/components/property/PropertyDetailPage.tsx'), 'utf-8');
-    const hasHomeOnError = homeListingsSrc.includes('onError={(e) => {') && homeListingsSrc.includes('images.unsplash.com');
+    const hasHomeOnError = homeListingsSrc.includes('onError={(e) => {') && (homeListingsSrc.includes('images.unsplash.com') || homeListingsSrc.includes('getDistinctCommunityPhoto'));
     const hasDetailOnError = detailSrc.includes('onError={(e: any) => {') || detailSrc.includes('onError={(e) => {');
     record('TEST 9: Frontend listings and detail pages include resilient onError fallbacks to eliminate broken image icons', hasHomeOnError && hasDetailOnError);
 

@@ -272,6 +272,75 @@ class DevSandboxStore {
     };
     this.users.set(owner.id, owner);
 
+    // Seed default internal staff accounts (so CRM dev access and role switcher never 404)
+    const adminUser: DevUser = {
+      id: 'usr-admin-compliance-01',
+      phone: '+919800000000',
+      email: 'admin@sellmyghar.in',
+      display_name: 'Compliance Super Admin',
+      password_hash: null,
+      token_version: 1,
+      roles: ['STAFF_SUPER_ADMIN'],
+      module_permissions: ['OVERVIEW', 'LEADS', 'PROPERTIES', 'VISITS', 'OFFERS', 'TASKS', 'CALENDAR', 'REPORTS', 'TEAM', 'AUDIT_LOGS', 'SETTINGS'],
+      is_active: true,
+      failed_login_attempts: 0,
+      locked_until: null,
+      created_at: new Date(Date.now() - 86400000 * 10).toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    this.users.set(adminUser.id, adminUser);
+
+    const verificationStaff: DevUser = {
+      id: 'usr-staff-verification-01',
+      phone: '+919800000001',
+      email: 'staff@sellmyghar.in',
+      display_name: 'Verification Desk Staff',
+      password_hash: null,
+      token_version: 1,
+      roles: ['STAFF_VERIFICATION_AGENT'],
+      module_permissions: ['OVERVIEW', 'LEADS', 'PROPERTIES', 'TASKS', 'CALENDAR'],
+      is_active: true,
+      failed_login_attempts: 0,
+      locked_until: null,
+      created_at: new Date(Date.now() - 86400000 * 10).toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    this.users.set(verificationStaff.id, verificationStaff);
+
+    const intakeStaff: DevUser = {
+      id: 'usr-staff-intake-01',
+      phone: '+919800000002',
+      email: 'intake@sellmyghar.in',
+      display_name: 'Sneha Reddy (Lead Intake)',
+      password_hash: null,
+      token_version: 1,
+      roles: ['STAFF_INTAKE_AGENT'],
+      module_permissions: ['OVERVIEW', 'LEADS', 'TASKS', 'CALENDAR'],
+      is_active: true,
+      failed_login_attempts: 0,
+      locked_until: null,
+      created_at: new Date(Date.now() - 86400000 * 10).toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    this.users.set(intakeStaff.id, intakeStaff);
+
+    const closerStaff: DevUser = {
+      id: 'usr-staff-closer-01',
+      phone: '+919800000003',
+      email: 'closer@sellmyghar.in',
+      display_name: 'Vikram Sethi (Deal Closer)',
+      password_hash: null,
+      token_version: 1,
+      roles: ['STAFF_DEAL_CLOSER'],
+      module_permissions: ['OVERVIEW', 'LEADS', 'PROPERTIES', 'VISITS', 'OFFERS', 'TASKS', 'CALENDAR'],
+      is_active: true,
+      failed_login_attempts: 0,
+      locked_until: null,
+      created_at: new Date(Date.now() - 86400000 * 10).toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    this.users.set(closerStaff.id, closerStaff);
+
     this.userIdentities.set('ident-seed-owner-01', {
       id: 'ident-seed-owner-01',
       user_id: owner.id,
