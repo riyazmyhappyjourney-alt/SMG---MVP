@@ -22,6 +22,19 @@ function extractToken(req: Request): string | null {
     return cookies.sellmyghar_session;
   }
 
+  // Fallback direct parse from raw Cookie header
+  const rawCookie = req.headers.cookie;
+  if (rawCookie) {
+    const match = rawCookie.match(/(?:^|;\s*)sellmyghar_session=([^;]+)/);
+    if (match && match[1]) {
+      try {
+        return decodeURIComponent(match[1]);
+      } catch {
+        return match[1];
+      }
+    }
+  }
+
   const authHeader = req.headers.authorization;
   if (authHeader && authHeader.startsWith('Bearer ')) {
     return authHeader.substring(7).trim();

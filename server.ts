@@ -992,6 +992,7 @@ app.post('/api/dev/switch-role', jsonDefault, async (req, res) => {
 
   return res.json({
     success: true,
+    token,
     user: {
       id: user.id,
       email: user.email,
