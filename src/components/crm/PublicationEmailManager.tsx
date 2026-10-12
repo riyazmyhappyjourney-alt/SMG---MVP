@@ -515,7 +515,8 @@ export const PublicationEmailManager: React.FC = () => {
         setNotification({ type: 'success', message: `Email template (${selectedTemplateKey}) successfully saved!` });
         setTimeout(() => setNotification(null), 4000);
       } else {
-        setNotification({ type: 'error', message: data.error || 'Failed to update template' });
+        const errorMsg = data.message || data.error || 'Failed to update template';
+        setNotification({ type: 'error', message: errorMsg });
       }
     } catch (err: any) {
       setNotification({ type: 'error', message: err?.message || 'Network error saving template' });
@@ -621,7 +622,8 @@ export const PublicationEmailManager: React.FC = () => {
         });
         setTimeout(() => setNotification(null), 5000);
       } else {
-        setNotification({ type: 'error', message: data.error || 'Failed to send test email' });
+        const errorMsg = data.message || data.error || 'Failed to send test email';
+        setNotification({ type: 'error', message: errorMsg });
       }
     } catch (err: any) {
       setNotification({ type: 'error', message: err?.message || 'Error triggering test dispatch' });
