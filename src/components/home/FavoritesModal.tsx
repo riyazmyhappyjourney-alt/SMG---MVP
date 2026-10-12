@@ -199,10 +199,10 @@ export const FavoritesModal: React.FC<FavoritesModalProps> = ({
                             if (onSelectProperty) onSelectProperty(prop.id);
                             onClose();
                           }}
-                          className="px-3.5 py-2 rounded-lg bg-[#244B8F] hover:bg-[#1B396E] text-white text-xs font-bold transition-colors inline-flex items-center space-x-1 cursor-pointer"
+                          className="group/fav px-3.5 py-2 rounded-lg bg-[#244B8F] hover:bg-[#1B396E] text-white text-xs font-bold transition-all hover:scale-[1.02] active:scale-[0.98] inline-flex items-center space-x-1.5 cursor-pointer shadow-xs"
                         >
                           <span>View Property</span>
-                          <ArrowRight className="w-3.5 h-3.5" />
+                          <ArrowRight className="w-3.5 h-3.5 group-hover/fav:translate-x-1 transition-transform duration-200" />
                         </a>
 
                         <button
