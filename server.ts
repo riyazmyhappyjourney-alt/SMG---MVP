@@ -147,6 +147,8 @@ async function initSchemaColumns() {
       ALTER TABLE properties ADD COLUMN IF NOT EXISTS developer_name VARCHAR(120);
       ALTER TABLE properties ADD COLUMN IF NOT EXISTS landmarks JSONB DEFAULT '[]'::jsonb;
       ALTER TABLE properties ADD COLUMN IF NOT EXISTS highlights JSONB DEFAULT '[]'::jsonb;
+      ALTER TABLE properties ADD COLUMN IF NOT EXISTS floor_plan_url TEXT;
+      ALTER TABLE properties ADD COLUMN IF NOT EXISTS floor_plans JSONB DEFAULT '[]'::jsonb;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255);
       ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INT NOT NULL DEFAULT 1;
       ALTER TABLE users ALTER COLUMN phone DROP NOT NULL;
@@ -1299,6 +1301,8 @@ app.get('/api/listings/:id', rateLimit('listing-detail', 60, 60), async (req, re
         p.public_address,
         p.developer_name,
         p.verification_tier,
+        p.floor_plan_url,
+        p.floor_plans,
         p.created_at,
         p.updated_at
       FROM properties p
@@ -1567,6 +1571,19 @@ app.get('/api/listings/:id', rateLimit('listing-detail', 60, 60), async (req, re
       },
       photos: galleryPhotos,
       galleryPhotos: galleryPhotos,
+      floorPlanUrl: row.floor_plan_url || '/images/sample-architectural-floor-plan.svg',
+      floorPlans: (Array.isArray(row.floor_plans) && row.floor_plans.length > 0)
+        ? row.floor_plans
+        : [
+            {
+              id: 'fp-1',
+              title: `${row.bhk_type || '3BHK'} Architectural Master Layout`,
+              carpetAreaSqft: carpet,
+              superBuiltUpSqft: sqft,
+              imageUrl: row.floor_plan_url || '/images/sample-architectural-floor-plan.svg',
+              tag: 'Efficient Vastu Layout'
+            }
+          ],
       relationshipManager: {
         name: 'Kavitha Ranganathan',
         role: 'Senior Property & Diligence Lead',
@@ -5564,11 +5581,17 @@ const updatePropertyHandler = async (req: Request, res: Response) => {
       listingStatus,
       verification_tier,
       verificationTier,
+      floorPlanUrl,
+      floor_plan_url,
+      floorPlans,
+      floor_plans,
     } = req.body;
 
     const resolvedCrmStatus = crm_status || crmStatus || null;
     const resolvedListingStatus = listing_status || listingStatus || null;
     const resolvedVerificationTier = verification_tier || verificationTier || null;
+    const resolvedFloorPlanUrl = floorPlanUrl || floor_plan_url || null;
+    const resolvedFloorPlans = (floorPlans || floor_plans) ? JSON.stringify(floorPlans || floor_plans) : null;
 
     const projectLocality = (projectName && locality) ? `${projectName}, ${locality}` : (req.body.project_locality_id || existing.project_locality_id);
 
@@ -5593,8 +5616,10 @@ const updatePropertyHandler = async (req: Request, res: Response) => {
           crm_status = COALESCE($17, crm_status),
           listing_status = COALESCE($18, listing_status),
           verification_tier = COALESCE($19, verification_tier),
+          floor_plan_url = COALESCE($20, floor_plan_url),
+          floor_plans = COALESCE($21, floor_plans),
           updated_at = NOW()
-      WHERE id = $20
+      WHERE id = $22
       RETURNING *;
     `, [
       title || null,
@@ -5616,6 +5641,8 @@ const updatePropertyHandler = async (req: Request, res: Response) => {
       resolvedCrmStatus,
       resolvedListingStatus,
       resolvedVerificationTier,
+      resolvedFloorPlanUrl,
+      resolvedFloorPlans,
       id,
     ]);
 

@@ -21,7 +21,8 @@ import {
   Loader2,
   Eye,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  LayoutGrid
 } from 'lucide-react';
 import { PropertyListingStatus, CrmProperty } from './CrmDashboard';
 import { StaffRole } from '../../core/types/auth';
@@ -34,7 +35,7 @@ interface PropertyEditorProps {
   staffRole?: StaffRole;
 }
 
-type EditorTab = 'BASIC' | 'PRICING' | 'CONTENT' | 'IMAGES' | 'ACTIVITY';
+type EditorTab = 'BASIC' | 'PRICING' | 'CONTENT' | 'IMAGES' | 'FLOOR_PLAN' | 'ACTIVITY';
 
 const COMMON_AMENITIES = [
   'Swimming Pool',
@@ -97,6 +98,10 @@ export function PropertyEditor({
   const [uploadingImage, setUploadingImage] = useState(false);
   const [newImageUrl, setNewImageUrl] = useState('');
 
+  // Floor Plan State
+  const [floorPlanUrl, setFloorPlanUrl] = useState('');
+  const [floorPlanTitle, setFloorPlanTitle] = useState('Architectural Layout Plan');
+
   // Validation feedback
   const [validationErrors, setValidationErrors] = useState<{
     missingFields: string[];
@@ -144,6 +149,8 @@ export function PropertyEditor({
 
       setListingStatus(property.status || 'DRAFT');
       setImages(property.images || (property.image ? [{ id: 'img-main', url: property.image, is_featured: true }] : []));
+      setFloorPlanUrl((property as any).floorPlanUrl || (property as any).floor_plan_url || '');
+      setFloorPlanTitle(`${property.bhkType || '3BHK'} Architectural Layout Plan`);
       setValidationErrors(null);
     } else {
       // Defaults for Create Property
@@ -224,6 +231,17 @@ export function PropertyEditor({
         developerName: developerName.trim(),
         landmarks,
         highlights,
+        floorPlanUrl: floorPlanUrl.trim() || undefined,
+        floorPlans: floorPlanUrl.trim() ? [
+          {
+            id: 'fp-1',
+            title: floorPlanTitle.trim() || `${bhkType} Architectural Layout Plan`,
+            carpetAreaSqft: Number(carpetAreaSqft),
+            superBuiltUpSqft: Number(superBuiltUpSqft),
+            imageUrl: floorPlanUrl.trim(),
+            tag: 'Verified Layout'
+          }
+        ] : undefined,
       };
 
       if (reserveMinimumPriceInr !== undefined && !isNaN(Number(reserveMinimumPriceInr))) {
@@ -653,6 +671,7 @@ export function PropertyEditor({
             { key: 'PRICING', label: 'Pricing', icon: DollarSign },
             { key: 'CONTENT', label: 'Content & Details', icon: FileText },
             { key: 'IMAGES', label: `Images (${images.length})`, icon: ImageIcon },
+            { key: 'FLOOR_PLAN', label: 'Floor Plan', icon: LayoutGrid },
             ...(!isCreate ? [{ key: 'ACTIVITY', label: 'Activity Timeline', icon: History }] : []),
           ].map(tab => {
             const Icon = tab.icon;
@@ -1125,7 +1144,97 @@ export function PropertyEditor({
             </div>
           )}
 
-          {/* TAB 5: ACTIVITY TIMELINE */}
+          {/* TAB 5: FLOOR PLAN (Added for architectural 2D/3D layouts) */}
+          {activeTab === 'FLOOR_PLAN' && (
+            <div className="space-y-6">
+              <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-2xs space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-800">Architectural Floor Plan</h3>
+                    <p className="text-[11px] text-slate-500">
+                      Upload or link high-resolution architectural layout showing room dimensions and vastu orientation.
+                    </p>
+                  </div>
+                  <span className="px-2.5 py-1 text-[10px] font-bold bg-blue-50 text-[#244B8F] rounded-full border border-blue-200">
+                    Client-Visible Feature
+                  </span>
+                </div>
+
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Floor Plan Image URL
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="url"
+                        value={floorPlanUrl}
+                        onChange={(e) => setFloorPlanUrl(e.target.value)}
+                        placeholder="https://example.com/floorplans/unit-layout.png"
+                        className="flex-1 px-3 py-2 border border-slate-300 rounded-lg text-xs focus:border-[#244B8F] focus:outline-hidden"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setFloorPlanUrl('https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80')}
+                        className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-[11px] transition-colors cursor-pointer shrink-0"
+                      >
+                        Sample Plan
+                      </button>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                      Floor Plan Title & Description
+                    </label>
+                    <input
+                      type="text"
+                      value={floorPlanTitle}
+                      onChange={(e) => setFloorPlanTitle(e.target.value)}
+                      placeholder="e.g. 3 BHK Architectural Layout (Zero Dead Space)"
+                      className="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:border-[#244B8F] focus:outline-hidden"
+                    />
+                  </div>
+                </div>
+
+                {/* Floor Plan Preview */}
+                {floorPlanUrl ? (
+                  <div className="mt-4 p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
+                    <div className="flex items-center justify-between text-xs font-bold text-slate-700">
+                      <span>Floor Plan Preview:</span>
+                      <button
+                        type="button"
+                        onClick={() => setFloorPlanUrl('')}
+                        className="text-rose-600 hover:underline text-[11px] cursor-pointer"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                    <div className="max-h-72 rounded-lg overflow-hidden border border-slate-200 bg-white flex items-center justify-center p-2">
+                      <img
+                        src={floorPlanUrl}
+                        alt="Floor plan preview"
+                        className="max-h-64 object-contain mx-auto"
+                        onError={(e) => {
+                          (e.target as HTMLElement).style.display = 'none';
+                        }}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-8 border-2 border-dashed border-slate-200 rounded-xl text-center space-y-2 bg-slate-50/50">
+                    <LayoutGrid className="w-8 h-8 text-slate-400 mx-auto" />
+                    <p className="text-xs font-bold text-slate-600">No Floor Plan Linked Yet</p>
+                    <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
+                      Provide a URL or click "Sample Plan" to attach a 2D/3D floor layout for this apartment.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* TAB 6: ACTIVITY TIMELINE */}
           {activeTab === 'ACTIVITY' && !isCreate && (
             <div className="space-y-3">
               <div className="flex items-center justify-between pb-2 border-b border-slate-200">
