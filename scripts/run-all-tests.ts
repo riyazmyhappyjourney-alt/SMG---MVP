@@ -12,6 +12,7 @@ import { runAuthIntegrationTests } from './run-auth-integration-tests';
 import { runHomepageCmsSeoTests } from './run-homepage-cms-seo-tests';
 import { runEmailAutomationTests } from './run-email-automation-tests';
 import { runPropertyBrochureTests } from './run-property-brochure-tests';
+import { runApprovalAndImageFixTests } from './run-approval-image-fix-tests';
 
 async function runAll() {
   console.log('====================================================');
@@ -147,6 +148,15 @@ async function runAll() {
   totalFailed += brochureRes.failed;
   suiteResults.push({ name: 'Property Presentation PDF Generator & QR', passed: brochureRes.passed, failed: brochureRes.failed, tests: brochureRes.results });
   console.log(`Subtotal: ${brochureRes.passed} passed, ${brochureRes.failed} failed\n`);
+
+  // Suite 15: Property Approval Email & Image Upload Reliability Suite
+  console.log('--- 15. Property Approval Email & Image Upload Reliability Suite ---');
+  const approvalImgRes = await runApprovalAndImageFixTests();
+  approvalImgRes.results.forEach(r => console.log(' ', r));
+  totalPassed += approvalImgRes.passed;
+  totalFailed += approvalImgRes.failed;
+  suiteResults.push({ name: 'Property Approval Email & Image Upload Reliability', passed: approvalImgRes.passed, failed: approvalImgRes.failed, tests: approvalImgRes.results });
+  console.log(`Subtotal: ${approvalImgRes.passed} passed, ${approvalImgRes.failed} failed\n`);
 
   console.log('====================================================');
   console.log(`FINAL RESULTS: ${totalPassed} PASSED, ${totalFailed} FAILED (TOTAL: ${totalPassed + totalFailed}/${totalPassed + totalFailed})`);

@@ -1784,6 +1784,21 @@ class DevSandboxStore {
 
     // 22. PROPERTIES: Update (listing_status, crm_status, or full edit)
     if (cleanSql.includes('UPDATE properties')) {
+      if (cleanSql.includes("crm_status = 'approved'") || cleanSql.includes("crm_status = 'APPROVED'")) {
+        const propId = String(params[params.length - 1] || '').trim();
+        const p = this.properties.get(propId);
+        if (p) {
+          p.crm_status = 'APPROVED';
+          if (cleanSql.includes('verification_tier')) {
+            p.verification_tier = (typeof params[0] === 'string' && params[0].startsWith('LEVEL_'))
+              ? params[0]
+              : 'LEVEL_2_DOCS_REVIEWED';
+          }
+          p.updated_at = new Date().toISOString();
+          return { rows: [{ ...p }] };
+        }
+      }
+
       if (cleanSql.includes('listing_status =')) {
         let newListingStatus: 'DRAFT' | 'PUBLISHED' | 'PAUSED' | 'SOLD' | 'ARCHIVED' | undefined;
         let propId = params[0];
@@ -1793,7 +1808,7 @@ class DevSandboxStore {
         else if (cleanSql.includes("listing_status = 'ARCHIVED'")) newListingStatus = 'ARCHIVED';
         else if (cleanSql.includes('listing_status = $1')) {
           newListingStatus = params[0] as any;
-          propId = params[1];
+          propId = params[1] || params[0];
         }
 
         if (newListingStatus) {
@@ -1809,23 +1824,27 @@ class DevSandboxStore {
 
       if (cleanSql.includes('crm_status = $1')) {
         const newStatus = params[0];
-        if (cleanSql.includes('WHERE id = $2')) {
-          const id = params[1];
+        if (cleanSql.includes('WHERE id = $2') || cleanSql.includes('WHERE id = $1')) {
+          const id = params[1] || params[0];
           const p = this.properties.get(id);
           if (p) {
             p.crm_status = newStatus;
             p.updated_at = new Date().toISOString();
+            return { rows: [{ ...p }] };
           }
         } else if (cleanSql.includes('WHERE owner_id =')) {
           const phone = params[1];
           const u = Array.from(this.users.values()).find(x => x.phone === phone);
           if (u) {
+            const updatedRows: any[] = [];
             for (const p of this.properties.values()) {
               if (p.owner_id === u.id) {
                 p.crm_status = newStatus;
                 p.updated_at = new Date().toISOString();
+                updatedRows.push({ ...p });
               }
             }
+            return { rows: updatedRows };
           }
         }
         return { rows: [] };
