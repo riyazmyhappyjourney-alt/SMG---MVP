@@ -127,9 +127,9 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <>
       {/* =========================================================================
-          1. PRIMARY HEADER (Sticky Top Header with Animated Underline & Mega-Menu)
+          1. PRIMARY HEADER (Royal Blue Design matching Reference Header)
          ========================================================================= */}
-      <header className="sticky top-0 z-40 bg-white/98 backdrop-blur-md border-b border-slate-200/90 shadow-xs font-['Montserrat']">
+      <header className="sticky top-0 z-40 bg-[#244B8F] text-white border-b border-blue-900/60 shadow-md font-['Montserrat']">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 sm:h-18">
             
@@ -142,16 +142,20 @@ export const Header: React.FC<HeaderProps> = ({
                   setActiveTab('BUY');
                   window.scrollTo({ top: 0, behavior: 'smooth' });
                 }}
-                className="flex items-center space-x-2 focus:outline-hidden"
+                className="flex items-center space-x-2 focus:outline-hidden group"
               >
-                <Logo height={40} />
+                <Logo height={36} className="brightness-0 invert drop-shadow-xs" />
+                <span className="text-white font-extrabold text-xl tracking-tight hidden sm:flex items-baseline group-hover:opacity-95 transition-opacity">
+                  <span>SellMyGhar</span>
+                  <span className="text-white/70 font-semibold text-xs ml-0.5">.in</span>
+                </span>
               </a>
             </div>
 
             {/* Desktop Navigation Tabs: 1- For Buyers comes FIRST! */}
             <nav 
               onMouseLeave={handleMouseLeaveNav}
-              className="hidden lg:flex items-center space-x-7 text-xs sm:text-sm font-semibold text-slate-700 relative"
+              className="hidden lg:flex items-center space-x-7 text-xs sm:text-sm font-semibold text-white/90 relative"
             >
               {/* TAB 1: For Buyers (FIRST as requested!) */}
               <div 
@@ -165,17 +169,17 @@ export const Header: React.FC<HeaderProps> = ({
                     onTabClick('BUY');
                   }}
                   className={`relative py-2.5 px-1.5 transition-colors cursor-pointer flex items-center space-x-1 ${
-                    openMegaMenu === 'BUY' || activeTab === 'BUY' ? 'text-[#244B8F] font-bold' : 'text-slate-600 hover:text-[#244B8F]'
+                    openMegaMenu === 'BUY' || activeTab === 'BUY' ? 'text-white font-bold' : 'text-white/85 hover:text-white'
                   }`}
                 >
                   <span>For Buyers</span>
-                  <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${openMegaMenu === 'BUY' ? 'rotate-180 text-[#244B8F]' : 'text-slate-400'}`} />
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${openMegaMenu === 'BUY' ? 'rotate-180 text-white' : 'text-white/70'}`} />
                   
                   {/* Interactive animated horizontal line indicator */}
                   {(hoveredTab === 'BUY' || (hoveredTab === null && activeTab === 'BUY')) && (
                     <motion.div
                       layoutId="headerNavInteractiveLine"
-                      className="absolute bottom-0 inset-x-0 h-[2.5px] rounded-full bg-[#244B8F]"
+                      className="absolute bottom-0 inset-x-0 h-[3px] rounded-full bg-white shadow-xs"
                       transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                     />
                   )}
@@ -194,20 +198,20 @@ export const Header: React.FC<HeaderProps> = ({
                     onTabClick('SELL');
                   }}
                   className={`relative py-2.5 px-1.5 transition-colors cursor-pointer flex items-center space-x-1.5 ${
-                    openMegaMenu === 'SELL' || activeTab === 'SELL' ? 'text-[#244B8F] font-bold' : 'text-slate-600 hover:text-[#244B8F]'
+                    openMegaMenu === 'SELL' || activeTab === 'SELL' ? 'text-white font-bold' : 'text-white/85 hover:text-white'
                   }`}
                 >
                   <span>For Owners</span>
-                  <span className="px-1.5 py-0.5 text-[9px] bg-blue-100 text-[#244B8F] rounded-full font-extrabold uppercase tracking-wider">
+                  <span className="px-1.5 py-0.5 text-[9px] bg-white/20 text-white rounded-full font-extrabold uppercase tracking-wider">
                     Sell Flat
                   </span>
-                  <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${openMegaMenu === 'SELL' ? 'rotate-180 text-[#244B8F]' : 'text-slate-400'}`} />
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${openMegaMenu === 'SELL' ? 'rotate-180 text-white' : 'text-white/70'}`} />
 
                   {/* Interactive animated horizontal line indicator */}
                   {(hoveredTab === 'SELL' || (hoveredTab === null && activeTab === 'SELL')) && (
                     <motion.div
                       layoutId="headerNavInteractiveLine"
-                      className="absolute bottom-0 inset-x-0 h-[2.5px] rounded-full bg-[#244B8F]"
+                      className="absolute bottom-0 inset-x-0 h-[3px] rounded-full bg-white shadow-xs"
                       transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                     />
                   )}
@@ -223,7 +227,7 @@ export const Header: React.FC<HeaderProps> = ({
                   type="button"
                   onClick={() => handleNav('ABOUT')}
                   className={`relative py-2.5 px-1.5 transition-colors cursor-pointer ${
-                    activeTab === 'ABOUT' ? 'text-[#244B8F] font-bold' : 'text-slate-600 hover:text-[#244B8F]'
+                    activeTab === 'ABOUT' ? 'text-white font-bold' : 'text-white/85 hover:text-white'
                   }`}
                 >
                   <span>About Us</span>
@@ -232,7 +236,7 @@ export const Header: React.FC<HeaderProps> = ({
                   {(hoveredTab === 'ABOUT' || (hoveredTab === null && activeTab === 'ABOUT')) && (
                     <motion.div
                       layoutId="headerNavInteractiveLine"
-                      className="absolute bottom-0 inset-x-0 h-[2.5px] rounded-full bg-[#244B8F]"
+                      className="absolute bottom-0 inset-x-0 h-[3px] rounded-full bg-white shadow-xs"
                       transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                     />
                   )}
@@ -248,7 +252,7 @@ export const Header: React.FC<HeaderProps> = ({
                   type="button"
                   onClick={() => handleNav('CONTACT')}
                   className={`relative py-2.5 px-1.5 transition-colors cursor-pointer ${
-                    activeTab === 'CONTACT' ? 'text-[#244B8F] font-bold' : 'text-slate-600 hover:text-[#244B8F]'
+                    activeTab === 'CONTACT' ? 'text-white font-bold' : 'text-white/85 hover:text-white'
                   }`}
                 >
                   <span>Contact Us</span>
@@ -257,7 +261,7 @@ export const Header: React.FC<HeaderProps> = ({
                   {(hoveredTab === 'CONTACT' || (hoveredTab === null && activeTab === 'CONTACT')) && (
                     <motion.div
                       layoutId="headerNavInteractiveLine"
-                      className="absolute bottom-0 inset-x-0 h-[2.5px] rounded-full bg-[#244B8F]"
+                      className="absolute bottom-0 inset-x-0 h-[3px] rounded-full bg-white shadow-xs"
                       transition={{ type: 'spring', stiffness: 380, damping: 30 }}
                     />
                   )}
@@ -272,23 +276,23 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={onFavoritesClick}
-                className="relative p-2 rounded-lg text-slate-700 hover:text-rose-500 hover:bg-slate-50 transition-colors cursor-pointer"
+                className="relative p-2 rounded-full text-white hover:text-rose-200 hover:bg-white/10 transition-colors cursor-pointer"
                 title="View Saved Favorites"
                 aria-label="View Saved Properties"
               >
-                <Heart className={`w-5 h-5 ${favoritesCount > 0 ? 'fill-rose-500 text-rose-500' : 'text-slate-600'}`} />
+                <Heart className={`w-5 h-5 ${favoritesCount > 0 ? 'fill-rose-400 text-rose-400' : 'text-white'}`} />
                 {favoritesCount > 0 && (
-                  <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white rounded-full text-[10px] font-bold flex items-center justify-center shadow-xs">
+                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 bg-rose-500 text-white rounded-full text-[10px] font-bold flex items-center justify-center shadow-xs">
                     {favoritesCount}
                   </span>
                 )}
               </button>
 
-              {/* Post property FREE button with Home icon */}
+              {/* Post property FREE button with Home icon (Crisp white pill matching reference) */}
               <button
                 type="button"
                 onClick={onPostPropertyClick}
-                className="inline-flex items-center px-4 py-2 rounded-lg text-xs font-bold text-slate-900 bg-white hover:bg-slate-50 border border-slate-300 shadow-xs hover:shadow-sm transition-all cursor-pointer group"
+                className="inline-flex items-center px-4 py-2 rounded-xl text-xs font-bold text-slate-900 bg-white hover:bg-slate-100 shadow-sm transition-all cursor-pointer group"
               >
                 <Home className="w-3.5 h-3.5 mr-1.5 text-[#244B8F] group-hover:scale-110 transition-transform" />
                 <span>Post property</span>
@@ -302,18 +306,18 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   type="button"
                   onClick={onDashboardClick}
-                  className="inline-flex items-center space-x-2 px-3.5 py-2 bg-blue-50 hover:bg-blue-100 text-[#244B8F] rounded-lg text-xs font-bold border border-blue-200 transition-colors cursor-pointer shadow-2xs"
+                  className="inline-flex items-center space-x-2 px-3.5 py-2 bg-white/15 hover:bg-white/25 text-white rounded-xl text-xs font-bold border border-white/20 transition-colors cursor-pointer shadow-xs"
                 >
-                  <LayoutDashboard className="w-4 h-4 text-[#244B8F]" />
+                  <LayoutDashboard className="w-4 h-4 text-white" />
                   <span>My Dashboard</span>
                 </button>
               ) : (
                 <button
                   type="button"
                   onClick={onLoginClick}
-                  className="inline-flex items-center space-x-1.5 px-3 py-2 text-xs font-bold text-slate-700 hover:text-[#244B8F] transition-colors cursor-pointer"
+                  className="inline-flex items-center space-x-1.5 px-3 py-2 text-xs font-bold text-white hover:text-white/90 bg-white/10 hover:bg-white/20 border border-white/20 rounded-xl transition-colors cursor-pointer"
                 >
-                  <User className="w-4 h-4 text-slate-500" />
+                  <User className="w-4 h-4 text-white/80" />
                   <span>Login / Register</span>
                 </button>
               )}
@@ -324,10 +328,10 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={onFavoritesClick}
-                className="p-1.5 text-slate-700 relative"
+                className="p-1.5 text-white relative"
                 aria-label="View Favorites"
               >
-                <Heart className={`w-5 h-5 ${favoritesCount > 0 ? 'fill-rose-500 text-rose-500' : 'text-slate-600'}`} />
+                <Heart className={`w-5 h-5 ${favoritesCount > 0 ? 'fill-rose-400 text-rose-400' : 'text-white'}`} />
                 {favoritesCount > 0 && (
                   <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-rose-500 text-white rounded-full text-[9px] font-bold flex items-center justify-center">
                     {favoritesCount}
@@ -338,7 +342,7 @@ export const Header: React.FC<HeaderProps> = ({
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="p-1.5 text-slate-700 hover:text-slate-900 focus:outline-hidden cursor-pointer"
+                className="p-1.5 text-white hover:text-white/80 focus:outline-hidden cursor-pointer"
                 aria-label="Toggle Menu"
               >
                 {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
