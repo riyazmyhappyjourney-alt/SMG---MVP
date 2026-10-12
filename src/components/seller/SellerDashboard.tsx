@@ -627,11 +627,52 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
       </div>
 
       {/* MAIN CONTAINER */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
+        
+        {/* Mobile Top Segmented Tab Switcher (Instant 1-Tap Navigation for Mobile Screens) */}
+        <div className="lg:hidden mb-4 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-1.5 sticky top-16 z-20">
+          <button
+            type="button"
+            onClick={() => setActiveTab('LISTINGS')}
+            className={`flex-1 py-2 px-2 rounded-xl text-xs font-bold transition-all text-center flex items-center justify-center space-x-1.5 cursor-pointer ${
+              activeTab === 'LISTINGS'
+                ? 'bg-[#244B8F] text-white shadow-xs'
+                : 'text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            <Building2 className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">Listings ({properties.length})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('TIMELINE')}
+            className={`flex-1 py-2 px-2 rounded-xl text-xs font-bold transition-all text-center flex items-center justify-center space-x-1.5 cursor-pointer ${
+              activeTab === 'TIMELINE'
+                ? 'bg-[#244B8F] text-white shadow-xs'
+                : 'text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            <Activity className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">Progress</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('VISITS')}
+            className={`flex-1 py-2 px-2 rounded-xl text-xs font-bold transition-all text-center flex items-center justify-center space-x-1.5 cursor-pointer ${
+              activeTab === 'VISITS'
+                ? 'bg-[#244B8F] text-white shadow-xs'
+                : 'text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            <Users className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">Visits ({kpiStats.totalSiteVisits})</span>
+          </button>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
           
-          {/* LEFT SIDEBAR */}
-          <aside className="lg:col-span-3 space-y-4">
+          {/* LEFT SIDEBAR (Desktop Left, Mobile Follows Content) */}
+          <aside className="lg:col-span-3 space-y-4 order-last lg:order-first">
             
             {/* Owner Profile Card (Truthful Account Badge) */}
             <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs text-center relative overflow-hidden">
@@ -668,8 +709,8 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
               </div>
             </div>
 
-            {/* Sidebar Navigation Menu (Simplified to 3 core sections) */}
-            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
+            {/* Sidebar Navigation Menu (Desktop Only, mobile uses top switcher) */}
+            <div className="hidden lg:block bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
               <div className="p-3 bg-slate-50 border-b border-slate-200">
                 <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                   Dashboard Sections
@@ -802,11 +843,11 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
               </div>
 
               {/* SALE vs RENTAL Quick Intent Filter Tabs */}
-              <div className="flex items-center space-x-2 pt-2 border-t border-slate-100">
+              <div className="flex items-center gap-1.5 sm:gap-2 pt-2 border-t border-slate-100 overflow-x-auto no-scrollbar">
                 <button
                   type="button"
                   onClick={() => setIntentFilter('ALL')}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer shrink-0 ${
                     intentFilter === 'ALL'
                       ? 'bg-slate-900 text-white shadow-2xs'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -818,7 +859,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                 <button
                   type="button"
                   onClick={() => setIntentFilter('SELL')}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center space-x-1.5 ${
                     intentFilter === 'SELL'
                       ? 'bg-[#244B8F] text-white shadow-2xs'
                       : 'bg-blue-50 text-[#244B8F] hover:bg-blue-100'
@@ -831,7 +872,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                 <button
                   type="button"
                   onClick={() => setIntentFilter('RENT')}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center space-x-1.5 ${
                     intentFilter === 'RENT'
                       ? 'bg-purple-700 text-white shadow-2xs'
                       : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
@@ -929,11 +970,11 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                   </div>
 
                   {/* Filter Status Dropdown */}
-                  <div className="flex items-center space-x-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <select
                       value={statusFilter}
                       onChange={(e: any) => setStatusFilter(e.target.value)}
-                      className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#244B8F] cursor-pointer"
+                      className="flex-1 min-w-[130px] px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#244B8F] cursor-pointer"
                     >
                       <option value="ALL">Status: All</option>
                       <option value="ACTIVE">Status: Live</option>
@@ -945,7 +986,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                     <select
                       value={bhkFilter}
                       onChange={(e) => setBhkFilter(e.target.value)}
-                      className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#244B8F] cursor-pointer"
+                      className="flex-1 min-w-[100px] px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#244B8F] cursor-pointer"
                     >
                       <option value="ALL">All BHK</option>
                       <option value="2 BHK">2 BHK</option>
@@ -956,7 +997,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                     <select
                       value={sortBy}
                       onChange={(e: any) => setSortBy(e.target.value)}
-                      className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#244B8F] cursor-pointer"
+                      className="flex-1 min-w-[130px] px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#244B8F] cursor-pointer"
                     >
                       <option value="NEWEST">Newest First</option>
                       <option value="PRICE_DESC">Price: High to Low</option>
@@ -973,7 +1014,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                           setBhkFilter('ALL');
                           setIntentFilter('ALL');
                         }}
-                        className="text-xs font-bold text-rose-600 hover:underline px-2 cursor-pointer"
+                        className="text-xs font-bold text-rose-600 hover:underline px-2 py-1 cursor-pointer"
                       >
                         Reset
                       </button>
