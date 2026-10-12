@@ -17,7 +17,8 @@ import {
   Check,
   FileText,
   Calendar,
-  BadgeCheck
+  BadgeCheck,
+  UserCheck
 } from 'lucide-react';
 
 export interface EmailTemplateData {
@@ -378,11 +379,92 @@ export const DEFAULT_SAMPLE_VARS: Record<string, string> = {
   date: '10 Oct 2026',
 };
 
+export const ONBOARDING_TEMPLATE_DEFAULT = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Welcome to SellMyGhar</title>
+  <style>
+    body { font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #F4F6F9; margin: 0; padding: 24px 12px; color: #172033; }
+    .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #E2E8F0; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.05); }
+    .header { background: #172033; padding: 24px 32px; text-align: left; border-bottom: 3px solid #244B8F; }
+    .brand { font-size: 22px; font-weight: 800; color: #ffffff; letter-spacing: -0.5px; }
+    .brand span { color: #38BDF8; }
+    .sub-brand { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #94A3B8; margin-top: 4px; }
+    .body { padding: 32px; }
+    .badge-pill { display: inline-block; padding: 4px 12px; background: #EFF6FF; border: 1px solid #BFDBFE; color: #244B8F; font-size: 11px; font-weight: 700; border-radius: 20px; text-transform: uppercase; margin-bottom: 12px; }
+    h1 { font-size: 22px; font-weight: 800; color: #172033; margin: 0 0 16px 0; line-height: 1.3; }
+    .feature-list { margin: 24px 0; padding: 0; list-style: none; }
+    .feature-item { display: flex; align-items: flex-start; margin-bottom: 16px; }
+    .feature-icon { font-size: 18px; margin-right: 12px; line-height: 1.4; }
+    .feature-title { font-weight: 700; color: #172033; font-size: 14px; margin-bottom: 2px; }
+    .feature-desc { color: #64748B; font-size: 12px; line-height: 1.5; }
+    .btn-wrap { text-align: center; margin: 32px 0 16px 0; }
+    .btn { display: inline-block; background: #244B8F; color: #ffffff !important; text-decoration: none; font-size: 14px; font-weight: 700; padding: 14px 36px; border-radius: 10px; box-shadow: 0 4px 12px rgba(36,75,143,0.3); }
+    .footer { background: #F8FAFC; padding: 24px 32px; border-top: 1px solid #E2E8F0; text-align: center; font-size: 12px; color: #94A3B8; line-height: 1.5; }
+    .footer a { color: #244B8F; text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="brand">SellMy<span>Ghar</span>.in</div>
+      <div class="sub-brand">Bengaluru Residential Resale Advisory</div>
+    </div>
+    <div class="body">
+      <div class="badge-pill">Welcome to SellMyGhar</div>
+      <h1>Welcome to SellMyGhar, {{customer_name}}!</h1>
+      <p style="font-size: 14px; color: #475569; line-height: 1.6;">
+        Thank you for joining SellMyGhar.in — Bengaluru's verified residential resale platform. Whether you are selling your high-rise apartment or searching for verified resale homes, our dedicated advisory team is at your service.
+      </p>
+      <div class="feature-list">
+        <div class="feature-item">
+          <div class="feature-icon">🛡️</div>
+          <div>
+            <div class="feature-title">100% Title-Vetted Resale Flats</div>
+            <div class="feature-desc">BBMP A-Khata authentication and Form 15 Sub-Registrar 30-year continuous title diligence.</div>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon">🚫</div>
+          <div>
+            <div class="feature-title">Zero Broker Spam & Privacy First</div>
+            <div class="feature-desc">Your contact details and flat identity remain protected under the DPDP Act 2023 until physical escorted viewing.</div>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon">🤝</div>
+          <div>
+            <div class="feature-title">Dedicated Relationship Desk</div>
+            <div class="feature-desc">Assisted end-to-end showings, price negotiation, token escrow, and Sub-Registrar deed closing.</div>
+          </div>
+        </div>
+      </div>
+      <div class="btn-wrap">
+        <a href="{{dashboard_url}}" class="btn" target="_blank">Access Your Dashboard &rarr;</a>
+      </div>
+      <p style="font-size: 13px; color: #64748B; text-align: center; margin: 24px 0 0 0;">
+        Have questions or need assistance? Reply directly to this message or contact our onboarding team at <a href="mailto:onboarding@sellmyghar.in" style="color: #244B8F; font-weight: 700; text-decoration: none;">onboarding@sellmyghar.in</a>.
+      </p>
+    </div>
+    <div class="footer">
+      <p>This welcome notification was dispatched by SellMyGhar Onboarding (<strong>onboarding@sellmyghar.in</strong>).</p>
+      <p>100% RERA compliant &bull; Form 15 EC Title Diligence &bull; Bengaluru, Karnataka</p>
+      <p style="margin-top: 12px;">
+        <a href="{{consent_url}}">Manage Communication Preferences</a>
+      </p>
+    </div>
+  </div>
+</body>
+</html>`;
+
 export type CrmTemplateKey = 
   | 'PROPERTY_SUBMISSION_RECEIVED' 
   | 'MEETING_SCHEDULED' 
   | 'PROPERTY_APPROVED' 
-  | 'PROPERTY_PUBLISHED';
+  | 'PROPERTY_PUBLISHED'
+  | 'USER_ONBOARDING_WELCOME';
 
 export const getTemplateEndpointKey = (key: CrmTemplateKey): string => {
   switch (key) {
@@ -390,6 +472,7 @@ export const getTemplateEndpointKey = (key: CrmTemplateKey): string => {
     case 'MEETING_SCHEDULED': return 'meeting-scheduled';
     case 'PROPERTY_APPROVED': return 'property-approved';
     case 'PROPERTY_PUBLISHED': return 'property-published';
+    case 'USER_ONBOARDING_WELCOME': return 'user-onboarding-welcome';
   }
 };
 
@@ -399,6 +482,7 @@ export const getDefaultTemplateSubject = (key: CrmTemplateKey): string => {
     case 'MEETING_SCHEDULED': return 'Site Visit Confirmed: {{property_title}} on {{meeting_date}} at {{meeting_time}} (IST)';
     case 'PROPERTY_APPROVED': return 'Property Verified & Approved: {{property_title}} | SellMyGhar.in';
     case 'PROPERTY_PUBLISHED': return 'New Verified Resale Listing: {{property_title}} in {{locality}}';
+    case 'USER_ONBOARDING_WELCOME': return "Welcome to SellMyGhar.in - Bangalore's Verified Residential Resale Platform";
   }
 };
 
@@ -408,6 +492,7 @@ export const getDefaultTemplateHtml = (key: CrmTemplateKey): string => {
     case 'MEETING_SCHEDULED': return MEETING_TEMPLATE_DEFAULT;
     case 'PROPERTY_APPROVED': return APPROVED_TEMPLATE_DEFAULT;
     case 'PROPERTY_PUBLISHED': return PUBLISHED_TEMPLATE_DEFAULT;
+    case 'USER_ONBOARDING_WELCOME': return ONBOARDING_TEMPLATE_DEFAULT;
   }
 };
 
@@ -828,6 +913,19 @@ export const PublicationEmailManager: React.FC = () => {
             <BadgeCheck className="w-3.5 h-3.5" />
             <span>4. Property Published</span>
           </button>
+
+          <button
+            type="button"
+            onClick={() => setSelectedTemplateKey('USER_ONBOARDING_WELCOME')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
+              selectedTemplateKey === 'USER_ONBOARDING_WELCOME'
+                ? 'bg-[#244B8F] text-white shadow-xs'
+                : 'bg-transparent text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
+            }`}
+          >
+            <UserCheck className="w-3.5 h-3.5" />
+            <span>5. Onboarding Welcome</span>
+          </button>
         </div>
 
         <div className="text-[11px] text-slate-500 font-medium px-2">
@@ -835,6 +933,7 @@ export const PublicationEmailManager: React.FC = () => {
           {selectedTemplateKey === 'MEETING_SCHEDULED' && 'Dispatched to client with valid .ics calendar invite'}
           {selectedTemplateKey === 'PROPERTY_APPROVED' && 'Dispatched to seller once title review is approved'}
           {selectedTemplateKey === 'PROPERTY_PUBLISHED' && 'Dispatched to buyer alerts when publicly live'}
+          {selectedTemplateKey === 'USER_ONBOARDING_WELCOME' && 'Dispatched from onboarding@sellmyghar.in upon new user registration or sign-in'}
         </div>
       </div>
 
@@ -986,7 +1085,11 @@ export const PublicationEmailManager: React.FC = () => {
                 <Mail className="w-4 h-4 text-[#38BDF8]" />
                 <span className="font-bold text-xs">Live Email Preview</span>
                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-slate-700">
-                  {selectedTemplateKey === 'PROPERTY_SUBMISSION_RECEIVED' ? 'Seller Submission Confirmation' : 'Publication Alert'}
+                  {selectedTemplateKey === 'PROPERTY_SUBMISSION_RECEIVED' && 'Seller Submission Confirmation'}
+                  {selectedTemplateKey === 'MEETING_SCHEDULED' && 'Site Visit Calendar Invite'}
+                  {selectedTemplateKey === 'PROPERTY_APPROVED' && 'Title Verification Approved'}
+                  {selectedTemplateKey === 'PROPERTY_PUBLISHED' && 'Live Listing Alert'}
+                  {selectedTemplateKey === 'USER_ONBOARDING_WELCOME' && 'Onboarding Welcome (onboarding@sellmyghar.in)'}
                 </span>
               </div>
 

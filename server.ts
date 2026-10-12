@@ -1323,6 +1323,21 @@ app.post('/api/leads', jsonDefault, rateLimit('leads-submit', 5, 900), async (re
         ]
       );
 
+      const declaredEmail = (req.body.email && typeof req.body.email === 'string' && req.body.email.includes('@'))
+        ? req.body.email.trim().toLowerCase()
+        : null;
+      if (declaredEmail) {
+        try {
+          await EmailNotificationService.handleUserOnboarding({
+            name: fullName.trim(),
+            email: declaredEmail,
+            role: 'BUYER',
+          });
+        } catch (onboardErr: any) {
+          console.warn('[LeadOnboardingEmail] Dispatch note:', onboardErr.message);
+        }
+      }
+
       return res.status(201).json({
         success: true,
         type: 'BUYER',
@@ -6865,8 +6880,9 @@ app.post(
       const targetEmail = req.body.targetEmail || req.body.recipient;
       const subject_template = req.body.subject_template || req.body.subject;
       const html_template = req.body.html_template || req.body.html_body;
+      const paramKey = (req.params.key || req.body.template_key || 'PROPERTY_PUBLISHED').replace(/-/g, '_').toUpperCase();
 
-      const result = await EmailNotificationService.sendTestEmail(targetEmail, subject_template, html_template);
+      const result = await EmailNotificationService.sendTestEmail(targetEmail, subject_template, html_template, paramKey);
       return res.json(result);
     } catch (err: any) {
       console.error('[EmailTemplateSendTest] Error:', err);

@@ -20,7 +20,7 @@ export interface PublicationNotificationRecord {
   html_body: string;
   status: 'DELIVERED' | 'FAILED' | 'PENDING_CONFIGURATION' | 'SIMULATED';
   idempotency_key: string;
-  event_type?: 'PROPERTY_LISTED' | 'MEETING_SCHEDULED' | 'PROPERTY_APPROVED' | 'PROPERTY_PUBLISHED' | 'TEST';
+  event_type?: 'PROPERTY_LISTED' | 'MEETING_SCHEDULED' | 'PROPERTY_APPROVED' | 'PROPERTY_PUBLISHED' | 'USER_WELCOME' | 'TEST';
   provider_message_id?: string | null;
   provider_response?: string | null;
   error_message?: string | null;
@@ -543,10 +543,10 @@ export const DEFAULT_ONBOARDING_EMAIL_HTML = `<!DOCTYPE html>
       <div class="sub-brand">Bengaluru Residential Resale Advisory</div>
     </div>
     <div class="body">
-      <div class="badge-pill">Account Verified</div>
+      <div class="badge-pill">Welcome to SellMyGhar</div>
       <h1>Welcome to SellMyGhar, {{customer_name}}!</h1>
       <p style="font-size: 14px; color: #475569; line-height: 1.6;">
-        Thank you for joining SellMyGhar.in — Bengaluru's premier assisted resale platform. Whether you are selling your high-rise apartment or searching for verified resale homes, our dedicated team is at your service.
+        Thank you for joining SellMyGhar.in — Bengaluru's verified residential resale platform. Whether you are selling your high-rise apartment or searching for verified resale homes, our dedicated team is at your service.
       </p>
       <div class="feature-list">
         <div class="feature-item">
@@ -574,9 +574,12 @@ export const DEFAULT_ONBOARDING_EMAIL_HTML = `<!DOCTYPE html>
       <div class="btn-wrap">
         <a href="{{dashboard_url}}" class="btn" target="_blank">Access Your Dashboard &rarr;</a>
       </div>
+      <p style="font-size: 13px; color: #64748B; text-align: center; margin: 24px 0 0 0;">
+        Have questions or need assistance? Reply directly to this message or contact our onboarding team at <a href="mailto:onboarding@sellmyghar.in" style="color: #244B8F; font-weight: 700; text-decoration: none;">onboarding@sellmyghar.in</a>.
+      </p>
     </div>
     <div class="footer">
-      <p>This welcome notification was dispatched by SellMyGhar Operations (notifications@sellmyghar.in).</p>
+      <p>This welcome notification was dispatched by SellMyGhar Onboarding (<strong>onboarding@sellmyghar.in</strong>).</p>
       <p>100% RERA compliant &bull; Form 15 EC Title Diligence &bull; Bengaluru, Karnataka</p>
       <p style="margin-top: 12px;">
         <a href="{{consent_url}}">Manage Communication Preferences</a>
@@ -698,6 +701,13 @@ export class EmailNotificationService {
         DEFAULT_ONBOARDING_EMAIL_HTML,
         'Welcome to SellMyGhar.in - Bangalore\'s Verified Residential Resale Platform.'
       );
+
+      // Upgrade existing rows if present with outdated notification sender
+      await executeQuery(`
+        UPDATE email_templates 
+        SET html_template = $1, subject_template = $2, updated_at = NOW() 
+        WHERE template_key = 'USER_ONBOARDING_WELCOME' AND html_template LIKE '%notifications@sellmyghar.in%';
+      `, [DEFAULT_ONBOARDING_EMAIL_HTML, DEFAULT_ONBOARDING_EMAIL_SUBJECT]).catch(() => {});
     } catch (err: any) {
       console.warn('[EmailNotificationService] initTables note:', err.message);
     }
@@ -710,6 +720,7 @@ export class EmailNotificationService {
     configured: boolean;
     provider: string;
     senderAddress: string;
+    onboardingSenderAddress?: string;
     missingConfigs: string[];
     simulated: boolean;
     status: 'CONFIGURED' | 'SIMULATED';
@@ -718,6 +729,7 @@ export class EmailNotificationService {
   } {
     const resendApiKey = process.env.RESEND_API_KEY;
     const senderAddress = process.env.RESEND_FROM_EMAIL || 'SellMyGhar Operations <notifications@sellmyghar.in>';
+    const onboardingSenderAddress = process.env.RESEND_ONBOARDING_FROM_EMAIL || 'SellMyGhar Onboarding <onboarding@sellmyghar.in>';
 
     const missing: string[] = [];
     if (!resendApiKey) {
@@ -742,6 +754,7 @@ export class EmailNotificationService {
       configured: configured || isMock,
       provider: providerDesc,
       senderAddress,
+      onboardingSenderAddress,
       missingConfigs: missing,
       simulated: !configured && !isMock,
       status: (configured || isMock) ? 'CONFIGURED' : 'SIMULATED',
@@ -938,11 +951,12 @@ export class EmailNotificationService {
     recipient: string;
     subject: string;
     html: string;
-    eventType: 'PROPERTY_LISTED' | 'MEETING_SCHEDULED' | 'PROPERTY_APPROVED' | 'PROPERTY_PUBLISHED' | 'TEST';
+    eventType: 'PROPERTY_LISTED' | 'MEETING_SCHEDULED' | 'PROPERTY_APPROVED' | 'PROPERTY_PUBLISHED' | 'USER_WELCOME' | 'TEST';
     idempotencyKey: string;
     propertyId?: string | null;
     attachments?: EmailAttachment[];
     actor?: AuthenticatedUser;
+    fromAddress?: string;
   }): Promise<{
     dispatched: boolean;
     notificationId: string;
@@ -982,7 +996,7 @@ export class EmailNotificationService {
 
     const currentAttempts = (existingRes.rows && existingRes.rows.length > 0 ? (existingRes.rows[0].delivery_attempts || 1) : 0) + 1;
 
-    const fromAddress = process.env.RESEND_FROM_EMAIL || 'SellMyGhar Operations <notifications@sellmyghar.in>';
+    const fromAddress = args.fromAddress || process.env.RESEND_FROM_EMAIL || 'SellMyGhar Operations <notifications@sellmyghar.in>';
     const apiKey = process.env.RESEND_API_KEY;
 
     let finalStatus: PublicationNotificationRecord['status'] = 'SIMULATED';
@@ -1294,15 +1308,17 @@ export class EmailNotificationService {
     const template = await this.getTemplate('USER_ONBOARDING_WELCOME');
     const subject = this.renderTemplate(template.subject_template, vars);
     const html = this.renderTemplate(template.html_template, vars);
+    const onboardingSender = process.env.RESEND_ONBOARDING_FROM_EMAIL || 'SellMyGhar Onboarding <onboarding@sellmyghar.in>';
 
     return this.dispatchEmail({
       recipient,
       subject,
       html,
-      eventType: 'TEST',
+      eventType: 'USER_WELCOME',
       idempotencyKey,
       propertyId: null,
       actor,
+      fromAddress: onboardingSender,
     });
   }
 
@@ -1637,6 +1653,9 @@ export class EmailNotificationService {
     const html = this.renderTemplate(bodyTpl, sampleVars);
 
     const idempotencyKey = `test-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const fromAddress = templateKey === 'USER_ONBOARDING_WELCOME'
+      ? (process.env.RESEND_ONBOARDING_FROM_EMAIL || 'SellMyGhar Onboarding <onboarding@sellmyghar.in>')
+      : (process.env.RESEND_FROM_EMAIL || 'SellMyGhar Operations <notifications@sellmyghar.in>');
 
     const dispatchRes = await this.dispatchEmail({
       recipient: targetEmail,
@@ -1645,6 +1664,7 @@ export class EmailNotificationService {
       eventType: 'TEST',
       idempotencyKey,
       propertyId: 'sample-test-prop',
+      fromAddress,
     });
 
     const isSimulated = dispatchRes.status === 'SIMULATED';
