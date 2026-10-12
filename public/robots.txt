@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Allow: /sell-flat-in-*
+Allow: /property/*
+Disallow: /crm
+Disallow: /api/
+Disallow: /dashboard
+
+Sitemap: https://sellmyghar.in/sitemap.xml

@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { ArrowLeft, Phone, Mail, Lock, Eye, EyeOff, Loader2, CheckCircle2, ShieldCheck } from 'lucide-react';
 import { UserAuthProfile } from '../../types/user';
+import { safeFetchJson } from '../../utils/safeApi';
+import { getBrowserSupabase } from '../../lib/supabase';
 
 interface AuthPageProps {
   initialMode?: 'SIGNIN' | 'SIGNUP';
@@ -43,18 +45,18 @@ export const AuthPage: React.FC<AuthPageProps> = ({
 
     setLoading(true);
     try {
-      const res = await fetch('/api/auth/otp/request', {
+      const response = await safeFetchJson<{ success: boolean; cooldownSeconds?: number; error?: string; message?: string }>('/api/auth/otp/request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: cleanPhone }),
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || data.message || 'Failed to send OTP verification code.');
+
+      if (!response.ok || !response.data?.success) {
+        throw new Error(response.error || 'Failed to send OTP verification code.');
       }
       setOtpSent(true);
       setOtpCode('');
-      setOtpCooldown(data.cooldownSeconds || 60);
+      setOtpCooldown(response.data.cooldownSeconds || 60);
     } catch (err: any) {
       setError(err.message || 'Failed to send OTP code. Please try again.');
     } finally {
@@ -74,25 +76,26 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     setLoading(true);
     try {
       const cleanPhone = phone.replace(/\D/g, '').slice(-10);
-      const res = await fetch('/api/auth/otp/verify', {
+      const response = await safeFetchJson<{ success: boolean; user: any }>('/api/auth/otp/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phone: cleanPhone, otp: otpCode.trim(), name: name.trim() }),
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || data.error || 'OTP verification failed.');
+
+      if (!response.ok || !response.data?.success || !response.data?.user) {
+        throw new Error(response.error || 'OTP verification failed.');
       }
 
+      const userData = response.data.user;
       // Authoritative session is maintained via HTTP-only cookie
       const userProfile: UserAuthProfile = {
-        id: data.user.id,
-        name: data.user.name,
-        email: data.user.email || '',
-        phone: data.user.phone,
+        id: userData.id,
+        name: userData.name,
+        email: userData.email || '',
+        phone: userData.phone,
         provider: 'phone',
         token: '', // Never expose or persist raw JWT in browser storage
-        createdAt: data.user.createdAt || new Date().toISOString(),
+        createdAt: userData.createdAt || new Date().toISOString(),
       };
       setLoading(false);
       onSuccess(userProfile);
@@ -115,14 +118,13 @@ export const AuthPage: React.FC<AuthPageProps> = ({
 
     setLoading(true);
     try {
-      const res = await fetch('/api/auth/customer-login', {
+      const response = await safeFetchJson('/api/auth/customer-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: cleanEmail }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.message || data.error || 'Customer password login is unavailable.');
+      if (!response.ok) {
+        throw new Error(response.error || 'Customer password login is unavailable.');
       }
     } catch (err: any) {
       setError(err.message || 'Password authentication is unavailable for customer accounts. Please authenticate via Mobile OTP.');
@@ -136,18 +138,30 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/auth/google', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idToken: '' }),
+      const supabase = await getBrowserSupabase();
+      if (!supabase) {
+        throw new Error('Google Sign-In is not configured in this environment (missing Supabase configuration).');
+      }
+
+      // Enforce local callback path /auth/callback
+      const redirectUrl = `${window.location.origin}/auth/callback`;
+
+      const { error: oauthError } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: redirectUrl,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'select_account',
+          },
+        },
       });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.message || 'Google OAuth is currently not configured.');
+
+      if (oauthError) {
+        throw oauthError;
       }
     } catch (err: any) {
-      setError(err.message || 'Google OAuth is not configured in this environment. Please authenticate via Mobile OTP.');
-    } finally {
+      setError(err.message || 'Google Sign-In initialization failed.');
       setLoading(false);
     }
   };
@@ -157,14 +171,13 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/auth/apple', {
+      const response = await safeFetchJson('/api/auth/apple', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ idToken: '' }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.message || 'Apple Sign-In is currently not configured.');
+      if (!response.ok) {
+        throw new Error(response.error || 'Apple Sign-In is currently not configured.');
       }
     } catch (err: any) {
       setError(err.message || 'Apple Sign-In is not configured in this environment. Please authenticate via Mobile OTP.');

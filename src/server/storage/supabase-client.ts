@@ -39,6 +39,10 @@ export function getSupabaseClient(): SupabaseClient | null {
   return null;
 }
 
+export function setSupabaseClientForTesting(client: SupabaseClient | null): void {
+  supabaseInstance = client;
+}
+
 /**
  * Ensure statutory and media buckets exist in Supabase Storage.
  * Creates 'property-media' (public) and 'property-documents' (private) if missing.
@@ -159,17 +163,25 @@ export async function uploadPropertyPhotoToSupabase(
       });
 
     if (uploadError) {
-      console.warn(`[SupabaseStorage] Remote upload error (${uploadError.message}). Utilizing verified path.`);
-      const { data: urlData } = client.storage.from(BUCKET_PROPERTY_MEDIA).getPublicUrl(storagePath);
-      publicUrl = urlData.publicUrl;
+      if (process.env.ALLOW_DEV_FALLBACKS === 'true' && process.env.NODE_ENV !== 'production') {
+        console.warn(`[SupabaseStorage] Remote upload error (${uploadError.message}). Utilizing verified sandbox path.`);
+        const { data: urlData } = client.storage.from(BUCKET_PROPERTY_MEDIA).getPublicUrl(storagePath);
+        publicUrl = urlData.publicUrl;
+      } else {
+        throw new Error(`STORAGE_UPLOAD_FAILED: ${uploadError.message}`);
+      }
     } else {
       const { data: urlData } = client.storage.from(BUCKET_PROPERTY_MEDIA).getPublicUrl(storagePath);
       publicUrl = urlData.publicUrl;
     }
   } else {
-    // Sandbox / fallback Supabase URL structure
-    const supabaseProject = process.env.SUPABASE_PROJECT_ID || 'db.sellmyghar';
-    publicUrl = `https://${supabaseProject}.supabase.co/storage/v1/object/public/${BUCKET_PROPERTY_MEDIA}/${storagePath}`;
+    // Sandbox / fallback Supabase URL structure strictly in development
+    if (process.env.ALLOW_DEV_FALLBACKS === 'true' && process.env.NODE_ENV !== 'production') {
+      const supabaseProject = process.env.SUPABASE_PROJECT_ID || 'db.sellmyghar';
+      publicUrl = `https://${supabaseProject}.supabase.co/storage/v1/object/public/${BUCKET_PROPERTY_MEDIA}/${storagePath}`;
+    } else {
+      throw new Error('STORAGE_CLIENT_UNAVAILABLE: Supabase storage credentials are not configured.');
+    }
   }
 
   // Step 5: Save returned Supabase storage URL into property_media table
@@ -257,7 +269,11 @@ export async function uploadStatutoryDocToSupabase(
       });
 
     if (uploadError) {
-      console.warn(`[SupabaseStorage] Document upload notice: ${uploadError.message}`);
+      if (process.env.ALLOW_DEV_FALLBACKS === 'true' && process.env.NODE_ENV !== 'production') {
+        console.warn(`[SupabaseStorage] Document upload notice: ${uploadError.message}`);
+      } else {
+        throw new Error(`STORAGE_UPLOAD_FAILED: ${uploadError.message}`);
+      }
     }
 
     const { data: signedData, error: signErr } = await client.storage
@@ -266,12 +282,22 @@ export async function uploadStatutoryDocToSupabase(
 
     if (!signErr && signedData?.signedUrl) {
       signedUrl = signedData.signedUrl;
+    } else if (signErr) {
+      if (process.env.ALLOW_DEV_FALLBACKS === 'true' && process.env.NODE_ENV !== 'production') {
+        console.warn(`[SupabaseStorage] Signed URL generation notice: ${signErr.message}`);
+      } else {
+        throw new Error(`STORAGE_SIGNING_FAILED: ${signErr.message}`);
+      }
     }
   }
 
   if (!signedUrl) {
-    const supabaseProject = process.env.SUPABASE_PROJECT_ID || 'db.sellmyghar';
-    signedUrl = `https://${supabaseProject}.supabase.co/storage/v1/object/sign/${BUCKET_PROPERTY_DOCUMENTS}/${storagePath}?token=mock-vault-token-expires-${Date.now() + 3600000}`;
+    if (process.env.ALLOW_DEV_FALLBACKS === 'true' && process.env.NODE_ENV !== 'production') {
+      const supabaseProject = process.env.SUPABASE_PROJECT_ID || 'db.sellmyghar';
+      signedUrl = `https://${supabaseProject}.supabase.co/storage/v1/object/sign/${BUCKET_PROPERTY_DOCUMENTS}/${storagePath}?token=mock-vault-token-expires-${Date.now() + 3600000}`;
+    } else {
+      throw new Error('STORAGE_SIGNING_FAILED: Could not generate valid signed URL for statutory document.');
+    }
   }
 
   console.info(`[SupabaseStorage] Statutory document verified & uploaded to ${BUCKET_PROPERTY_DOCUMENTS}: ${storagePath} (Signed URL generated)`);
@@ -305,13 +331,24 @@ export async function uploadHeroImageToSupabase(
       });
 
     if (uploadError) {
-      console.warn(`[SupabaseStorage] Hero image upload error: ${uploadError.message}`);
+      if (process.env.ALLOW_DEV_FALLBACKS === 'true' && process.env.NODE_ENV !== 'production') {
+        console.warn(`[SupabaseStorage] Hero image upload error: ${uploadError.message}`);
+        const { data: urlData } = client.storage.from(BUCKET_PROPERTY_MEDIA).getPublicUrl(storagePath);
+        publicUrl = urlData.publicUrl;
+      } else {
+        throw new Error(`STORAGE_UPLOAD_FAILED: ${uploadError.message}`);
+      }
+    } else {
+      const { data: urlData } = client.storage.from(BUCKET_PROPERTY_MEDIA).getPublicUrl(storagePath);
+      publicUrl = urlData.publicUrl;
     }
-    const { data: urlData } = client.storage.from(BUCKET_PROPERTY_MEDIA).getPublicUrl(storagePath);
-    publicUrl = urlData.publicUrl;
   } else {
-    const supabaseProject = process.env.SUPABASE_PROJECT_ID || 'db.sellmyghar';
-    publicUrl = `https://${supabaseProject}.supabase.co/storage/v1/object/public/${BUCKET_PROPERTY_MEDIA}/${storagePath}`;
+    if (process.env.ALLOW_DEV_FALLBACKS === 'true' && process.env.NODE_ENV !== 'production') {
+      const supabaseProject = process.env.SUPABASE_PROJECT_ID || 'db.sellmyghar';
+      publicUrl = `https://${supabaseProject}.supabase.co/storage/v1/object/public/${BUCKET_PROPERTY_MEDIA}/${storagePath}`;
+    } else {
+      throw new Error('STORAGE_CLIENT_UNAVAILABLE: Supabase storage credentials are not configured.');
+    }
   }
 
   console.info(`[SupabaseStorage] Hero image uploaded to ${BUCKET_PROPERTY_MEDIA}/${storagePath}: ${publicUrl}`);

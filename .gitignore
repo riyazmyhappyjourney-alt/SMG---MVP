@@ -7,3 +7,7 @@ coverage/
 .env*
 !.env.example
 scratch/
+*-credentials*.json
+*service-account*.json
+*.pem
+*.key

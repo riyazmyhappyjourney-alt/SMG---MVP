@@ -2,7 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
-import { createHash } from 'crypto';
+import { createHash, randomBytes } from 'crypto';
 
 dotenv.config();
 dotenv.config({ path: '.env.local' });
@@ -24,6 +24,7 @@ import { assertCanAccessProperty, assertCanAccessDocument, AuthorizationError } 
 import { requirePermission, hasPermission } from './src/server/auth/rbac';
 import { hashPassword, verifyPassword } from './src/server/auth/passwords';
 import { OtpService } from './src/server/auth/otp-service';
+import { getLastDevOtp } from './src/server/notifications/sms-provider';
 import { SellerWorkflowService } from './src/server/workflow/seller-service';
 import { ErasureService } from './src/server/compliance/erasure-service';
 import { PostUploadVerificationWorker, ClamAvScannerClient } from './src/server/storage/post-upload-worker';
@@ -39,10 +40,19 @@ import {
 import { DistributedRateLimiter } from './src/server/ratelimit/limiter';
 import { recordAuditEvent, AuditableAction } from './src/server/audit/logger';
 import { AuthenticatedUser, AppRole } from './src/core/types/auth';
-import { getLastDevOtp } from './src/server/notifications/sms-provider';
+import { HeroCmsService } from './src/server/cms/hero-service';
+import { PartnerCmsService } from './src/server/cms/partner-service';
+import { 
+  EmailNotificationService, 
+  DEFAULT_PUBLISHED_EMAIL_SUBJECT, 
+  DEFAULT_PUBLISHED_EMAIL_HTML,
+  DEFAULT_SUBMISSION_EMAIL_SUBJECT,
+  DEFAULT_SUBMISSION_EMAIL_HTML,
+  DEFAULT_EMAIL_SAMPLE_VARS
+} from './src/server/notifications/email-service';
 
 const app = express();
-const PORT = 3000;
+const PORT = parseInt(process.env.PORT || '3000', 10);
 const isProd = process.env.NODE_ENV === 'production';
 
 // ====================================================================
@@ -590,7 +600,257 @@ app.post('/api/auth/customer-login', jsonDefault, rateLimit('cust-login', 10, 90
   });
 });
 
-// API: Google OAuth (Fails closed until provider credentials are configured)
+// API: Public client auth configuration (strictly non-sensitive credentials)
+app.get('/api/auth/public-config', (_req, res) => {
+  return res.json({
+    supabaseUrl: process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '',
+    supabaseAnonKey: process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '',
+  });
+});
+
+// API: Google OAuth Session Exchange
+// Validates Supabase access token server-side, resolves user identity, and issues native sellmyghar_session cookie
+app.post('/api/auth/google/session', jsonDefault, rateLimit('google-session', 10, 900), async (req, res) => {
+  try {
+    const { accessToken } = req.body || {};
+
+    if (!accessToken || typeof accessToken !== 'string' || accessToken.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'INVALID_TOKEN',
+        message: 'A valid Supabase authentication access token is required.'
+      });
+    }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      return res.status(503).json({
+        success: false,
+        error: 'PROVIDER_NOT_CONFIGURED',
+        message: 'Supabase authentication service is not configured on the server.'
+      });
+    }
+
+    // 1. Cryptographically validate the token server-side with Supabase Auth
+    const { data: supaAuthData, error: supaAuthErr } = await supabase.auth.getUser(accessToken.trim());
+
+    if (supaAuthErr || !supaAuthData?.user) {
+      return res.status(401).json({
+        success: false,
+        error: 'INVALID_CREDENTIALS',
+        message: supaAuthErr?.message || 'The provided authentication token is invalid or expired.'
+      });
+    }
+
+    const supaUser = supaAuthData.user;
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+
+    // 2. Strict Email Verification Enforcement (Security Requirement 4)
+    const rawEmail = supaUser.email?.trim().toLowerCase();
+    if (!rawEmail) {
+      return res.status(400).json({
+        success: false,
+        error: 'EMAIL_REQUIRED',
+        message: 'Google identity did not provide a primary email address.'
+      });
+    }
+
+    const isEmailVerified = Boolean(
+      supaUser.email_confirmed_at ||
+      supaUser.app_metadata?.provider === 'google' ||
+      supaUser.user_metadata?.email_verified === true
+    );
+
+    if (!isEmailVerified) {
+      return res.status(403).json({
+        success: false,
+        error: 'EMAIL_NOT_VERIFIED',
+        message: 'Your Google email address is not verified. Please verify your email before continuing.'
+      });
+    }
+
+    const providerUserId = supaUser.id; // Supabase UID for the Google auth subject
+
+    // 3. Resolve existing user identity via user_identities table
+    const identityRes = await executeQuery<{
+      id: string;
+      user_id: string;
+      provider: string;
+      provider_user_id: string;
+    }>(
+      `SELECT id, user_id, provider, provider_user_id FROM user_identities WHERE provider = $1 AND provider_user_id = $2 LIMIT 1;`,
+      ['google', providerUserId]
+    );
+
+    let userRecord: any = null;
+
+    if (identityRes.rows && identityRes.rows.length > 0) {
+      // Identity link exists -> retrieve user record
+      const userRes = await executeQuery(
+        `SELECT id, phone, email, display_name, roles, is_active, token_version, created_at FROM users WHERE id = $1 LIMIT 1;`,
+        [identityRes.rows[0].user_id]
+      );
+      if (userRes.rows && userRes.rows.length > 0) {
+        userRecord = userRes.rows[0];
+      }
+    }
+
+    // 4. If identity link does not exist, resolve by verified email or create new customer
+    if (!userRecord) {
+      const existingUserByEmail = await executeQuery(
+        `SELECT id, phone, email, display_name, roles, is_active, token_version, created_at FROM users WHERE LOWER(email) = $1 LIMIT 1;`,
+        [rawEmail]
+      );
+
+      if (existingUserByEmail.rows && existingUserByEmail.rows.length > 0) {
+        const existing = existingUserByEmail.rows[0];
+
+        // Security Requirement 4: Never automatically link a Google identity to an existing privileged account
+        const hasPrivilegedRole = (existing.roles || []).some((role: string) =>
+          role.startsWith('STAFF_') || role === 'STAFF_SUPER_ADMIN' || role === 'SUPER_ADMIN' || role === 'ADMIN'
+        );
+
+        if (hasPrivilegedRole) {
+          await recordAuditEvent({
+            actor: { uid: `g-${providerUserId.slice(0, 12)}`, roles: ['BUYER'], email: rawEmail },
+            action: 'LOGIN_FAILED',
+            targetEntity: 'users',
+            targetEntityId: existing.id,
+            clientIp,
+            diffSummary: { reason: 'PRIVILEGED_ACCOUNT_LINKING_REJECTED', email: rawEmail },
+          });
+
+          return res.status(403).json({
+            success: false,
+            error: 'PRIVILEGED_ACCOUNT_LINKING_DISALLOWED',
+            message: 'Privileged staff and admin accounts cannot be linked through public Google sign-in. Please sign in using your staff credentials.'
+          });
+        }
+
+        userRecord = existing;
+
+        // Establish identity mapping link
+        const identityId = `ident-g-${Date.now().toString(36)}-${randomBytes(3).toString('hex')}`;
+        await executeQuery(
+          `INSERT INTO user_identities (id, user_id, provider, provider_user_id, email, is_verified, created_at)
+           VALUES ($1, $2, 'google', $3, $4, true, NOW())
+           ON CONFLICT (provider, provider_user_id) DO NOTHING;`,
+          [identityId, userRecord.id, providerUserId, rawEmail]
+        );
+
+        await recordAuditEvent({
+          actor: { uid: userRecord.id, roles: userRecord.roles, email: rawEmail },
+          action: 'ACCOUNT_LINKED',
+          targetEntity: 'user_identities',
+          targetEntityId: identityId,
+          clientIp,
+          diffSummary: { provider: 'google', email: rawEmail },
+        });
+      } else {
+        // Security Requirement 2: Never assign OWNER, ADMIN, or staff roles to a new public Google signup.
+        // Assign strictly least-privileged customer role: 'BUYER'
+        const newUserId = `usr-g-${Date.now().toString(36)}-${randomBytes(3).toString('hex')}`;
+        const displayName =
+          supaUser.user_metadata?.full_name?.trim() ||
+          supaUser.user_metadata?.name?.trim() ||
+          rawEmail.split('@')[0];
+
+        await executeQuery(
+          `INSERT INTO users (id, phone, email, display_name, roles, is_active, token_version, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, '{BUYER}', true, 1, NOW(), NOW())
+           ON CONFLICT DO NOTHING;`,
+          [newUserId, null, rawEmail, displayName]
+        );
+
+        const identityId = `ident-g-${Date.now().toString(36)}-${randomBytes(3).toString('hex')}`;
+        await executeQuery(
+          `INSERT INTO user_identities (id, user_id, provider, provider_user_id, email, is_verified, created_at)
+           VALUES ($1, $2, 'google', $3, $4, true, NOW())
+           ON CONFLICT (provider, provider_user_id) DO NOTHING;`,
+          [identityId, newUserId, providerUserId, rawEmail]
+        );
+
+        // Fetch back newly created user
+        const fetchRes = await executeQuery(
+          `SELECT id, phone, email, display_name, roles, is_active, token_version, created_at FROM users WHERE id = $1 LIMIT 1;`,
+          [newUserId]
+        );
+        userRecord = fetchRes.rows[0];
+
+        // Fallback: If insert conflicted concurrently on email, resolve existing record by email
+        if (!userRecord) {
+          const retryByEmail = await executeQuery(
+            `SELECT id, phone, email, display_name, roles, is_active, token_version, created_at FROM users WHERE LOWER(email) = $1 LIMIT 1;`,
+            [rawEmail]
+          );
+          if (retryByEmail.rows && retryByEmail.rows.length > 0) {
+            userRecord = retryByEmail.rows[0];
+          }
+        }
+      }
+    }
+
+    // 5. Account resolution and active status check
+    if (!userRecord) {
+      return res.status(500).json({
+        success: false,
+        error: 'USER_RESOLVE_FAILED',
+        message: 'Unable to resolve or create your user account. Please try again or contact support.'
+      });
+    }
+
+    if (!userRecord.is_active) {
+      return res.status(403).json({
+        success: false,
+        error: 'ACCOUNT_DEACTIVATED',
+        message: 'This account has been deactivated. Please contact support.'
+      });
+    }
+
+    // 6. Security Requirement 6 & 7: Issue native sellmyghar_session HTTP-only cookie
+    const authenticatedUser: AuthenticatedUser = {
+      uid: userRecord.id,
+      phone: userRecord.phone || '',
+      email: userRecord.email,
+      roles: userRecord.roles,
+      permissions: [],
+    };
+
+    const sessionToken = await signSessionToken(authenticatedUser, userRecord.token_version || 1);
+    setSessionCookie(res, sessionToken);
+
+    await recordAuditEvent({
+      actor: authenticatedUser,
+      action: 'SOCIAL_LOGIN_SUCCESS',
+      targetEntity: 'users',
+      targetEntityId: userRecord.id,
+      clientIp,
+      diffSummary: { provider: 'google', email: rawEmail, role: userRecord.roles[0] },
+    });
+
+    return res.json({
+      success: true,
+      authenticated: true,
+      user: {
+        id: userRecord.id,
+        name: userRecord.display_name,
+        email: userRecord.email,
+        phone: userRecord.phone || undefined,
+        roles: userRecord.roles,
+        createdAt: userRecord.created_at || new Date().toISOString(),
+      },
+    });
+  } catch (err: any) {
+    console.error('[GoogleAuthSession] Error:', err);
+    return res.status(500).json({
+      success: false,
+      error: 'SERVER_ERROR',
+      message: 'Authentication session exchange could not be completed.'
+    });
+  }
+});
+
+// API: Google OAuth fallback (Legacy stub fails closed)
 app.post('/api/auth/google', jsonDefault, async (_req, res) => {
   return res.status(503).json({
     success: false,
@@ -1594,6 +1854,25 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
       const randomNum = Math.floor(1000 + Math.random() * 9000);
       const referenceId = `SMG-${new Date().getFullYear()}-${randomNum}`;
 
+      // Dispatch automated seller submission confirmation email (idempotent)
+      try {
+        const ownerEmail = (req.body.ownerEmail || req.body.email || req.body.sellerEmail || req.user?.email || '').trim();
+        await EmailNotificationService.handlePropertyListed({
+          id: propertyId,
+          referenceId,
+          ownerName: ownerName.trim(),
+          ownerEmail: ownerEmail || null,
+          ownerPhone: normalizedPhone,
+          propertyType: `${bhkLabel} ${propertyType || 'Apartment'}`,
+          propertyLocation: `${societyName.trim()}, ${locality.trim()}`,
+          locality: locality.trim(),
+          listingType: isRental ? 'Rental Listing' : 'Assisted Resale (Verified)',
+          askingPrice: askingPriceNum,
+        }, req.user);
+      } catch (listedEmailErr: any) {
+        console.warn('[PropertyListedEmail] Dispatch note:', listedEmailErr.message);
+      }
+
       return res.status(201).json({
         success: true,
         propertyId,
@@ -2167,6 +2446,374 @@ app.post('/api/hero-image', jsonUpload, authenticateUser, requireRole('STAFF_LIS
   }
 });
 
+// ====================================================================
+// HERO CMS MANAGEMENT ENDPOINTS
+// Public Slides, Admin Upload, Reorder, Enable/Disable, Sample Download
+// ====================================================================
+
+// 1. Get Hero Slides (Public Homepage: Active Slides; Admin: All Slides)
+app.get('/api/cms/hero-slides', async (req: Request, res: Response) => {
+  try {
+    const onlyActive = req.query.all !== 'true';
+    const slides = await HeroCmsService.listSlides(onlyActive);
+    return res.json({
+      success: true,
+      count: slides.length,
+      slides,
+      recommendedSpecs: {
+        width: 1920,
+        height: 800,
+        aspectRatio: '2.40:1',
+        maxSizeMb: 5,
+        formats: ['image/webp', 'image/jpeg', 'image/png'],
+        safeZoneText: 'Left 40% (low visual noise for headlines)',
+        safeZoneFocal: 'Right 60% (architectural elevation & balconies)'
+      }
+    });
+  } catch (err: any) {
+    console.error('[HeroCmsList] Error:', err);
+    return res.status(500).json({ error: 'Failed to retrieve hero slides.' });
+  }
+});
+
+// 2. Download Official Sample Hero Banner (1920x800)
+app.get('/api/cms/hero-slides/sample', async (_req: Request, res: Response) => {
+  try {
+    const samplePath = path.resolve('public/images/sample-hero-banner-1920x800.png');
+    if (fs.existsSync(samplePath)) {
+      res.setHeader('Content-Disposition', 'attachment; filename="sellmyghar-sample-hero-1920x800.png"');
+      res.setHeader('Content-Type', 'image/png');
+      return res.sendFile(samplePath);
+    }
+    return res.status(404).json({ error: 'Sample image not found on server.' });
+  } catch (err: any) {
+    console.error('[HeroCmsSampleDownload] Error:', err);
+    return res.status(500).json({ error: 'Failed to download sample image.' });
+  }
+});
+
+// 3. Create / Upload New Hero Slide (Admin Gated)
+app.post(
+  '/api/cms/hero-slides',
+  jsonUpload,
+  authenticateUser,
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER'),
+  async (req: Request, res: Response) => {
+    try {
+      const { title, alt_text, image_url, dataBase64, fileName, is_active, is_first, display_order } = req.body;
+
+      let finalImageUrl = image_url;
+
+      // Handle raw base64 upload if provided
+      if (dataBase64) {
+        try {
+          const saved = HeroCmsService.saveUploadedImage(dataBase64, fileName);
+          finalImageUrl = saved.relativeUrl;
+        } catch (uploadErr: any) {
+          return res.status(400).json({ error: 'INVALID_IMAGE', message: uploadErr.message });
+        }
+      }
+
+      if (!finalImageUrl) {
+        return res.status(400).json({ error: 'MISSING_IMAGE', message: 'Either image_url or dataBase64 image content is required.' });
+      }
+
+      const slide = await HeroCmsService.createSlide({
+        title,
+        alt_text,
+        image_url: finalImageUrl,
+        is_active,
+        is_first,
+        display_order
+      });
+
+      return res.status(201).json({
+        success: true,
+        message: 'Hero slide created successfully',
+        slide
+      });
+    } catch (err: any) {
+      console.error('[HeroCmsCreate] Error:', err);
+      return res.status(400).json({ error: err.message || 'Failed to create hero slide.' });
+    }
+  }
+);
+
+// 4. Update Existing Hero Slide
+app.put(
+  '/api/cms/hero-slides/:id',
+  jsonUpload,
+  authenticateUser,
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER'),
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { title, alt_text, image_url, dataBase64, fileName, is_active, is_first, display_order } = req.body;
+
+      let finalImageUrl = image_url;
+      if (dataBase64) {
+        try {
+          const saved = HeroCmsService.saveUploadedImage(dataBase64, fileName);
+          finalImageUrl = saved.relativeUrl;
+        } catch (uploadErr: any) {
+          return res.status(400).json({ error: 'INVALID_IMAGE', message: uploadErr.message });
+        }
+      }
+
+      const updated = await HeroCmsService.updateSlide(id, {
+        title,
+        alt_text,
+        image_url: finalImageUrl,
+        is_active,
+        is_first,
+        display_order
+      });
+
+      return res.json({
+        success: true,
+        message: 'Hero slide updated successfully',
+        slide: updated
+      });
+    } catch (err: any) {
+      console.error('[HeroCmsUpdate] Error:', err);
+      return res.status(400).json({ error: err.message || 'Failed to update hero slide.' });
+    }
+  }
+);
+
+// 5. Delete Hero Slide
+app.delete(
+  '/api/cms/hero-slides/:id',
+  authenticateUser,
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER'),
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const success = await HeroCmsService.deleteSlide(id);
+      if (!success) {
+        return res.status(404).json({ error: 'Slide not found.' });
+      }
+      return res.json({ success: true, message: 'Hero slide deleted successfully' });
+    } catch (err: any) {
+      console.error('[HeroCmsDelete] Error:', err);
+      return res.status(500).json({ error: 'Failed to delete hero slide.' });
+    }
+  }
+);
+
+// 6. Reorder Hero Slides
+app.post(
+  '/api/cms/hero-slides/reorder',
+  jsonDefault,
+  authenticateUser,
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER'),
+  async (req: Request, res: Response) => {
+    try {
+      const { slideIds } = req.body;
+      const slides = await HeroCmsService.reorderSlides(slideIds);
+      return res.json({
+        success: true,
+        message: 'Hero slides reordered successfully',
+        slides
+      });
+    } catch (err: any) {
+      console.error('[HeroCmsReorder] Error:', err);
+      return res.status(400).json({ error: err.message || 'Failed to reorder hero slides.' });
+    }
+  }
+);
+
+// ====================================================================
+// Partner Logos CMS API Endpoints
+// ====================================================================
+
+// 1. List Partner Logos (Public & Admin)
+app.get('/api/cms/partner-logos', async (req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'application/json');
+  try {
+    const onlyActive = req.query.all !== 'true';
+    const logos = await PartnerCmsService.listPartners(onlyActive);
+    return res.json({
+      success: true,
+      count: logos.length,
+      logos
+    });
+  } catch (err: any) {
+    console.error('[PartnerCmsList] Error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to retrieve partner logos.' });
+  }
+});
+
+// 2. Get Section Settings (Public & Admin)
+app.get('/api/cms/partner-section', async (_req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'application/json');
+  try {
+    const settings = await PartnerCmsService.getSectionSettings();
+    return res.json({
+      success: true,
+      settings
+    });
+  } catch (err: any) {
+    console.error('[PartnerCmsSettingsGet] Error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to retrieve partner section settings.' });
+  }
+});
+
+// 3. Update Section Settings (Admin Gated)
+app.put(
+  '/api/cms/partner-section',
+  jsonDefault,
+  authenticateUser,
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER'),
+  async (req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'application/json');
+    try {
+      const { heading, scroll_speed, pause_on_hover } = req.body || {};
+      const settings = await PartnerCmsService.updateSectionSettings({ heading, scroll_speed, pause_on_hover });
+      return res.json({
+        success: true,
+        message: 'Partner section settings updated successfully',
+        settings
+      });
+    } catch (err: any) {
+      console.error('[PartnerCmsSettingsUpdate] Error:', err);
+      return res.status(400).json({ success: false, error: err.message || 'Failed to update section settings.' });
+    }
+  }
+);
+
+// 4. Upload Partner Logo Image (Admin Gated)
+app.post(
+  '/api/cms/partner-logos/upload',
+  jsonUpload,
+  authenticateUser,
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER'),
+  async (req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'application/json');
+    try {
+      const { dataBase64, fileName } = req.body || {};
+      if (!dataBase64) {
+        return res.status(400).json({ success: false, error: 'Missing image data.' });
+      }
+      const saved = PartnerCmsService.saveUploadedLogo(dataBase64, fileName);
+      return res.json({
+        success: true,
+        message: 'Partner logo uploaded successfully',
+        logo_url: saved.relativeUrl,
+        checksum: saved.checksum
+      });
+    } catch (err: any) {
+      console.error('[PartnerCmsUpload] Error:', err);
+      return res.status(400).json({ success: false, error: err.message || 'Failed to upload partner logo.' });
+    }
+  }
+);
+
+// 5. Create Partner Logo (Admin Gated)
+app.post(
+  '/api/cms/partner-logos',
+  jsonUpload,
+  authenticateUser,
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER'),
+  async (req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'application/json');
+    try {
+      const { name, logo_url, alt_text, display_order, is_active } = req.body || {};
+      const logo = await PartnerCmsService.createPartner({
+        name,
+        logo_url,
+        alt_text,
+        display_order,
+        is_active
+      });
+      return res.status(201).json({
+        success: true,
+        message: 'Partner logo created successfully',
+        logo
+      });
+    } catch (err: any) {
+      console.error('[PartnerCmsCreate] Error:', err);
+      return res.status(400).json({ success: false, error: err.message || 'Failed to create partner logo.' });
+    }
+  }
+);
+
+// 6. Update Partner Logo (Admin Gated)
+app.put(
+  '/api/cms/partner-logos/:id',
+  jsonUpload,
+  authenticateUser,
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER'),
+  async (req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'application/json');
+    try {
+      const { id } = req.params;
+      const { name, logo_url, alt_text, display_order, is_active } = req.body || {};
+      const updated = await PartnerCmsService.updatePartner(id, {
+        name,
+        logo_url,
+        alt_text,
+        display_order,
+        is_active
+      });
+      return res.json({
+        success: true,
+        message: 'Partner logo updated successfully',
+        logo: updated
+      });
+    } catch (err: any) {
+      console.error('[PartnerCmsUpdate] Error:', err);
+      return res.status(400).json({ success: false, error: err.message || 'Failed to update partner logo.' });
+    }
+  }
+);
+
+// 7. Delete Partner Logo (Admin Gated)
+app.delete(
+  '/api/cms/partner-logos/:id',
+  authenticateUser,
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER'),
+  async (req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'application/json');
+    try {
+      const { id } = req.params;
+      const success = await PartnerCmsService.deletePartner(id);
+      if (!success) {
+        return res.status(404).json({ success: false, error: 'Partner logo not found.' });
+      }
+      return res.json({ success: true, message: 'Partner logo deleted successfully' });
+    } catch (err: any) {
+      console.error('[PartnerCmsDelete] Error:', err);
+      return res.status(500).json({ success: false, error: 'Failed to delete partner logo.' });
+    }
+  }
+);
+
+// 8. Reorder Partner Logos (Admin Gated)
+app.post(
+  '/api/cms/partner-logos/reorder',
+  jsonDefault,
+  authenticateUser,
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER'),
+  async (req: Request, res: Response) => {
+    res.setHeader('Content-Type', 'application/json');
+    try {
+      const { logoIds } = req.body || {};
+      if (!Array.isArray(logoIds)) {
+        return res.status(400).json({ success: false, error: 'logoIds must be an array of IDs.' });
+      }
+      await PartnerCmsService.reorderPartners(logoIds);
+      return res.json({
+        success: true,
+        message: 'Partner logos reordered successfully'
+      });
+    } catch (err: any) {
+      console.error('[PartnerCmsReorder] Error:', err);
+      return res.status(400).json({ success: false, error: err.message || 'Failed to reorder partner logos.' });
+    }
+  }
+);
+
 // API: Respond to Buyer Offer (Accept / Counter / Request RM - Enforces Authentication & Property Ownership)
 app.post('/api/properties/:id/inquiries/:inquiryId/action', jsonDefault, authenticateUser, async (req, res) => {
   try {
@@ -2494,10 +3141,10 @@ app.get('/api/crm/leads/:id', authenticateUser, requireModule('LEADS'), async (r
 
     // Fetch related audit trail
     const auditRes = await executeQuery(`
-      SELECT id, action, actor_user_id, client_ip, diff_summary, created_at
+      SELECT id, action, actor_id AS actor_user_id, ip_address AS client_ip, diff_summary, timestamp AS created_at
       FROM audit_logs
       WHERE target_entity_id = $1 OR (target_entity_id = $2 AND $2 IS NOT NULL)
-      ORDER BY created_at DESC
+      ORDER BY timestamp DESC
       LIMIT 20;
     `, [id, leadRow.property_id || null]);
 
@@ -3037,13 +3684,22 @@ const updateDocStatusHandler = async (req: Request, res: Response) => {
 
     const updatedDoc = updateRes.rows[0];
 
-    // If verified, advance property verification tier
+    // If verified, advance property verification tier and trigger approval notification
     if (targetStatus === 'VERIFIED') {
-      await executeQuery(`
+      const pUpdate = await executeQuery(`
         UPDATE properties
-        SET verification_tier = 'LEVEL_2_DOCS_REVIEWED', updated_at = NOW()
-        WHERE id = $1;
+        SET verification_tier = 'LEVEL_2_DOCS_REVIEWED', crm_status = 'APPROVED', updated_at = NOW()
+        WHERE id = $1
+        RETURNING *;
       `, [resolvedPropertyId]);
+
+      if (pUpdate.rows && pUpdate.rows.length > 0) {
+        try {
+          await EmailNotificationService.handlePropertyApproved(pUpdate.rows[0], req.user);
+        } catch (apprErr: any) {
+          console.warn('[DocVerifyPropertyApproved] Dispatch note:', apprErr.message);
+        }
+      }
     }
 
     const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
@@ -3280,6 +3936,41 @@ app.post('/api/crm/visits', jsonDefault, authenticateUser, requireModule('VISITS
         visitTime: resolvedTime
       }
     });
+
+    // Dispatch automated idempotent meeting scheduled email with .ics calendar invitation
+    try {
+      const clientEmail = (req.body.client_email || req.body.clientEmail || req.body.email || '').trim();
+      let resolvedClientEmail = clientEmail;
+
+      if (!resolvedClientEmail && resolvedLeadId) {
+        try {
+          const lRes = await executeQuery(`SELECT u.email FROM seller_leads sl JOIN users u ON sl.user_id = u.id WHERE sl.id = $1 LIMIT 1;`, [resolvedLeadId]);
+          if (lRes.rows && lRes.rows[0]?.email) resolvedClientEmail = lRes.rows[0].email;
+        } catch {}
+      }
+
+      if (!resolvedClientEmail && resolvedPropId) {
+        try {
+          const pRes = await executeQuery(`SELECT u.email FROM properties p JOIN users u ON p.owner_id = u.id WHERE p.id = $1 LIMIT 1;`, [resolvedPropId]);
+          if (pRes.rows && pRes.rows[0]?.email) resolvedClientEmail = pRes.rows[0].email;
+        } catch {}
+      }
+
+      await EmailNotificationService.handleMeetingScheduled({
+        visitId,
+        propertyId: resolvedPropId,
+        leadId: resolvedLeadId,
+        clientName: resolvedName,
+        clientPhone: resolvedPhone,
+        clientEmail: resolvedClientEmail || null,
+        visitDate: resolvedDate,
+        visitTime: resolvedTime,
+        staffId: resolvedStaffId,
+        notes: notes || undefined,
+      }, req.user);
+    } catch (meetingEmailErr: any) {
+      console.warn('[MeetingScheduledEmail] Dispatch note:', meetingEmailErr.message);
+    }
 
     return res.json({
       success: true,
@@ -3727,7 +4418,12 @@ app.get('/api/crm/audit-logs', authenticateUser, requireModule('AUDIT_LOGS'), as
     const { action, targetEntity, limit } = req.query;
     const max = Math.min(Number(limit) || 50, 100);
 
-    const logsRes = await executeQuery(`SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT $1;`, [max]);
+    const logsRes = await executeQuery(`
+      SELECT id, actor_id, actor_id AS actor_user_id, actor_role, action, target_entity, target_entity_id, ip_address, ip_address AS client_ip, diff_summary, timestamp, timestamp AS created_at
+      FROM audit_logs
+      ORDER BY timestamp DESC
+      LIMIT $1;
+    `, [max]);
 
     let logs = logsRes.rows || [];
     if (action) logs = logs.filter((l: any) => l.action === action);
@@ -3965,7 +4661,7 @@ app.get('/api/crm/reports/export-csv', authenticateUser, requireModule('REPORTS'
 
     if (type === 'properties') {
       let query = `
-        SELECT p.id, p.title, p.property_type, p.public_address, p.bhk_type, p.super_builtup_area_sqft, p.asking_price_inr, p.listing_status, p.crm_status, p.verification_tier, p.created_at
+        SELECT p.id, p.title, p.property_type, p.public_address, p.bhk_type, p.super_built_up_sqft AS super_builtup_area_sqft, p.asking_price_inr, p.listing_status, p.crm_status, p.verification_tier, p.created_at
         FROM properties p
         WHERE 1=1
       `;
@@ -4359,10 +5055,10 @@ app.get('/api/crm/leads/:id/details', authenticateUser, requireModule('LEADS'), 
     });
 
     const auditRes = await executeQuery(`
-      SELECT id, action, actor_user_id, client_ip, diff_summary, created_at
+      SELECT id, action, actor_id AS actor_user_id, ip_address AS client_ip, diff_summary, timestamp AS created_at
       FROM audit_logs
       WHERE target_entity_id = $1 OR (target_entity_id = $2 AND $2 IS NOT NULL)
-      ORDER BY created_at DESC LIMIT 20;
+      ORDER BY timestamp DESC LIMIT 20;
     `, [id, lead.property_id || null]);
     const auditLogs = auditRes.rows || [];
 
@@ -4862,7 +5558,17 @@ const updatePropertyHandler = async (req: Request, res: Response) => {
       developerName,
       landmarks,
       highlights,
+      crm_status,
+      crmStatus,
+      listing_status,
+      listingStatus,
+      verification_tier,
+      verificationTier,
     } = req.body;
+
+    const resolvedCrmStatus = crm_status || crmStatus || null;
+    const resolvedListingStatus = listing_status || listingStatus || null;
+    const resolvedVerificationTier = verification_tier || verificationTier || null;
 
     const projectLocality = (projectName && locality) ? `${projectName}, ${locality}` : (req.body.project_locality_id || existing.project_locality_id);
 
@@ -4884,8 +5590,11 @@ const updatePropertyHandler = async (req: Request, res: Response) => {
           developer_name = COALESCE($14, developer_name),
           landmarks = COALESCE($15, landmarks),
           highlights = COALESCE($16, highlights),
+          crm_status = COALESCE($17, crm_status),
+          listing_status = COALESCE($18, listing_status),
+          verification_tier = COALESCE($19, verification_tier),
           updated_at = NOW()
-      WHERE id = $17
+      WHERE id = $20
       RETURNING *;
     `, [
       title || null,
@@ -4904,6 +5613,9 @@ const updatePropertyHandler = async (req: Request, res: Response) => {
       developerName || null,
       landmarks ? JSON.stringify(landmarks) : null,
       highlights ? JSON.stringify(highlights) : null,
+      resolvedCrmStatus,
+      resolvedListingStatus,
+      resolvedVerificationTier,
       id,
     ]);
 
@@ -4917,6 +5629,37 @@ const updatePropertyHandler = async (req: Request, res: Response) => {
         updatedFields: Object.keys(req.body),
       },
     });
+
+    // Check for status transition to APPROVED
+    const isApprovedTransition = 
+      (resolvedCrmStatus === 'APPROVED' || resolvedCrmStatus === 'VERIFIED' || resolvedListingStatus === 'APPROVED' || resolvedVerificationTier === 'LEVEL_2_DOCS_REVIEWED' || resolvedVerificationTier === 'LEVEL_3_PHYSICALLY_INSPECTED') &&
+      existing.crm_status !== 'APPROVED' &&
+      existing.crm_status !== 'VERIFIED' &&
+      existing.listing_status !== 'APPROVED' &&
+      existing.verification_tier !== 'LEVEL_2_DOCS_REVIEWED' &&
+      existing.verification_tier !== 'LEVEL_3_PHYSICALLY_INSPECTED';
+
+    if (isApprovedTransition) {
+      try {
+        await EmailNotificationService.handlePropertyApproved(updateRes.rows[0], req.user);
+      } catch (apprErr: any) {
+        console.warn('[CrmUpdatePropertyApproved] Email dispatch note:', apprErr.message);
+      }
+    }
+
+    // Check for status transition to PUBLISHED
+    const isPublishedTransition = 
+      resolvedListingStatus === 'PUBLISHED' && 
+      existing.listing_status !== 'PUBLISHED';
+
+    if (isPublishedTransition) {
+      try {
+        const mediaRes = await executeQuery(`SELECT id, url, is_featured FROM property_media WHERE property_id = $1;`, [id]);
+        await EmailNotificationService.handlePropertyPublished(updateRes.rows[0], mediaRes.rows || [], req.user);
+      } catch (pubErr: any) {
+        console.warn('[CrmUpdatePropertyPublished] Email dispatch note:', pubErr.message);
+      }
+    }
 
     return res.json({
       success: true,
@@ -4942,6 +5685,69 @@ app.patch(
   authenticateUser,
   requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER', 'STAFF_DEAL_CLOSER'),
   updatePropertyHandler
+);
+
+// 4b. Approve Property Listing (Dedicated Staff Endpoint)
+app.post(
+  '/api/crm/properties/:id/approve',
+  jsonDefault,
+  authenticateUser,
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER', 'STAFF_DEAL_CLOSER'),
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+
+      const existingCheck = await executeQuery(`SELECT * FROM properties WHERE id = $1 LIMIT 1;`, [id]);
+      if (!existingCheck.rows || existingCheck.rows.length === 0) {
+        return res.status(404).json({ error: 'NOT_FOUND', message: 'Property not found.' });
+      }
+      const existing = existingCheck.rows[0];
+
+      const targetTier = existing.verification_tier === 'LEVEL_3_PHYSICALLY_INSPECTED'
+        ? 'LEVEL_3_PHYSICALLY_INSPECTED'
+        : 'LEVEL_2_DOCS_REVIEWED';
+
+      const updateRes = await executeQuery(`
+        UPDATE properties
+        SET crm_status = 'APPROVED',
+            verification_tier = $1,
+            updated_at = NOW()
+        WHERE id = $2
+        RETURNING *;
+      `, [targetTier, id]);
+
+      await recordAuditEvent({
+        actor: req.user!,
+        action: 'PROPERTY_UPDATED',
+        targetEntity: 'properties',
+        targetEntityId: id,
+        clientIp,
+        diffSummary: {
+          previousStatus: existing.crm_status,
+          newStatus: 'APPROVED',
+          verificationTier: targetTier,
+        },
+      });
+
+      let emailResult: any = null;
+      try {
+        emailResult = await EmailNotificationService.handlePropertyApproved(updateRes.rows[0], req.user);
+      } catch (apprErr: any) {
+        console.warn('[CrmPropertyApprove] Email dispatch note:', apprErr.message);
+      }
+
+      return res.json({
+        success: true,
+        message: 'Property verified and approved successfully',
+        property: updateRes.rows[0],
+        notification: emailResult,
+      });
+    } catch (err: any) {
+      console.error('[CrmPropertyApprove] Error:', err);
+      return res.status(500).json({ error: 'Failed to approve property' });
+    }
+  }
 );
 
 // 5. Publish Property (Validates minimum required fields)
@@ -4991,6 +5797,12 @@ app.post(
       RETURNING *;
     `, [id]);
 
+    // Verify published persistence & accessibility
+    const verifiedCheck = await executeQuery(`SELECT id, listing_status FROM properties WHERE id = $1 AND listing_status = 'PUBLISHED' LIMIT 1;`, [id]);
+    if (!verifiedCheck.rows || verifiedCheck.rows.length === 0) {
+      return res.status(500).json({ error: 'Failed to verify published status in database' });
+    }
+
     await recordAuditEvent({
       actor: req.user!,
       action: 'PROPERTY_PUBLISHED',
@@ -5003,10 +5815,23 @@ app.post(
       },
     });
 
+    // Dispatch automated idempotent publication notification email
+    let emailDispatchResult: any = null;
+    try {
+      emailDispatchResult = await EmailNotificationService.handlePropertyPublished(
+        updateRes.rows[0],
+        images,
+        req.user
+      );
+    } catch (emailErr: any) {
+      console.warn('[CrmPropertyPublish] Notification dispatch note:', emailErr.message);
+    }
+
     return res.json({
       success: true,
       message: 'Property published successfully to public website',
       property: updateRes.rows[0],
+      notification: emailDispatchResult
     });
   } catch (err: any) {
     console.error('[CrmPropertyPublish] Error:', err);
@@ -5177,6 +6002,191 @@ app.post(
     return res.status(500).json({ error: 'Failed to archive property' });
   }
 });
+
+// ====================================================================
+// AUTOMATED EMAIL NOTIFICATION & TEMPLATE MANAGEMENT ENDPOINTS
+// Publication Event Notifications, Template Editor, Live Preview & Test Dispatch
+// ====================================================================
+
+// 1. Get Current Email Template (supports property-published and property-submission-received)
+app.get(
+  ['/api/crm/email-templates/property-published', '/api/crm/email-templates/:key'],
+  authenticateUser,
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER', 'STAFF_DEAL_CLOSER'),
+  async (req: Request, res: Response) => {
+    try {
+      const paramKey = req.params.key || 'PROPERTY_PUBLISHED';
+      const normalizedKey = paramKey.replace(/-/g, '_').toUpperCase();
+      const template = await EmailNotificationService.getTemplate(normalizedKey);
+      const providerStatus = EmailNotificationService.getProviderStatus();
+      return res.json({
+        success: true,
+        template,
+        providerStatus,
+        sampleData: DEFAULT_EMAIL_SAMPLE_VARS,
+        supportedVariables: [
+          { variable: '{{customer_name}}', description: 'Name of the property seller or customer' },
+          { variable: '{{owner_name}}', description: 'Verified property owner or lead name' },
+          { variable: '{{property_reference}}', description: 'Unique submission or listing reference code' },
+          { variable: '{{property_title}}', description: 'Full title or generated 2BHK/3BHK project title' },
+          { variable: '{{property_type}}', description: 'Apartment, Villa or Penthouse' },
+          { variable: '{{property_location}}', description: 'Locality and micro-market in Bengaluru' },
+          { variable: '{{locality}}', description: 'Locality name and Bengaluru micro-market' },
+          { variable: '{{listing_type}}', description: 'Assisted Resale, Direct Owner, etc.' },
+          { variable: '{{bhk}}', description: 'BHK configuration e.g. 2BHK, 3BHK' },
+          { variable: '{{area}}', description: 'Super built-up area in sq.ft' },
+          { variable: '{{public_price}}', description: 'Public approved asking price formatted in ₹ Cr/Lakh' },
+          { variable: '{{dashboard_url}}', description: 'Direct link to user dashboard on SellMyGhar' },
+          { variable: '{{property_url}}', description: 'Direct link to property detail page on SellMyGhar' },
+          { variable: '{{year}}', description: 'Current calendar year for copyright' },
+          { variable: '{{date}}', description: 'Formatted dispatch date' },
+          { variable: '{{cover_image_url}}', description: 'HTTPS URL of primary featured property photo' }
+        ]
+      });
+    } catch (err: any) {
+      console.error('[EmailTemplateGet] Error:', err);
+      return res.status(500).json({ error: 'Failed to retrieve email template.' });
+    }
+  }
+);
+
+// 2. Update Email Template (Super Admin)
+app.put(
+  ['/api/crm/email-templates/property-published', '/api/crm/email-templates/:key'],
+  jsonDefault,
+  authenticateUser,
+  requireRole('STAFF_SUPER_ADMIN'),
+  async (req: Request, res: Response) => {
+    try {
+      const paramKey = req.params.key || req.body.template_key || 'PROPERTY_PUBLISHED';
+      const normalizedKey = paramKey.replace(/-/g, '_').toUpperCase();
+      const subject_template = req.body.subject_template || req.body.subject;
+      const html_template = req.body.html_template || req.body.html_body;
+      const plain_text_template = req.body.plain_text_template;
+
+      const updated = await EmailNotificationService.updateTemplate(normalizedKey, {
+        subject_template,
+        html_template,
+        plain_text_template
+      });
+      return res.json({
+        success: true,
+        message: 'Email template updated successfully',
+        template: updated
+      });
+    } catch (err: any) {
+      console.error('[EmailTemplateUpdate] Error:', err);
+      return res.status(400).json({ error: err.message || 'Failed to update email template.' });
+    }
+  }
+);
+
+// 3. Reset Template to Default SellMyGhar Branded Design
+app.post(
+  ['/api/crm/email-templates/property-published/reset', '/api/crm/email-templates/:key/reset'],
+  jsonDefault,
+  authenticateUser,
+  requireRole('STAFF_SUPER_ADMIN'),
+  async (req: Request, res: Response) => {
+    try {
+      const paramKey = req.params.key || req.body?.template_key || 'PROPERTY_PUBLISHED';
+      const normalizedKey = paramKey.replace(/-/g, '_').toUpperCase();
+      const restored = await EmailNotificationService.resetTemplateToDefault(normalizedKey);
+      return res.json({
+        success: true,
+        message: 'Email template restored to default SellMyGhar brand design',
+        template: restored
+      });
+    } catch (err: any) {
+      console.error('[EmailTemplateReset] Error:', err);
+      return res.status(500).json({ error: 'Failed to reset email template.' });
+    }
+  }
+);
+
+// 4. Preview Rendered Email Template with Sample Data
+app.post(
+  ['/api/crm/email-templates/property-published/preview', '/api/crm/email-templates/preview', '/api/crm/email-templates/:key/preview'],
+  jsonDefault,
+  async (req: Request, res: Response) => {
+    try {
+      const subjectTpl = req.body.subject_template || req.body.subject || DEFAULT_PUBLISHED_EMAIL_SUBJECT;
+      const bodyTpl = req.body.html_template || req.body.html_body || DEFAULT_PUBLISHED_EMAIL_HTML;
+
+      const sampleVars = {
+        ...DEFAULT_EMAIL_SAMPLE_VARS,
+        ...(req.body.custom_sample_vars || {})
+      };
+
+      const renderedSubject = EmailNotificationService.renderTemplate(subjectTpl, sampleVars);
+      const renderedHtml = EmailNotificationService.renderTemplate(bodyTpl, sampleVars);
+
+      return res.json({
+        success: true,
+        subject: renderedSubject,
+        rendered_subject: renderedSubject,
+        html: renderedHtml,
+        rendered_html: renderedHtml,
+        sampleData: sampleVars
+      });
+    } catch (err: any) {
+      console.error('[EmailTemplatePreview] Error:', err);
+      return res.status(400).json({ error: 'Failed to generate template preview.' });
+    }
+  }
+);
+
+// 5. Send Test Notification Email
+app.post(
+  ['/api/crm/email-templates/property-published/send-test', '/api/crm/email-templates/:key/send-test'],
+  jsonDefault,
+  authenticateUser,
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER'),
+  async (req: Request, res: Response) => {
+    try {
+      const targetEmail = req.body.targetEmail || req.body.recipient;
+      const subject_template = req.body.subject_template || req.body.subject;
+      const html_template = req.body.html_template || req.body.html_body;
+
+      const result = await EmailNotificationService.sendTestEmail(targetEmail, subject_template, html_template);
+      return res.json(result);
+    } catch (err: any) {
+      console.error('[EmailTemplateSendTest] Error:', err);
+      return res.status(400).json({ error: err.message || 'Failed to send test email.' });
+    }
+  }
+);
+
+// 6. List Email Notification Delivery History & Failures
+app.get(
+  '/api/crm/email-notifications',
+  authenticateUser,
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER'),
+  async (_req: Request, res: Response) => {
+    try {
+      const notifications = await EmailNotificationService.listNotifications(50);
+      const providerStatus = EmailNotificationService.getProviderStatus();
+      return res.json({
+        success: true,
+        count: notifications.length,
+        providerStatus,
+        notifications
+      });
+    } catch (err: any) {
+      console.error('[EmailNotificationsList] Error:', err);
+      return res.status(500).json({ error: 'Failed to list email notifications.' });
+    }
+  }
+);
+
+// 7. Get Truthful Provider Status
+app.get(
+  '/api/crm/email-provider-status',
+  authenticateUser,
+  async (_req: Request, res: Response) => {
+    return res.json(EmailNotificationService.getProviderStatus());
+  }
+);
 
 export interface RemoteUrlValidationResult {
   valid: boolean;
@@ -5642,10 +6652,10 @@ app.get(
 
     const { id } = req.params;
     const auditRes = await executeQuery(`
-      SELECT id, action, actor_user_id, actor_id, actor_role, client_ip, diff_summary, created_at, timestamp
+      SELECT id, action, actor_id, actor_id AS actor_user_id, actor_role, ip_address, ip_address AS client_ip, diff_summary, timestamp, timestamp AS created_at
       FROM audit_logs
       WHERE target_entity_id = $1
-      ORDER BY created_at DESC
+      ORDER BY timestamp DESC
       LIMIT 50;
     `, [id]);
 

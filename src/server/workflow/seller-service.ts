@@ -22,6 +22,7 @@ import { withUserSession } from '../db/session';
 import { dbPool, executeQuery } from '../db/pool';
 import { signSessionToken } from '../auth/tokens';
 import { generateV4SignedUploadUrl } from '../storage/gcs-client';
+import { EmailNotificationService } from '../notifications/email-service';
 
 import { OutreachService } from '../notifications/outreach-service';
 import { getValidatedConfig } from '../config/env';
@@ -446,6 +447,14 @@ export class SellerWorkflowService {
       diffSummary: { from: oldTier, to: targetTier, notes: staffNotes },
     });
 
+    if (targetTier === 'LEVEL_2_DOCS_REVIEWED' || targetTier === 'LEVEL_3_PHYSICALLY_INSPECTED') {
+      try {
+        await EmailNotificationService.handlePropertyApproved(property, staff);
+      } catch (emailErr: any) {
+        console.warn('[SellerWorkflowService] Approved notification email note:', emailErr.message);
+      }
+    }
+
     return property;
   }
 
@@ -522,6 +531,16 @@ export class SellerWorkflowService {
         badge: publicProjection.public_verification_badge,
       },
     });
+
+    try {
+      await EmailNotificationService.handlePropertyPublished(
+        property,
+        [{ url: publicProjection.photos[0]?.cdn_url, is_featured: true }],
+        staff
+      );
+    } catch (emailErr: any) {
+      console.warn('[SellerWorkflowService] Published notification email note:', emailErr.message);
+    }
 
     return publicProjection;
   }

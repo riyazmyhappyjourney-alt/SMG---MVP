@@ -53,6 +53,9 @@ import { AdminErasureQueue } from './AdminErasureQueue';
 import { PropertyEditor } from './PropertyEditor';
 import { CalendarModule } from './CalendarModule';
 import { TasksKanbanModule } from './TasksKanbanModule';
+import { HeroCmsManager } from './HeroCmsManager';
+import { PartnerLogosManager } from './PartnerLogosManager';
+import { PublicationEmailManager } from './PublicationEmailManager';
 import { DateTimePicker } from '../common/DateTimePicker';
 import {
   formatIndianCurrency,
@@ -237,6 +240,7 @@ const PIPELINE_STAGES: Array<{ key: LeadStatus; label: string; desc: string }> =
 export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps) {
   // Navigation State
   const [activeSection, setActiveSection] = useState<NavSection>('OVERVIEW');
+  const [settingsTab, setSettingsTab] = useState<'SECURITY' | 'HERO_CMS' | 'PARTNER_CMS' | 'EMAIL_TEMPLATE'>('SECURITY');
 
   // RBAC State - Current user and role switcher
   const [currentRole, setCurrentRole] = useState<StaffRole>(() => {
@@ -3753,10 +3757,11 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
           {/* VIEW 11: SETTINGS                                              */}
           {/* ============================================================== */}
           {activeSection === 'SETTINGS' && (
-            <div className="space-y-6 max-w-3xl">
-              <div className="flex items-center justify-between">
+            <div className="space-y-6 max-w-4xl">
+              <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
-                  <h2 className="text-xl font-bold tracking-tight text-[#172033]">System & Security Settings</h2>
+                  <h2 className="text-xl font-bold tracking-tight text-[#172033]">Settings & Content Operations</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">Configure system security, hero banners, and notification email templates.</p>
                 </div>
                 {currentRole === 'STAFF_SUPER_ADMIN' && (
                   <button
@@ -3770,76 +3775,140 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 )}
               </div>
 
-              {/* Operator Profile */}
-              <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs space-y-3">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Current Operator</h3>
-                <div className="grid grid-cols-2 gap-4 text-xs">
-                  <div>
-                    <span className="text-slate-400 block text-[10px]">Name</span>
-                    <strong className="text-slate-900">{staffUser?.displayName || 'Operations Staff'}</strong>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block text-[10px]">Email</span>
-                    <strong className="text-slate-900">{staffUser?.email || 'staff@sellmyghar.in'}</strong>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block text-[10px]">Active Role</span>
-                    <strong className="text-slate-900">{currentRole}</strong>
-                  </div>
-                  <div>
-                    <span className="text-slate-400 block text-[10px]">Session Status</span>
-                    <strong className="text-emerald-700">Authenticated (HTTP-Only Cookie)</strong>
-                  </div>
-                </div>
+              {/* Sub-Tab Navigation Switcher */}
+              <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-3">
+                <button
+                  type="button"
+                  onClick={() => setSettingsTab('SECURITY')}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    settingsTab === 'SECURITY'
+                      ? 'bg-[#244B8F] text-white shadow-xs'
+                      : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                  }`}
+                >
+                  System & Security
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSettingsTab('HERO_CMS')}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    settingsTab === 'HERO_CMS'
+                      ? 'bg-[#244B8F] text-white shadow-xs'
+                      : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                  }`}
+                >
+                  Hero Banner CMS
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSettingsTab('PARTNER_CMS')}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    settingsTab === 'PARTNER_CMS'
+                      ? 'bg-[#244B8F] text-white shadow-xs'
+                      : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                  }`}
+                >
+                  Partner Logos CMS
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSettingsTab('EMAIL_TEMPLATE')}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    settingsTab === 'EMAIL_TEMPLATE'
+                      ? 'bg-[#244B8F] text-white shadow-xs'
+                      : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                  }`}
+                >
+                  Publication Email & SMTP
+                </button>
               </div>
 
-              {/* WhatsApp Gateway Status */}
-              <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <MessageSquare className="w-4 h-4 text-emerald-600" />
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
-                      WhatsApp Business API Integration
-                    </h3>
-                  </div>
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
-                    UNCONFIGURED
-                  </span>
-                </div>
-                <p className="text-xs text-slate-600">
-                  Automated site visit reminders require valid <code>WHATSAPP_API_TOKEN</code> and <code>WHATSAPP_PHONE_NUMBER_ID</code> environment credentials.
-                </p>
-                <div className="p-3 bg-slate-50 rounded-xl text-[11px] text-slate-600 border border-slate-200 font-mono">
-                  WHATSAPP_API_TOKEN: [MISSING IN ENVIRONMENT]<br />
-                  WHATSAPP_PHONE_NUMBER_ID: [MISSING IN ENVIRONMENT]
-                </div>
-                <p className="text-[11px] text-slate-400">
-                  When unconfigured, reminder actions gracefully report status and log administrative audit events without simulating message delivery.
-                </p>
-              </div>
+              {settingsTab === 'HERO_CMS' && (
+                <HeroCmsManager />
+              )}
 
-              {/* Database & Security Posture */}
-              <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs space-y-3">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Security Architecture</h3>
-                <div className="space-y-2 text-xs text-slate-600">
-                  <div className="flex justify-between py-1 border-b border-slate-100">
-                    <span>Fail-Closed Credential Enforcement</span>
-                    <strong className="text-emerald-700">ACTIVE</strong>
+              {settingsTab === 'PARTNER_CMS' && (
+                <PartnerLogosManager />
+              )}
+
+              {settingsTab === 'EMAIL_TEMPLATE' && (
+                <PublicationEmailManager />
+              )}
+
+              {settingsTab === 'SECURITY' && (
+                <div className="space-y-6">
+                  {/* Operator Profile */}
+                  <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs space-y-3">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Current Operator</h3>
+                    <div className="grid grid-cols-2 gap-4 text-xs">
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">Name</span>
+                        <strong className="text-slate-900">{staffUser?.displayName || 'Operations Staff'}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">Email</span>
+                        <strong className="text-slate-900">{staffUser?.email || 'staff@sellmyghar.in'}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">Active Role</span>
+                        <strong className="text-slate-900">{currentRole}</strong>
+                      </div>
+                      <div>
+                        <span className="text-slate-400 block text-[10px]">Session Status</span>
+                        <strong className="text-emerald-700">Authenticated (HTTP-Only Cookie)</strong>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex justify-between py-1 border-b border-slate-100">
-                    <span>DPDP Act Section 12 Compliance Gating</span>
-                    <strong className="text-emerald-700">ACTIVE</strong>
+
+                  {/* WhatsApp Gateway Status */}
+                  <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <MessageSquare className="w-4 h-4 text-emerald-600" />
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">
+                          WhatsApp Business API Integration
+                        </h3>
+                      </div>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                        UNCONFIGURED
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-600">
+                      Automated site visit reminders require valid <code>WHATSAPP_API_TOKEN</code> and <code>WHATSAPP_PHONE_NUMBER_ID</code> environment credentials.
+                    </p>
+                    <div className="p-3 bg-slate-50 rounded-xl text-[11px] text-slate-600 border border-slate-200 font-mono">
+                      WHATSAPP_API_TOKEN: [MISSING IN ENVIRONMENT]<br />
+                      WHATSAPP_PHONE_NUMBER_ID: [MISSING IN ENVIRONMENT]
+                    </div>
+                    <p className="text-[11px] text-slate-400">
+                      When unconfigured, reminder actions gracefully report status and log administrative audit events without simulating message delivery.
+                    </p>
                   </div>
-                  <div className="flex justify-between py-1 border-b border-slate-100">
-                    <span>PostgreSQL Row-Level Security</span>
-                    <strong className="text-emerald-700">ENABLED</strong>
-                  </div>
-                  <div className="flex justify-between py-1">
-                    <span>Reserve Floor Confidentiality Protection</span>
-                    <strong className="text-emerald-700">ENFORCED</strong>
+
+                  {/* Database & Security Posture */}
+                  <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs space-y-3">
+                    <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Security Architecture</h3>
+                    <div className="space-y-2 text-xs text-slate-600">
+                      <div className="flex justify-between py-1 border-b border-slate-100">
+                        <span>Fail-Closed Credential Enforcement</span>
+                        <strong className="text-emerald-700">ACTIVE</strong>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-100">
+                        <span>DPDP Act Section 12 Compliance Gating</span>
+                        <strong className="text-emerald-700">ACTIVE</strong>
+                      </div>
+                      <div className="flex justify-between py-1 border-b border-slate-100">
+                        <span>PostgreSQL Row-Level Security</span>
+                        <strong className="text-emerald-700">ENABLED</strong>
+                      </div>
+                      <div className="flex justify-between py-1">
+                        <span>Reserve Floor Confidentiality Protection</span>
+                        <strong className="text-emerald-700">ENFORCED</strong>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           )}
         </main>
