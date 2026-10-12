@@ -678,7 +678,7 @@ export async function runCrmWorkflowTests(): Promise<{ passed: number; failed: n
   const docVerifyRes = await dispatchRequest(app, `/api/crm/documents/${testDoc.id}/status`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${adminToken}` },
-    body: { status: 'VERIFIED', note: 'Kaveri online stamp confirmed' },
+    body: { status: 'VERIFIED', note: 'Sub-Registrar online stamp confirmed' },
   });
   const statusAfterVerify = memoryDocuments.get(testDoc.id)?.verification_status;
 

@@ -187,7 +187,7 @@ export function DocumentVerificationDesk({ currentRole }: DocumentVerificationDe
           documentId: doc.id,
           propertyId: doc.propertyId,
           action: isApprove ? 'VERIFY' : 'FLAG_DISCREPANCY',
-          note: actionReason || (isApprove ? 'Title documents authenticated against Kaveri & BBMP records.' : ''),
+          note: actionReason || (isApprove ? 'Title documents authenticated against Sub-Registrar & BBMP records.' : ''),
           staffRole: currentRole,
         }),
       });
@@ -306,7 +306,7 @@ export function DocumentVerificationDesk({ currentRole }: DocumentVerificationDe
             <option value="SALE_DEED">Registered Sale Deed</option>
             <option value="PARENT_DEED">Parent / Developer Deed</option>
             <option value="KHATA_CERTIFICATE">BBMP A-Khata Certificate</option>
-            <option value="ENCUMBRANCE_CERTIFICATE">Kaveri Online EC</option>
+            <option value="ENCUMBRANCE_CERTIFICATE">Form 15 Encumbrance Certificate (EC)</option>
             <option value="OCCUPANCY_CERTIFICATE">Occupancy Certificate (OC)</option>
           </select>
         </div>
@@ -623,8 +623,8 @@ export function DocumentVerificationDesk({ currentRole }: DocumentVerificationDe
                   onChange={(e) => setActionReason(e.target.value)}
                   placeholder={
                     actionModal.type === 'VERIFY'
-                      ? 'e.g. Schedule A & B verified against Kaveri EC and BBMP ward tax receipt.'
-                      : 'e.g. Survey number mismatch between Kaveri EC and Sale deed schedule.'
+                      ? 'e.g. Schedule A & B verified against Form 15 EC and BBMP ward tax receipt.'
+                      : 'e.g. Survey number mismatch between Form 15 EC and Sale deed schedule.'
                   }
                   className="w-full text-xs p-2.5 border border-gray-300 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#244B8F]"
                 />

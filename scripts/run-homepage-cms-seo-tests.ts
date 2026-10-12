@@ -263,7 +263,7 @@ export async function runHomepageCmsSeoTests() {
 
     const hebbal = getLocalityBySlug('hebbal');
     assert(
-      'Hebbal profile includes Kaveri 2.0 FAQs and gated societies',
+      'Hebbal profile includes Sub-Registrar diligence FAQs and gated societies',
       Boolean(hebbal && hebbal.localFaqs.length >= 4 && hebbal.popularSocieties.includes('Godrej Woodsman Estate'))
     );
   } catch (err: any) {

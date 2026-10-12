@@ -45,7 +45,7 @@ export const SellerConversionCard: React.FC<SellerConversionCardProps> = ({
 
             {/* Supporting Copy */}
             <p className="text-sm sm:text-base text-slate-200 leading-relaxed font-normal max-w-2xl">
-              Avoid endless broker phone spam, speculative low-ball offers, and document confusion. SellMyGhar pairs dedicated homeowner representation with verified Kaveri 2.0 title diligence and qualified direct buyers across Bengaluru’s key apartment corridors.
+              Avoid endless broker phone spam, speculative low-ball offers, and document confusion. SellMyGhar pairs dedicated homeowner representation with verified Sub-Registrar title diligence and qualified direct buyers across Bengaluru’s key apartment corridors.
             </p>
 
             {/* Core Trust Pillars */}

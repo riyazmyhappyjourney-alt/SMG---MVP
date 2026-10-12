@@ -77,12 +77,12 @@ export const SellFlatPopupModal: React.FC<SellFlatPopupModalProps> = ({
         {/* Backdrop click dismiss */}
         <div className="fixed inset-0" onClick={onClose} />
 
-        {/* Modal Window */}
+        {/* Modal Window with Slide Up Animation */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 10 }}
+          initial={{ opacity: 0, scale: 0.96, y: 50 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 10 }}
-          transition={{ duration: 0.2, ease: 'easeOut' }}
+          exit={{ opacity: 0, scale: 0.96, y: 50 }}
+          transition={{ type: 'spring', damping: 25, stiffness: 350 }}
           className="relative z-10 w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden font-['Montserrat'] my-8"
         >
           {/* Header */}
@@ -96,7 +96,7 @@ export const SellFlatPopupModal: React.FC<SellFlatPopupModalProps> = ({
                 Sell Your Flat in 45 Days
               </h3>
               <p className="text-xs text-blue-100 font-normal mt-0.5">
-                Kaveri 2.0 valuation, legal diligence, and verified buyer matchmaking.
+                Registered deed valuation, legal diligence, and verified buyer matchmaking.
               </p>
             </div>
             <button
@@ -119,7 +119,7 @@ export const SellFlatPopupModal: React.FC<SellFlatPopupModalProps> = ({
                 <div>
                   <h4 className="text-lg font-bold text-slate-900">Request Received!</h4>
                   <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
-                    Our Bengaluru resale manager will contact you within 2 business hours with an authentic Kaveri 2.0 price estimate.
+                    Our Bengaluru resale manager will contact you within 2 business hours with an authentic market deed price estimate.
                   </p>
                 </div>
                 <button

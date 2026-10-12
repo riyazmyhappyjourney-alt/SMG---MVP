@@ -102,7 +102,7 @@ export const LocalityDetailPage: React.FC<LocalityDetailPageProps> = ({
 
             {/* Supporting Copy */}
             <p className="text-sm sm:text-base text-slate-200 font-normal leading-relaxed max-w-2xl">
-              Get guided seller assistance, understand Kaveri 2.0 documentation requirements, and connect with verified buyers looking for ready apartments in {profile.name}.
+              Get guided seller assistance, understand title documentation requirements, and connect with verified buyers looking for ready apartments in {profile.name}.
             </p>
 
             {/* Dual CTAs */}
@@ -142,7 +142,7 @@ export const LocalityDetailPage: React.FC<LocalityDetailPageProps> = ({
               </span>
               <span className="flex items-center space-x-1.5">
                 <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                <span>Kaveri 2.0 Title Verification</span>
+                <span>Sub-Registrar Title Verification</span>
               </span>
               <span className="flex items-center space-x-1.5">
                 <Building2 className="w-4 h-4 text-emerald-400" />
@@ -200,7 +200,7 @@ export const LocalityDetailPage: React.FC<LocalityDetailPageProps> = ({
               Documentation Benchmark
             </span>
             <div className="text-sm font-extrabold text-emerald-700">
-              Kaveri 2.0 & A-Khata Ready
+              Sub-Registrar & A-Khata Ready
             </div>
             <p className="text-[11px] text-slate-500 mt-1">
               Direct sub-registrar online clearance
@@ -302,7 +302,7 @@ export const LocalityDetailPage: React.FC<LocalityDetailPageProps> = ({
               </div>
               
               <p className="text-xs text-slate-500 leading-relaxed">
-                Karnataka Kaveri 2.0 registration protocol requires complete title scrutiny. SellMyGhar verifies these documents for seamless buyer closing:
+                Karnataka registration protocol requires complete title scrutiny. SellMyGhar verifies these documents for seamless buyer closing:
               </p>
 
               <div className="space-y-3 text-xs">
@@ -310,7 +310,7 @@ export const LocalityDetailPage: React.FC<LocalityDetailPageProps> = ({
                 <div className="p-3 rounded-xl bg-blue-50/50 border border-blue-100 space-y-1">
                   <div className="font-bold text-slate-900 flex items-center space-x-1.5">
                     <CheckCircle2 className="w-3.5 h-3.5 text-[#244B8F]" />
-                    <span>Kaveri 2.0 Encumbrance Certificate (EC)</span>
+                    <span>Form 15 Encumbrance Certificate (EC)</span>
                   </div>
                   <p className="text-[11px] text-slate-600 pl-5">
                     15–30 year nil-encumbrance certificate generated directly via the Karnataka Department of Stamps and Registration portal.

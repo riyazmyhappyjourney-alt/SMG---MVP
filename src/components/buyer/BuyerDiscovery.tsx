@@ -448,7 +448,7 @@ export function BuyerDiscovery() {
             <div className="p-3 bg-gray-50 rounded border border-gray-100">
               <span className="font-semibold text-gray-900 block mb-1">DOCS CHECKED</span>
               <p className="text-[11px] text-gray-600 leading-relaxed">
-                Registered Sale Deed, BBMP Khata, and Kaveri Encumbrance Certificate cross-checked by operational legal desk for title consistency.
+                Registered Sale Deed, BBMP Khata, and Form 15 Encumbrance Certificate cross-checked by operational legal desk for title consistency.
               </p>
             </div>
             <div className="p-3 bg-gray-50 rounded border border-gray-100">

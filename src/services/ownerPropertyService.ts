@@ -79,7 +79,7 @@ const INITIAL_SAMPLE_PROPERTIES: OwnerProperty[] = [
         id: 'doc-ps-4',
         property_id: 'prop-prestige-shantiniketan-1102',
         doc_type: 'Encumbrance Certificate',
-        file_name: 'EC_Form15_2010_to_2026_KaveriOnline.pdf',
+        file_name: 'EC_Form15_2010_to_2026_SubRegistrar.pdf',
         file_size_kb: 2150,
         uploaded_at: '2026-09-14T10:00:00Z',
         verification_status: 'APPROVED',

@@ -264,7 +264,7 @@ export const HoldingCostCalculator: React.FC<HoldingCostCalculatorProps> = ({
               <div className="flex items-start space-x-2 text-[11px] text-slate-500 leading-relaxed bg-white p-2.5 rounded-lg border border-slate-200/70">
                 <Info className="w-3.5 h-3.5 text-[#244B8F] shrink-0 mt-0.5" />
                 <span>
-                  Micro-market pricing varies with buyer absorption and registered sale deed trends. SellMyGhar benchmarks real Kaveri 2.0 transactions to price accurately.
+                  Micro-market pricing varies with buyer absorption and registered sale deed trends. SellMyGhar benchmarks real government registered deed transactions to price accurately.
                 </span>
               </div>
 

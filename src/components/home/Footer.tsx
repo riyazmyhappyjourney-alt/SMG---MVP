@@ -18,7 +18,7 @@ const FOOTER_FAQS = [
   },
   {
     q: 'How do you determine the asking price for my Bengaluru apartment?',
-    a: 'We do not rely on speculative portal asking prices. We benchmark your society against actual Kaveri 2.0 registered sale deeds from the past 6 to 12 months, accounting for floor rise, facing, carpet area, and current inventory absorption.'
+    a: 'We do not rely on speculative portal asking prices. We benchmark your society against actual government registered sale deeds from the past 6 to 12 months, accounting for floor rise, facing, carpet area, and current inventory absorption.'
   },
   {
     q: 'What if my apartment has an active home loan from a bank?',

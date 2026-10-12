@@ -16,15 +16,15 @@ export interface GuideArticle {
 
 export const SAMPLE_GUIDES: GuideArticle[] = [
   {
-    id: 'kaveri-2-benchmarking',
-    title: 'Bengaluru Kaveri 2.0 Resale Deed Benchmarking & Guidance Value 2026',
+    id: 'subregistrar-guidance-benchmarking',
+    title: 'Bengaluru Sub-Registrar Resale Deed Benchmarking & Guidance Value 2026',
     category: 'Valuation & Legal',
     readTime: '5 min read',
     summary: 'How Karnataka Department of Stamps and Registration calculates guidance value, stamp duty, and registration charges for apartment resale.',
     sections: [
       {
-        heading: 'What is Kaveri 2.0?',
-        content: 'Kaveri 2.0 is the official portal of Karnataka Stamps & Registration Department. Unlike older registries, Kaveri 2.0 benchmarks apartment guidance values based on exact super built-up area (SBUA), floor level, age of building, and society amenities.'
+        heading: 'What is Sub-Registrar Guidance Value?',
+        content: 'Karnataka Stamps & Registration Department benchmarks apartment guidance values based on exact super built-up area (SBUA), floor level, age of building, and society amenities.'
       },
       {
         heading: 'How Guidance Value Impacts Your Sale',
@@ -70,7 +70,7 @@ export const SAMPLE_GUIDES: GuideArticle[] = [
       },
       {
         heading: 'The SellMyGhar 45-Day Formula',
-        content: 'By pairing accurate Kaveri 2.0 deed benchmarking with pre-screened buyers and title verification, properties transact within 45 days at peak market price rather than languishing on open classifieds.'
+        content: 'By pairing accurate registered deed benchmarking with pre-screened buyers and title verification, properties transact within 45 days at peak market price rather than languishing on open classifieds.'
       }
     ]
   }

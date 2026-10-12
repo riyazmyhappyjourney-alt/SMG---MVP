@@ -124,7 +124,7 @@ export const DEFAULT_PUBLISHED_EMAIL_HTML = `<!DOCTYPE html>
 
     <div class="footer">
       <p>This notification was dispatched by SellMyGhar Operations (notifications@sellmyghar.in).</p>
-      <p>100% RERA compliant &bull; Kaveri 2.0 EC Diligence &bull; Bengaluru, Karnataka</p>
+      <p>100% RERA compliant &bull; Form 15 EC Title Diligence &bull; Bengaluru, Karnataka</p>
       <p style="margin-top: 12px;">
         <a href="https://sellmyghar.in/#/consent">Manage Communication Preferences</a>
       </p>
@@ -346,7 +346,7 @@ export const DEFAULT_APPROVED_EMAIL_HTML = `<!DOCTYPE html>
       <div class="highlight-box">
         <div style="font-size: 12px; text-transform: uppercase; font-weight: 700; color: #166534;">Verified Asking Price</div>
         <div style="font-size: 24px; font-weight: 800; color: #15803D; margin-top: 2px;">{{public_price}}</div>
-        <div style="font-size: 12px; color: #64748B; margin-top: 4px;">Kaveri 2.0 EC Diligence &bull; Level 2 Document Verification Passed</div>
+        <div style="font-size: 12px; color: #64748B; margin-top: 4px;">Form 15 EC Title Diligence &bull; Level 2 Document Verification Passed</div>
       </div>
       <div class="spec-grid">
         <div class="spec-item">Reference<strong>{{property_reference}}</strong></div>
@@ -387,7 +387,7 @@ export const DEFAULT_EMAIL_SAMPLE_VARS: Record<string, string> = {
   meeting_time: '11:00 AM',
   meeting_timezone: 'Asia/Kolkata (IST, UTC+05:30)',
   meeting_location: 'Sobha Dream Acres, Panathur Road, Varthur, Bengaluru',
-  verification_tier: 'Level 2 Documents Verified (Kaveri 2.0 EC)',
+  verification_tier: 'Level 2 Documents Verified (Form 15 EC)',
   dashboard_url: 'https://sellmyghar.in/#/dashboard',
   property_url: 'https://sellmyghar.in/#/property/sample-test-01',
   cover_image_url: '/images/luxury-apartment-township-sunset.webp',

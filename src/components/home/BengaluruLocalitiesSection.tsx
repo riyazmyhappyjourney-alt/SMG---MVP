@@ -45,7 +45,7 @@ export const BengaluruLocalitiesSection: React.FC<BengaluruLocalitiesSectionProp
           </h2>
           
           <p className="mt-2 text-sm sm:text-base text-slate-600 leading-relaxed font-normal">
-            Direct homeowner representation across 11 high-liquidity apartment corridors. Clear documentation diligence, realistic Kaveri 2.0 valuation benchmarks, and pre-screened buyers.
+            Direct homeowner representation across 11 high-liquidity apartment corridors. Clear documentation diligence, realistic registered deed valuation benchmarks, and pre-screened buyers.
           </p>
         </div>
 
@@ -178,7 +178,7 @@ export const BengaluruLocalitiesSection: React.FC<BengaluruLocalitiesSectionProp
           <div className="flex items-center space-x-2">
             <CheckCircle2 className="w-4 h-4 text-[#244B8F] shrink-0" />
             <span>
-              <strong>Kaveri 2.0 Compliance:</strong> All locality listings are verified against Karnataka Sub-Registrar encumbrance guidelines before active buyer matching.
+              <strong>Sub-Registrar Compliance:</strong> All locality listings are verified against Karnataka Sub-Registrar encumbrance guidelines before active buyer matching.
             </span>
           </div>
           <span className="text-slate-400 text-[11px] shrink-0">

@@ -1548,7 +1548,7 @@ app.get('/api/listings/:id', rateLimit('listing-detail', 60, 60), async (req, re
       pricePerSqft,
       monthlyMaintenanceInr: row.monthly_maintenance_inr || 4500,
       amenities: (Array.isArray(row.amenities) && row.amenities.length > 0) ? row.amenities : defaultAmenities,
-      description: row.description || `RERA-compliant ${row.bhk_type || '3BHK'} resale flat in the prestigious ${projectName} community. Featuring ${sqft} sq.ft. of super built-up area and an expansive ${carpet} sq.ft. carpet layout, this ${row.facing || 'East'}-facing home boasts cross-ventilation, zero wasted space, and abundant natural sunlight. Kaveri EC Form 15 verified with clear title. Private viewing escorted by SellMyGhar relationship manager.`,
+      description: row.description || `RERA-compliant ${row.bhk_type || '3BHK'} resale flat in the prestigious ${projectName} community. Featuring ${sqft} sq.ft. of super built-up area and an expansive ${carpet} sq.ft. carpet layout, this ${row.facing || 'East'}-facing home boasts cross-ventilation, zero wasted space, and abundant natural sunlight. Form 15 Encumbrance Certificate verified with clear title. Private viewing escorted by SellMyGhar relationship manager.`,
       developer: {
         name: projectName.split(' ')[0] + ' Properties',
         reraNumber: 'PRM/KA/RERA/1251/310/PR/2026/001',
@@ -2210,7 +2210,7 @@ app.get('/api/properties', authenticateUser, async (req, res) => {
             fileSize: '4.2 MB',
             uploadedAt: '03 Oct 2026',
             verifiedAt: (row.verification_tier === 'LEVEL_2_DOCS_REVIEWED' || row.verification_tier === 'LEVEL_3_PHYSICALLY_INSPECTED') ? '04 Oct 2026' : undefined,
-            legalReviewNote: (row.verification_tier === 'LEVEL_2_DOCS_REVIEWED' || row.verification_tier === 'LEVEL_3_PHYSICALLY_INSPECTED') ? 'Original registration stamp validated with Kaveri Online Services.' : undefined
+            legalReviewNote: (row.verification_tier === 'LEVEL_2_DOCS_REVIEWED' || row.verification_tier === 'LEVEL_3_PHYSICALLY_INSPECTED') ? 'Original registration stamp validated with Sub-Registrar Registry.' : undefined
           }
         },
         rmName: row.rm_name || 'Kavitha Ranganathan',

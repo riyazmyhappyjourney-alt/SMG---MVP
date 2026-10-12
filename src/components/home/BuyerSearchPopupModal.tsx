@@ -80,12 +80,12 @@ export const BuyerSearchPopupModal: React.FC<BuyerSearchPopupModalProps> = ({
         {/* Backdrop click dismiss */}
         <div className="fixed inset-0" onClick={onClose} />
 
-        {/* Modal Window */}
+        {/* Modal Window with Slide Up Animation */}
         <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 10 }}
+          initial={{ opacity: 0, scale: 0.96, y: 50 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 10 }}
-          transition={{ duration: 0.2, ease: 'easeOut' }}
+          exit={{ opacity: 0, scale: 0.96, y: 50 }}
+          transition={{ type: 'spring', damping: 25, stiffness: 350 }}
           className="relative z-10 w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden font-['Montserrat'] my-8"
         >
           {/* Header */}
@@ -99,7 +99,7 @@ export const BuyerSearchPopupModal: React.FC<BuyerSearchPopupModalProps> = ({
                 Find Your Verified Flat
               </h3>
               <p className="text-xs text-blue-100 font-normal mt-0.5">
-                Authentic Kaveri 2.0 deed benchmarks & pre-screened titles in Bengaluru.
+                Authentic registered deed benchmarks & pre-screened titles in Bengaluru.
               </p>
             </div>
             <button
