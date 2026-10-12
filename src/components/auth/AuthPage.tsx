@@ -468,6 +468,14 @@ export const AuthPage: React.FC<AuthPageProps> = ({
             )}
           </div>
 
+          {/* Legal Compliance Notice (Settlin / 99acres pattern) */}
+          <p className="mt-4 text-[11px] text-slate-500 text-center leading-relaxed">
+            By continuing, you agree to our{' '}
+            <a href="#/terms" className="text-[#244B8F] hover:underline font-semibold">Terms of Service</a>
+            {' '}and{' '}
+            <a href="#/privacy-policy" className="text-[#244B8F] hover:underline font-semibold">Privacy Policy</a>
+          </p>
+
           {/* Social Sign-In Divider & Icons (Exact as reference design) */}
           <div className="mt-6 pt-5 border-t border-slate-100 text-center">
             <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-3">

@@ -1,11 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Header } from './Header';
 import { Hero } from './Hero';
 import { TrustedPartnersMarquee } from './TrustedPartnersMarquee';
 import { HoldingCostCalculator } from './HoldingCostCalculator';
 import { ListedProperties } from './ListedProperties';
 import { Footer } from './Footer';
-import { SellFlatPopupModal } from './SellFlatPopupModal';
 import { BuyerSearchPopupModal } from './BuyerSearchPopupModal';
 import { FavoritesModal } from './FavoritesModal';
 import { UserAuthProfile } from '../../types/user';
@@ -29,9 +28,29 @@ export const HomePage: React.FC<HomePageProps> = ({
   onNavigateToDashboard,
   onConsentPortalOpen,
 }) => {
-  const [isSellModalOpen, setIsSellModalOpen] = useState(false);
   const [isBuyerModalOpen, setIsBuyerModalOpen] = useState(false);
   const [isFavoritesModalOpen, setIsFavoritesModalOpen] = useState(false);
+
+  // Automatic scroll on anchor hash
+  useEffect(() => {
+    const handleHash = () => {
+      const h = window.location.hash;
+      if (h === '#/holding-calculator' || h === '#holding-calculator' || h === '#calculator' || h === '#/calculator') {
+        setTimeout(() => {
+          const el = document.getElementById('holding-calculator') || document.getElementById('calculator');
+          if (el) el.scrollIntoView({ behavior: 'smooth' });
+        }, 120);
+      } else if (h === '#/listings' || h === '#listings') {
+        setTimeout(() => {
+          const el = document.getElementById('listings');
+          if (el) el.scrollIntoView({ behavior: 'smooth' });
+        }, 120);
+      }
+    };
+    handleHash();
+    window.addEventListener('hashchange', handleHash);
+    return () => window.removeEventListener('hashchange', handleHash);
+  }, []);
 
   const scrollToListings = () => {
     const el = document.getElementById('listings');
@@ -41,7 +60,7 @@ export const HomePage: React.FC<HomePageProps> = ({
   };
 
   const scrollToCalculator = () => {
-    const el = document.getElementById('calculator');
+    const el = document.getElementById('holding-calculator') || document.getElementById('calculator');
     if (el) {
       el.scrollIntoView({ behavior: 'smooth' });
     }
@@ -51,7 +70,7 @@ export const HomePage: React.FC<HomePageProps> = ({
     if (tab === 'BUY') {
       setIsBuyerModalOpen(true);
     } else if (tab === 'SELL') {
-      setIsSellModalOpen(true);
+      if (onNavigateToSellerAssisted) onNavigateToSellerAssisted();
     } else if (tab === 'ABOUT') {
       scrollToCalculator();
     } else if (tab === 'CONTACT') {
@@ -63,12 +82,16 @@ export const HomePage: React.FC<HomePageProps> = ({
 
   const handlePostProperty = () => {
     trackEvent('SELLER_FUNNEL_START', { source: 'header_post_property' });
-    setIsSellModalOpen(true);
+    if (onNavigateToSellerAssisted) {
+      onNavigateToSellerAssisted();
+    }
   };
 
   const handleStartSelling = (prefillLocality?: string) => {
     trackEvent('SELLER_FUNNEL_START', { source: 'homepage', locality: prefillLocality || 'DIRECT' });
-    setIsSellModalOpen(true);
+    if (onNavigateToSellerAssisted) {
+      onNavigateToSellerAssisted(prefillLocality);
+    }
   };
 
   return (
@@ -92,7 +115,7 @@ export const HomePage: React.FC<HomePageProps> = ({
         
         {/* 2. Hero Section: 45-day Proposition, Controlled Rolling Ticker, 99acres Inspired Quick Action Card */}
         <Hero
-          onSellClick={() => setIsSellModalOpen(true)}
+          onSellClick={() => handleStartSelling()}
           onExploreClick={scrollToListings}
           onUnderstandProcessClick={scrollToCalculator}
         />
@@ -101,7 +124,7 @@ export const HomePage: React.FC<HomePageProps> = ({
         <TrustedPartnersMarquee />
 
         {/* 4. Financial Cost of an Unsold Flat Calculator */}
-        <HoldingCostCalculator onExploreSellingOptions={() => setIsSellModalOpen(true)} />
+        <HoldingCostCalculator onExploreSellingOptions={() => handleStartSelling()} />
 
         {/* 5. Verified Resale Inventory */}
         <div id="listings">
@@ -118,17 +141,6 @@ export const HomePage: React.FC<HomePageProps> = ({
       <Footer
         onNavClick={handleTabClick}
         onConsentPortalOpen={onConsentPortalOpen}
-      />
-
-      {/* Interactive Modal Popups for Header Actions (No Full-Page Disruption) */}
-      <SellFlatPopupModal
-        isOpen={isSellModalOpen}
-        onClose={() => setIsSellModalOpen(false)}
-        onOpenFullWizard={() => {
-          if (onNavigateToSellerAssisted) {
-            onNavigateToSellerAssisted();
-          }
-        }}
       />
 
       <BuyerSearchPopupModal

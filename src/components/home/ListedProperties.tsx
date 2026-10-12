@@ -83,23 +83,37 @@ export const ListedProperties: React.FC<ListedPropertiesProps> = ({ onSelectProp
     return true;
   });
 
+  const isMobile = typeof window !== 'undefined' ? window.innerWidth < 768 : false;
+
+  const handleCardClick = (e: React.MouseEvent, propertyId: string) => {
+    if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('a')) {
+      return;
+    }
+    const url = `/property/${propertyId}`;
+    if (isMobile) {
+      window.location.href = url;
+    } else {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  };
+
   return (
     <section id="listings" className="py-16 sm:py-24 bg-[#F4F6F9] border-t border-slate-200/80 scroll-mt-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
-        {/* Section Header: Authenticated Bengaluru Resale Inventory Terminology */}
+        {/* Section Header */}
         <div className="mb-8 sm:mb-10 text-left">
           <div className="flex items-center space-x-2 mb-2">
             <span className="w-6 h-0.5 bg-[#244B8F] rounded-full" />
             <span className="text-xs font-bold uppercase tracking-wider text-[#244B8F]">
-              Direct Owner Resales
+              Curated Resale
             </span>
           </div>
           <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-[#172033] tracking-tight font-['Montserrat']">
-            Verified Bengaluru Apartment Inventory
+            Recommended Properties
           </h2>
           <p className="mt-2 text-sm text-slate-500 font-normal leading-relaxed max-w-2xl font-['Poppins']">
-            Pre-screened title deeds, verified registration pricing benchmarks, and escorted walkthroughs across Bengaluru's high-demand residential corridors. Zero duplicate broker listings.
+            Pre-screened title deeds, verified registration pricing benchmarks, and escorted walkthroughs across Bengaluru's high-demand residential corridors. Zero duplicate broker listings
           </p>
         </div>
 
@@ -173,7 +187,8 @@ export const ListedProperties: React.FC<ListedPropertiesProps> = ({ onSelectProp
                 key={property.id}
                 whileHover={{ y: -6 }}
                 transition={{ duration: 0.25, ease: 'easeOut' }}
-                className="bg-white rounded-2xl overflow-hidden border border-slate-200/90 shadow-xs hover:shadow-xl transition-all duration-300 flex flex-col group"
+                onClick={(e) => handleCardClick(e, property.id)}
+                className="bg-white rounded-2xl overflow-hidden border border-slate-200/90 shadow-xs hover:shadow-xl transition-all duration-300 flex flex-col group cursor-pointer"
               >
                 
                 {/* Photo & Badges Exactly Matching Reference Design */}
@@ -273,8 +288,8 @@ export const ListedProperties: React.FC<ListedPropertiesProps> = ({ onSelectProp
 
                       <a
                         href={`/property/${property.id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                        target={isMobile ? '_self' : '_blank'}
+                        rel={isMobile ? undefined : 'noopener noreferrer'}
                         className="px-4 py-2 rounded-full border border-slate-300 hover:border-[#244B8F] hover:bg-[#244B8F] hover:text-white text-xs font-semibold text-slate-700 transition-all flex items-center space-x-1 cursor-pointer group/btn"
                       >
                         <span>View Property</span>

@@ -47,7 +47,8 @@ export const HoldingCostCalculator: React.FC<HoldingCostCalculatorProps> = ({
   const totalHoldingCost = totalMaintenance + totalForegoneRent + totalBrokerage;
 
   return (
-    <section id="holding-calculator" className="bg-[#F4F6F9] py-12 sm:py-16 font-['Poppins',sans-serif]">
+    <section id="holding-calculator" className="bg-[#F4F6F9] py-12 sm:py-16 font-['Poppins',sans-serif] relative">
+      <div id="calculator" className="absolute -top-20 left-0" />
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Compact White Card */}

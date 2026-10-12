@@ -2514,7 +2514,7 @@ app.post(
   '/api/cms/hero-slides',
   jsonUpload,
   authenticateUser,
-  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER'),
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER', 'STAFF_INTAKE_AGENT', 'STAFF_VERIFICATION_AGENT', 'STAFF_DEAL_CLOSER'),
   async (req: Request, res: Response) => {
     try {
       const { title, alt_text, image_url, dataBase64, fileName, is_active, is_first, display_order } = req.body;
@@ -2561,7 +2561,7 @@ app.put(
   '/api/cms/hero-slides/:id',
   jsonUpload,
   authenticateUser,
-  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER'),
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER', 'STAFF_INTAKE_AGENT', 'STAFF_VERIFICATION_AGENT', 'STAFF_DEAL_CLOSER'),
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
@@ -2602,7 +2602,7 @@ app.put(
 app.delete(
   '/api/cms/hero-slides/:id',
   authenticateUser,
-  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER'),
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER', 'STAFF_INTAKE_AGENT', 'STAFF_VERIFICATION_AGENT', 'STAFF_DEAL_CLOSER'),
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
@@ -2623,7 +2623,7 @@ app.post(
   '/api/cms/hero-slides/reorder',
   jsonDefault,
   authenticateUser,
-  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER'),
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER', 'STAFF_INTAKE_AGENT', 'STAFF_VERIFICATION_AGENT', 'STAFF_DEAL_CLOSER'),
   async (req: Request, res: Response) => {
     try {
       const { slideIds } = req.body;
@@ -2681,7 +2681,7 @@ app.put(
   '/api/cms/partner-section',
   jsonDefault,
   authenticateUser,
-  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER'),
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER', 'STAFF_INTAKE_AGENT', 'STAFF_VERIFICATION_AGENT', 'STAFF_DEAL_CLOSER'),
   async (req: Request, res: Response) => {
     res.setHeader('Content-Type', 'application/json');
     try {
@@ -2704,7 +2704,7 @@ app.post(
   '/api/cms/partner-logos/upload',
   jsonUpload,
   authenticateUser,
-  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER'),
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER', 'STAFF_INTAKE_AGENT', 'STAFF_VERIFICATION_AGENT', 'STAFF_DEAL_CLOSER'),
   async (req: Request, res: Response) => {
     res.setHeader('Content-Type', 'application/json');
     try {
@@ -2731,7 +2731,7 @@ app.post(
   '/api/cms/partner-logos',
   jsonUpload,
   authenticateUser,
-  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER'),
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER', 'STAFF_INTAKE_AGENT', 'STAFF_VERIFICATION_AGENT', 'STAFF_DEAL_CLOSER'),
   async (req: Request, res: Response) => {
     res.setHeader('Content-Type', 'application/json');
     try {
@@ -2760,7 +2760,7 @@ app.put(
   '/api/cms/partner-logos/:id',
   jsonUpload,
   authenticateUser,
-  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER'),
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER', 'STAFF_INTAKE_AGENT', 'STAFF_VERIFICATION_AGENT', 'STAFF_DEAL_CLOSER'),
   async (req: Request, res: Response) => {
     res.setHeader('Content-Type', 'application/json');
     try {
@@ -2789,7 +2789,7 @@ app.put(
 app.delete(
   '/api/cms/partner-logos/:id',
   authenticateUser,
-  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER'),
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER', 'STAFF_INTAKE_AGENT', 'STAFF_VERIFICATION_AGENT', 'STAFF_DEAL_CLOSER'),
   async (req: Request, res: Response) => {
     res.setHeader('Content-Type', 'application/json');
     try {
@@ -2811,7 +2811,7 @@ app.post(
   '/api/cms/partner-logos/reorder',
   jsonDefault,
   authenticateUser,
-  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER'),
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER', 'STAFF_INTAKE_AGENT', 'STAFF_VERIFICATION_AGENT', 'STAFF_DEAL_CLOSER'),
   async (req: Request, res: Response) => {
     res.setHeader('Content-Type', 'application/json');
     try {
