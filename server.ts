@@ -5329,6 +5329,7 @@ app.get('/api/crm/properties/:id/details', authenticateUser, async (req: Request
 // 13.1. Share Property Presentation Brochure via Email Workflow
 app.post(
   '/api/crm/properties/:id/share-brochure',
+  jsonDefault,
   rateLimit('crm-share-brochure', 30, 60),
   authenticateUser,
   requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER', 'STAFF_DEAL_CLOSER', 'STAFF_VERIFICATION_AGENT', 'STAFF_INTAKE_AGENT'),

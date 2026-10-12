@@ -335,6 +335,7 @@ export const PropertyBrochureModal: React.FC<PropertyBrochureModalProps> = ({
       const res = await fetch(`/api/crm/properties/${property.id}/share-brochure`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
         body: JSON.stringify({
           recipientEmail: emailRecipient,
           recipientName: emailRecipientName,
@@ -344,8 +345,15 @@ export const PropertyBrochureModal: React.FC<PropertyBrochureModalProps> = ({
         }),
       });
 
-      const data = await res.json();
-      if (res.ok && data.success) {
+      const rawText = await res.text();
+      let data: any = null;
+      try {
+        data = rawText ? JSON.parse(rawText) : null;
+      } catch {
+        data = null;
+      }
+
+      if (res.ok && data?.success) {
         setEmailFeedback({
           type: 'success',
           message: data.message || `Brochure email successfully dispatched to ${emailRecipient}`,
@@ -354,7 +362,7 @@ export const PropertyBrochureModal: React.FC<PropertyBrochureModalProps> = ({
       } else {
         setEmailFeedback({
           type: 'error',
-          message: data.message || data.error || 'Failed to dispatch email notification.',
+          message: data?.message || data?.error || (res.status === 404 ? 'Service endpoint restarting. Please try again.' : `Server error (${res.status}): ${res.statusText || 'Failed to dispatch email'}`),
         });
       }
     } catch (err: any) {
