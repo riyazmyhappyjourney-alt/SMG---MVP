@@ -421,15 +421,16 @@ export const CalendarModule: React.FC<CalendarModuleProps> = ({
 
       {/* VIEW 1: MONTH GRID VIEW */}
       {viewMode === 'month' && (
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-hidden">
-          {/* Days of week header */}
-          <div className="grid grid-cols-7 border-b border-slate-200/80 bg-slate-50/70 text-center">
-            {DAYS_OF_WEEK.map((dw) => (
-              <div key={dw} className="py-2.5 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                {dw}
-              </div>
-            ))}
-          </div>
+        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs overflow-x-auto">
+          <div className="min-w-[650px]">
+            {/* Days of week header */}
+            <div className="grid grid-cols-7 border-b border-slate-200/80 bg-slate-50/70 text-center">
+              {DAYS_OF_WEEK.map((dw) => (
+                <div key={dw} className="py-2.5 text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  {dw}
+                </div>
+              ))}
+            </div>
 
           {/* Day Cells Grid */}
           <div className="grid grid-cols-7 auto-rows-fr divide-x divide-y divide-slate-100">
@@ -509,6 +510,7 @@ export const CalendarModule: React.FC<CalendarModuleProps> = ({
             })}
           </div>
         </div>
+      </div>
       )}
 
       {/* VIEW 2: WEEK VIEW */}

@@ -37,45 +37,29 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
   const [feedbackText, setFeedbackText] = useState('');
 
   return (
-    <footer className="relative overflow-hidden bg-[#172033] text-slate-300 pt-12 pb-10 border-t border-slate-800">
-      {/* Bengaluru Cityscape Background Watermark Layer (15-20% Opacity behind all content) */}
-      <div 
-        className="absolute inset-x-0 bottom-0 w-full h-[220px] sm:h-[260px] md:h-[300px] lg:h-[320px] pointer-events-none select-none z-0 overflow-hidden flex items-end justify-center"
-        aria-hidden="true"
-      >
-        <img
-          src="/images/bengaluru-cityscape-footer.svg"
-          alt="Bengaluru Cityscape"
-          role="presentation"
-          referrerPolicy="no-referrer"
-          className="w-full h-full object-cover object-bottom opacity-[0.18]"
-        />
-        {/* Subtle dark gradient overlay to ensure 100% contrast and legibility */}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#172033]/90 via-[#172033]/60 to-[#172033]/20 pointer-events-none" />
-      </div>
-
+    <footer className="relative overflow-hidden bg-white text-slate-600 pt-12 pb-10 border-t border-slate-200 shadow-2xs font-['Poppins']">
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
         {/* Main Footer Columns */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-10 pb-10 border-b border-slate-800">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-8 sm:gap-10 pb-10 border-b border-slate-200">
           
           {/* Brand Info (2 cols) */}
-          <div className="lg:col-span-2 space-y-4">
-            <div className="bg-white rounded-lg px-3 py-1.5 inline-block shadow-sm">
+          <div className="sm:col-span-2 lg:col-span-2 space-y-4">
+            <div className="inline-block">
               <Logo height={40} />
             </div>
-            <p className="text-xs text-slate-400 font-['Poppins'] leading-relaxed max-w-sm">
+            <p className="text-xs text-slate-600 font-['Poppins'] leading-relaxed max-w-sm">
               SellMyGhar is Bengaluru’s dedicated apartment resale platform. We eliminate broker spam, provide certified title due diligence, and connect verified sellers directly with serious home buyers.
             </p>
-            <div className="pt-2 flex items-center space-x-2 text-xs text-emerald-400 font-semibold font-['Montserrat']">
-              <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+            <div className="pt-1 inline-flex items-center space-x-2 text-xs text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200/80 font-semibold font-['Montserrat']">
+              <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
               <span>Karnataka RERA Approved Real Estate Resale Platform</span>
             </div>
           </div>
 
           {/* Company Column (Referenced from 99acres) */}
           <div className="space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-[#B68A4A] font-['Montserrat']">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-[#172033] font-['Montserrat']">
               Company
             </h4>
             <ul className="space-y-2 text-xs font-['Poppins']">
@@ -83,7 +67,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                 <button
                   type="button"
                   onClick={() => onNavClick('ABOUT')}
-                  className="hover:text-white transition-colors cursor-pointer text-left"
+                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left"
                 >
                   About us
                 </button>
@@ -92,7 +76,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                 <button
                   type="button"
                   onClick={() => onNavClick('CONTACT')}
-                  className="hover:text-white transition-colors cursor-pointer text-left"
+                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left"
                 >
                   Contact us
                 </button>
@@ -100,7 +84,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
               <li>
                 <a
                   href="#/careers"
-                  className="hover:text-white transition-colors cursor-pointer text-left block"
+                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left block"
                 >
                   Careers with us
                 </a>
@@ -108,7 +92,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
               <li>
                 <a
                   href="#/terms"
-                  className="hover:text-white transition-colors cursor-pointer text-left block"
+                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left block"
                 >
                   Terms & Conditions
                 </a>
@@ -117,7 +101,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                 <button
                   type="button"
                   onClick={() => setModalType('FEEDBACK')}
-                  className="hover:text-white transition-colors cursor-pointer text-left"
+                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left"
                 >
                   Feedback
                 </button>
@@ -125,7 +109,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
               <li>
                 <a
                   href="#/privacy-policy"
-                  className="hover:text-white transition-colors cursor-pointer text-left block"
+                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left block"
                 >
                   Privacy Policy
                 </a>
@@ -134,7 +118,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                 <button
                   type="button"
                   onClick={() => setModalType('GRIEVANCE')}
-                  className="hover:text-white transition-colors cursor-pointer text-left"
+                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left"
                 >
                   Grievances
                 </button>
@@ -142,7 +126,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
               <li>
                 <a
                   href="#/cookie-policy"
-                  className="hover:text-white transition-colors cursor-pointer text-left block"
+                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left block"
                 >
                   Cookie Policy
                 </a>
@@ -152,7 +136,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
 
           {/* Resale Services (1 col) */}
           <div className="space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-[#B68A4A] font-['Montserrat']">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-[#172033] font-['Montserrat']">
               Resale Services
             </h4>
             <ul className="space-y-2 text-xs font-['Poppins']">
@@ -160,7 +144,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                 <button
                   type="button"
                   onClick={() => onNavClick('BUY')}
-                  className="hover:text-white transition-colors cursor-pointer text-left"
+                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left"
                 >
                   Buy Resale Homes
                 </button>
@@ -169,7 +153,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                 <button
                   type="button"
                   onClick={() => onNavClick('SELL')}
-                  className="hover:text-white transition-colors cursor-pointer text-left"
+                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left"
                 >
                   Sell My Flat (Free)
                 </button>
@@ -177,7 +161,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
               <li>
                 <a
                   href="#/holding-calculator"
-                  className="hover:text-white transition-colors cursor-pointer text-left block"
+                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left block"
                 >
                   Holding Cost Calculator
                 </a>
@@ -189,9 +173,9 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                     setOpenModalFaqIndex(0);
                     setModalType('FAQ');
                   }}
-                  className="hover:text-amber-300 transition-colors cursor-pointer text-left flex items-center text-amber-200/90 font-medium"
+                  className="hover:text-[#244B8F] transition-colors cursor-pointer text-left flex items-center text-amber-700 font-semibold"
                 >
-                  <HelpCircle className="w-3.5 h-3.5 mr-1.5 text-amber-400 shrink-0" />
+                  <HelpCircle className="w-3.5 h-3.5 mr-1.5 text-amber-600 shrink-0" />
                   <span>Frequently Asked Questions</span>
                 </button>
               </li>
@@ -200,9 +184,9 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                   <button
                     type="button"
                     onClick={onConsentPortalOpen}
-                    className="hover:text-white transition-colors cursor-pointer text-left flex items-center text-slate-400"
+                    className="hover:text-[#244B8F] transition-colors cursor-pointer text-left flex items-center text-slate-600"
                   >
-                    <Lock className="w-3 h-3 mr-1.5 shrink-0" />
+                    <Lock className="w-3 h-3 mr-1.5 shrink-0 text-slate-500" />
                     <span>Manage Consent</span>
                   </button>
                 </li>
@@ -212,20 +196,20 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
 
           {/* Contact & Hours (1 col) */}
           <div className="space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-[#B68A4A] font-['Montserrat']">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-[#172033] font-['Montserrat']">
               Bengaluru Office
             </h4>
-            <div className="space-y-2 text-xs text-slate-400 font-['Poppins']">
+            <div className="space-y-2.5 text-xs text-slate-600 font-['Poppins']">
               <p className="flex items-start">
-                <MapPin className="w-3.5 h-3.5 mr-1.5 text-slate-400 shrink-0 mt-0.5" />
+                <MapPin className="w-3.5 h-3.5 mr-1.5 text-[#244B8F] shrink-0 mt-0.5" />
                 <span>100 Feet Road, Indiranagar, Bengaluru, KA 560038</span>
               </p>
               <p className="flex items-center">
-                <Phone className="w-3.5 h-3.5 mr-1.5 text-slate-400 shrink-0" />
+                <Phone className="w-3.5 h-3.5 mr-1.5 text-[#244B8F] shrink-0" />
                 <span>+91 80 4719 3200</span>
               </p>
               <p className="flex items-center">
-                <Mail className="w-3.5 h-3.5 mr-1.5 text-slate-400 shrink-0" />
+                <Mail className="w-3.5 h-3.5 mr-1.5 text-[#244B8F] shrink-0" />
                 <span>support@sellmyghar.in</span>
               </p>
             </div>
@@ -233,8 +217,33 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
 
         </div>
 
+        {/* ============================================================== */}
+        {/* FOOTER ILLUSTRATION SHOWCASE AREA                               */}
+        {/* Dedicated Slot Ready for User Uploaded Illustration             */}
+        {/* ============================================================== */}
+        <div 
+          id="footer-illustration-wrapper"
+          className="w-full pt-6 pb-4 flex flex-col items-center justify-center overflow-hidden"
+        >
+          <div className="w-full max-w-5xl mx-auto px-2 sm:px-4 flex items-center justify-center">
+            <img
+              id="footer-illustration"
+              src="/images/bengaluru-cityscape-footer.svg"
+              alt="SellMyGhar Resale Architecture Illustration"
+              className="w-full max-h-[160px] sm:max-h-[220px] md:max-h-[260px] object-contain object-bottom opacity-90 hover:opacity-100 transition-opacity"
+              onError={(e) => {
+                // Graceful fallback if user uploads or swaps image
+                (e.currentTarget as HTMLElement).style.display = 'none';
+              }}
+            />
+          </div>
+          <p className="text-[10px] text-slate-400 font-['Poppins'] mt-1 tracking-wide text-center">
+            Bengaluru Residential Resale Infrastructure • Curated Gated Communities
+          </p>
+        </div>
+
         {/* Bottom Bar: Copyright & DPDP Notice */}
-        <div className="pt-6 flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-500 font-['Poppins'] gap-4">
+        <div className="pt-6 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-500 font-['Poppins'] gap-3">
           <p>© {new Date().getFullYear()} SellMyGhar Technologies Private Limited. All rights reserved.</p>
           <p className="text-center sm:text-right">
             Karnataka RERA Approved Real Estate Resale Facilitator. Transparent legal due diligence & certified document verification.
