@@ -506,6 +506,85 @@ export function generateIcsCalendar(params: {
   return lines.join('\r\n') + '\r\n';
 }
 
+export const DEFAULT_ONBOARDING_EMAIL_SUBJECT = 'Welcome to SellMyGhar.in - Bangalore\'s Verified Residential Resale Platform';
+
+export const DEFAULT_ONBOARDING_EMAIL_HTML = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Welcome to SellMyGhar</title>
+  <style>
+    body { font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #F4F6F9; margin: 0; padding: 24px 12px; color: #172033; }
+    .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #E2E8F0; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.05); }
+    .header { background: #172033; padding: 24px 32px; text-align: left; border-bottom: 3px solid #244B8F; }
+    .brand { font-size: 22px; font-weight: 800; color: #ffffff; letter-spacing: -0.5px; }
+    .brand span { color: #38BDF8; }
+    .sub-brand { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #94A3B8; margin-top: 4px; }
+    .body { padding: 32px; }
+    .badge-pill { display: inline-block; padding: 4px 12px; background: #EFF6FF; border: 1px solid #BFDBFE; color: #244B8F; font-size: 11px; font-weight: 700; border-radius: 20px; text-transform: uppercase; margin-bottom: 12px; }
+    h1 { font-size: 22px; font-weight: 800; color: #172033; margin: 0 0 16px 0; line-height: 1.3; }
+    .feature-list { margin: 24px 0; padding: 0; list-style: none; }
+    .feature-item { display: flex; align-items: flex-start; margin-bottom: 16px; }
+    .feature-icon { font-size: 18px; margin-right: 12px; line-height: 1.4; }
+    .feature-title { font-weight: 700; color: #172033; font-size: 14px; margin-bottom: 2px; }
+    .feature-desc { color: #64748B; font-size: 12px; line-height: 1.5; }
+    .btn-wrap { text-align: center; margin: 32px 0 16px 0; }
+    .btn { display: inline-block; background: #244B8F; color: #ffffff !important; text-decoration: none; font-size: 14px; font-weight: 700; padding: 14px 36px; border-radius: 10px; box-shadow: 0 4px 12px rgba(36,75,143,0.3); }
+    .footer { background: #F8FAFC; padding: 24px 32px; border-top: 1px solid #E2E8F0; text-align: center; font-size: 12px; color: #94A3B8; line-height: 1.5; }
+    .footer a { color: #244B8F; text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="brand">SellMy<span>Ghar</span>.in</div>
+      <div class="sub-brand">Bengaluru Residential Resale Advisory</div>
+    </div>
+    <div class="body">
+      <div class="badge-pill">Account Verified</div>
+      <h1>Welcome to SellMyGhar, {{customer_name}}!</h1>
+      <p style="font-size: 14px; color: #475569; line-height: 1.6;">
+        Thank you for joining SellMyGhar.in — Bengaluru's premier assisted resale platform. Whether you are selling your high-rise apartment or searching for verified resale homes, our dedicated team is at your service.
+      </p>
+      <div class="feature-list">
+        <div class="feature-item">
+          <div class="feature-icon">🛡️</div>
+          <div>
+            <div class="feature-title">100% Title-Vetted Resale Flats</div>
+            <div class="feature-desc">BBMP A-Khata authentication and Form 15 Sub-Registrar 30-year continuous title diligence.</div>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon">🚫</div>
+          <div>
+            <div class="feature-title">Zero Broker Spam & Privacy First</div>
+            <div class="feature-desc">Your contact details and flat identity remain protected under the DPDP Act 2023 until physical escorted viewing.</div>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon">🤝</div>
+          <div>
+            <div class="feature-title">Dedicated Relationship Desk</div>
+            <div class="feature-desc">Assisted end-to-end showings, price negotiation, token escrow, and Sub-Registrar deed closing.</div>
+          </div>
+        </div>
+      </div>
+      <div class="btn-wrap">
+        <a href="{{dashboard_url}}" class="btn" target="_blank">Access Your Dashboard &rarr;</a>
+      </div>
+    </div>
+    <div class="footer">
+      <p>This welcome notification was dispatched by SellMyGhar Operations (notifications@sellmyghar.in).</p>
+      <p>100% RERA compliant &bull; Form 15 EC Title Diligence &bull; Bengaluru, Karnataka</p>
+      <p style="margin-top: 12px;">
+        <a href="{{consent_url}}">Manage Communication Preferences</a>
+      </p>
+    </div>
+  </div>
+</body>
+</html>`;
+
 // ====================================================================
 // 3. MAIN SERVICE CLASS
 // ====================================================================
@@ -610,6 +689,13 @@ export class EmailNotificationService {
         DEFAULT_APPROVED_EMAIL_SUBJECT,
         DEFAULT_APPROVED_EMAIL_HTML,
         'Your property {{property_title}} has been verified and approved on SellMyGhar.in.'
+      );
+
+      await seedTemplate(
+        'USER_ONBOARDING_WELCOME',
+        DEFAULT_ONBOARDING_EMAIL_SUBJECT,
+        DEFAULT_ONBOARDING_EMAIL_HTML,
+        'Welcome to SellMyGhar.in - Bangalore\'s Verified Residential Resale Platform.'
       );
     } catch (err: any) {
       console.warn('[EmailNotificationService] initTables note:', err.message);
@@ -722,6 +808,15 @@ export class EmailNotificationService {
           is_active: true,
           updated_at: new Date().toISOString(),
         };
+      case 'USER_ONBOARDING_WELCOME':
+        return {
+          template_key: key,
+          subject_template: DEFAULT_ONBOARDING_EMAIL_SUBJECT,
+          html_template: DEFAULT_ONBOARDING_EMAIL_HTML,
+          plain_text_template: 'Welcome to SellMyGhar.in - Bangalore\'s Verified Residential Resale Platform.',
+          is_active: true,
+          updated_at: new Date().toISOString(),
+        };
       case 'PROPERTY_PUBLISHED':
       default:
         return {
@@ -787,6 +882,12 @@ export class EmailNotificationService {
           subject_template: DEFAULT_APPROVED_EMAIL_SUBJECT,
           html_template: DEFAULT_APPROVED_EMAIL_HTML,
           plain_text_template: 'Your property {{property_title}} has been approved.',
+        });
+      case 'USER_ONBOARDING_WELCOME':
+        return this.updateTemplate(key, {
+          subject_template: DEFAULT_ONBOARDING_EMAIL_SUBJECT,
+          html_template: DEFAULT_ONBOARDING_EMAIL_HTML,
+          plain_text_template: 'Welcome to SellMyGhar.in - Bangalore\'s Verified Residential Resale Platform.',
         });
       case 'PROPERTY_PUBLISHED':
       default:
@@ -962,6 +1063,37 @@ export class EmailNotificationService {
           providerResponse = responseText;
           dispatchedSuccessfully = true;
           console.info(`[EmailNotificationService] Dispatched via Resend: ID ${providerMsgId} to ${recipient}`);
+        } else if ((resendRes.status === 403 || resendRes.status === 422) && fromAddress !== 'onboarding@resend.dev') {
+          console.warn(`[EmailNotificationService] Resend rejection (${resendRes.status}): ${parsedJson?.message || responseText}. Retrying with test sandbox sender onboarding@resend.dev...`);
+          try {
+            payload.from = 'SellMyGhar <onboarding@resend.dev>';
+            const retryRes = await fetch('https://api.resend.com/emails', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(payload),
+            });
+            const retryText = await retryRes.text();
+            let retryJson: any = null;
+            try { retryJson = JSON.parse(retryText); } catch {}
+            if (retryRes.ok && retryJson && retryJson.id) {
+              finalStatus = 'DELIVERED';
+              providerMsgId = retryJson.id;
+              providerResponse = retryText;
+              dispatchedSuccessfully = true;
+              console.info(`[EmailNotificationService] Dispatched via Resend Sandbox: ID ${providerMsgId} to ${recipient}`);
+            } else {
+              finalStatus = 'FAILED';
+              errorMessage = retryJson?.message || parsedJson?.message || `HTTP ${resendRes.status}: ${resendRes.statusText}`;
+              providerResponse = retryText;
+            }
+          } catch (retryErr: any) {
+            finalStatus = 'FAILED';
+            errorMessage = retryErr.message;
+            providerResponse = responseText;
+          }
         } else {
           finalStatus = 'FAILED';
           errorMessage = parsedJson?.message || `HTTP ${resendRes.status}: ${resendRes.statusText}`;
@@ -1122,6 +1254,53 @@ export class EmailNotificationService {
       eventType: 'PROPERTY_LISTED',
       idempotencyKey,
       propertyId: propId,
+      actor,
+    });
+  }
+
+  // ====================================================================
+  // 4B. WORKFLOW: CUSTOMER ONBOARDING WELCOME
+  // ====================================================================
+
+  static async handleUserOnboarding(
+    userData: {
+      userId?: string;
+      name?: string;
+      email: string;
+      phone?: string;
+      role?: string;
+    },
+    actor?: AuthenticatedUser
+  ): Promise<{ dispatched: boolean; notificationId?: string; status: string; reason?: string }> {
+    await this.initTables();
+
+    const recipient = (userData.email || '').trim();
+    if (!recipient || !recipient.includes('@')) {
+      return { dispatched: false, status: 'SKIPPED', reason: 'NO_VALID_EMAIL' };
+    }
+
+    const cleanUserId = String(userData.userId || 'anon');
+    const idempotencyKey = `welcome-${cleanUserId}-${recipient.toLowerCase()}`;
+
+    const baseUrl = process.env.APP_BASE_URL || 'https://sellmyghar.in';
+    const vars: Record<string, string> = {
+      customer_name: userData.name || 'Homeowner',
+      dashboard_url: `${baseUrl}/#/dashboard`,
+      consent_url: `${baseUrl}/#/consent`,
+      year: new Date().getFullYear().toString(),
+    };
+
+    const template = await this.getTemplate('USER_ONBOARDING_WELCOME');
+    const subject = this.renderTemplate(template.subject_template, vars);
+    const html = this.renderTemplate(template.html_template, vars);
+
+    return this.dispatchEmail({
+      recipient,
+      subject,
+      html,
+      eventType: 'TEST',
+      idempotencyKey,
+      propertyId: null,
       actor,
     });
   }

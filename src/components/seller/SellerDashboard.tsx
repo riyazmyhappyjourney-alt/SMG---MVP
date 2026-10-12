@@ -370,7 +370,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const phoneParam = user?.name?.match(/\d{10}/)?.[0] || '';
+      const phoneParam = user?.phone ? user.phone.replace(/\D/g, '').slice(-10) : (user?.name?.match(/\d{10}/)?.[0] || '');
       const url = phoneParam ? `/api/properties?phone=${phoneParam}` : '/api/properties';
       const res = await fetch(url);
       const data = await res.json();
@@ -388,7 +388,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
   // Silent Revalidation for Real-Time Synchronization (no UI flicker)
   const fetchPropertiesSilently = useCallback(async () => {
     try {
-      const phoneParam = user?.name?.match(/\d{10}/)?.[0] || '';
+      const phoneParam = user?.phone ? user.phone.replace(/\D/g, '').slice(-10) : (user?.name?.match(/\d{10}/)?.[0] || '');
       const url = phoneParam ? `/api/properties?phone=${phoneParam}` : '/api/properties';
       const res = await fetch(url);
       if (res.ok) {

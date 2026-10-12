@@ -120,6 +120,9 @@ export interface CrmProperty {
   description?: string;
   amenities?: string[];
   developerName?: string;
+  developerLogoUrl?: string;
+  developerReraId?: string;
+  developerLaunchYear?: number;
   landmarks?: string[];
   highlights?: string[];
   image: string;

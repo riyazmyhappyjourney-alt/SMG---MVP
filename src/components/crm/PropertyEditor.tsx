@@ -87,6 +87,9 @@ export function PropertyEditor({
   const [description, setDescription] = useState('');
   const [amenities, setAmenities] = useState<string[]>([]);
   const [developerName, setDeveloperName] = useState('');
+  const [developerLogoUrl, setDeveloperLogoUrl] = useState('');
+  const [developerReraId, setDeveloperReraId] = useState('');
+  const [developerLaunchYear, setDeveloperLaunchYear] = useState<number | undefined>(undefined);
   const [landmarks, setLandmarks] = useState<string[]>([]);
   const [landmarkInput, setLandmarkInput] = useState('');
   const [highlights, setHighlights] = useState<string[]>([]);
@@ -144,6 +147,9 @@ export function PropertyEditor({
       setDescription(property.description || '');
       setAmenities(property.amenities || []);
       setDeveloperName(property.developerName || property.projectName?.split(' ')[0] || '');
+      setDeveloperLogoUrl((property as any).developerLogoUrl || (property as any).developer_logo_url || '');
+      setDeveloperReraId((property as any).developerReraId || (property as any).developer_rera_id || '');
+      setDeveloperLaunchYear((property as any).developerLaunchYear || (property as any).developer_launch_year || undefined);
       setLandmarks(property.landmarks || []);
       setHighlights(property.highlights || []);
 
@@ -172,6 +178,9 @@ export function PropertyEditor({
       setDescription('');
       setAmenities(['24/7 Security', 'Power Backup', 'Clubhouse']);
       setDeveloperName('');
+      setDeveloperLogoUrl('');
+      setDeveloperReraId('');
+      setDeveloperLaunchYear(undefined);
       setLandmarks([]);
       setHighlights([]);
 
@@ -229,6 +238,9 @@ export function PropertyEditor({
         description: description.trim(),
         amenities,
         developerName: developerName.trim(),
+        developerLogoUrl: developerLogoUrl.trim() || undefined,
+        developerReraId: developerReraId.trim() || undefined,
+        developerLaunchYear: developerLaunchYear ? Number(developerLaunchYear) : undefined,
         landmarks,
         highlights,
         floorPlanUrl: floorPlanUrl.trim() || undefined,
@@ -914,15 +926,77 @@ export function PropertyEditor({
                 </span>
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Developer / Builder Name</label>
-                <input
-                  type="text"
-                  value={developerName}
-                  onChange={(e) => setDeveloperName(e.target.value)}
-                  placeholder="e.g. Sobha Limited"
-                  className="w-full p-2.5 rounded-lg border border-slate-300 bg-white font-medium focus:ring-2 focus:ring-[#244B8F] focus:outline-hidden"
-                />
+              {/* Developer & Brand Details Card */}
+              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+                  <span className="text-xs font-bold text-slate-800 flex items-center space-x-1.5">
+                    <Building2 className="w-3.5 h-3.5 text-[#244B8F]" />
+                    <span>Developer & Project Brand Details</span>
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-medium">Public Builder Profile</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Developer / Builder Name</label>
+                    <input
+                      type="text"
+                      value={developerName}
+                      onChange={(e) => setDeveloperName(e.target.value)}
+                      placeholder="e.g. Sobha Limited / Prestige Group"
+                      className="w-full p-2.5 rounded-lg border border-slate-300 bg-white font-medium focus:ring-2 focus:ring-[#244B8F] focus:outline-hidden"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Developer Logo URL</label>
+                    <div className="flex items-center space-x-2">
+                      {developerLogoUrl ? (
+                        <div className="w-9 h-9 rounded-lg border border-slate-200 bg-white p-1 flex items-center justify-center shrink-0">
+                          <img
+                            src={developerLogoUrl}
+                            alt="Developer Logo"
+                            className="max-h-full max-w-full object-contain"
+                            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                          />
+                        </div>
+                      ) : (
+                        <div className="w-9 h-9 rounded-lg border border-dashed border-slate-300 bg-slate-100 flex items-center justify-center shrink-0 text-slate-400">
+                          <ImageIcon className="w-4 h-4" />
+                        </div>
+                      )}
+                      <input
+                        type="url"
+                        value={developerLogoUrl}
+                        onChange={(e) => setDeveloperLogoUrl(e.target.value)}
+                        placeholder="https://.../logo.png"
+                        className="flex-1 p-2.5 rounded-lg border border-slate-300 bg-white font-medium focus:ring-2 focus:ring-[#244B8F] focus:outline-hidden text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Statutory RERA ID</label>
+                    <input
+                      type="text"
+                      value={developerReraId}
+                      onChange={(e) => setDeveloperReraId(e.target.value)}
+                      placeholder="e.g. PRM/KA/RERA/1251/310/PR/2026/001"
+                      className="w-full p-2.5 rounded-lg border border-slate-300 bg-white font-mono text-xs focus:ring-2 focus:ring-[#244B8F] focus:outline-hidden"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 mb-1">Project Launch Year</label>
+                    <input
+                      type="number"
+                      value={developerLaunchYear || ''}
+                      onChange={(e) => setDeveloperLaunchYear(e.target.value ? Number(e.target.value) : undefined)}
+                      placeholder="e.g. 2021"
+                      className="w-full p-2.5 rounded-lg border border-slate-300 bg-white font-medium focus:ring-2 focus:ring-[#244B8F] focus:outline-hidden text-xs"
+                    />
+                  </div>
+                </div>
               </div>
 
               {/* Amenities Selector */}
