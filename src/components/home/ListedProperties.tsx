@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { getFavoritePropertyIds, toggleFavoriteProperty } from '../../utils/favoritesStore';
+import { getDistinctCommunityPhoto } from '../../utils/propertyImages';
 
 interface PropertyItem {
   id: string;
@@ -202,8 +203,9 @@ export const ListedProperties: React.FC<ListedPropertiesProps> = ({ onSelectProp
                     loading="lazy"
                     onError={(e) => {
                       const target = e.target as HTMLImageElement;
-                      if (!target.src.includes('images.unsplash.com')) {
-                        target.src = 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80';
+                      if (!target.dataset.hasFallback) {
+                        target.dataset.hasFallback = 'true';
+                        target.src = getDistinctCommunityPhoto(property.id || property.projectName, 800);
                       }
                     }}
                   />

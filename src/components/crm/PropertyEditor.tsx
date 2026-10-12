@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { PropertyListingStatus, CrmProperty } from './CrmDashboard';
 import { StaffRole } from '../../core/types/auth';
+import { getDistinctCommunityPhoto } from '../../utils/propertyImages';
 
 interface PropertyEditorProps {
   property: CrmProperty | null;
@@ -1194,8 +1195,9 @@ export function PropertyEditor({
                             className="w-full h-full object-cover"
                             onError={(e) => {
                               const target = e.target as HTMLImageElement;
-                              if (!target.src.includes('images.unsplash.com')) {
-                                target.src = 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80';
+                              if (!target.dataset.hasFallback) {
+                                target.dataset.hasFallback = 'true';
+                                target.src = getDistinctCommunityPhoto(`${property?.id || ''}-img-${img.id}`, 800);
                               }
                             }}
                           />

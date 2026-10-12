@@ -33,14 +33,14 @@ export const StaffLogin: React.FC<StaffLoginProps> = ({ onSuccess, onBackToHome 
         throw new Error(data.error || 'Invalid credentials. Only authorized SellMyGhar staff can access the operational portal.');
       }
 
-      // Store user profile in session storage for UI display (HTTP-only cookie holds authoritative session)
+      // Store user profile and bearer token in session storage for UI display and explicit auth header
       sessionStorage.setItem(
         'sellmyghar_staff_session',
-        JSON.stringify({ user: data.user, loggedAt: new Date().toISOString() })
+        JSON.stringify({ user: data.user, token: data.token, loggedAt: new Date().toISOString() })
       );
 
       // Transition app to CRM route
-      onSuccess({ user: data.user });
+      onSuccess({ user: data.user, token: data.token });
     } catch (err: any) {
       setErrorMessage(err.message || 'Authentication failed. Please verify your credentials.');
     } finally {

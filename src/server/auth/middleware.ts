@@ -17,14 +17,33 @@ declare global {
  * Extracts session token from HTTP cookie or Bearer authorization header
  */
 function extractToken(req: Request): string | null {
+  // 1. Bearer authorization header takes highest priority (enables CRM client explicit token isolation)
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const bearer = authHeader.substring(7).trim();
+    if (bearer) return bearer;
+  }
+
+  // 2. Staff-specific cookie check (prevents customer sessions from colliding with staff desk)
   const cookies = (req as any).cookies;
+  if (cookies && cookies.sellmyghar_staff_session) {
+    return cookies.sellmyghar_staff_session;
+  }
   if (cookies && cookies.sellmyghar_session) {
     return cookies.sellmyghar_session;
   }
 
-  // Fallback direct parse from raw Cookie header
+  // 3. Fallback direct parse from raw Cookie header
   const rawCookie = req.headers.cookie;
   if (rawCookie) {
+    const staffMatch = rawCookie.match(/(?:^|;\s*)sellmyghar_staff_session=([^;]+)/);
+    if (staffMatch && staffMatch[1]) {
+      try {
+        return decodeURIComponent(staffMatch[1]);
+      } catch {
+        return staffMatch[1];
+      }
+    }
     const match = rawCookie.match(/(?:^|;\s*)sellmyghar_session=([^;]+)/);
     if (match && match[1]) {
       try {
@@ -33,11 +52,6 @@ function extractToken(req: Request): string | null {
         return match[1];
       }
     }
-  }
-
-  const authHeader = req.headers.authorization;
-  if (authHeader && authHeader.startsWith('Bearer ')) {
-    return authHeader.substring(7).trim();
   }
 
   return null;

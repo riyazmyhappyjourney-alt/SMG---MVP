@@ -46,6 +46,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Header } from '../home/Header';
 import { Footer } from '../home/Footer';
 import { isFavoriteProperty, toggleFavoriteProperty } from '../../utils/favoritesStore';
+import { getDistinctCommunityPhoto } from '../../utils/propertyImages';
 
 export interface PublicPropertyDetail {
   id: string;
@@ -602,8 +603,9 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                     className="w-full h-full object-cover"
                     onError={(e: any) => {
                       const target = e.target as HTMLImageElement;
-                      if (!target.src.includes('images.unsplash.com')) {
-                        target.src = 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80';
+                      if (!target.dataset.hasFallback) {
+                        target.dataset.hasFallback = 'true';
+                        target.src = getDistinctCommunityPhoto(property?.id || property?.projectName || '', 1200);
                       }
                     }}
                   />
@@ -663,8 +665,9 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                         className="w-full h-full object-cover"
                         onError={(e) => {
                           const target = e.target as HTMLImageElement;
-                          if (!target.src.includes('images.unsplash.com')) {
-                            target.src = 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=400&q=80';
+                          if (!target.dataset.hasFallback) {
+                            target.dataset.hasFallback = 'true';
+                            target.src = getDistinctCommunityPhoto(`${property?.id || ''}-thumb-${idx}`, 400);
                           }
                         }}
                       />
@@ -1200,8 +1203,9 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                       loading="lazy"
                       onError={(e) => {
                         const target = e.target as HTMLImageElement;
-                        if (!target.src.includes('images.unsplash.com')) {
-                          target.src = 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80';
+                        if (!target.dataset.hasFallback) {
+                          target.dataset.hasFallback = 'true';
+                          target.src = getDistinctCommunityPhoto(sim.id || sim.projectName, 800);
                         }
                       }}
                     />
