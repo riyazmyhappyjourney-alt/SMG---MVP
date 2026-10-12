@@ -5,7 +5,10 @@ import {
   Bed, 
   Bath, 
   Maximize2, 
+  Compass,
   ArrowRight,
+  ArrowUpRight,
+  CheckCircle2,
   Heart,
   PhoneCall
 } from 'lucide-react';
@@ -190,8 +193,7 @@ export const ListedProperties: React.FC<ListedPropertiesProps> = ({ onSelectProp
                 onClick={(e) => handleCardClick(e, property.id)}
                 className="bg-white rounded-2xl overflow-hidden border border-slate-200/90 shadow-xs hover:shadow-xl transition-all duration-300 flex flex-col group cursor-pointer"
               >
-                
-                {/* Photo & Badges Exactly Matching Reference Design */}
+                {/* Photo & Badges Exactly Matching User Reference Design */}
                 <div className="relative aspect-16/10 overflow-hidden bg-slate-100">
                   <img
                     src={property.image}
@@ -200,91 +202,115 @@ export const ListedProperties: React.FC<ListedPropertiesProps> = ({ onSelectProp
                     loading="lazy"
                   />
                   
-                  {/* Badge bottom-left: "For Sale" (Pill badge like reference) */}
-                  <div className="absolute bottom-3 left-3">
-                    <span className="px-3 py-1 rounded-full bg-[#244B8F] text-white text-[11px] font-bold shadow-md tracking-wide">
-                      For Sale
+                  {/* Top-Left: "OWNER VERIFIED" Rounded Pill Badge */}
+                  <div className="absolute top-3 left-3">
+                    <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full bg-[#1E3A8A]/90 backdrop-blur-xs text-white text-[11px] font-bold tracking-wide shadow-xs font-['Montserrat']">
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                      <span>OWNER VERIFIED</span>
                     </span>
                   </div>
 
-                  {/* Favorite Heart Button top-right (matching reference) */}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleToggleFavorite(property.id);
-                    }}
-                    className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/80 backdrop-blur-xs hover:bg-white flex items-center justify-center text-slate-600 hover:text-rose-500 transition-all shadow-xs cursor-pointer"
-                    aria-label="Save to favorites"
-                  >
-                    <Heart className={`w-4 h-4 ${favorites.has(property.id) ? 'fill-rose-500 text-rose-500' : 'text-slate-600'}`} />
-                  </button>
+                  {/* Top-Right: BHK Pill Badge + Heart Favorite Button */}
+                  <div className="absolute top-3 right-3 flex items-center space-x-1.5">
+                    <span className="px-2.5 py-1 rounded-md bg-[#172033]/90 backdrop-blur-xs text-white text-[11px] font-bold shadow-xs font-['Montserrat']">
+                      {property.bhkType}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleToggleFavorite(property.id);
+                      }}
+                      className="w-7 h-7 rounded-full bg-white/80 backdrop-blur-xs hover:bg-white flex items-center justify-center text-slate-600 hover:text-rose-500 transition-all shadow-xs cursor-pointer"
+                      aria-label="Save to favorites"
+                    >
+                      <Heart className={`w-3.5 h-3.5 ${favorites.has(property.id) ? 'fill-rose-500 text-rose-500' : 'text-slate-600'}`} />
+                    </button>
+                  </div>
 
-
+                  {/* Bottom Image Overlay Strip: Price on Left, Price/Sq.ft on Right */}
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent pt-8 pb-3 px-4 flex items-baseline justify-between text-white">
+                    <span className="text-xl sm:text-2xl font-extrabold tracking-tight font-['Montserrat']">
+                      {formatPriceLakhsOrCrores(property.askingPriceInr)}
+                    </span>
+                    <span className="text-xs text-slate-300 font-['Poppins']">
+                      ₹{property.pricePerSqft.toLocaleString('en-IN')}/sq.ft
+                    </span>
+                  </div>
                 </div>
 
                 {/* Property Content Details */}
-                <div className="p-5 flex-1 flex flex-col justify-between space-y-3.5 text-left">
+                <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3.5 text-left">
                   
+                  {/* Title & Locality */}
                   <div>
-                    <h3 className="text-base font-bold text-[#172033] font-['Montserrat'] group-hover:text-[#244B8F] transition-colors leading-snug">
+                    <h3 className="text-base sm:text-lg font-bold text-[#172033] font-['Montserrat'] group-hover:text-[#244B8F] transition-colors leading-snug">
                       {property.projectName}
                     </h3>
                     <p className="text-xs text-slate-500 font-['Poppins'] flex items-center mt-1">
                       <MapPin className="w-3.5 h-3.5 mr-1 text-slate-400 shrink-0" />
-                      <span>{property.localityName}, Bengaluru</span>
+                      <span>{property.localityName}</span>
                     </p>
                   </div>
 
-                  {/* Features Row Matching Reference Image: 3 Beds | 3 Baths | 1,550 sqft */}
-                  <div className="flex items-center justify-between text-xs text-slate-600 pt-3 border-t border-slate-100 font-['Poppins']">
-                    <div className="flex items-center space-x-1.5">
-                      <Bed className="w-4 h-4 text-slate-400" />
-                      <span className="font-medium text-slate-700">{property.bhkType.replace('BHK', '')} Beds</span>
+                  <div className="border-t border-slate-100" />
+
+                  {/* 3 Specifications Tiles: SBUA Area | Facing | Floor */}
+                  <div className="grid grid-cols-3 gap-2">
+                    {/* Tile 1: SBUA Area */}
+                    <div className="bg-slate-50/80 rounded-xl p-2.5 text-center border border-slate-100 flex flex-col items-center justify-center">
+                      <Maximize2 className="w-3.5 h-3.5 text-[#244B8F] mb-1" />
+                      <span className="text-xs font-bold text-slate-800 font-['Montserrat'] leading-tight">
+                        {property.superBuiltUpSqft.toLocaleString('en-IN')} sq.ft
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-['Poppins'] mt-0.5">SBUA Area</span>
                     </div>
-                    <div className="flex items-center space-x-1.5">
-                      <Bath className="w-4 h-4 text-slate-400" />
-                      <span className="font-medium text-slate-700">{property.bathroomsCount || 2} Baths</span>
+
+                    {/* Tile 2: Facing */}
+                    <div className="bg-slate-50/80 rounded-xl p-2.5 text-center border border-slate-100 flex flex-col items-center justify-center">
+                      <Compass className="w-3.5 h-3.5 text-[#244B8F] mb-1" />
+                      <span className="text-xs font-bold text-slate-800 font-['Montserrat'] uppercase leading-tight">
+                        {property.facing || 'EAST'}
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-['Poppins'] mt-0.5">Facing</span>
                     </div>
-                    <div className="flex items-center space-x-1.5">
-                      <Maximize2 className="w-4 h-4 text-slate-400" />
-                      <span className="font-medium text-slate-700">{property.superBuiltUpSqft.toLocaleString('en-IN')} sqft</span>
+
+                    {/* Tile 3: Floor */}
+                    <div className="bg-slate-50/80 rounded-xl p-2.5 text-center border border-slate-100 flex flex-col items-center justify-center">
+                      <Bed className="w-3.5 h-3.5 text-[#244B8F] mb-1" />
+                      <span className="text-xs font-bold text-slate-800 font-['Montserrat'] leading-tight truncate w-full">
+                        {property.floorBand || 'Floor 11 of 18'}
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-['Poppins'] mt-0.5">Floor</span>
                     </div>
                   </div>
 
-                  {/* Bottom Row Matching Reference: Bold Price on Left, "View Property →" Pill Button on Right */}
-                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                    <div className="flex flex-col">
-                      <span className="text-lg font-extrabold text-[#172033] tracking-tight font-['Montserrat']">
-                        {formatPriceLakhsOrCrores(property.askingPriceInr)}
-                      </span>
-                      <span className="text-[11px] text-slate-400 font-['Poppins']">
-                        ₹{property.pricePerSqft.toLocaleString('en-IN')}/sq.ft
-                      </span>
-                    </div>
+                  <div className="border-t border-slate-100" />
 
-                    <div className="flex items-center space-x-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          onSelectProperty(property.projectName, property.localityName, property.bhkType);
-                        }}
-                        className="p-2 rounded-full border border-slate-200 hover:border-[#244B8F] text-slate-600 hover:text-[#244B8F] transition-colors cursor-pointer"
-                        title="Quick Call Enquiry"
-                      >
-                        <PhoneCall className="w-3.5 h-3.5" />
-                      </button>
+                  {/* Action Buttons: View Property ↗ (Blue) & Quick Enquiry (Slate) */}
+                  <div className="flex items-center space-x-2.5 pt-0.5">
+                    <a
+                      href={`/property/${property.id}`}
+                      target={isMobile ? '_self' : '_blank'}
+                      rel={isMobile ? undefined : 'noopener noreferrer'}
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex-1 py-2.5 px-3 bg-[#244B8F] hover:bg-[#1B396E] text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center space-x-1.5 font-['Montserrat'] cursor-pointer"
+                    >
+                      <span>View Property</span>
+                      <ArrowUpRight className="w-3.5 h-3.5" />
+                    </a>
 
-                      <a
-                        href={`/property/${property.id}`}
-                        target={isMobile ? '_self' : '_blank'}
-                        rel={isMobile ? undefined : 'noopener noreferrer'}
-                        className="px-4 py-2 rounded-full border border-slate-300 hover:border-[#244B8F] hover:bg-[#244B8F] hover:text-white text-xs font-semibold text-slate-700 transition-all flex items-center space-x-1 cursor-pointer group/btn"
-                      >
-                        <span>View Property</span>
-                        <ArrowRight className="w-3.5 h-3.5 group-hover/btn:translate-x-0.5 transition-transform" />
-                      </a>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onSelectProperty(property.projectName, property.localityName, property.bhkType);
+                      }}
+                      className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 border border-slate-200/80 text-slate-800 font-bold text-xs rounded-xl transition-colors flex items-center justify-center space-x-1.5 font-['Montserrat'] cursor-pointer shrink-0"
+                    >
+                      <PhoneCall className="w-3.5 h-3.5 text-slate-600" />
+                      <span>Quick Enquiry</span>
+                    </button>
                   </div>
 
                 </div>
