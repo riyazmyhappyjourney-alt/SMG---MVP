@@ -251,9 +251,36 @@ class DevSandboxStore {
     this.initInitialSeeds();
   }
 
+  public purgeUserByEmail(email: string): boolean {
+    if (!email) return false;
+    const cleanEmail = email.trim().toLowerCase();
+    let removed = false;
+    for (const [id, u] of Array.from(this.users.entries())) {
+      if (u.email && u.email.trim().toLowerCase() === cleanEmail) {
+        this.users.delete(id);
+        removed = true;
+      }
+    }
+    for (const [id, ident] of Array.from(this.userIdentities.entries())) {
+      if (ident.email && ident.email.trim().toLowerCase() === cleanEmail) {
+        this.userIdentities.delete(id);
+      }
+    }
+    for (const [id, notif] of Array.from(this.publicationNotifications.entries())) {
+      if (notif.recipient && notif.recipient.trim().toLowerCase() === cleanEmail) {
+        this.publicationNotifications.delete(id);
+      }
+    }
+    return removed;
+  }
+
   public initInitialSeeds() {
     if (this.initialized) return;
     this.initialized = true;
+
+    // Purge deprecated accounts
+    this.purgeUserByEmail('yashwantkeyan@gmail.com');
+    this.purgeUserByEmail('socialmedia@myhappyjourney.com');
 
     // Seed default customer owner Harish Babu
     const owner: DevUser = {
@@ -2488,6 +2515,53 @@ class DevSandboxStore {
       const id = params[0];
       const had = this.partnerLogos.delete(id);
       return had ? { rows: [{ id }] } : { rows: [] };
+    }
+
+    if (cleanSql.includes('DELETE FROM users')) {
+      const deleted: DevUser[] = [];
+      if (cleanSql.includes('id = $1')) {
+        const id = String(params[0]);
+        const u = this.users.get(id);
+        if (u) {
+          deleted.push({ ...u });
+          this.purgeUserByEmail(u.email || '');
+          this.users.delete(id);
+        }
+      } else if (cleanSql.includes('email')) {
+        const targetEmail = String(params[0] || '').trim().toLowerCase();
+        for (const [id, u] of Array.from(this.users.entries())) {
+          if (u.email && u.email.trim().toLowerCase() === targetEmail) {
+            deleted.push({ ...u });
+            this.purgeUserByEmail(u.email);
+            this.users.delete(id);
+          }
+        }
+      }
+      return { rows: deleted };
+    }
+
+    if (cleanSql.includes('DELETE FROM user_identities')) {
+      if (cleanSql.includes('email')) {
+        const targetEmail = String(params[cleanSql.includes('user_id = $1') ? 1 : 0] || '').trim().toLowerCase();
+        for (const [id, ident] of Array.from(this.userIdentities.entries())) {
+          if (ident.email && ident.email.trim().toLowerCase() === targetEmail) {
+            this.userIdentities.delete(id);
+          }
+        }
+      }
+      return { rows: [] };
+    }
+
+    if (cleanSql.includes('DELETE FROM publication_notifications')) {
+      if (cleanSql.includes('recipient')) {
+        const targetEmail = String(params[0] || '').trim().toLowerCase();
+        for (const [id, notif] of Array.from(this.publicationNotifications.entries())) {
+          if (notif.recipient && notif.recipient.trim().toLowerCase() === targetEmail) {
+            this.publicationNotifications.delete(id);
+          }
+        }
+      }
+      return { rows: [] };
     }
 
     // Fallback: return empty set

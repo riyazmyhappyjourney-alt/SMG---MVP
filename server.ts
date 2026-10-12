@@ -5282,7 +5282,67 @@ app.patch('/api/crm/users/:id', jsonDefault, authenticateUser, async (req: Reque
   }
 });
 
-// 11e. Super Admin: Update Staff User Role (Legacy alias)
+// 11e. Super Admin: Delete / Purge User Account
+app.delete('/api/crm/users/:id', jsonDefault, authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const isSuperAdmin = req.user!.roles.includes('STAFF_SUPER_ADMIN');
+    if (!isSuperAdmin) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Only Super Admin can delete user accounts.' });
+    }
+
+    const { id } = req.params;
+    const targetUserRes = await executeQuery(`SELECT * FROM users WHERE id = $1 LIMIT 1;`, [id]);
+    if (!targetUserRes.rows || targetUserRes.rows.length === 0) {
+      return res.status(404).json({ error: 'USER_NOT_FOUND', message: 'User not found.' });
+    }
+    const targetUser = targetUserRes.rows[0];
+
+    // Protect last active Super Admin
+    if (targetUser.roles?.includes('STAFF_SUPER_ADMIN')) {
+      const adminCountRes = await executeQuery(`
+        SELECT COUNT(*)::int as count FROM users WHERE 'STAFF_SUPER_ADMIN' = ANY(roles) AND is_active = true;
+      `);
+      const adminCount = adminCountRes.rows?.[0]?.count || 0;
+      if (adminCount <= 1) {
+        return res.status(400).json({
+          error: 'CANNOT_DELETE_LAST_ADMIN',
+          message: 'Cannot delete the last active Compliance Super Admin.'
+        });
+      }
+    }
+
+    // Cascade deletions
+    if (targetUser.email) {
+      await executeQuery(`DELETE FROM user_identities WHERE user_id = $1 OR LOWER(email) = $2;`, [id, targetUser.email.toLowerCase()]).catch(() => {});
+      await executeQuery(`DELETE FROM publication_notifications WHERE LOWER(recipient) = $1;`, [targetUser.email.toLowerCase()]).catch(() => {});
+    }
+    await executeQuery(`DELETE FROM users WHERE id = $1;`, [id]);
+
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    await recordAuditEvent({
+      actor: req.user!,
+      action: 'STAFF_USER_DELETED',
+      targetEntity: 'users',
+      targetEntityId: id,
+      clientIp,
+      diffSummary: {
+        deletedUserId: id,
+        email: targetUser.email,
+        displayName: targetUser.display_name
+      }
+    });
+
+    return res.json({
+      success: true,
+      message: `User ${targetUser.display_name || id} permanently removed from database.`
+    });
+  } catch (err: any) {
+    console.error('[CrmUserDelete] Error:', err);
+    return res.status(500).json({ error: 'Failed to delete user' });
+  }
+});
+
+// 11f. Super Admin: Update Staff User Role (Legacy alias)
 app.patch('/api/crm/users/:id/role', jsonDefault, authenticateUser, async (req: Request, res: Response) => {
   try {
     const isSuperAdmin = req.user!.roles.includes('STAFF_SUPER_ADMIN');
@@ -7542,6 +7602,17 @@ app.get('/api/admin/users', authenticateUser, requireRole('STAFF_SUPER_ADMIN'), 
 async function startServer() {
   await initSchemaColumns();
   await ensureSupabaseBucketsExist();
+
+  // Proactively purge requested decommissioned user emails from database/ledger
+  await executeQuery(`
+    DELETE FROM user_identities WHERE LOWER(email) IN ('yashwantkeyan@gmail.com', 'socialmedia@myhappyjourney.com');
+  `).catch(() => {});
+  await executeQuery(`
+    DELETE FROM publication_notifications WHERE LOWER(recipient) IN ('yashwantkeyan@gmail.com', 'socialmedia@myhappyjourney.com');
+  `).catch(() => {});
+  await executeQuery(`
+    DELETE FROM users WHERE LOWER(email) IN ('yashwantkeyan@gmail.com', 'socialmedia@myhappyjourney.com');
+  `).catch(() => {});
 
   if (!isProd) {
     const { createServer: createViteServer } = await import('vite');
