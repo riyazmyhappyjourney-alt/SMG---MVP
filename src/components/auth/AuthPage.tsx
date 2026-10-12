@@ -79,7 +79,12 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       const response = await safeFetchJson<{ success: boolean; user: any }>('/api/auth/otp/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: cleanPhone, otp: otpCode.trim(), name: name.trim() }),
+        body: JSON.stringify({ 
+          phone: cleanPhone, 
+          otp: otpCode.trim(), 
+          name: name.trim(),
+          email: email.trim().toLowerCase()
+        }),
       });
 
       if (!response.ok || !response.data?.success || !response.data?.user) {
@@ -292,18 +297,33 @@ export const AuthPage: React.FC<AuthPageProps> = ({
             !otpSent ? (
               <form onSubmit={handleSendOtp} className="space-y-4">
                 {mode === 'SIGNUP' && (
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
-                      Your Full Name
-                    </label>
-                    <input
-                      type="text"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      placeholder="e.g. Riyaz Ahmed"
-                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#244B8F] focus:bg-white transition-all"
-                    />
-                  </div>
+                  <>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                        Your Full Name
+                      </label>
+                      <input
+                        type="text"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="e.g. Riyaz Ahmed"
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#244B8F] focus:bg-white transition-all"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                        Email Address (To Receive Welcome & Verification Updates)
+                      </label>
+                      <input
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        placeholder="name@example.com"
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#244B8F] focus:bg-white transition-all"
+                      />
+                    </div>
+                  </>
                 )}
 
                 <div>

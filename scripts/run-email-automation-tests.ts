@@ -37,13 +37,14 @@ export async function runEmailAutomationTests() {
     assert('Provider status check runs without exception', false, err.message);
   }
 
-  // --- Suite 2: Default Templates & 4 Workflows Coverage ---
+  // --- Suite 2: Default Templates & 5 Workflows Coverage ---
   try {
     const tplKeys = [
       'PROPERTY_SUBMISSION_RECEIVED',
       'MEETING_SCHEDULED',
       'PROPERTY_APPROVED',
       'PROPERTY_PUBLISHED',
+      'USER_ONBOARDING_WELCOME',
     ];
 
     for (const key of tplKeys) {
@@ -223,8 +224,29 @@ export async function runEmailAutomationTests() {
       Boolean(publishedMail && publishedMail.html.includes(testPropId) && publishedMail.html.includes('1.65 Cr'))
     );
 
+    // Workflow 5: User Onboarding Welcome (Dedicated onboarding@sellmyghar.in)
+    const onboardRes = await EmailNotificationService.handleUserOnboarding({
+      userId: 'usr-new-001',
+      name: 'Rohan Verma',
+      email: 'rohan.verma@example.com',
+    });
+
+    assert(
+      'Workflow 5 (User Onboarding): successfully dispatches welcome email',
+      Boolean(onboardRes && onboardRes.dispatched && onboardRes.status === 'DELIVERED')
+    );
+    const onboardMail = dispatchedMails.find(m => m.eventType === 'USER_WELCOME');
+    assert(
+      'Workflow 5: sender is strictly onboarding@sellmyghar.in',
+      Boolean(onboardMail && onboardMail.from.includes('onboarding@sellmyghar.in'))
+    );
+    assert(
+      'Workflow 5: email body contains welcome message and onboarding contact',
+      Boolean(onboardMail && onboardMail.html.includes('Welcome to SellMyGhar, Rohan Verma!') && onboardMail.html.includes('onboarding@sellmyghar.in'))
+    );
+
   } catch (err: any) {
-    assert('Mock provider 4 workflows run without exception', false, err.message);
+    assert('Mock provider 5 workflows run without exception', false, err.message);
   }
 
   // --- Suite 5: Strict Idempotency & Deduplication ---
@@ -262,6 +284,22 @@ export async function runEmailAutomationTests() {
     assert(
       'Strict Idempotency: duplicate property approved event is suppressed',
       app1.dispatched === true && app2.dispatched === false && app2.reason === 'ALREADY_DISPATCHED'
+    );
+
+    // Same check for user onboarding idempotency
+    const onboard1 = await EmailNotificationService.handleUserOnboarding({
+      userId: 'usr-idem-001',
+      name: 'Priya Sundaram',
+      email: 'priya.sundaram@example.com',
+    });
+    const onboard2 = await EmailNotificationService.handleUserOnboarding({
+      userId: 'usr-idem-001',
+      name: 'Priya Sundaram',
+      email: 'priya.sundaram@example.com',
+    });
+    assert(
+      'Strict Idempotency: duplicate user onboarding welcome event is suppressed',
+      onboard1.dispatched === true && onboard2.dispatched === false && onboard2.reason === 'ALREADY_DISPATCHED'
     );
   } catch (err: any) {
     assert('Idempotency tests run without exception', false, err.message);
