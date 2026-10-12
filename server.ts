@@ -609,11 +609,13 @@ app.post('/api/auth/otp/verify', jsonDefault, rateLimit('otp-verify', 10, 900), 
 
     if (userEmail) {
       try {
-        await EmailNotificationService.handleUserOnboarding({
+        const onboardRes = await EmailNotificationService.handleUserOnboarding({
+          userId: authenticatedUser.uid,
           name: userRecord?.display_name || name || `User ${normalizedPhone.slice(-4)}`,
           email: userEmail,
           role: authenticatedUser.roles[0] || 'OWNER',
         });
+        console.info(`[OtpOnboardingEmail] Dispatched welcome onboarding for ${userEmail}: ${onboardRes.status}`);
       } catch (onboardErr: any) {
         console.warn('[OtpOnboardingEmail] Dispatch note:', onboardErr.message);
       }
@@ -822,17 +824,6 @@ app.post('/api/auth/google/session', jsonDefault, rateLimit('google-session', 10
         );
         userRecord = fetchRes.rows[0];
 
-        // Dispatch onboarding welcome email for new user registration
-        try {
-          await EmailNotificationService.handleUserOnboarding({
-            name: displayName,
-            email: rawEmail,
-            role: 'BUYER',
-          });
-        } catch (onboardErr: any) {
-          console.warn('[GoogleOnboardingEmail] Dispatch note:', onboardErr.message);
-        }
-
         // Fallback: If insert conflicted concurrently on email, resolve existing record by email
         if (!userRecord) {
           const retryByEmail = await executeQuery(
@@ -861,6 +852,27 @@ app.post('/api/auth/google/session', jsonDefault, rateLimit('google-session', 10
         error: 'ACCOUNT_DEACTIVATED',
         message: 'This account has been deactivated. Please contact support.'
       });
+    }
+
+    // Dispatch automated onboarding welcome email (idempotent, safe against duplicate sends)
+    if (rawEmail) {
+      try {
+        const welcomeDisplayName =
+          userRecord.display_name ||
+          supaUser.user_metadata?.full_name?.trim() ||
+          supaUser.user_metadata?.name?.trim() ||
+          rawEmail.split('@')[0];
+
+        const onboardRes = await EmailNotificationService.handleUserOnboarding({
+          userId: userRecord.id,
+          name: welcomeDisplayName,
+          email: rawEmail,
+          role: userRecord.roles?.[0] || 'BUYER',
+        });
+        console.info(`[GoogleOnboardingEmail] Dispatched welcome onboarding for ${rawEmail}: ${onboardRes.status}`);
+      } catch (onboardErr: any) {
+        console.warn('[GoogleOnboardingEmail] Dispatch note:', onboardErr.message);
+      }
     }
 
     // 6. Security Requirement 6 & 7: Issue native sellmyghar_session HTTP-only cookie
