@@ -1061,6 +1061,19 @@ class DevSandboxStore {
       return { rows: [{ ...u }] };
     }
 
+    // 8b. USERS: Set password hash (bootstrap backfill / password reset)
+    if (cleanSql.includes('UPDATE users') && cleanSql.includes('password_hash = $1')) {
+      const u = this.users.get(params[1]);
+      if (u) {
+        u.password_hash = params[0];
+        u.failed_login_attempts = 0;
+        u.locked_until = null;
+        u.updated_at = new Date().toISOString();
+        return { rows: [{ ...u }], rowCount: 1 } as any;
+      }
+      return { rows: [], rowCount: 0 } as any;
+    }
+
     // 9. USERS: Update token_version (Logout)
     if (cleanSql.includes('UPDATE users') && cleanSql.includes('token_version = token_version + 1')) {
       const id = params[0];

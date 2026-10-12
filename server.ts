@@ -345,6 +345,24 @@ async function initSchemaColumns() {
       console.info('[SellMyGhar DB] Privileged admin account already exists. Preserving existing password hash.');
     }
 
+    // Repair: accounts that exist but have NO password hash can never log in. Backfill from env secrets.
+    const backfillTargets: Array<{ email: string; pass?: string }> = [
+      { email: 'admin@sellmyghar.in', pass: adminPass },
+      { email: 'staff@sellmyghar.in', pass: staffPass },
+      { email: 'intake@sellmyghar.in', pass: staffPass },
+      { email: 'closer@sellmyghar.in', pass: staffPass },
+    ];
+    for (const target of backfillTargets) {
+      if (!target.pass) continue;
+      const row = await executeQuery(`SELECT id, password_hash FROM users WHERE LOWER(email) = $1 LIMIT 1;`, [target.email]);
+      const existing = row.rows?.[0];
+      if (existing && !existing.password_hash) {
+        const hash = await hashPassword(target.pass);
+        await executeQuery(`UPDATE users SET password_hash = $1, failed_login_attempts = 0, locked_until = NULL WHERE id = $2;`, [hash, existing.id]);
+        console.info(`[SellMyGhar DB] Backfilled missing password hash for ${target.email}.`);
+      }
+    }
+
     console.info('[SellMyGhar DB] Schema ensured with buyer_enquiries, property_media, and secure staff accounts.');
   } catch (err: any) {
     if (err.message && err.message.includes('[CONFIGURATION ERROR]')) {
