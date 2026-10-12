@@ -798,6 +798,32 @@ export class EmailNotificationService {
     }
   }
 
+  static async handleBrochureShared(args: {
+    recipient: string;
+    subject: string;
+    html: string;
+    propertyId: string;
+    actor?: AuthenticatedUser;
+  }): Promise<{
+    dispatched: boolean;
+    notificationId: string;
+    status: PublicationNotificationRecord['status'];
+    providerMessageId?: string | null;
+    reason?: string;
+    error?: string;
+  }> {
+    const idempotencyKey = `brochure-share-${args.propertyId}-${args.recipient.toLowerCase().trim()}-${Date.now()}`;
+    return this.dispatchEmail({
+      recipient: args.recipient,
+      subject: args.subject,
+      html: args.html,
+      eventType: 'PROPERTY_PUBLISHED',
+      idempotencyKey,
+      propertyId: args.propertyId,
+      actor: args.actor,
+    });
+  }
+
   /**
    * Internal Core Dispatcher:
    * - Strict Idempotency check: exactly one email per event

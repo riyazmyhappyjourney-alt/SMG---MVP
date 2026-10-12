@@ -11,6 +11,7 @@ import { runCrmPropertyManagementTests } from './run-crm-property-management-tes
 import { runAuthIntegrationTests } from './run-auth-integration-tests';
 import { runHomepageCmsSeoTests } from './run-homepage-cms-seo-tests';
 import { runEmailAutomationTests } from './run-email-automation-tests';
+import { runPropertyBrochureTests } from './run-property-brochure-tests';
 
 async function runAll() {
   console.log('====================================================');
@@ -137,6 +138,15 @@ async function runAll() {
   totalFailed += emailRes.failed;
   suiteResults.push({ name: 'Complete Email Automation & Resale Workflows', passed: emailRes.passed, failed: emailRes.failed, tests: emailRes.results });
   console.log(`Subtotal: ${emailRes.passed} passed, ${emailRes.failed} failed\n`);
+
+  // Suite 14: Property Presentation PDF Generator Suite
+  console.log('--- 14. Property Presentation PDF Generator & QR Suite ---');
+  const brochureRes = await runPropertyBrochureTests();
+  brochureRes.results.forEach(r => console.log(' ', r));
+  totalPassed += brochureRes.passed;
+  totalFailed += brochureRes.failed;
+  suiteResults.push({ name: 'Property Presentation PDF Generator & QR', passed: brochureRes.passed, failed: brochureRes.failed, tests: brochureRes.results });
+  console.log(`Subtotal: ${brochureRes.passed} passed, ${brochureRes.failed} failed\n`);
 
   console.log('====================================================');
   console.log(`FINAL RESULTS: ${totalPassed} PASSED, ${totalFailed} FAILED (TOTAL: ${totalPassed + totalFailed}/${totalPassed + totalFailed})`);
