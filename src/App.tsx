@@ -111,7 +111,7 @@ export default function App() {
     let isMounted = true;
     const restoreSession = async () => {
       try {
-        const res = await fetch('/api/auth/me');
+        const res = await fetch('/api/auth/me', { credentials: 'include' });
         if (res.ok) {
           const data = await res.json();
           if (isMounted && data.authenticated && data.user) {
