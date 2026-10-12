@@ -952,6 +952,58 @@ app.post('/api/auth/logout', async (req, res) => {
   return res.json({ success: true, message: 'Logged out successfully' });
 });
 
+// DEV: Instant Role & Identity Switcher (Synchronizes frontend Dev RBAC switcher with backend session cookie)
+app.post('/api/dev/switch-role', jsonDefault, async (req, res) => {
+  if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DEV_FALLBACKS !== 'true') {
+    return res.status(403).json({ error: 'FORBIDDEN', message: 'Dev role switcher disabled in production.' });
+  }
+
+  const role = req.body?.role || 'STAFF_SUPER_ADMIN';
+  const roleEmailMap: Record<string, string> = {
+    'STAFF_SUPER_ADMIN': 'admin@sellmyghar.in',
+    'STAFF_VERIFICATION_AGENT': 'staff@sellmyghar.in',
+    'STAFF_INTAKE_AGENT': 'intake@sellmyghar.in',
+    'STAFF_DEAL_CLOSER': 'closer@sellmyghar.in',
+    'STAFF_LISTING_MANAGER': 'admin@sellmyghar.in',
+  };
+
+  const targetEmail = roleEmailMap[role] || 'admin@sellmyghar.in';
+  const result = await executeQuery(
+    `SELECT id, phone, email, display_name, roles, token_version FROM users WHERE LOWER(email) = $1 LIMIT 1;`,
+    [targetEmail.toLowerCase()]
+  );
+
+  if (!result.rows || result.rows.length === 0) {
+    return res.status(404).json({ error: 'User not found for role' });
+  }
+
+  const user = result.rows[0];
+  const userRoles = (Array.isArray(user.roles) ? user.roles : [role]) as AppRole[];
+  const authenticatedUser: AuthenticatedUser = {
+    uid: user.id,
+    phone: user.phone,
+    email: user.email,
+    roles: userRoles,
+    permissions: [],
+  };
+
+  const token = await signSessionToken(authenticatedUser, user.token_version || 1);
+  setSessionCookie(res, token);
+
+  return res.json({
+    success: true,
+    user: {
+      id: user.id,
+      email: user.email,
+      name: user.display_name,
+      displayName: user.display_name,
+      phone: user.phone,
+      roles: userRoles,
+    }
+  });
+});
+
+
 // ====================================================================
 // 5. LEADS & INVENTORY ENDPOINTS
 // ====================================================================

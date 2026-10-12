@@ -1364,7 +1364,10 @@ export class EmailNotificationService {
     const isSimulated = dispatchRes.status === 'SIMULATED';
     const message = isSimulated
       ? `Test email simulated for ${targetEmail}. (RESEND_API_KEY not configured, recorded in CRM audit ledger).`
-      : `Test email successfully dispatched to ${targetEmail} via Resend.`;
+      : dispatchRes.dispatched
+      ? `Test email successfully dispatched to ${targetEmail} via Resend.`
+      : `Resend dispatch failed: ${dispatchRes.error || 'Provider rejected request'}`;
+
 
     return {
       success: dispatchRes.dispatched,

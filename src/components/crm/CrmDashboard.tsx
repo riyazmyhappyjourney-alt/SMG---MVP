@@ -1624,10 +1624,26 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
             </div>
             <select
               value={currentRole}
-              onChange={(e) => {
+              onChange={async (e) => {
                 const newRole = e.target.value as StaffRole;
                 setCurrentRole(newRole);
-                showToast(`Role switched to ${newRole}`, 'info');
+                try {
+                  const res = await fetch('/api/dev/switch-role', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ role: newRole }),
+                  });
+                  const data = await res.json();
+                  if (data.success && data.user) {
+                    sessionStorage.setItem('sellmyghar_staff_session', JSON.stringify({ user: data.user }));
+                    showToast(`Active session switched to ${data.user.displayName}`, 'success');
+                    setTimeout(() => window.location.reload(), 300);
+                    return;
+                  }
+                } catch {
+                  // Fallback to client-only role preview
+                }
+                showToast(`Role preview switched to ${newRole}`, 'info');
               }}
               className="w-full text-xs font-medium text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 outline-hidden cursor-pointer"
             >
