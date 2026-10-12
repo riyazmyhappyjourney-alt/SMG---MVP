@@ -95,6 +95,15 @@ app.use((req, _res, next) => {
   next();
 });
 
+// Ensure public/uploads exists and is served statically
+const localUploadsDir = path.resolve('public', 'uploads');
+if (!fs.existsSync(localUploadsDir)) {
+  try {
+    fs.mkdirSync(localUploadsDir, { recursive: true });
+  } catch {}
+}
+app.use('/uploads', express.static(localUploadsDir));
+
 // Standard body parser with strict limit (100kb for standard APIs)
 const jsonDefault = express.json({ limit: '100kb' });
 // Upload-specific body parser for large file uploads (20mb)
@@ -2090,14 +2099,34 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
         for (let i = 0; i < photos.length; i++) {
           const photoUrl = photos[i];
           if (typeof photoUrl === 'string' && photoUrl.trim()) {
+            let finalPhotoUrl = photoUrl.trim();
+            if (finalPhotoUrl.startsWith('data:image/')) {
+              try {
+                const matches = finalPhotoUrl.match(/^data:image\/([a-zA-Z0-9]+);base64,(.+)$/);
+                if (matches) {
+                  const ext = matches[1] === 'jpeg' ? 'jpg' : matches[1];
+                  const rawBuf = Buffer.from(matches[2], 'base64');
+                  const propUploadDir = path.resolve('public', 'uploads', propertyId);
+                  if (!fs.existsSync(propUploadDir)) {
+                    fs.mkdirSync(propUploadDir, { recursive: true });
+                  }
+                  const diskName = `photo-${i + 1}-${Date.now()}.${ext}`;
+                  fs.writeFileSync(path.join(propUploadDir, diskName), rawBuf);
+                  finalPhotoUrl = `/uploads/${propertyId}/${diskName}`;
+                }
+              } catch (pSaveErr: any) {
+                console.warn('[PropertyCreatePhotoSave] Fallback note:', pSaveErr.message);
+              }
+            }
+
             const mediaId = `media-${propertyId.slice(5, 12)}-${i}`;
-            const checksum = createHash('sha256').update(photoUrl).digest('hex');
+            const checksum = createHash('sha256').update(finalPhotoUrl).digest('hex');
             await client.query(
               `INSERT INTO property_media (
                 id, property_id, url, is_featured, checksum, created_at
               ) VALUES ($1, $2, $3, $4, $5, NOW())
               ON CONFLICT (id) DO NOTHING;`,
-              [mediaId, propertyId, photoUrl, i === 0, checksum]
+              [mediaId, propertyId, finalPhotoUrl, i === 0, checksum]
             );
           }
         }
@@ -3510,19 +3539,34 @@ const updateLeadStatusHandler = async (req: Request, res: Response) => {
       updatedLead = updateResult.rows[0];
 
       // Synchronously update linked property crm_status
+      let targetPropRes: any = null;
       if (updatedLead.property_id) {
-        await executeQuery(`
+        targetPropRes = await executeQuery(`
           UPDATE properties 
-          SET crm_status = $1, updated_at = NOW() 
-          WHERE id = $2;
+          SET crm_status = $1, 
+              verification_tier = CASE WHEN $1 IN ('APPROVED', 'VERIFIED') THEN 'LEVEL_2_DOCS_REVIEWED' ELSE verification_tier END,
+              updated_at = NOW() 
+          WHERE id = $2
+          RETURNING *;
         `, [targetStatus, updatedLead.property_id]);
       } else {
         // Fallback: update property owned by matching phone
-        await executeQuery(`
+        targetPropRes = await executeQuery(`
           UPDATE properties
-          SET crm_status = $1, updated_at = NOW()
-          WHERE owner_id = (SELECT id FROM users WHERE phone = $2 LIMIT 1);
+          SET crm_status = $1, 
+              verification_tier = CASE WHEN $1 IN ('APPROVED', 'VERIFIED') THEN 'LEVEL_2_DOCS_REVIEWED' ELSE verification_tier END,
+              updated_at = NOW()
+          WHERE owner_id = (SELECT id FROM users WHERE phone = $2 LIMIT 1)
+          RETURNING *;
         `, [targetStatus, updatedLead.phone]);
+      }
+
+      if ((targetStatus === 'APPROVED' || targetStatus === 'VERIFIED') && targetPropRes?.rows?.[0]) {
+        try {
+          await EmailNotificationService.handlePropertyApproved(targetPropRes.rows[0], req.user);
+        } catch (leadApprErr: any) {
+          console.warn('[LeadStatusPropertyApproved] Dispatch note:', leadApprErr.message);
+        }
       }
     } else {
       const updateResult = await executeQuery(`
@@ -6249,6 +6293,117 @@ app.post(
   }
 );
 
+// 4c. Update Property Status (Universal Status Manager: APPROVED, PUBLISHED, PAUSED, SOLD, ARCHIVED, DRAFT)
+const updatePropertyStatusHandler = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { status, newStatus } = req.body || {};
+    const targetStatus = String(status || newStatus || '').toUpperCase().trim();
+
+    if (!targetStatus) {
+      return res.status(400).json({ error: 'STATUS_REQUIRED', message: 'Target status is required.' });
+    }
+
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+
+    const existingCheck = await executeQuery(`SELECT * FROM properties WHERE id = $1 LIMIT 1;`, [id]);
+    if (!existingCheck.rows || existingCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'NOT_FOUND', message: 'Property not found.' });
+    }
+    const existing = existingCheck.rows[0];
+
+    let updateRes: any;
+    let emailResult: any = null;
+
+    if (targetStatus === 'APPROVED' || targetStatus === 'VERIFIED') {
+      const targetTier = existing.verification_tier === 'LEVEL_3_PHYSICALLY_INSPECTED'
+        ? 'LEVEL_3_PHYSICALLY_INSPECTED'
+        : 'LEVEL_2_DOCS_REVIEWED';
+
+      updateRes = await executeQuery(`
+        UPDATE properties
+        SET crm_status = 'APPROVED',
+            verification_tier = $1,
+            updated_at = NOW()
+        WHERE id = $2
+        RETURNING *;
+      `, [targetTier, id]);
+
+      try {
+        emailResult = await EmailNotificationService.handlePropertyApproved(updateRes.rows[0], req.user);
+      } catch (apprErr: any) {
+        console.warn('[CrmStatusApproved] Email dispatch note:', apprErr.message);
+      }
+    } else if (targetStatus === 'PUBLISHED') {
+      updateRes = await executeQuery(`
+        UPDATE properties
+        SET listing_status = 'PUBLISHED', updated_at = NOW()
+        WHERE id = $1
+        RETURNING *;
+      `, [id]);
+
+      try {
+        const mediaRes = await executeQuery(`SELECT id, url, is_featured FROM property_media WHERE property_id = $1;`, [id]);
+        emailResult = await EmailNotificationService.handlePropertyPublished(updateRes.rows[0], mediaRes.rows || [], req.user);
+      } catch (pubErr: any) {
+        console.warn('[CrmStatusPublished] Email dispatch note:', pubErr.message);
+      }
+    } else if (['PAUSED', 'SOLD', 'ARCHIVED', 'DRAFT'].includes(targetStatus)) {
+      updateRes = await executeQuery(`
+        UPDATE properties
+        SET listing_status = $1, updated_at = NOW()
+        WHERE id = $2
+        RETURNING *;
+      `, [targetStatus, id]);
+    } else {
+      updateRes = await executeQuery(`
+        UPDATE properties
+        SET crm_status = $1, updated_at = NOW()
+        WHERE id = $2
+        RETURNING *;
+      `, [targetStatus, id]);
+    }
+
+    await recordAuditEvent({
+      actor: req.user!,
+      action: 'PROPERTY_UPDATED',
+      targetEntity: 'properties',
+      targetEntityId: id,
+      clientIp,
+      diffSummary: {
+        previousListingStatus: existing.listing_status,
+        previousCrmStatus: existing.crm_status,
+        newStatus: targetStatus,
+      },
+    });
+
+    return res.json({
+      success: true,
+      message: `Property status updated to ${targetStatus}`,
+      property: updateRes.rows?.[0] || existing,
+      notification: emailResult,
+    });
+  } catch (err: any) {
+    console.error('[CrmPropertyStatusUpdate] Error:', err);
+    return res.status(500).json({ error: 'Failed to update property status' });
+  }
+};
+
+app.post(
+  '/api/crm/properties/:id/status',
+  jsonDefault,
+  authenticateUser,
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER', 'STAFF_DEAL_CLOSER'),
+  updatePropertyStatusHandler
+);
+app.patch(
+  '/api/crm/properties/:id/status',
+  jsonDefault,
+  authenticateUser,
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER', 'STAFF_DEAL_CLOSER'),
+  updatePropertyStatusHandler
+);
+
 // 5. Publish Property (Validates minimum required fields)
 app.post(
   '/api/crm/properties/:id/publish',
@@ -6812,8 +6967,8 @@ app.post(
       );
       const nextDisplayOrder = Number(orderRes.rows?.[0]?.next_order ?? 0);
 
-      let finalUrl: string;
-      let checksum: string;
+      let finalUrl: string = '';
+      let checksum: string = '';
       let storagePath: string | null = null;
       let mimeType: string = 'image/jpeg';
       let fileSize: number = 0;
@@ -6855,16 +7010,36 @@ app.post(
         storagePath = `${id}/${Date.now()}-${cleanBaseName}`;
         mimeType = detectedFormat === 'png' ? 'image/png' : detectedFormat === 'webp' ? 'image/webp' : 'image/jpeg';
 
+        let supabaseUploaded = false;
         if (client) {
-          const { error: uploadError } = await client.storage
-            .from(BUCKET_PROPERTY_MEDIA)
-            .upload(storagePath, buffer, { contentType: mimeType, upsert: true });
+          try {
+            const { error: uploadError } = await client.storage
+              .from(BUCKET_PROPERTY_MEDIA)
+              .upload(storagePath, buffer, { contentType: mimeType, upsert: true });
 
-          const { data: urlData } = client.storage.from(BUCKET_PROPERTY_MEDIA).getPublicUrl(storagePath);
-          finalUrl = urlData.publicUrl;
-        } else {
-          const supabaseProject = process.env.SUPABASE_PROJECT_ID || 'db.sellmyghar';
-          finalUrl = `https://${supabaseProject}.supabase.co/storage/v1/object/public/${BUCKET_PROPERTY_MEDIA}/${storagePath}`;
+            if (!uploadError) {
+              const { data: urlData } = client.storage.from(BUCKET_PROPERTY_MEDIA).getPublicUrl(storagePath);
+              if (urlData?.publicUrl) {
+                finalUrl = urlData.publicUrl;
+                supabaseUploaded = true;
+              }
+            } else {
+              console.warn(`[SupabaseStorage] File upload error: ${uploadError.message}`);
+            }
+          } catch (supaErr: any) {
+            console.warn(`[SupabaseStorage] File upload exception: ${supaErr.message}`);
+          }
+        }
+
+        if (!supabaseUploaded) {
+          const propUploadDir = path.resolve('public', 'uploads', id);
+          if (!fs.existsSync(propUploadDir)) {
+            fs.mkdirSync(propUploadDir, { recursive: true });
+          }
+          const diskFileName = `${Date.now()}-${cleanBaseName}`;
+          fs.writeFileSync(path.join(propUploadDir, diskFileName), buffer);
+          finalUrl = `/uploads/${id}/${diskFileName}`;
+          storagePath = `uploads/${id}/${diskFileName}`;
         }
       } else if (url && typeof url === 'string' && url.trim()) {
         // --- PATH B: URL ingestion with strict security pipeline ---
@@ -6976,16 +7151,36 @@ app.post(
         storagePath = `${id}/${Date.now()}-${cleanFileName}`;
         mimeType = detectedFormat === 'png' ? 'image/png' : detectedFormat === 'webp' ? 'image/webp' : 'image/jpeg';
 
+        let supabaseUploaded = false;
         if (client) {
-          const { error: uploadError } = await client.storage
-            .from(BUCKET_PROPERTY_MEDIA)
-            .upload(storagePath, remoteBytes, { contentType: mimeType, upsert: true });
+          try {
+            const { error: uploadError } = await client.storage
+              .from(BUCKET_PROPERTY_MEDIA)
+              .upload(storagePath, remoteBytes, { contentType: mimeType, upsert: true });
 
-          const { data: urlData } = client.storage.from(BUCKET_PROPERTY_MEDIA).getPublicUrl(storagePath);
-          finalUrl = urlData.publicUrl;
-        } else {
-          const supabaseProject = process.env.SUPABASE_PROJECT_ID || 'db.sellmyghar';
-          finalUrl = `https://${supabaseProject}.supabase.co/storage/v1/object/public/${BUCKET_PROPERTY_MEDIA}/${storagePath}`;
+            if (!uploadError) {
+              const { data: urlData } = client.storage.from(BUCKET_PROPERTY_MEDIA).getPublicUrl(storagePath);
+              if (urlData?.publicUrl) {
+                finalUrl = urlData.publicUrl;
+                supabaseUploaded = true;
+              }
+            } else {
+              console.warn(`[SupabaseStorage] Remote upload error: ${uploadError.message}`);
+            }
+          } catch (supaErr: any) {
+            console.warn(`[SupabaseStorage] Remote upload exception: ${supaErr.message}`);
+          }
+        }
+
+        if (!supabaseUploaded) {
+          const propUploadDir = path.resolve('public', 'uploads', id);
+          if (!fs.existsSync(propUploadDir)) {
+            fs.mkdirSync(propUploadDir, { recursive: true });
+          }
+          const diskFileName = `${Date.now()}-${cleanFileName}`;
+          fs.writeFileSync(path.join(propUploadDir, diskFileName), remoteBytes);
+          finalUrl = `/uploads/${id}/${diskFileName}`;
+          storagePath = `uploads/${id}/${diskFileName}`;
         }
       } else {
         return res.status(400).json({ error: 'IMAGE_DATA_REQUIRED', message: 'Either a file upload (fileBase64) or secure image URL is required.' });

@@ -2800,6 +2800,12 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                                 src={prop.image}
                                 alt={prop.projectName}
                                 className="w-10 h-10 rounded-xl object-cover border border-slate-200/80 shrink-0 shadow-2xs"
+                                onError={(e) => {
+                                  const target = e.target as HTMLImageElement;
+                                  if (!target.src.includes('images.unsplash.com')) {
+                                    target.src = 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80';
+                                  }
+                                }}
                               />
                               <div className="min-w-0">
                                 <p className="font-bold text-slate-900 group-hover:text-[#244B8F] transition-colors truncate">
@@ -5586,6 +5592,9 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
           onSaved={() => {
             setIsPropertyEditorOpen(false);
             setEditingProperty(null);
+            refreshAll();
+          }}
+          onUpdate={() => {
             refreshAll();
           }}
           staffRole={currentRole}

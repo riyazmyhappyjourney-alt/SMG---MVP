@@ -1409,6 +1409,97 @@ export class EmailNotificationService {
   // 6. WORKFLOW 3: PROPERTY APPROVED (Legal Diligence Completed)
   // ====================================================================
 
+  static async resolveOwnerDetails(property: any): Promise<{ email: string; name: string }> {
+    let ownerEmail = property.owner_email || property.ownerEmail || property.email;
+    let ownerName = property.owner_name || property.ownerName;
+
+    // 1. Inspect internal_verification_notes directly on property object
+    if (property.internal_verification_notes) {
+      try {
+        const notes = typeof property.internal_verification_notes === 'string'
+          ? JSON.parse(property.internal_verification_notes)
+          : property.internal_verification_notes;
+        if (!ownerEmail) ownerEmail = notes.ownerEmail || notes.sellerEmail || notes.email;
+        if (!ownerName) ownerName = notes.ownerName || notes.name;
+      } catch {}
+    }
+
+    // 2. Query properties table if notes or owner_id were missing from passed object
+    if ((!ownerEmail || !ownerName) && property.id) {
+      try {
+        const pDb = await executeQuery(`SELECT internal_verification_notes, owner_id FROM properties WHERE id = $1 LIMIT 1;`, [property.id]);
+        if (pDb.rows && pDb.rows.length > 0) {
+          const row = pDb.rows[0];
+          if (row.internal_verification_notes) {
+            try {
+              const notes = typeof row.internal_verification_notes === 'string'
+                ? JSON.parse(row.internal_verification_notes)
+                : row.internal_verification_notes;
+              if (!ownerEmail) ownerEmail = notes.ownerEmail || notes.sellerEmail || notes.email;
+              if (!ownerName) ownerName = notes.ownerName || notes.name;
+            } catch {}
+          }
+          if (!property.owner_id && row.owner_id) {
+            property.owner_id = row.owner_id;
+          }
+        }
+      } catch {}
+    }
+
+    // 3. Query users table by owner_id
+    if (property.owner_id && (!ownerEmail || !ownerName)) {
+      try {
+        const uRes = await executeQuery(`SELECT email, display_name FROM users WHERE id = $1 LIMIT 1;`, [property.owner_id]);
+        if (uRes.rows && uRes.rows[0]) {
+          if (!ownerEmail && uRes.rows[0].email) ownerEmail = uRes.rows[0].email;
+          if (!ownerName && uRes.rows[0].display_name) ownerName = uRes.rows[0].display_name;
+        }
+      } catch {}
+    }
+
+    // 4. Query seller_leads table by property_id
+    if (property.id && (!ownerEmail || !ownerName)) {
+      try {
+        const leadRes = await executeQuery(`SELECT email, owner_name FROM seller_leads WHERE property_id = $1 LIMIT 1;`, [property.id]);
+        if (leadRes.rows && leadRes.rows[0]) {
+          if (!ownerEmail && leadRes.rows[0].email) ownerEmail = leadRes.rows[0].email;
+          if (!ownerName && leadRes.rows[0].owner_name) ownerName = leadRes.rows[0].owner_name;
+        }
+      } catch {}
+    }
+
+    // 5. Query seller_leads and users by owner_phone if available
+    const phone = property.owner_phone || property.phone;
+    if (phone && (!ownerEmail || !ownerName)) {
+      try {
+        const leadPhoneRes = await executeQuery(`SELECT email, owner_name FROM seller_leads WHERE phone = $1 LIMIT 1;`, [phone]);
+        if (leadPhoneRes.rows && leadPhoneRes.rows[0]) {
+          if (!ownerEmail && leadPhoneRes.rows[0].email) ownerEmail = leadPhoneRes.rows[0].email;
+          if (!ownerName && leadPhoneRes.rows[0].owner_name) ownerName = leadPhoneRes.rows[0].owner_name;
+        }
+      } catch {}
+      if (!ownerEmail) {
+        try {
+          const userPhoneRes = await executeQuery(`SELECT email, display_name FROM users WHERE phone = $1 LIMIT 1;`, [phone]);
+          if (userPhoneRes.rows && userPhoneRes.rows[0]) {
+            if (!ownerEmail && userPhoneRes.rows[0].email) ownerEmail = userPhoneRes.rows[0].email;
+            if (!ownerName && userPhoneRes.rows[0].display_name) ownerName = userPhoneRes.rows[0].display_name;
+          }
+        } catch {}
+      }
+    }
+
+    const resolvedEmail = (ownerEmail && typeof ownerEmail === 'string' && ownerEmail.includes('@'))
+      ? ownerEmail.trim()
+      : (process.env.OPERATIONS_EMAIL || 'notifications@sellmyghar.in');
+
+    const resolvedName = (ownerName && typeof ownerName === 'string' && ownerName.trim())
+      ? ownerName.trim()
+      : 'Property Owner';
+
+    return { email: resolvedEmail, name: resolvedName };
+  }
+
   static async handlePropertyApproved(
     property: any,
     actor?: AuthenticatedUser
@@ -1418,20 +1509,7 @@ export class EmailNotificationService {
     const propId = String(property.id);
     const idempotencyKey = `approved-${propId}`;
 
-    // Resolve owner email: check property object or look up users table
-    let ownerEmail = property.owner_email || property.ownerEmail || property.email;
-    if (!ownerEmail && property.owner_id) {
-      try {
-        const uRes = await executeQuery(`SELECT email FROM users WHERE id = $1 LIMIT 1;`, [property.owner_id]);
-        if (uRes.rows && uRes.rows[0]?.email) {
-          ownerEmail = uRes.rows[0].email;
-        }
-      } catch {}
-    }
-
-    const recipient = (ownerEmail && ownerEmail.includes('@'))
-      ? ownerEmail.trim()
-      : (process.env.OPERATIONS_EMAIL || 'notifications@sellmyghar.in');
+    const { email: recipient, name: resolvedOwnerName } = await this.resolveOwnerDetails(property);
 
     const title = property.title || `${property.bhk_type || '2BHK'} Apartment in ${property.project_name || property.project_locality_id || 'Bengaluru'}`;
     const locality = property.locality_name || property.locality || property.project_locality_id || 'Bengaluru';
@@ -1447,8 +1525,8 @@ export class EmailNotificationService {
     const refId = property.reference_id || property.referenceId || `SMG-${propId.slice(-4)}`;
 
     const vars: Record<string, string> = {
-      customer_name: property.owner_name || property.ownerName || 'Property Owner',
-      owner_name: property.owner_name || property.ownerName || 'Property Owner',
+      customer_name: resolvedOwnerName,
+      owner_name: resolvedOwnerName,
       property_title: title,
       property_reference: refId,
       locality,
@@ -1490,6 +1568,8 @@ export class EmailNotificationService {
     const propId = String(property.id);
     const idempotencyKey = `pub-${propId}-v1`;
 
+    const { email: recipient, name: resolvedOwnerName } = await this.resolveOwnerDetails(property);
+
     const title = property.title || `${property.bhk_type || '2BHK'} Apartment in ${property.project_name || property.project_locality_id || 'Bengaluru'}`;
     const locality = property.locality_name || property.locality || property.project_locality_id || 'Bengaluru';
     const bhk = property.bhk_type || '2BHK';
@@ -1505,6 +1585,8 @@ export class EmailNotificationService {
     const propertyUrl = `${baseUrl}/#/property/${propId}`;
 
     const vars: Record<string, string> = {
+      customer_name: resolvedOwnerName,
+      owner_name: resolvedOwnerName,
       property_title: title,
       locality,
       property_type: pType,
@@ -1519,8 +1601,6 @@ export class EmailNotificationService {
     const template = await this.getTemplate('PROPERTY_PUBLISHED');
     const subject = this.renderTemplate(template.subject_template, vars);
     const html = this.renderTemplate(template.html_template, vars);
-
-    const recipient = process.env.OPERATIONS_EMAIL || 'notifications@sellmyghar.in';
 
     return this.dispatchEmail({
       recipient,

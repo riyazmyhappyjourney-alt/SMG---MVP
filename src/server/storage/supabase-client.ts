@@ -1,5 +1,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { createHash } from 'crypto';
+import fs from 'fs';
+import path from 'path';
 import { executeQuery } from '../db/pool';
 import { ClamAvScannerClient, PostUploadVerificationWorker } from './post-upload-worker';
 
@@ -164,9 +166,12 @@ export async function uploadPropertyPhotoToSupabase(
 
     if (uploadError) {
       if (process.env.ALLOW_DEV_FALLBACKS === 'true' && process.env.NODE_ENV !== 'production') {
-        console.warn(`[SupabaseStorage] Remote upload error (${uploadError.message}). Utilizing verified sandbox path.`);
-        const { data: urlData } = client.storage.from(BUCKET_PROPERTY_MEDIA).getPublicUrl(storagePath);
-        publicUrl = urlData.publicUrl;
+        console.warn(`[SupabaseStorage] Remote upload error (${uploadError.message}). Utilizing verified local uploads path.`);
+        const uploadsDir = path.resolve('public', 'uploads', propertyId);
+        if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+        const localFileName = `${Date.now()}-${cleanBaseName}`;
+        fs.writeFileSync(path.join(uploadsDir, localFileName), fileBuffer);
+        publicUrl = `/uploads/${propertyId}/${localFileName}`;
       } else {
         throw new Error(`STORAGE_UPLOAD_FAILED: ${uploadError.message}`);
       }
@@ -175,10 +180,13 @@ export async function uploadPropertyPhotoToSupabase(
       publicUrl = urlData.publicUrl;
     }
   } else {
-    // Sandbox / fallback Supabase URL structure strictly in development
+    // Sandbox / fallback local uploads path strictly in development
     if (process.env.ALLOW_DEV_FALLBACKS === 'true' && process.env.NODE_ENV !== 'production') {
-      const supabaseProject = process.env.SUPABASE_PROJECT_ID || 'db.sellmyghar';
-      publicUrl = `https://${supabaseProject}.supabase.co/storage/v1/object/public/${BUCKET_PROPERTY_MEDIA}/${storagePath}`;
+      const uploadsDir = path.resolve('public', 'uploads', propertyId);
+      if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+      const localFileName = `${Date.now()}-${cleanBaseName}`;
+      fs.writeFileSync(path.join(uploadsDir, localFileName), fileBuffer);
+      publicUrl = `/uploads/${propertyId}/${localFileName}`;
     } else {
       throw new Error('STORAGE_CLIENT_UNAVAILABLE: Supabase storage credentials are not configured.');
     }

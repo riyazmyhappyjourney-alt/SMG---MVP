@@ -11,3 +11,5 @@ scratch/
 *service-account*.json
 *.pem
 *.key
+public/uploads/*
+!public/uploads/.gitkeep

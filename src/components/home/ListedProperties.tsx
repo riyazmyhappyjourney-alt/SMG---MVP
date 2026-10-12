@@ -200,6 +200,12 @@ export const ListedProperties: React.FC<ListedPropertiesProps> = ({ onSelectProp
                     alt={property.projectName}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                     loading="lazy"
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      if (!target.src.includes('images.unsplash.com')) {
+                        target.src = 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80';
+                      }
+                    }}
                   />
                   
                   {/* Top-Left: "OWNER VERIFIED" Rounded Pill Badge */}

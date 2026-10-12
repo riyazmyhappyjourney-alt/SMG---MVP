@@ -32,6 +32,7 @@ interface PropertyEditorProps {
   isOpen: boolean;
   onClose: () => void;
   onSaved: () => void;
+  onUpdate?: () => void;
   staffRole?: StaffRole;
 }
 
@@ -57,12 +58,14 @@ export function PropertyEditor({
   isOpen,
   onClose,
   onSaved,
+  onUpdate,
   staffRole
 }: PropertyEditorProps) {
   const isCreate = !property || !property.id;
 
   const [activeTab, setActiveTab] = useState<EditorTab>('BASIC');
   const [saving, setSaving] = useState(false);
+  const [approving, setApproving] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -293,6 +296,30 @@ export function PropertyEditor({
     }
   };
 
+  // Status Transition: Approve (Legal Verification & Automated Confirmation Email)
+  const handleApprove = async () => {
+    if (!property?.id) return;
+    setApproving(true);
+    try {
+      const res = await fetch(`/api/crm/properties/${property.id}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.message || data.error || 'Failed to approve property');
+        return;
+      }
+      showToast('Property verified and approved! Automated confirmation email dispatched to owner.');
+      if (onUpdate) onUpdate();
+      else onSaved();
+    } catch (err: any) {
+      alert(err.message || 'Failed to approve property');
+    } finally {
+      setApproving(false);
+    }
+  };
+
   // Status Transition: Publish
   const handlePublish = async () => {
     if (!property?.id) {
@@ -439,7 +466,7 @@ export function PropertyEditor({
           if (res.ok && data.media) {
             setImages(prev => [...prev, data.media]);
             showToast('Photo verified with ClamAV and uploaded to gallery');
-            onSaved();
+            if (onUpdate) onUpdate();
           } else {
             alert(data.message || data.error || 'Failed to upload photo');
           }
@@ -475,7 +502,7 @@ export function PropertyEditor({
       });
       if (res.ok) {
         showToast('Gallery image ordering saved');
-        onSaved();
+        if (onUpdate) onUpdate();
       } else {
         const data = await res.json();
         alert(data.message || 'Failed to save image order');
@@ -507,7 +534,7 @@ export function PropertyEditor({
         setImages(prev => [...prev, data.media]);
         setNewImageUrl('');
         showToast('Image added to gallery');
-        onSaved();
+        if (onUpdate) onUpdate();
       } else {
         alert(data.error || 'Failed to add image');
       }
@@ -532,7 +559,7 @@ export function PropertyEditor({
           is_featured: img.id === imageId,
         })));
         showToast('Primary cover image updated');
-        onSaved();
+        if (onUpdate) onUpdate();
       }
     } catch {
       alert('Failed to set primary image');
@@ -549,7 +576,7 @@ export function PropertyEditor({
       if (res.ok) {
         setImages(prev => prev.filter(img => img.id !== imageId));
         showToast('Image removed from gallery');
-        onSaved();
+        if (onUpdate) onUpdate();
       }
     } catch {
       alert('Failed to delete image');
@@ -1161,7 +1188,17 @@ export function PropertyEditor({
                         }`}
                       >
                         <div className="aspect-4/3 w-full overflow-hidden bg-slate-100">
-                          <img src={img.url} alt="Property" className="w-full h-full object-cover" />
+                          <img 
+                            src={img.url} 
+                            alt="Property" 
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              if (!target.src.includes('images.unsplash.com')) {
+                                target.src = 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80';
+                              }
+                            }}
+                          />
                         </div>
                         
                         {img.is_featured && (
@@ -1377,6 +1414,18 @@ export function PropertyEditor({
           <div className="flex items-center space-x-2 overflow-x-auto w-full sm:w-auto">
             {!isCreate && (
               <>
+                {/* Approve Listing (Triggers legal approval + automated notification to owner) */}
+                <button
+                  type="button"
+                  disabled={approving || transitioning}
+                  onClick={handleApprove}
+                  className="px-3 py-1.5 rounded-lg bg-[#244B8F] hover:bg-[#1B396E] text-white font-bold text-xs flex items-center space-x-1.5 shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                  title="Approve legal documents and dispatch confirmation email to owner"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>{approving ? 'Approving...' : 'Approve & Notify Owner'}</span>
+                </button>
+
                 {/* DRAFT or PAUSED -> PUBLISH */}
                 {(listingStatus === 'DRAFT' || listingStatus === 'PAUSED') && (
                   <button
