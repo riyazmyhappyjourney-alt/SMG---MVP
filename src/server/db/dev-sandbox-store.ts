@@ -367,7 +367,7 @@ class DevSandboxStore {
       assigned_at: new Date(Date.now() - 86400000 * 2).toISOString(),
       property_id: null,
       next_follow_up_at: new Date(Date.now() - 1800000).toISOString(), // Overdue
-      follow_up_notes: 'Follow up on Kaveri EC download discrepancy.',
+      follow_up_notes: 'Follow up on Form 15 EC download discrepancy.',
       notes: 'Senior executive relocating to Singapore.',
       consent_record_id: 'cst-03',
       created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
@@ -447,7 +447,7 @@ class DevSandboxStore {
       public_address: 'Panathur / Balagere, East Bengaluru',
       floor_band: 'Floor 4 of 18 (Mid Floor)',
       developer_name: 'Sobha Limited',
-      description: 'Well-ventilated 2BHK residence with modular kitchen and Kaveri Form 15 verified title.',
+      description: 'Well-ventilated 2BHK residence with modular kitchen and Form 15 Encumbrance Certificate verified title.',
       amenities: ['Swimming Pool', 'Gymnasium', '24/7 Security', 'Power Backup'],
       verification_tier: 'LEVEL_3_PHYSICALLY_INSPECTED',
       internal_verification_notes: JSON.stringify({ verified: true }),

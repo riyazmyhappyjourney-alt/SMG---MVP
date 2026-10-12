@@ -32,7 +32,7 @@ export const BANGALORE_LOCALITIES_SEO: LocalitySeoProfile[] = [
     corridorHighlight: 'Airport Expressway & Bellary Road Corridor',
     tagline: 'High-liquidity luxury and premium gated residential corridor with direct airport transit.',
     summary: 'Hebbal serves as the gateway to North Bengaluru, anchoring major tech parks like Manyata Embassy Business Park and providing express signal-free access to Kempegowda International Airport.',
-    resaleDynamics: 'Resale demand in Hebbal is heavily driven by senior technology leaders, aviation executives, and healthcare professionals seeking well-maintained gated communities with established association management and clear Kaveri 2.0 documentation.',
+    resaleDynamics: 'Resale demand in Hebbal is heavily driven by senior technology leaders, aviation executives, and healthcare professionals seeking well-maintained gated communities with established association management and clear registered deed documentation.',
     buyerDemandDrivers: [
       'Immediate access to Manyata Tech Park and KIAL Airport Expressway',
       'Established social infrastructure (Columbia Asia / Manipal Hospital, Vidyashilp Academy)',
@@ -58,7 +58,7 @@ export const BANGALORE_LOCALITIES_SEO: LocalitySeoProfile[] = [
     localFaqs: [
       {
         question: 'What documentation is required to sell an apartment in Hebbal?',
-        answer: 'Sellers must present an updated 15–30 year Kaveri 2.0 Encumbrance Certificate (EC), BBMP A-Khata extract, paid property tax receipts, registered Sale Deed, Society Occupancy Certificate (OC), and Society NOC.'
+        answer: 'Sellers must present an updated 15–30 year Form 15 Encumbrance Certificate (EC), BBMP A-Khata extract, paid property tax receipts, registered Sale Deed, Society Occupancy Certificate (OC), and Society NOC.'
       },
       {
         question: 'How long does a flat in Hebbal typically take to find a verified buyer?',
@@ -70,7 +70,7 @@ export const BANGALORE_LOCALITIES_SEO: LocalitySeoProfile[] = [
       },
       {
         question: 'How does SellMyGhar assist homeowners selling in Hebbal?',
-        answer: 'SellMyGhar provides pricing benchmarking from actual Kaveri 2.0 registrations, legal title diligence, professional photo presentation, and screened site visits with verified buyers.'
+        answer: 'SellMyGhar provides pricing benchmarking from actual registered Sub-Registrar sale deeds, legal title diligence, professional photo presentation, and screened site visits with verified buyers.'
       }
     ]
   },
@@ -159,8 +159,8 @@ export const BANGALORE_LOCALITIES_SEO: LocalitySeoProfile[] = [
         answer: 'Yelahanka New Town features planned municipal layouts, established BWSSB Cauvery water supply lines, and low commercial density.'
       },
       {
-        question: 'What is the impact of Kaveri 2.0 on property sales in Yelahanka?',
-        answer: 'The Karnataka Kaveri 2.0 system enables online valuation and encumbrance verification, reducing deed registration turnaround at the Yelahanka Sub-Registrar Office to under 2 hours.'
+        question: 'What is the deed registration turnaround in Yelahanka?',
+        answer: 'Sub-Registrar computerized valuation and encumbrance verification expedite deed registration turnaround at the Yelahanka Sub-Registrar Office to under 2 hours.'
       },
       {
         question: 'Are older apartments (8–12 years) easy to sell in Yelahanka?',
@@ -258,7 +258,7 @@ export const BANGALORE_LOCALITIES_SEO: LocalitySeoProfile[] = [
       },
       {
         question: 'What is the typical time from agreement to registration in Hennur?',
-        answer: 'Standard timeline is 20 to 35 days, allowing time for buyer bank legal scrutiny, loan disbursement, and Kaveri 2.0 slot booking.'
+        answer: 'Standard timeline is 20 to 35 days, allowing time for buyer bank legal scrutiny, loan disbursement, and Sub-Registrar appointment booking.'
       }
     ]
   },
@@ -304,7 +304,7 @@ export const BANGALORE_LOCALITIES_SEO: LocalitySeoProfile[] = [
       },
       {
         question: 'What are the essential documents needed for selling an apartment in Whitefield?',
-        answer: 'Kaveri 2.0 EC, BBMP A-Khata certificate & extract, all prior parent sale deeds, OC, latest tax receipt, and society NOC.'
+        answer: 'Form 15 Encumbrance Certificate (EC), BBMP A-Khata certificate & extract, all prior parent sale deeds, OC, latest tax receipt, and society NOC.'
       },
       {
         question: 'Can SellMyGhar handle negotiations with NRI buyers for Whitefield properties?',
@@ -353,7 +353,7 @@ export const BANGALORE_LOCALITIES_SEO: LocalitySeoProfile[] = [
       },
       {
         question: 'How does SellMyGhar price a flat on Sarjapur Road accurately?',
-        answer: 'We analyze recent recorded transactions on the Kaveri 2.0 portal for your exact builder and compare against live, verified buyer demand.'
+        answer: 'We analyze recent recorded Sub-Registrar transactions for your exact builder and compare against live, verified buyer demand.'
       },
       {
         question: 'What is the typical advance token amount upon agreement?',
@@ -401,7 +401,7 @@ export const BANGALORE_LOCALITIES_SEO: LocalitySeoProfile[] = [
         answer: 'Societies with established BWSSB Cauvery lines, functional STPs, and green lake-setback clearances command healthy 10–15% valuation premiums.'
       },
       {
-        question: 'What is the role of Kaveri 2.0 registration for Bellandur properties?',
+        question: 'Where is the deed registration conducted for Bellandur properties?',
         answer: 'Registrations are completed through the Shivajinagar or Bommanahalli Sub-Registrar jurisdictions with computerized verification of stamp duty.'
       },
       {
@@ -447,7 +447,7 @@ export const BANGALORE_LOCALITIES_SEO: LocalitySeoProfile[] = [
       },
       {
         question: 'What is the documentation standard in HSR Layout?',
-        answer: 'Most properties are clear BDA allotments or BBMP A-Khata with flawless 30-year Kaveri 2.0 encumbrance history, facilitating rapid 15-day bank processing.'
+        answer: 'Most properties are clear BDA allotments or BBMP A-Khata with flawless 30-year Form 15 encumbrance history, facilitating rapid 15-day bank processing.'
       },
       {
         question: 'Can I sell my HSR apartment if there is an existing home loan on it?',
@@ -496,7 +496,7 @@ export const BANGALORE_LOCALITIES_SEO: LocalitySeoProfile[] = [
       },
       {
         question: 'How is the Khata transfer handled after selling a flat in JP Nagar?',
-        answer: 'SellMyGhar guides both seller and buyer through BBMP e-Aasthi digital Khata transfer following Kaveri 2.0 Sub-Registrar execution.'
+        answer: 'SellMyGhar guides both seller and buyer through BBMP e-Aasthi digital Khata transfer following Sub-Registrar deed execution.'
       },
       {
         question: 'Are South Bengaluru buyers willing to pay premiums for Vastu compliance?',
@@ -545,7 +545,7 @@ export const BANGALORE_LOCALITIES_SEO: LocalitySeoProfile[] = [
       },
       {
         question: 'What is the title diligence process for prime central Bengaluru properties?',
-        answer: 'Title searches require scrutinizing 30-year parent deeds, original BDA allotment letters, possession certificates, and complete encumbrance traces through Kaveri 2.0.'
+        answer: 'Title searches require scrutinizing 30-year parent deeds, original BDA allotment letters, possession certificates, and complete encumbrance traces through the Karnataka Sub-Registrar registry.'
       },
       {
         question: 'Can NRI homeowners sell their Indiranagar flat without travelling to India?',

@@ -141,24 +141,24 @@ export const Hero: React.FC<HeroProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handlePrevSlide, handleNextSlide]);
 
-  // Auto-advancement timer for hero slides (every 6 seconds, paused on hover)
+  // Auto-advancement loop timer for hero slides (advances every 2.0 seconds)
   useEffect(() => {
     if (isPaused || slideCount <= 1) return;
 
     const timer = setInterval(() => {
       setActiveSlide((prev) => (prev + 1) % slideCount);
-    }, 6000);
+    }, 2000);
 
     return () => clearInterval(timer);
   }, [isPaused, slideCount]);
 
-  // Continuous, perpetual ticking loop for locality ticker (advances every 2.0s)
+  // Continuous, perpetual ticking loop for locality ticker (advances every 1.8s in infinite loop)
   const [localityTick, setLocalityTick] = useState(0);
 
   useEffect(() => {
     const ticker = setInterval(() => {
       setLocalityTick((prev) => prev + 1);
-    }, 2000);
+    }, 1800);
 
     return () => clearInterval(ticker);
   }, []);

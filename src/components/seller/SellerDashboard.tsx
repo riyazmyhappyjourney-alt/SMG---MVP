@@ -877,7 +877,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                   <Clock className="w-4 h-4 text-amber-500" />
                 </div>
                 <p className="text-[11px] font-bold text-slate-600 mt-1">Under Diligence</p>
-                <span className="text-[10px] text-slate-400">Kaveri portal check</span>
+                <span className="text-[10px] text-slate-400">Title registry check</span>
               </div>
 
               {/* Chip 3: RM Site Visits */}

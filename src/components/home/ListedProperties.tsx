@@ -10,6 +10,7 @@ import {
   PhoneCall
 } from 'lucide-react';
 import { motion } from 'motion/react';
+import { getFavoritePropertyIds, toggleFavoriteProperty } from '../../utils/favoritesStore';
 
 interface PropertyItem {
   id: string;
@@ -37,7 +38,7 @@ export const ListedProperties: React.FC<ListedPropertiesProps> = ({ onSelectProp
   const [loading, setLoading] = useState(true);
   const [bhkFilter, setBhkFilter] = useState<string>('ALL');
   const [localityFilter, setLocalityFilter] = useState<string>('ALL');
-  const [favorites, setFavorites] = useState<Set<string>>(new Set());
+  const [favorites, setFavorites] = useState<Set<string>>(new Set(getFavoritePropertyIds()));
 
   useEffect(() => {
     async function fetchListings() {
@@ -56,18 +57,17 @@ export const ListedProperties: React.FC<ListedPropertiesProps> = ({ onSelectProp
       }
     }
     fetchListings();
+
+    const handleFavUpdated = (e: any) => {
+      setFavorites(new Set(e.detail?.ids || getFavoritePropertyIds()));
+    };
+    window.addEventListener('smg:favorites-updated', handleFavUpdated);
+    return () => window.removeEventListener('smg:favorites-updated', handleFavUpdated);
   }, []);
 
-  const toggleFavorite = (id: string) => {
-    setFavorites((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
+  const handleToggleFavorite = (id: string) => {
+    toggleFavoriteProperty(id);
+    setFavorites(new Set(getFavoritePropertyIds()));
   };
 
   const formatPriceLakhsOrCrores = (priceInr: number) => {
@@ -87,19 +87,19 @@ export const ListedProperties: React.FC<ListedPropertiesProps> = ({ onSelectProp
     <section id="listings" className="py-16 sm:py-24 bg-[#F4F6F9] border-t border-slate-200/80 scroll-mt-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
-        {/* Section Header Matching Reference Image */}
+        {/* Section Header: Authenticated Bengaluru Resale Inventory Terminology */}
         <div className="mb-8 sm:mb-10 text-left">
           <div className="flex items-center space-x-2 mb-2">
             <span className="w-6 h-0.5 bg-[#244B8F] rounded-full" />
             <span className="text-xs font-bold uppercase tracking-wider text-[#244B8F]">
-              Our Featured Properties
+              Direct Owner Resales
             </span>
           </div>
           <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-[#172033] tracking-tight font-['Montserrat']">
-            Explore Our Premium Listings
+            Verified Bengaluru Apartment Inventory
           </h2>
           <p className="mt-2 text-sm text-slate-500 font-normal leading-relaxed max-w-2xl font-['Poppins']">
-            From modern apartments to spacious family homes, find properties that match your needs. Browse our handpicked listings and take the next step toward your dream home.
+            Pre-screened title deeds, verified registration pricing benchmarks, and escorted walkthroughs across Bengaluru's high-demand residential corridors. Zero duplicate broker listings.
           </p>
         </div>
 
@@ -197,7 +197,7 @@ export const ListedProperties: React.FC<ListedPropertiesProps> = ({ onSelectProp
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      toggleFavorite(property.id);
+                      handleToggleFavorite(property.id);
                     }}
                     className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/80 backdrop-blur-xs hover:bg-white flex items-center justify-center text-slate-600 hover:text-rose-500 transition-all shadow-xs cursor-pointer"
                     aria-label="Save to favorites"
@@ -248,7 +248,7 @@ export const ListedProperties: React.FC<ListedPropertiesProps> = ({ onSelectProp
                     </div>
                   </div>
 
-                  {/* Bottom Row Matching Reference: Bold Price on Left, "View Details →" Pill Button on Right */}
+                  {/* Bottom Row Matching Reference: Bold Price on Left, "View Property →" Pill Button on Right */}
                   <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
                     <div className="flex flex-col">
                       <span className="text-lg font-extrabold text-[#172033] tracking-tight font-['Montserrat']">
@@ -277,7 +277,7 @@ export const ListedProperties: React.FC<ListedPropertiesProps> = ({ onSelectProp
                         rel="noopener noreferrer"
                         className="px-4 py-2 rounded-full border border-slate-300 hover:border-[#244B8F] hover:bg-[#244B8F] hover:text-white text-xs font-semibold text-slate-700 transition-all flex items-center space-x-1 cursor-pointer group/btn"
                       >
-                        <span>View Details</span>
+                        <span>View Property</span>
                         <ArrowRight className="w-3.5 h-3.5 group-hover/btn:translate-x-0.5 transition-transform" />
                       </a>
                     </div>

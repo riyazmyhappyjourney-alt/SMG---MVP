@@ -12,7 +12,6 @@ import {
   AlertCircle,
   Eye,
   Sliders,
-  Sparkles,
   Info
 } from 'lucide-react';
 import { safeFetchJson } from '../../utils/safeApi';

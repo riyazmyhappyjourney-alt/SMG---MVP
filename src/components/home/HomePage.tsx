@@ -7,7 +7,7 @@ import { ListedProperties } from './ListedProperties';
 import { Footer } from './Footer';
 import { SellFlatPopupModal } from './SellFlatPopupModal';
 import { BuyerSearchPopupModal } from './BuyerSearchPopupModal';
-import { GuideModal } from './GuideModal';
+import { FavoritesModal } from './FavoritesModal';
 import { UserAuthProfile } from '../../types/user';
 import { trackEvent } from '../../utils/analytics';
 
@@ -31,8 +31,7 @@ export const HomePage: React.FC<HomePageProps> = ({
 }) => {
   const [isSellModalOpen, setIsSellModalOpen] = useState(false);
   const [isBuyerModalOpen, setIsBuyerModalOpen] = useState(false);
-  const [activeGuideId, setActiveGuideId] = useState<string | null>(null);
-  const [isGuideModalOpen, setIsGuideModalOpen] = useState(false);
+  const [isFavoritesModalOpen, setIsFavoritesModalOpen] = useState(false);
 
   const scrollToListings = () => {
     const el = document.getElementById('listings');
@@ -86,10 +85,7 @@ export const HomePage: React.FC<HomePageProps> = ({
           if (onNavigateToDashboard) onNavigateToDashboard();
         }}
         onTabClick={handleTabClick}
-        onOpenGuide={(guideId) => {
-          setActiveGuideId(guideId);
-          setIsGuideModalOpen(true);
-        }}
+        onFavoritesClick={() => setIsFavoritesModalOpen(true)}
       />
 
       <main className="flex-1">
@@ -143,10 +139,9 @@ export const HomePage: React.FC<HomePageProps> = ({
         }}
       />
 
-      <GuideModal
-        isOpen={isGuideModalOpen}
-        guideId={activeGuideId}
-        onClose={() => setIsGuideModalOpen(false)}
+      <FavoritesModal
+        isOpen={isFavoritesModalOpen}
+        onClose={() => setIsFavoritesModalOpen(false)}
       />
     </div>
   );
