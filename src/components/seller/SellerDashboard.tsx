@@ -373,14 +373,21 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
     try {
       const phoneParam = user?.phone ? user.phone.replace(/\D/g, '').slice(-10) : (user?.name?.match(/\d{10}/)?.[0] || '');
       const url = phoneParam ? `/api/properties?phone=${phoneParam}` : '/api/properties';
-      const res = await fetch(url);
-      const data = await res.json();
+      const res = await fetch(url, { credentials: 'include' });
+      if (res.status === 401) {
+        setProperties([]);
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.success) {
         throw new Error(data.error || 'Failed to load properties');
       }
       setProperties(data.properties || []);
     } catch (err: any) {
-      setError(err.message || 'Error connecting to database');
+      const msg = err?.message || 'Error connecting to database';
+      if (!msg.includes('UNAUTHORIZED')) {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -391,7 +398,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
     try {
       const phoneParam = user?.phone ? user.phone.replace(/\D/g, '').slice(-10) : (user?.name?.match(/\d{10}/)?.[0] || '');
       const url = phoneParam ? `/api/properties?phone=${phoneParam}` : '/api/properties';
-      const res = await fetch(url);
+      const res = await fetch(url, { credentials: 'include' });
       if (res.ok) {
         const data = await res.json();
         if (data.success && Array.isArray(data.properties)) {
@@ -1056,7 +1063,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                   <div className="space-y-4">
                     {filteredProperties.map((property) => {
                       const isRent = (property.listing_intent || property.intent) === 'RENT';
-                      const isListed = property.status === 'LISTED';
+                      const isListed = property.status === 'LISTED' || (property as any).listingStatus === 'PUBLISHED';
                       const isLost = Boolean(property.progressTracker?.isLost || property.crm_status === 'LOST' || property.status === 'LOST');
                       // Calculate simple document status from backend documents without building extra workflows
                       const docList = property.documents ? Object.values(property.documents) : [];

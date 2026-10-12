@@ -139,7 +139,7 @@ export function SellerFunnel({
 
   // Auto-fill active session user credentials if available
   useEffect(() => {
-    fetch('/api/auth/me')
+    fetch('/api/auth/me', { credentials: 'include' })
       .then(res => res.json())
       .then(data => {
         if (data.authenticated && data.user) {

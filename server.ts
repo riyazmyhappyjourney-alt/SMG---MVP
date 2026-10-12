@@ -2311,7 +2311,8 @@ app.get('/api/properties', authenticateUser, async (req, res) => {
         sl.next_follow_up_at,
         sl.follow_up_notes,
         p.created_at,
-        p.updated_at
+        p.updated_at,
+        COALESCE(p.listing_status, 'DRAFT') AS listing_status
       FROM properties p
       LEFT JOIN seller_leads sl ON (sl.property_id = p.id OR sl.phone = (SELECT phone FROM users WHERE id = p.owner_id LIMIT 1))
       LEFT JOIN users staff ON staff.id = sl.assigned_staff_id
@@ -2413,15 +2414,28 @@ app.get('/api/properties', authenticateUser, async (req, res) => {
       const status = authoritativeStatus;
 
       const stageBadgeMap: Record<string, string> = {
-        NEW: 'New Lead',
-        CONTACTED: 'Contacted',
+        NEW: 'Submitted',
+        CONTACTED: 'RM Contacted',
         FOLLOW_UP: 'Follow Up',
         SITE_VISIT: 'Site Visit',
         NEGOTIATION: 'Negotiation',
         CONVERTED: 'Converted',
         LOST: 'Inquiry Closed',
       };
-      const stageBadgeLabel = stageBadgeMap[authoritativeStatus] || authoritativeStatus;
+      const listingStatus = String(row.listing_status || 'DRAFT').toUpperCase();
+      const listingBadgeMap: Record<string, string> = {
+        PUBLISHED: 'Live on Market',
+        PENDING_REVIEW: 'Under Review',
+        DRAFT: 'Under Review',
+        PAUSED: 'Paused',
+        SOLD: 'Sold',
+        ARCHIVED: 'Archived',
+        REJECTED: 'Changes Needed',
+      };
+      // Owner-facing badge: CRM progress beyond NEW wins; otherwise show listing approval state.
+      const stageBadgeLabel = authoritativeStatus !== 'NEW' && stageBadgeMap[authoritativeStatus]
+        ? stageBadgeMap[authoritativeStatus]
+        : (listingBadgeMap[listingStatus] || stageBadgeMap[authoritativeStatus] || authoritativeStatus);
 
       const trackerStages = [
         { key: 'NEW', label: 'New Lead', shortDesc: 'Intake Registered' },
@@ -2545,6 +2559,7 @@ app.get('/api/properties', authenticateUser, async (req, res) => {
         furnishing: notes.furnishing || 'Semi-Furnished',
         status,
         crm_status: authoritativeStatus,
+        listingStatus,
         stageBadgeLabel,
         progressTracker: {
           currentStatus: authoritativeStatus,
