@@ -8,7 +8,7 @@ This ledger tracks verified Git checkpoints throughout the SellMyGhar.in UI rede
 
 ### Checkpoint 0: Existing Working Baseline
 * **Phase:** Baseline verification before complete Google Stitch UI redesign.
-* **Commit Hash:** `7a5cf41`
+* **Commit Hash:** `4c11666`
 * **Base Commit:** `1bdfa8d` (`checkpoint: verified CRM bug fixes, RBAC permissions, and UI refinement`)
 * **Branch:** `main`
 * **Date:** October 12, 2026
