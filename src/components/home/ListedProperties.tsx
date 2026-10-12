@@ -287,17 +287,17 @@ export const ListedProperties: React.FC<ListedPropertiesProps> = ({ onSelectProp
 
                   <div className="border-t border-slate-100" />
 
-                  {/* Action Buttons: View Property ↗ (Blue) & Quick Enquiry (Slate) */}
+                  {/* Action Buttons: View Property ↗ (Blue) & Quick Call (Slate) */}
                   <div className="flex items-center space-x-2.5 pt-0.5">
                     <a
                       href={`/property/${property.id}`}
                       target={isMobile ? '_self' : '_blank'}
                       rel={isMobile ? undefined : 'noopener noreferrer'}
                       onClick={(e) => e.stopPropagation()}
-                      className="flex-1 py-2.5 px-3 bg-[#244B8F] hover:bg-[#1B396E] text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center space-x-1.5 font-['Montserrat'] cursor-pointer"
+                      className="group/view flex-1 relative overflow-hidden py-2.5 px-3 bg-[#244B8F] hover:bg-[#1B396E] text-white font-bold text-xs rounded-xl shadow-xs hover:shadow-md transition-all duration-200 flex items-center justify-center space-x-1.5 font-['Montserrat'] cursor-pointer hover:scale-[1.02] active:scale-[0.98] before:absolute before:inset-0 before:-translate-x-full hover:before:translate-x-full before:bg-gradient-to-r before:from-transparent before:via-white/25 before:to-transparent before:transition-transform before:duration-700"
                     >
                       <span>View Property</span>
-                      <ArrowUpRight className="w-3.5 h-3.5" />
+                      <ArrowUpRight className="w-3.5 h-3.5 group-hover/view:translate-x-0.5 group-hover/view:-translate-y-0.5 transition-transform duration-200" />
                     </a>
 
                     <button
@@ -306,10 +306,11 @@ export const ListedProperties: React.FC<ListedPropertiesProps> = ({ onSelectProp
                         e.stopPropagation();
                         onSelectProperty(property.projectName, property.localityName, property.bhkType);
                       }}
-                      className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 border border-slate-200/80 text-slate-800 font-bold text-xs rounded-xl transition-colors flex items-center justify-center space-x-1.5 font-['Montserrat'] cursor-pointer shrink-0"
+                      className="group/call py-2.5 px-3 bg-slate-100 hover:bg-emerald-50/90 border border-slate-200/80 hover:border-emerald-300 text-slate-800 hover:text-emerald-800 font-bold text-xs rounded-xl transition-all duration-200 flex items-center justify-center space-x-1.5 font-['Montserrat'] cursor-pointer shrink-0 hover:scale-[1.02] active:scale-[0.98] shadow-2xs hover:shadow-xs"
+                      title="Quick Call Enquiry"
                     >
-                      <PhoneCall className="w-3.5 h-3.5 text-slate-600" />
-                      <span>Quick Enquiry</span>
+                      <PhoneCall className="w-3.5 h-3.5 text-slate-600 group-hover/call:text-emerald-600 group-hover-phone-ring transition-colors" />
+                      <span>Quick Call</span>
                     </button>
                   </div>
 

@@ -123,4 +123,43 @@ h1, h2, h3, h4, h5, h6 {
     animation: none;
     transform: translateY(0%);
   }
+  .animate-phone-ring,
+  .group\/call:hover .group-hover-phone-ring,
+  .group:hover .group-hover-phone-ring {
+    animation: none;
+  }
+}
+
+/* Quick Call Phone Ringing / Shake Animation */
+@keyframes phoneRing {
+  0%, 100% {
+    transform: rotate(0deg) scale(1);
+  }
+  15% {
+    transform: rotate(-16deg) scale(1.15);
+  }
+  30% {
+    transform: rotate(16deg) scale(1.15);
+  }
+  45% {
+    transform: rotate(-10deg) scale(1.1);
+  }
+  60% {
+    transform: rotate(10deg) scale(1.1);
+  }
+  75% {
+    transform: rotate(-5deg) scale(1.05);
+  }
+  90% {
+    transform: rotate(5deg) scale(1.05);
+  }
+}
+
+.animate-phone-ring {
+  animation: phoneRing 0.85s ease-in-out infinite;
+}
+
+.group\/call:hover .group-hover-phone-ring,
+.group:hover .group-hover-phone-ring {
+  animation: phoneRing 0.85s ease-in-out infinite;
 }
