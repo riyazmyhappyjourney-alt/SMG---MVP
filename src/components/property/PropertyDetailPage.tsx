@@ -38,6 +38,8 @@ import {
   Stethoscope,
   GraduationCap,
   ArrowRight,
+  ArrowUpRight,
+  PhoneCall,
   Copy
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -1127,9 +1129,9 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                       window.open(url, '_blank', 'noopener,noreferrer');
                     }
                   }}
-                  className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-xs hover:shadow-lg transition-all duration-300 flex flex-col group cursor-pointer"
+                  className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-xs hover:shadow-xl transition-all duration-300 flex flex-col group cursor-pointer"
                 >
-                  {/* Card Image Container */}
+                  {/* Photo & Badges Matching Reference Design */}
                   <div className="relative aspect-16/10 overflow-hidden bg-slate-100">
                     <img
                       src={sim.image}
@@ -1138,32 +1140,48 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                       loading="lazy"
                     />
 
-                    {/* Badge bottom-left: BHK type pill */}
-                    <div className="absolute bottom-3 left-3">
-                      <span className="px-3 py-1 rounded-full bg-[#244B8F] text-white text-[11px] font-bold shadow-md tracking-wide font-['Montserrat']">
-                        {sim.bhkType}
+                    {/* Top-Left: "OWNER VERIFIED" Rounded Pill Badge */}
+                    <div className="absolute top-3 left-3">
+                      <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full bg-[#1E3A8A]/90 backdrop-blur-xs text-white text-[11px] font-bold tracking-wide shadow-xs font-['Montserrat']">
+                        <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                        <span>OWNER VERIFIED</span>
                       </span>
                     </div>
 
-                    {/* Heart button top-right */}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleFavoriteProperty(sim.id);
-                        showToast('Updated favorite properties');
-                      }}
-                      className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/80 backdrop-blur-xs hover:bg-white flex items-center justify-center text-slate-600 hover:text-rose-500 transition-all shadow-xs cursor-pointer"
-                      aria-label="Save to favorites"
-                    >
-                      <Heart className="w-4 h-4 text-slate-600" />
-                    </button>
+                    {/* Top-Right: BHK Pill Badge + Heart Favorite Button */}
+                    <div className="absolute top-3 right-3 flex items-center space-x-1.5">
+                      <span className="px-2.5 py-1 rounded-md bg-[#172033]/90 backdrop-blur-xs text-white text-[11px] font-bold shadow-xs font-['Montserrat']">
+                        {sim.bhkType}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleFavoriteProperty(sim.id);
+                          showToast('Updated favorite properties');
+                        }}
+                        className="w-7 h-7 rounded-full bg-white/80 backdrop-blur-xs hover:bg-white flex items-center justify-center text-slate-600 hover:text-rose-500 transition-all shadow-xs cursor-pointer"
+                        aria-label="Save to favorites"
+                      >
+                        <Heart className="w-3.5 h-3.5 text-slate-600" />
+                      </button>
+                    </div>
+
+                    {/* Bottom Image Overlay Strip: Price on Left, Price/Sq.ft on Right */}
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent pt-8 pb-3 px-4 flex items-baseline justify-between text-white">
+                      <span className="text-xl sm:text-2xl font-extrabold tracking-tight font-['Montserrat']">
+                        {formatPriceCroresOrLakhs(sim.askingPriceInr)}
+                      </span>
+                      <span className="text-xs text-slate-300 font-['Poppins']">
+                        ₹{sim.pricePerSqft.toLocaleString('en-IN')}/sq.ft
+                      </span>
+                    </div>
                   </div>
 
                   {/* Card Content Details */}
-                  <div className="p-5 flex-1 flex flex-col justify-between space-y-3.5 text-left">
+                  <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3.5 text-left">
                     <div>
-                      <h3 className="text-base font-bold text-[#172033] font-['Montserrat'] group-hover:text-[#244B8F] transition-colors leading-snug">
+                      <h3 className="text-base sm:text-lg font-bold text-[#172033] font-['Montserrat'] group-hover:text-[#244B8F] transition-colors leading-snug">
                         {sim.projectName}
                       </h3>
                       <p className="text-xs text-slate-500 font-['Poppins'] flex items-center mt-1">
@@ -1172,42 +1190,59 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                       </p>
                     </div>
 
-                    {/* Features Row: Beds, Baths, Sqft */}
-                    <div className="flex items-center justify-between text-xs text-slate-600 pt-3 border-t border-slate-100 font-['Poppins']">
-                      <div className="flex items-center space-x-1.5">
-                        <Bed className="w-4 h-4 text-slate-400" />
-                        <span className="font-medium text-slate-700">{sim.bhkType.replace('BHK', '')} Beds</span>
+                    <div className="border-t border-slate-100" />
+
+                    {/* 3 Specifications Tiles: SBUA Area | Facing | Floor */}
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="bg-slate-50/80 rounded-xl p-2.5 text-center border border-slate-100 flex flex-col items-center justify-center">
+                        <Maximize2 className="w-3.5 h-3.5 text-[#244B8F] mb-1" />
+                        <span className="text-xs font-bold text-slate-800 font-['Montserrat'] leading-tight">
+                          {sim.superBuiltUpSqft.toLocaleString('en-IN')} sq.ft
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-['Poppins'] mt-0.5">SBUA Area</span>
                       </div>
-                      <div className="flex items-center space-x-1.5">
-                        <Bath className="w-4 h-4 text-slate-400" />
-                        <span className="font-medium text-slate-700">2 Baths</span>
+
+                      <div className="bg-slate-50/80 rounded-xl p-2.5 text-center border border-slate-100 flex flex-col items-center justify-center">
+                        <Compass className="w-3.5 h-3.5 text-[#244B8F] mb-1" />
+                        <span className="text-xs font-bold text-slate-800 font-['Montserrat'] uppercase leading-tight">
+                          {sim.facing || 'EAST'}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-['Poppins'] mt-0.5">Facing</span>
                       </div>
-                      <div className="flex items-center space-x-1.5">
-                        <Maximize2 className="w-4 h-4 text-slate-400" />
-                        <span className="font-medium text-slate-700">{sim.superBuiltUpSqft.toLocaleString('en-IN')} sqft</span>
+
+                      <div className="bg-slate-50/80 rounded-xl p-2.5 text-center border border-slate-100 flex flex-col items-center justify-center">
+                        <Bed className="w-3.5 h-3.5 text-[#244B8F] mb-1" />
+                        <span className="text-xs font-bold text-slate-800 font-['Montserrat'] leading-tight truncate w-full">
+                          {sim.floorBand || 'Floor 11 of 18'}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-['Poppins'] mt-0.5">Floor</span>
                       </div>
                     </div>
 
-                    {/* Bottom Row: Price on Left, "View Property →" Outline Pill Button on Right */}
-                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                      <div className="flex flex-col">
-                        <span className="text-lg font-extrabold text-[#172033] tracking-tight font-['Montserrat']">
-                          {formatPriceCroresOrLakhs(sim.askingPriceInr)}
-                        </span>
-                        <span className="text-[11px] text-slate-400 font-['Poppins'] font-mono">
-                          ₹{sim.pricePerSqft.toLocaleString('en-IN')}/sq.ft
-                        </span>
-                      </div>
+                    <div className="border-t border-slate-100" />
 
+                    {/* Action Buttons: View Property ↗ & Quick Enquiry */}
+                    <div className="flex items-center space-x-2.5 pt-0.5">
                       <a
                         href={`/property/${sim.id}`}
                         target={isMobile ? '_self' : '_blank'}
                         rel={isMobile ? undefined : 'noopener noreferrer'}
                         onClick={(e) => e.stopPropagation()}
-                        className="px-4 py-2 rounded-full border border-slate-300 hover:border-[#244B8F] hover:bg-[#244B8F] hover:text-white text-xs font-semibold text-slate-700 transition-all flex items-center space-x-1 cursor-pointer group/btn font-['Montserrat']"
+                        className="flex-1 py-2.5 px-3 bg-[#244B8F] hover:bg-[#1B396E] text-white font-bold text-xs rounded-xl shadow-xs transition-colors flex items-center justify-center space-x-1.5 font-['Montserrat'] cursor-pointer"
                       >
                         <span>View Property</span>
-                        <ArrowRight className="w-3.5 h-3.5 group-hover/btn:translate-x-0.5 transition-transform" />
+                        <ArrowUpRight className="w-3.5 h-3.5" />
+                      </a>
+
+                      <a
+                        href={`https://wa.me/918217873708?text=${encodeURIComponent(`Hello SellMyGhar Desk, I would like a quick callback regarding ${sim.projectName} (${sim.bhkType}) in ${sim.localityName}.`)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 border border-slate-200/80 text-slate-800 font-bold text-xs rounded-xl transition-colors flex items-center justify-center space-x-1.5 font-['Montserrat'] cursor-pointer shrink-0"
+                      >
+                        <PhoneCall className="w-3.5 h-3.5 text-slate-600" />
+                        <span>Quick Enquiry</span>
                       </a>
                     </div>
 
