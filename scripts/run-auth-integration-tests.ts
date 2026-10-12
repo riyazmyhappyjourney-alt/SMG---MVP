@@ -8,6 +8,8 @@ import { hashOtp } from '../src/server/auth/otp-service';
 import { executeQuery } from '../src/server/db/pool';
 import { devSandboxStore } from '../src/server/db/dev-sandbox-store';
 import { DistributedRateLimiter } from '../src/server/ratelimit/limiter';
+import { setSupabaseClientForTesting, getSupabaseClient } from '../src/server/storage/supabase-client';
+import { resolveRoute } from '../src/App';
 
 interface DispatchOptions {
   method?: string;
@@ -812,6 +814,269 @@ export async function runAuthIntegrationTests(): Promise<{ passed: number; faile
       hasStaffLoginSuccess && hasStaffLoginFailed && hasStaffLoginLocked && hasOtpRequested && hasOtpVerified,
       'TEST 35: Security audit log records STAFF_LOGIN_SUCCESS, STAFF_LOGIN_FAILED, STAFF_LOGIN_LOCKED, OTP_REQUESTED, OTP_VERIFIED'
     );
+
+    // ====================================================================
+    // PART 5: GOOGLE OAUTH IDENTITY & REGISTRATION SUITE
+    // ====================================================================
+
+    // Save previous client to restore after suite
+    const prevSupabaseClient = getSupabaseClient();
+
+    // Mock client for testing OAuth session endpoint
+    const mockSupabase = {
+      auth: {
+        getUser: async (token: string) => {
+          if (token === 'valid-buyer-token-1') {
+            return {
+              data: {
+                user: {
+                  id: 'g-subj-buyer-99',
+                  email: 'anita.buyer@example.com',
+                  email_confirmed_at: '2026-10-10T00:00:00Z',
+                  app_metadata: { provider: 'google' },
+                  user_metadata: { full_name: 'Anita Buyer' },
+                },
+              },
+              error: null,
+            };
+          }
+          if (token === 'unverified-google-token') {
+            return {
+              data: {
+                user: {
+                  id: 'g-subj-unverified',
+                  email: 'unverified@example.com',
+                  email_confirmed_at: null,
+                  app_metadata: {},
+                  user_metadata: { email_verified: false },
+                },
+              },
+              error: null,
+            };
+          }
+          if (token === 'staff-google-token') {
+            return {
+              data: {
+                user: {
+                  id: 'g-subj-staff-attacker',
+                  email: 'admin@sellmyghar.in',
+                  email_confirmed_at: '2026-10-10T00:00:00Z',
+                  app_metadata: { provider: 'google' },
+                  user_metadata: { full_name: 'Staff Impersonator' },
+                },
+              },
+              error: null,
+            };
+          }
+          return { data: null, error: new Error('The token is invalid') };
+        },
+      },
+    };
+
+    setSupabaseClientForTesting(mockSupabase as any);
+
+    try {
+      // TEST 36: POST /api/auth/google/session rejects empty or missing accessToken with 400 INVALID_TOKEN
+      const res36 = await dispatchRequest(app, '/api/auth/google/session', {
+        method: 'POST',
+        body: {},
+      });
+      const body36 = await res36.json();
+      assert(
+        res36.status === 400 && body36.error === 'INVALID_TOKEN',
+        'TEST 36: POST /api/auth/google/session rejects empty accessToken with 400 INVALID_TOKEN'
+      );
+
+      // TEST 37: POST /api/auth/google/session rejects invalid Supabase token with 401 INVALID_CREDENTIALS
+      const res37 = await dispatchRequest(app, '/api/auth/google/session', {
+        method: 'POST',
+        body: { accessToken: 'invalid-token-xyz' },
+      });
+      const body37 = await res37.json();
+      assert(
+        res37.status === 401 && body37.error === 'INVALID_CREDENTIALS',
+        'TEST 37: POST /api/auth/google/session rejects invalid token with 401 INVALID_CREDENTIALS'
+      );
+
+      // TEST 38: POST /api/auth/google/session rejects unverified email with 403 EMAIL_NOT_VERIFIED
+      const res38 = await dispatchRequest(app, '/api/auth/google/session', {
+        method: 'POST',
+        body: { accessToken: 'unverified-google-token' },
+      });
+      const body38 = await res38.json();
+      assert(
+        res38.status === 403 && body38.error === 'EMAIL_NOT_VERIFIED',
+        'TEST 38: POST /api/auth/google/session rejects unverified email with 403 EMAIL_NOT_VERIFIED'
+      );
+
+      // TEST 39: First-time Google sign-in creates active BUYER account, links user_identities, and issues session cookie
+      const res39 = await dispatchRequest(app, '/api/auth/google/session', {
+        method: 'POST',
+        body: { accessToken: 'valid-buyer-token-1' },
+      });
+      const body39 = await res39.json();
+      const cookieHeader39 = res39.headers['set-cookie'] || '';
+      const cookieStr39 = Array.isArray(cookieHeader39) ? cookieHeader39.join('; ') : String(cookieHeader39);
+
+      const createdUser = Array.from(devSandboxStore.users.values()).find(
+        (u) => u.email === 'anita.buyer@example.com'
+      );
+      const createdIdentity = Array.from(devSandboxStore.userIdentities.values()).find(
+        (i) => i.provider === 'google' && i.provider_user_id === 'g-subj-buyer-99'
+      );
+
+      assert(
+        res39.status === 200 &&
+          body39.success === true &&
+          body39.authenticated === true &&
+          body39.user.roles.includes('BUYER') &&
+          !body39.user.roles.includes('OWNER') &&
+          !body39.user.roles.includes('STAFF_SUPER_ADMIN') &&
+          cookieStr39.includes('sellmyghar_session=') &&
+          createdUser !== undefined &&
+          createdUser.is_active === true &&
+          createdUser.phone === null &&
+          createdIdentity !== undefined &&
+          createdIdentity.user_id === createdUser.id &&
+          createdIdentity.email === 'anita.buyer@example.com',
+        'TEST 39: First-time Google sign-in creates active BUYER account, links identity, and issues session cookie'
+      );
+
+      // TEST 40: Repeat Google sign-in resolves the exact same user without duplicate creation
+      const initialUserCount = devSandboxStore.users.size;
+      const initialIdentityCount = devSandboxStore.userIdentities.size;
+
+      const res40 = await dispatchRequest(app, '/api/auth/google/session', {
+        method: 'POST',
+        body: { accessToken: 'valid-buyer-token-1' },
+      });
+      const body40 = await res40.json();
+
+      assert(
+        res40.status === 200 &&
+          body40.success === true &&
+          body40.user.id === createdUser?.id &&
+          devSandboxStore.users.size === initialUserCount &&
+          devSandboxStore.userIdentities.size === initialIdentityCount,
+        'TEST 40: Repeat Google sign-in resolves existing user identity without duplicate creation'
+      );
+
+      // TEST 41: Repeat Google sign-in for deactivated account returns 403 ACCOUNT_DEACTIVATED
+      if (createdUser) {
+        createdUser.is_active = false;
+      }
+
+      const res41 = await dispatchRequest(app, '/api/auth/google/session', {
+        method: 'POST',
+        body: { accessToken: 'valid-buyer-token-1' },
+      });
+      const body41 = await res41.json();
+
+      assert(
+        res41.status === 403 &&
+          body41.error === 'ACCOUNT_DEACTIVATED' &&
+          body41.message?.includes('deactivated'),
+        'TEST 41: Repeat Google sign-in for deactivated account returns 403 ACCOUNT_DEACTIVATED'
+      );
+
+      // Restore active status
+      if (createdUser) {
+        createdUser.is_active = true;
+      }
+
+      // TEST 42: Google sign-in matching existing privileged staff account is rejected
+      const res42 = await dispatchRequest(app, '/api/auth/google/session', {
+        method: 'POST',
+        body: { accessToken: 'staff-google-token' },
+      });
+      const body42 = await res42.json();
+
+      assert(
+        res42.status === 403 &&
+          body42.error === 'PRIVILEGED_ACCOUNT_LINKING_DISALLOWED' &&
+          body42.message?.includes('Privileged staff and admin accounts cannot be linked'),
+        'TEST 42: Google sign-in matching existing privileged staff account rejected with 403 PRIVILEGED_ACCOUNT_LINKING_DISALLOWED'
+      );
+
+      // TEST 43: Route detection precedence prevents stale /auth/callback pathname from overriding explicit hash routes
+      const callbackInitial = resolveRoute('/auth/callback', '', 'localhost');
+      const callbackWithDashboardHash = resolveRoute('/auth/callback', '#/dashboard', 'localhost');
+      const callbackWithSellerDashboardHash = resolveRoute('/auth/callback', '#/seller-dashboard', 'localhost');
+      const callbackWithLoginHash = resolveRoute('/auth/callback', '#/login', 'localhost');
+      const callbackWithCrmHash = resolveRoute('/auth/callback', '#/crm', 'localhost');
+      const callbackWithSellerAssistedHash = resolveRoute('/auth/callback', '#/seller-assisted', 'localhost');
+      const homeDefault = resolveRoute('/', '', 'localhost');
+      const dashboardDefault = resolveRoute('/', '#/dashboard', 'localhost');
+
+      assert(
+        callbackInitial === 'AUTH_CALLBACK' &&
+          callbackWithDashboardHash === 'DASHBOARD' &&
+          callbackWithSellerDashboardHash === 'DASHBOARD' &&
+          callbackWithLoginHash === 'LOGIN' &&
+          callbackWithCrmHash === 'CRM' &&
+          callbackWithSellerAssistedHash === 'SELLER_ASSISTED' &&
+          homeDefault === 'HOME' &&
+          dashboardDefault === 'DASHBOARD',
+        'TEST 43: Route detection precedence ensures explicit application routes override stale /auth/callback pathname'
+      );
+
+      // TEST 44: Single OAuth authorization attempt produces at most one backend session exchange
+      let serverCalls = 0;
+      const countingMock = {
+        auth: {
+          getUser: async (token: string) => {
+            if (token === 'single-attempt-token') {
+              serverCalls++;
+              return {
+                data: {
+                  user: {
+                    id: 'g-single-attempt-uid',
+                    email: 'single.attempt@example.com',
+                    email_confirmed_at: '2026-10-10T00:00:00Z',
+                    app_metadata: { provider: 'google' },
+                    user_metadata: { full_name: 'Single Attempt User' },
+                  },
+                },
+                error: null,
+              };
+            }
+            return { data: null, error: new Error('Invalid token') };
+          },
+        },
+      };
+
+      setSupabaseClientForTesting(countingMock as any);
+
+      const res44 = await dispatchRequest(app, '/api/auth/google/session', {
+        method: 'POST',
+        body: { accessToken: 'single-attempt-token' },
+      });
+      const body44 = await res44.json();
+
+      assert(
+        res44.status === 200 &&
+          body44.success === true &&
+          serverCalls === 1 &&
+          body44.user.email === 'single.attempt@example.com',
+        'TEST 44: A single OAuth authorization attempt produces exactly one backend session exchange'
+      );
+
+      // TEST 45: Ordinary route changes after successful auth never re-enter the OAuth callback route
+      const postAuthDashboard = resolveRoute('/', '#/dashboard', 'localhost');
+      const postAuthContact = resolveRoute('/', '#/contact', 'localhost');
+      const postAuthCrm = resolveRoute('/', '#/crm', 'localhost');
+      const postAuthHome = resolveRoute('/', '', 'localhost');
+
+      assert(
+        postAuthDashboard === 'DASHBOARD' &&
+          postAuthContact === 'CONTACT' &&
+          postAuthCrm === 'CRM' &&
+          postAuthHome === 'HOME',
+        'TEST 45: Ordinary route changes from dashboard, contact, or CRM cannot re-enter the callback'
+      );
+    } finally {
+      setSupabaseClientForTesting(prevSupabaseClient);
+    }
 
   } catch (err: any) {
     console.error('Unexpected error in auth integration tests:', err);

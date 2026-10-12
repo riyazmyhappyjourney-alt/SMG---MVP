@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { HomePage } from './components/home/HomePage';
 import { CrmDashboard } from './components/crm/CrmDashboard';
 import { ConsentPortal } from './components/compliance/ConsentPortal';
@@ -6,10 +6,13 @@ import { SellerFunnel } from './components/seller/SellerFunnel';
 import { StaffLogin } from './components/auth/StaffLogin';
 import { ContactPage } from './components/contact/ContactPage';
 import { PropertyDetailPage } from './components/property/PropertyDetailPage';
+import { LocalityDetailPage } from './components/locality/LocalityDetailPage';
 import { AuthPage } from './components/auth/AuthPage';
+import { AuthCallback } from './components/auth/AuthCallback';
 import { SellerDashboard } from './components/seller/SellerDashboard';
 import { ArrowLeft, Shield } from 'lucide-react';
 import { UserAuthProfile } from './types/user';
+import { getBrowserSupabase } from './lib/supabase';
 
 export type AppRoute = 
   | 'HOME' 
@@ -19,7 +22,49 @@ export type AppRoute =
   | 'LOGIN' 
   | 'CONTACT'
   | 'DASHBOARD'
-  | 'PROPERTY_DETAIL';
+  | 'PROPERTY_DETAIL'
+  | 'LOCALITY_DETAIL'
+  | 'AUTH_CALLBACK';
+
+export const parseLocalitySlug = (path: string, hash: string): string | null => {
+  const pathMatch = path.match(/^\/sell-flat-in-([a-zA-Z0-9-]+)-bangalore/i);
+  if (pathMatch) return pathMatch[1].toLowerCase();
+  
+  const pathLocMatch = path.match(/^\/locality\/([a-zA-Z0-9-]+)/i);
+  if (pathLocMatch) return pathLocMatch[1].toLowerCase();
+
+  const hashMatch = hash.match(/^#\/sell-flat-in-([a-zA-Z0-9-]+)-bangalore/i);
+  if (hashMatch) return hashMatch[1].toLowerCase();
+
+  const hashLocMatch = hash.match(/^#\/locality\/([a-zA-Z0-9-]+)/i);
+  if (hashLocMatch) return hashLocMatch[1].toLowerCase();
+
+  return null;
+};
+
+export function resolveRoute(path: string, hash: string, host: string): AppRoute {
+  const localitySlug = parseLocalitySlug(path, hash);
+
+  // 1. Explicit application hash routes take highest precedence over stale callback or subpath paths
+  if (host.startsWith('crm.') || hash === '#/crm' || path === '/crm') return 'CRM';
+  if (hash === '#/dashboard' || hash === '#/seller-dashboard' || path === '/dashboard' || path === '/seller-dashboard') return 'DASHBOARD';
+  if (hash === '#/login' || hash === '#/register' || path === '/login' || path === '/register') return 'LOGIN';
+  if (hash === '#/consent' || path === '/consent') return 'CONSENT';
+  if (hash === '#/seller-assisted' || path === '/seller-assisted' || hash === '#/post-property' || path === '/post-property') return 'SELLER_ASSISTED';
+  if (hash.startsWith('#/property/')) return 'PROPERTY_DETAIL';
+  if (path.startsWith('/property/')) return 'PROPERTY_DETAIL';
+
+  // 2. OAuth Callback route: ONLY when not overridden by an explicit application route
+  if (path === '/auth/callback' || path.startsWith('/auth/callback') || hash === '#/auth/callback' || hash.startsWith('#/auth/callback')) {
+    return 'AUTH_CALLBACK';
+  }
+
+  // 3. SEO Locality and Contact pages
+  if (hash === '#/contact' || path === '/contact') return 'CONTACT';
+  if (localitySlug) return 'LOCALITY_DETAIL';
+
+  return 'HOME';
+}
 
 export default function App() {
   const getInitialPropertyId = (): string | null => {
@@ -35,21 +80,12 @@ export default function App() {
   };
 
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(getInitialPropertyId);
+  const [selectedLocalitySlug, setSelectedLocalitySlug] = useState<string | null>(() => {
+    return parseLocalitySlug(window.location.pathname, window.location.hash);
+  });
 
   const [currentRoute, setCurrentRoute] = useState<AppRoute>(() => {
-    const hash = window.location.hash;
-    const path = window.location.pathname;
-    const host = window.location.hostname;
-
-    // Direct custom domain access e.g. crm.sellmyghar.in or #/crm
-    if (host.startsWith('crm.') || hash === '#/crm' || path === '/crm') return 'CRM';
-    if (hash === '#/dashboard' || hash === '#/seller-dashboard' || path === '/dashboard' || path === '/seller-dashboard') return 'DASHBOARD';
-    if (hash === '#/login' || hash === '#/register' || path === '/login' || path === '/register') return 'LOGIN';
-    if (hash === '#/consent' || path === '/consent') return 'CONSENT';
-    if (hash === '#/seller-assisted' || path === '/seller-assisted' || hash === '#/post-property' || path === '/post-property') return 'SELLER_ASSISTED';
-    if (path.startsWith('/property/') || hash.startsWith('#/property/')) return 'PROPERTY_DETAIL';
-    if (hash === '#/contact' || path === '/contact') return 'CONTACT';
-    return 'HOME';
+    return resolveRoute(window.location.pathname, window.location.hash, window.location.hostname);
   });
 
   const [activeUser, setActiveUser] = useState<UserAuthProfile | null>(null);
@@ -100,31 +136,17 @@ export default function App() {
       const path = window.location.pathname;
       const host = window.location.hostname;
 
-      if (host.startsWith('crm.') || hash === '#/crm') {
-        setCurrentRoute('CRM');
-      } else if (hash === '#/dashboard' || hash === '#/seller-dashboard') {
-        setCurrentRoute('DASHBOARD');
-      } else if (hash === '#/login' || hash === '#/register') {
-        setCurrentRoute('LOGIN');
-      } else if (hash === '#/consent') {
-        setCurrentRoute('CONSENT');
-      } else if (hash === '#/seller-assisted' || hash === '#/post-property') {
-        setCurrentRoute('SELLER_ASSISTED');
-      } else if (path.startsWith('/property/')) {
-        const propId = path.replace('/property/', '').split('/')[0];
-        setSelectedPropertyId(propId);
-        setCurrentRoute('PROPERTY_DETAIL');
-      } else if (hash.startsWith('#/property/')) {
-        const propId = hash.replace('#/property/', '').split('?')[0];
-        setSelectedPropertyId(propId);
-        setCurrentRoute('PROPERTY_DETAIL');
-      } else if (hash === '#/contact') {
-        setCurrentRoute('CONTACT');
-      } else if (hash === '' || hash === '#/' || hash === '#') {
-        if (!window.location.pathname.startsWith('/property/')) {
-          setCurrentRoute('HOME');
-        }
-      }
+      const propId = path.startsWith('/property/')
+        ? path.replace('/property/', '').split('/')[0]
+        : hash.startsWith('#/property/')
+        ? hash.replace('#/property/', '').split('?')[0]
+        : null;
+      if (propId) setSelectedPropertyId(propId);
+
+      const localitySlug = parseLocalitySlug(path, hash);
+      if (localitySlug) setSelectedLocalitySlug(localitySlug);
+
+      setCurrentRoute(resolveRoute(path, hash, host));
     };
 
     window.addEventListener('hashchange', handleLocationChange);
@@ -136,6 +158,12 @@ export default function App() {
   }, []);
 
   const navigateTo = (route: AppRoute, propId?: string) => {
+    // If leaving /auth/callback, ensure pathname is cleanly reset to /
+    if (window.location.pathname.startsWith('/auth/callback')) {
+      if (window.history.replaceState) {
+        window.history.replaceState({}, document.title, '/');
+      }
+    }
     setCurrentRoute(route);
     if (route === 'CRM') {
       window.location.hash = '/crm';
@@ -155,12 +183,22 @@ export default function App() {
       }
     } else if (route === 'CONTACT') {
       window.location.hash = '/contact';
+    } else if (route === 'AUTH_CALLBACK') {
+      window.location.hash = '/auth/callback';
     } else {
       window.location.hash = '';
-      if (window.location.pathname.startsWith('/property/')) {
+      if (window.location.pathname.startsWith('/property/') || window.location.pathname.startsWith('/sell-flat-in-')) {
         window.history.pushState({}, '', '/');
       }
     }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const navigateToLocality = (slug: string) => {
+    setSelectedLocalitySlug(slug);
+    setCurrentRoute('LOCALITY_DETAIL');
+    window.history.pushState({}, '', `/sell-flat-in-${slug}-bangalore`);
+    window.location.hash = `/sell-flat-in-${slug}-bangalore`;
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -184,6 +222,14 @@ export default function App() {
 
   const handleUserLogout = async () => {
     try {
+      const supabase = await getBrowserSupabase();
+      if (supabase) {
+        await supabase.auth.signOut();
+      }
+    } catch {
+      // Ignore Supabase signout error
+    }
+    try {
       await fetch('/api/auth/logout', { method: 'POST' });
     } catch {
       // Ignore
@@ -191,6 +237,38 @@ export default function App() {
     setActiveUser(null);
     navigateTo('HOME');
   };
+
+  const handleAuthSuccess = useCallback((user: UserAuthProfile) => {
+    setActiveUser(user);
+    navigateTo('DASHBOARD');
+  }, []);
+
+  const handleAuthError = useCallback(() => {
+    navigateTo('LOGIN');
+  }, []);
+
+  // Dedicated OAuth Callback Route
+  if (currentRoute === 'AUTH_CALLBACK') {
+    return (
+      <AuthCallback
+        onSuccess={handleAuthSuccess}
+        onError={handleAuthError}
+      />
+    );
+  }
+
+  // Dedicated Locality SEO Route (/sell-flat-in-:locality-bangalore)
+  if (currentRoute === 'LOCALITY_DETAIL') {
+    return (
+      <LocalityDetailPage
+        localitySlug={selectedLocalitySlug || 'hebbal'}
+        onBackToHome={() => navigateTo('HOME')}
+        onNavigateToLocality={(slug) => navigateToLocality(slug)}
+        onStartSelling={() => navigateTo('SELLER_ASSISTED')}
+        onContactDesk={() => navigateTo('CONTACT')}
+      />
+    );
+  }
 
   // Dedicated Property Detail Route (/property/:id or #/property/:id)
   if (currentRoute === 'PROPERTY_DETAIL') {
@@ -307,6 +385,7 @@ export default function App() {
       onNavigateToLogin={() => navigateTo('LOGIN')}
       onNavigateToDashboard={() => navigateTo('DASHBOARD')}
       onConsentPortalOpen={() => navigateTo('CONSENT')}
+      onNavigateToLocality={(slug) => navigateToLocality(slug)}
     />
   );
 }

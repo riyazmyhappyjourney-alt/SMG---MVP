@@ -172,8 +172,10 @@ export interface DevAuditLog {
   target_entity: string;
   target_entity_id: string;
   client_ip: string;
+  ip_address?: string;
   diff_summary: any;
   created_at: string;
+  timestamp?: string;
 }
 
 export interface DevVisit {
@@ -219,6 +221,11 @@ class DevSandboxStore {
   public userIdentities = new Map<string, DevUserIdentity>();
   public visits = new Map<string, DevVisit>();
   public offers = new Map<string, DevOffer>();
+  public heroSlides = new Map<string, any>();
+  public emailTemplates = new Map<string, any>();
+  public publicationNotifications = new Map<string, any>();
+  public partnerLogos = new Map<string, any>();
+  public partnerSectionSettings = new Map<string, any>();
 
   private initialized = false;
 
@@ -235,6 +242,11 @@ class DevSandboxStore {
     this.userIdentities.clear();
     this.visits.clear();
     this.offers.clear();
+    this.heroSlides.clear();
+    this.emailTemplates.clear();
+    this.publicationNotifications.clear();
+    this.partnerLogos.clear();
+    this.partnerSectionSettings.clear();
     this.initialized = false;
     this.initInitialSeeds();
   }
@@ -677,6 +689,97 @@ class DevSandboxStore {
     };
     this.buyerEnquiries.set(buyerEnq1.id, buyerEnq1);
     this.buyerEnquiries.set(buyerEnq2.id, buyerEnq2);
+
+    // Seed default hero slides
+    if (this.heroSlides.size === 0) {
+      this.heroSlides.set('slide-township-sunset', {
+        id: 'slide-township-sunset',
+        title: 'Township Exterior at Sunset',
+        alt_text: 'Luxury Apartment Township at Sunset in Bengaluru',
+        image_url: '/images/luxury-apartment-township-sunset.webp',
+        display_order: 0,
+        is_active: true,
+        is_first: true,
+        created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
+        updated_at: new Date().toISOString()
+      });
+      this.heroSlides.set('slide-clubhouse-amenities', {
+        id: 'slide-clubhouse-amenities',
+        title: 'Society Clubhouse and Amenities',
+        alt_text: 'Premium Society Clubhouse and Township Amenities',
+        image_url: '/images/brigade-granada-clubhouse.webp',
+        display_order: 1,
+        is_active: true,
+        is_first: false,
+        created_at: new Date(Date.now() - 86400000).toISOString(),
+        updated_at: new Date().toISOString()
+      });
+      this.heroSlides.set('slide-night-community', {
+        id: 'slide-night-community',
+        title: 'Modern Residential Community at Night',
+        alt_text: 'Modern Residential Community in Bengaluru',
+        image_url: '/images/bengaluru-night-apartments.webp',
+        display_order: 2,
+        is_active: true,
+        is_first: false,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      });
+    }
+
+    // Seed default partner logos
+    if (this.partnerLogos.size === 0) {
+      this.partnerLogos.set('partner-godrej', {
+        id: 'partner-godrej',
+        name: 'Godrej Properties',
+        logo_url: '/images/partners/godrej.svg',
+        alt_text: 'Godrej Properties Official Channel Partner',
+        display_order: 0,
+        is_active: true,
+        created_at: new Date(Date.now() - 86400000 * 3).toISOString(),
+        updated_at: new Date().toISOString()
+      });
+      this.partnerLogos.set('partner-brigade', {
+        id: 'partner-brigade',
+        name: 'Brigade Group',
+        logo_url: '/images/partners/brigade.svg',
+        alt_text: 'Brigade Group Official Channel Partner',
+        display_order: 1,
+        is_active: true,
+        created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
+        updated_at: new Date().toISOString()
+      });
+      this.partnerLogos.set('partner-sobha', {
+        id: 'partner-sobha',
+        name: 'Sobha Realty',
+        logo_url: '/images/partners/sobha.svg',
+        alt_text: 'Sobha Realty Official Channel Partner',
+        display_order: 2,
+        is_active: true,
+        created_at: new Date(Date.now() - 86400000).toISOString(),
+        updated_at: new Date().toISOString()
+      });
+      this.partnerLogos.set('partner-prestige', {
+        id: 'partner-prestige',
+        name: 'Prestige Group',
+        logo_url: '/images/partners/Prestige_Group.png',
+        alt_text: 'Prestige Group Official Channel Partner',
+        display_order: 3,
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      });
+    }
+
+    if (this.partnerSectionSettings.size === 0) {
+      this.partnerSectionSettings.set('default', {
+        id: 'default',
+        heading: 'Trusted Channel Partners of',
+        scroll_speed: 'normal',
+        pause_on_hover: true,
+        updated_at: new Date().toISOString()
+      });
+    }
   }
 
   public handleQuery(sql: string, params: any[] = []): { rows: any[] } {
@@ -793,7 +896,7 @@ class DevSandboxStore {
     // 8. USERS: Single-Row Insert (Admin bootstrap, customer OTP creation, etc.)
     if (cleanSql.includes('INSERT INTO users')) {
       const id = params[0] || `usr-${Date.now()}`;
-      const phone = params[1] || null;
+      let phone = params[1] || null;
       let email = params[2] || null;
       let display_name = params[3] || 'User';
       let password_hash = params[4] || null;
@@ -804,12 +907,30 @@ class DevSandboxStore {
         email = null;
         display_name = params[2] || 'User';
         password_hash = null;
+      } else if (cleanSql.includes('{BUYER}')) {
+        roles = ['BUYER'];
+        phone = params[1] || null;
+        email = params[2] || null;
+        display_name = params[3] || 'User';
+        password_hash = null;
       } else if (params[5]) {
         roles = Array.isArray(params[5]) ? params[5] : [params[5]];
       } else {
         const match = cleanSql.match(/'\{(.*?)\}'/);
         if (match && match[1]) {
           roles = [match[1]];
+        }
+      }
+
+      // Check conflict by email
+      if (email) {
+        let existing = Array.from(this.users.values()).find(x => x.email && x.email.toLowerCase() === email.toLowerCase());
+        if (existing) {
+          if (cleanSql.includes('DO UPDATE')) {
+            if (display_name && display_name !== 'User') existing.display_name = display_name;
+            existing.updated_at = new Date().toISOString();
+          }
+          return { rows: [{ ...existing }] };
         }
       }
 
@@ -1004,14 +1125,22 @@ class DevSandboxStore {
       if (cleanSql.includes("provider = 'PHONE'") && cleanSql.includes('provider_user_id = $1')) {
         const pUserId = params[0];
         matched = Array.from(this.userIdentities.values()).find(
-          x => x.provider === 'PHONE' && x.provider_user_id === pUserId
+          x => x.provider.toUpperCase() === 'PHONE' && x.provider_user_id === pUserId
+        );
+      } else if (cleanSql.includes("provider = 'google'") && cleanSql.includes('provider_user_id = $1')) {
+        const pUserId = params[0];
+        matched = Array.from(this.userIdentities.values()).find(
+          x => x.provider.toLowerCase() === 'google' && x.provider_user_id === pUserId
         );
       } else if (cleanSql.includes('provider = $1') && cleanSql.includes('provider_user_id = $2')) {
-        const prov = params[0];
+        const prov = String(params[0] || '').toLowerCase();
         const pUserId = params[1];
         matched = Array.from(this.userIdentities.values()).find(
-          x => x.provider === prov && x.provider_user_id === pUserId
+          x => x.provider.toLowerCase() === prov && x.provider_user_id === pUserId
         );
+      } else if (cleanSql.includes('user_id = $1')) {
+        const uId = params[0];
+        matched = Array.from(this.userIdentities.values()).find(x => x.user_id === uId);
       }
       return matched ? { rows: [{ ...matched }] } : { rows: [] };
     }
@@ -1020,14 +1149,46 @@ class DevSandboxStore {
       const id = params[0] || `ident-${Date.now()}`;
       const user_id = params[1];
       let provider = 'PHONE';
-      let provider_user_id = params[2];
-      let phone = params[2];
-      if (params.length >= 4 && typeof params[2] === 'string' && !params[2].startsWith('+91')) {
+      let provider_user_id = '';
+      let email: string | null = null;
+      let phone: string | null = null;
+
+      if (cleanSql.toLowerCase().includes("'google'")) {
+        provider = 'google';
+        provider_user_id = params[2];
+        email = params[3] || null;
+      } else if (cleanSql.includes("'PHONE'")) {
+        provider = 'PHONE';
+        provider_user_id = params[2];
+        phone = params[2];
+      } else if (params.length >= 5) {
         provider = params[2];
         provider_user_id = params[3];
+        if (params[4] && typeof params[4] === 'string' && params[4].includes('@')) {
+          email = params[4];
+        } else {
+          phone = params[4] || null;
+        }
+      } else if (params.length === 4) {
+        if (typeof params[2] === 'string' && (params[2].toLowerCase() === 'google' || params[2].toUpperCase() === 'PHONE')) {
+          provider = params[2];
+          provider_user_id = params[3];
+        } else {
+          provider = cleanSql.toLowerCase().includes('google') ? 'google' : 'PHONE';
+          provider_user_id = params[2];
+          if (params[3] && typeof params[3] === 'string' && params[3].includes('@')) {
+            email = params[3];
+          } else {
+            phone = params[3] || null;
+          }
+        }
+      } else {
+        provider_user_id = params[2];
+        phone = params[2];
       }
+
       const existing = Array.from(this.userIdentities.values()).find(
-        x => x.provider === provider && x.provider_user_id === provider_user_id
+        x => x.provider.toLowerCase() === provider.toLowerCase() && x.provider_user_id === provider_user_id
       );
       if (existing) {
         return { rows: [{ ...existing }] };
@@ -1037,6 +1198,7 @@ class DevSandboxStore {
         user_id,
         provider,
         provider_user_id,
+        email,
         phone,
         is_verified: true,
         created_at: new Date().toISOString(),
@@ -1933,6 +2095,7 @@ class DevSandboxStore {
 
     // 24. AUDIT_LOGS: Insert & Select
     if (cleanSql.includes('INSERT INTO audit_logs')) {
+      const nowIso = new Date().toISOString();
       const logEntry: DevAuditLog = {
         id: params[0] || `aud-${Date.now()}`,
         actor_user_id: params[1],
@@ -1942,8 +2105,10 @@ class DevSandboxStore {
         target_entity: params[4],
         target_entity_id: params[5],
         client_ip: params[6] || '127.0.0.1',
+        ip_address: params[6] || '127.0.0.1',
         diff_summary: params[7] || {},
-        created_at: new Date().toISOString(),
+        created_at: nowIso,
+        timestamp: nowIso,
       };
       this.auditLogs.unshift(logEntry);
       return { rows: [{ ...logEntry }] };
@@ -1957,6 +2122,284 @@ class DevSandboxStore {
         (l.diff_summary && l.diff_summary.propertyId === targetId)
       );
       return { rows: filtered };
+    }
+
+    // 25. HERO_SLIDES: Select, Count, Insert, Update, Delete
+    if (cleanSql.includes('COUNT(*)::int AS cnt FROM hero_slides')) {
+      return { rows: [{ cnt: this.heroSlides.size }] };
+    }
+
+    if (cleanSql.includes('SELECT COALESCE(MAX(display_order), -1) + 1 AS next_order FROM hero_slides')) {
+      let maxOrder = -1;
+      for (const s of this.heroSlides.values()) {
+        if (s.display_order > maxOrder) maxOrder = s.display_order;
+      }
+      return { rows: [{ next_order: maxOrder + 1 }] };
+    }
+
+    if (cleanSql.includes('FROM hero_slides') && cleanSql.includes('WHERE id = $1')) {
+      const s = this.heroSlides.get(params[0]);
+      return s ? { rows: [{ ...s }] } : { rows: [] };
+    }
+
+    if (cleanSql.includes('FROM hero_slides')) {
+      let slides = Array.from(this.heroSlides.values());
+      if (cleanSql.includes('WHERE is_active = true')) {
+        slides = slides.filter(s => s.is_active);
+      }
+      slides.sort((a, b) => {
+        if (a.is_first && !b.is_first) return -1;
+        if (!a.is_first && b.is_first) return 1;
+        return a.display_order - b.display_order;
+      });
+      return { rows: slides.map(s => ({ ...s })) };
+    }
+
+    if (cleanSql.includes('INSERT INTO hero_slides')) {
+      const slide = {
+        id: params[0],
+        title: params[1],
+        alt_text: params[2],
+        image_url: params[3],
+        display_order: params[4],
+        is_active: Boolean(params[5]),
+        is_first: Boolean(params[6]),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      this.heroSlides.set(slide.id, slide);
+      return { rows: [{ ...slide }] };
+    }
+
+    if (cleanSql.includes('UPDATE hero_slides SET is_first = false')) {
+      for (const s of this.heroSlides.values()) {
+        if (!params[0] || s.id !== params[0]) {
+          s.is_first = false;
+        }
+      }
+      return { rows: [] };
+    }
+
+    if (cleanSql.includes('UPDATE hero_slides SET display_order = $1')) {
+      const s = this.heroSlides.get(params[1]);
+      if (s) {
+        s.display_order = Number(params[0]);
+        s.updated_at = new Date().toISOString();
+      }
+      return { rows: [] };
+    }
+
+    if (cleanSql.includes('UPDATE hero_slides') && cleanSql.includes('WHERE id = $7')) {
+      const id = params[6];
+      const s = this.heroSlides.get(id);
+      if (s) {
+        s.title = params[0];
+        s.alt_text = params[1];
+        s.image_url = params[2];
+        s.is_active = Boolean(params[3]);
+        s.is_first = Boolean(params[4]);
+        s.display_order = Number(params[5]);
+        s.updated_at = new Date().toISOString();
+        return { rows: [{ ...s }] };
+      }
+      return { rows: [] };
+    }
+
+    if (cleanSql.includes('DELETE FROM hero_slides WHERE id = $1')) {
+      const id = params[0];
+      const had = this.heroSlides.delete(id);
+      return had ? { rows: [{ id }] } : { rows: [] };
+    }
+
+    // 26. EMAIL_TEMPLATES: Select, Insert, Update
+    if (cleanSql.includes('FROM email_templates') && cleanSql.includes('WHERE template_key = $1')) {
+      const t = this.emailTemplates.get(params[0]);
+      return t ? { rows: [{ ...t }] } : { rows: [] };
+    }
+
+    if (cleanSql.includes('INSERT INTO email_templates')) {
+      const tpl = {
+        template_key: params[0],
+        subject_template: params[1],
+        html_template: params[2],
+        plain_text_template: params[3],
+        is_active: true,
+        updated_at: new Date().toISOString(),
+      };
+      this.emailTemplates.set(tpl.template_key, tpl);
+      return { rows: [{ ...tpl }] };
+    }
+
+    // 27. PUBLICATION_NOTIFICATIONS: Select, Insert
+    if (cleanSql.includes('FROM publication_notifications') && cleanSql.includes('WHERE idempotency_key = $1')) {
+      const found = Array.from(this.publicationNotifications.values()).find(n => n.idempotency_key === params[0]);
+      return found ? { rows: [{ ...found }] } : { rows: [] };
+    }
+
+    if (cleanSql.includes('FROM publication_notifications')) {
+      const list = Array.from(this.publicationNotifications.values()).sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+      return { rows: list.map(n => ({ ...n })) };
+    }
+
+    if (cleanSql.includes('UPDATE publication_notifications')) {
+      const id = params[params.length - 1];
+      const existing = this.publicationNotifications.get(id) || Array.from(this.publicationNotifications.values()).find(n => n.id === id);
+      if (existing) {
+        existing.recipient_email = params[0] || existing.recipient_email;
+        existing.subject = params[1] || existing.subject;
+        existing.html_body = params[2] || existing.html_body;
+        existing.status = params[3] || existing.status;
+        existing.provider_response = params[4] || existing.provider_response;
+        existing.provider_message_id = params[5] || existing.provider_message_id;
+        existing.error_message = params[6] || existing.error_message;
+        existing.delivery_attempts = params[7] !== undefined ? params[7] : ((existing.delivery_attempts || 1) + 1);
+        existing.sent_at = params[8] || existing.sent_at;
+        existing.updated_at = new Date().toISOString();
+        this.publicationNotifications.set(existing.id, existing);
+        return { rows: [{ ...existing }] };
+      }
+      return { rows: [] };
+    }
+
+    if (cleanSql.includes('INSERT INTO publication_notifications')) {
+      let notif: any;
+      if (params.length >= 12) {
+        notif = {
+          id: params[0],
+          property_id: params[1],
+          recipient_email: params[2],
+          subject: params[3],
+          html_body: params[4],
+          status: params[5],
+          idempotency_key: params[6],
+          event_type: params[7],
+          provider_response: params[8],
+          provider_message_id: params[9],
+          error_message: params[10],
+          delivery_attempts: params[11] !== undefined ? params[11] : 1,
+          sent_at: params[12] || null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+      } else {
+        notif = {
+          id: params[0],
+          property_id: params[1],
+          recipient_email: params[2],
+          subject: params[3],
+          html_body: params[4],
+          status: params[5],
+          idempotency_key: params[6],
+          provider_response: params[7],
+          event_type: null,
+          provider_message_id: null,
+          error_message: null,
+          delivery_attempts: 1,
+          sent_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+      }
+      this.publicationNotifications.set(notif.id, notif);
+      return { rows: [{ ...notif }] };
+    }
+
+    // 28. PARTNER_LOGOS & SECTION SETTINGS
+    if (cleanSql.includes('COUNT(*)::int AS cnt FROM partner_logos')) {
+      return { rows: [{ cnt: this.partnerLogos.size }] };
+    }
+
+    if (cleanSql.includes('FROM partner_section_settings')) {
+      const s = this.partnerSectionSettings.get('default') || {
+        id: 'default',
+        heading: 'Trusted Channel Partners of',
+        scroll_speed: 'normal',
+        pause_on_hover: true,
+        updated_at: new Date().toISOString()
+      };
+      return { rows: [{ ...s }] };
+    }
+
+    if (cleanSql.includes('INSERT INTO partner_section_settings') || cleanSql.includes('UPDATE partner_section_settings')) {
+      const current = this.partnerSectionSettings.get('default') || { id: 'default', heading: 'Trusted Channel Partners of', scroll_speed: 'normal', pause_on_hover: true, updated_at: new Date().toISOString() };
+      if (params.length > 0) {
+        if (cleanSql.includes('INSERT INTO partner_section_settings')) {
+          current.heading = params[1] || current.heading;
+          current.scroll_speed = params[2] || current.scroll_speed;
+          current.pause_on_hover = params[3] !== undefined ? params[3] : current.pause_on_hover;
+        } else {
+          for (let i = 0; i < params.length; i++) {
+            if (cleanSql.includes(`heading = $${i + 1}`)) current.heading = params[i];
+            if (cleanSql.includes(`scroll_speed = $${i + 1}`)) current.scroll_speed = params[i];
+            if (cleanSql.includes(`pause_on_hover = $${i + 1}`)) current.pause_on_hover = params[i];
+          }
+        }
+      }
+      current.updated_at = new Date().toISOString();
+      this.partnerSectionSettings.set('default', current);
+      return { rows: [{ ...current }] };
+    }
+
+    if (cleanSql.includes('FROM partner_logos') && cleanSql.includes('WHERE id = $1')) {
+      const p = this.partnerLogos.get(params[0]);
+      return p ? { rows: [{ ...p }] } : { rows: [] };
+    }
+
+    if (cleanSql.includes('FROM partner_logos')) {
+      let list = Array.from(this.partnerLogos.values());
+      if (cleanSql.includes('WHERE is_active = true')) {
+        list = list.filter(p => p.is_active);
+      }
+      list.sort((a, b) => a.display_order - b.display_order);
+      return { rows: list.map(p => ({ ...p })) };
+    }
+
+    if (cleanSql.includes('INSERT INTO partner_logos')) {
+      const item = {
+        id: params[0],
+        name: params[1],
+        logo_url: params[2],
+        alt_text: params[3],
+        display_order: Number(params[4]),
+        is_active: Boolean(params[5]),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      this.partnerLogos.set(item.id, item);
+      return { rows: [{ ...item }] };
+    }
+
+    if (cleanSql.includes('UPDATE partner_logos SET display_order = $1')) {
+      const p = this.partnerLogos.get(params[1]);
+      if (p) {
+        p.display_order = Number(params[0]);
+        p.updated_at = new Date().toISOString();
+      }
+      return { rows: [] };
+    }
+
+    if (cleanSql.includes('UPDATE partner_logos')) {
+      const id = params[params.length - 1];
+      const p = this.partnerLogos.get(id);
+      if (p) {
+        let pIdx = 1;
+        if (cleanSql.includes('name = $')) p.name = params[pIdx++ - 1];
+        if (cleanSql.includes('logo_url = $')) p.logo_url = params[pIdx++ - 1];
+        if (cleanSql.includes('alt_text = $')) p.alt_text = params[pIdx++ - 1];
+        if (cleanSql.includes('display_order = $')) p.display_order = Number(params[pIdx++ - 1]);
+        if (cleanSql.includes('is_active = $')) p.is_active = Boolean(params[pIdx++ - 1]);
+        p.updated_at = new Date().toISOString();
+        return { rows: [{ ...p }] };
+      }
+      return { rows: [] };
+    }
+
+    if (cleanSql.includes('DELETE FROM partner_logos WHERE id = $1')) {
+      const id = params[0];
+      const had = this.partnerLogos.delete(id);
+      return had ? { rows: [{ id }] } : { rows: [] };
     }
 
     // Fallback: return empty set

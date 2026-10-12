@@ -2,18 +2,20 @@ import React from 'react';
 import { Header } from './Header';
 import { Hero } from './Hero';
 import { TrustedPartnersMarquee } from './TrustedPartnersMarquee';
+import { HoldingCostCalculator } from './HoldingCostCalculator';
 import { ListedProperties } from './ListedProperties';
 import { Footer } from './Footer';
-import { ArrowRight, ShieldCheck, Building2, PhoneCall } from 'lucide-react';
 import { UserAuthProfile } from '../../types/user';
+import { trackEvent } from '../../utils/analytics';
 
 interface HomePageProps {
   activeUser?: UserAuthProfile | null;
-  onNavigateToSellerAssisted?: () => void;
+  onNavigateToSellerAssisted?: (localityPrefill?: string) => void;
   onNavigateToContact?: () => void;
   onNavigateToLogin?: () => void;
   onNavigateToDashboard?: () => void;
   onConsentPortalOpen?: () => void;
+  onNavigateToLocality?: (slug: string) => void;
 }
 
 export const HomePage: React.FC<HomePageProps> = ({
@@ -31,6 +33,13 @@ export const HomePage: React.FC<HomePageProps> = ({
     }
   };
 
+  const scrollToCalculator = () => {
+    const el = document.getElementById('calculator');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
   const handleTabClick = (tab: 'BUY' | 'SELL' | 'ABOUT' | 'CONTACT') => {
     if (tab === 'BUY') {
       scrollToListings();
@@ -39,7 +48,7 @@ export const HomePage: React.FC<HomePageProps> = ({
         onNavigateToSellerAssisted();
       }
     } else if (tab === 'ABOUT') {
-      window.scrollTo({ top: 400, behavior: 'smooth' });
+      scrollToCalculator();
     } else if (tab === 'CONTACT') {
       if (onNavigateToContact) {
         onNavigateToContact();
@@ -47,24 +56,20 @@ export const HomePage: React.FC<HomePageProps> = ({
     }
   };
 
-  const handleSelectPropertyForEnquiry = (
-    _projectName: string,
-    _locality: string,
-    _bhkType: any
-  ) => {
-    if (onNavigateToContact) {
-      onNavigateToContact();
+  const handleStartSelling = (prefillLocality?: string) => {
+    trackEvent('SELLER_FUNNEL_START', { source: 'homepage', locality: prefillLocality || 'DIRECT' });
+    if (onNavigateToSellerAssisted) {
+      onNavigateToSellerAssisted(prefillLocality);
     }
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F4F6F9] selection:bg-[#244B8F] selection:text-white font-['Montserrat']">
+    <div className="min-h-screen flex flex-col bg-[#F4F6F9] selection:bg-[#244B8F] selection:text-white font-['Montserrat'] text-[#172033]">
+      
       {/* 1. Sticky Responsive Header */}
       <Header
         user={activeUser}
-        onPostPropertyClick={() => {
-          if (onNavigateToSellerAssisted) onNavigateToSellerAssisted();
-        }}
+        onPostPropertyClick={() => handleStartSelling()}
         onLoginClick={() => {
           if (onNavigateToLogin) onNavigateToLogin();
         }}
@@ -75,70 +80,32 @@ export const HomePage: React.FC<HomePageProps> = ({
       />
 
       <main className="flex-1">
-        {/* 2. Hero Section */}
+        
+        {/* 2. Hero Section: 45-day Proposition, Controlled Rolling Ticker, 99acres Inspired Quick Action Card */}
         <Hero
-          onSellClick={() => {
-            if (onNavigateToSellerAssisted) onNavigateToSellerAssisted();
-          }}
+          onSellClick={() => handleStartSelling()}
           onExploreClick={scrollToListings}
+          onUnderstandProcessClick={scrollToCalculator}
         />
 
-        {/* 3. Sliding Animation Loop of Trusted Channel Partners (Sobha, Prestige, Brigade, etc.) */}
+        {/* 3. Trusted Partners Dynamic Marquee */}
         <TrustedPartnersMarquee />
 
-        {/* 4. Streamlined Assisted Selling Callout Banner */}
-        <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-          <div className="bg-gradient-to-r from-[#172033] via-[#1E2E4B] to-[#244B8F] rounded-2xl p-6 sm:p-10 text-white shadow-xl relative overflow-hidden">
-            <div className="max-w-2xl relative z-10 space-y-3">
-              <div className="inline-flex items-center space-x-2 bg-white/10 px-3 py-1 rounded-full text-xs font-semibold text-amber-200">
-                <ShieldCheck className="w-4 h-4 text-[#B68A4A]" />
-                <span>Dedicated Bengaluru Resale Platform</span>
-              </div>
+        {/* 4. Financial Cost of an Unsold Flat Calculator */}
+        <HoldingCostCalculator onExploreSellingOptions={() => handleStartSelling()} />
 
-              <h2 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-                Have a Flat to Sell in Bengaluru?
-              </h2>
+        {/* 5. Verified Resale Inventory */}
+        <div id="listings">
+          <ListedProperties
+            onSelectProperty={(_proj, _loc, _bhk) => {
+              if (onNavigateToContact) onNavigateToContact();
+            }}
+          />
+        </div>
 
-              <p className="text-sm sm:text-base text-slate-300 leading-relaxed font-normal">
-                Onboard with SellMyGhar dedicated seller assistance — zero broker spam, verified legal vetting, and qualified buyer matching.
-              </p>
-
-              <div className="pt-2 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (onNavigateToSellerAssisted) onNavigateToSellerAssisted();
-                  }}
-                  className="relative inline-flex items-center justify-center px-6 py-3.5 rounded-xl text-sm font-bold text-[#172033] bg-white hover:bg-slate-100 shadow-md transition-all cursor-pointer group"
-                >
-                  <span className="absolute -top-2.5 -right-1.5 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider bg-emerald-500 text-white rounded-full shadow-md border-2 border-white">
-                    FREE
-                  </span>
-                  <Building2 className="w-4 h-4 mr-2 text-[#244B8F]" />
-                  <span>Start Assisted Selling</span>
-                  <ArrowRight className="w-4 h-4 ml-2 text-[#244B8F] group-hover:translate-x-1 transition-transform" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (onNavigateToContact) onNavigateToContact();
-                  }}
-                  className="inline-flex items-center text-xs sm:text-sm font-semibold text-slate-300 hover:text-white transition-colors cursor-pointer py-2"
-                >
-                  <PhoneCall className="w-4 h-4 mr-1.5 text-slate-400" />
-                  <span>Or contact our advisor desk directly</span>
-                </button>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* 5. Listed Properties Grid */}
-        <ListedProperties onSelectProperty={handleSelectPropertyForEnquiry} />
       </main>
 
-      {/* 6. DPDP-Compliant Footer */}
+      {/* 6. DPDP-Compliant Footer with Relocated FAQ Accordion & Legal Links */}
       <Footer
         onNavClick={handleTabClick}
         onConsentPortalOpen={onConsentPortalOpen}
@@ -146,4 +113,3 @@ export const HomePage: React.FC<HomePageProps> = ({
     </div>
   );
 };
-
