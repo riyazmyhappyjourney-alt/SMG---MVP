@@ -31,8 +31,10 @@ const FOOTER_FAQS = [
 ];
 
 export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen }) => {
-  const [modalType, setModalType] = useState<'PRIVACY' | 'TERMS' | 'GRIEVANCE' | 'FAQ' | null>(null);
+  const [modalType, setModalType] = useState<'PRIVACY' | 'TERMS' | 'GRIEVANCE' | 'FAQ' | 'FEEDBACK' | 'COOKIE' | null>(null);
   const [openModalFaqIndex, setOpenModalFaqIndex] = useState<number | null>(0);
+  const [feedbackSent, setFeedbackSent] = useState(false);
+  const [feedbackText, setFeedbackText] = useState('');
 
   return (
     <footer className="relative overflow-hidden bg-[#172033] text-slate-300 pt-12 pb-10 border-t border-slate-800">
@@ -71,10 +73,87 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
             </div>
           </div>
 
-          {/* Quick Nav (1 col) */}
+          {/* Company Column (Referenced from 99acres) */}
           <div className="space-y-3">
             <h4 className="text-xs font-bold uppercase tracking-wider text-[#B68A4A] font-['Montserrat']">
-              Quick Navigation
+              Company
+            </h4>
+            <ul className="space-y-2 text-xs font-['Poppins']">
+              <li>
+                <button
+                  type="button"
+                  onClick={() => onNavClick('ABOUT')}
+                  className="hover:text-white transition-colors cursor-pointer text-left"
+                >
+                  About us
+                </button>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  onClick={() => onNavClick('CONTACT')}
+                  className="hover:text-white transition-colors cursor-pointer text-left"
+                >
+                  Contact us
+                </button>
+              </li>
+              <li>
+                <a
+                  href="#/careers"
+                  className="hover:text-white transition-colors cursor-pointer text-left block"
+                >
+                  Careers with us
+                </a>
+              </li>
+              <li>
+                <a
+                  href="#/terms"
+                  className="hover:text-white transition-colors cursor-pointer text-left block"
+                >
+                  Terms & Conditions
+                </a>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  onClick={() => setModalType('FEEDBACK')}
+                  className="hover:text-white transition-colors cursor-pointer text-left"
+                >
+                  Feedback
+                </button>
+              </li>
+              <li>
+                <a
+                  href="#/privacy-policy"
+                  className="hover:text-white transition-colors cursor-pointer text-left block"
+                >
+                  Privacy Policy
+                </a>
+              </li>
+              <li>
+                <button
+                  type="button"
+                  onClick={() => setModalType('GRIEVANCE')}
+                  className="hover:text-white transition-colors cursor-pointer text-left"
+                >
+                  Grievances
+                </button>
+              </li>
+              <li>
+                <a
+                  href="#/cookie-policy"
+                  className="hover:text-white transition-colors cursor-pointer text-left block"
+                >
+                  Cookie Policy
+                </a>
+              </li>
+            </ul>
+          </div>
+
+          {/* Resale Services (1 col) */}
+          <div className="space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-[#B68A4A] font-['Montserrat']">
+              Resale Services
             </h4>
             <ul className="space-y-2 text-xs font-['Poppins']">
               <li>
@@ -92,26 +171,16 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                   onClick={() => onNavClick('SELL')}
                   className="hover:text-white transition-colors cursor-pointer text-left"
                 >
-                  Sell My Apartment
+                  Sell My Flat (Free)
                 </button>
               </li>
               <li>
-                <button
-                  type="button"
-                  onClick={() => onNavClick('ABOUT')}
-                  className="hover:text-white transition-colors cursor-pointer text-left"
+                <a
+                  href="#/holding-calculator"
+                  className="hover:text-white transition-colors cursor-pointer text-left block"
                 >
-                  About SellMyGhar
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  onClick={() => onNavClick('CONTACT')}
-                  className="hover:text-white transition-colors cursor-pointer text-left"
-                >
-                  Contact Advisory Desk
-                </button>
+                  Holding Cost Calculator
+                </a>
               </li>
               <li>
                 <button
@@ -126,45 +195,18 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                   <span>Frequently Asked Questions</span>
                 </button>
               </li>
-            </ul>
-          </div>
-
-          {/* Legal & Compliance (1 col) */}
-          <div className="space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-[#B68A4A] font-['Montserrat']">
-              Legal & Privacy
-            </h4>
-            <ul className="space-y-2 text-xs font-['Poppins']">
-              <li>
-                <button
-                  type="button"
-                  onClick={() => setModalType('PRIVACY')}
-                  className="hover:text-white transition-colors cursor-pointer flex items-center text-left"
-                >
-                  <Lock className="w-3 h-3 mr-1.5 text-slate-400 shrink-0" />
-                  Privacy Policy (DPDP)
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  onClick={() => setModalType('TERMS')}
-                  className="hover:text-white transition-colors cursor-pointer flex items-center text-left"
-                >
-                  <Scale className="w-3 h-3 mr-1.5 text-slate-400 shrink-0" />
-                  Terms of Use
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  onClick={() => setModalType('GRIEVANCE')}
-                  className="hover:text-white transition-colors cursor-pointer flex items-center text-amber-300 hover:text-amber-200 text-left"
-                >
-                  <ShieldCheck className="w-3 h-3 mr-1.5 shrink-0" />
-                  Grievance Officer
-                </button>
-              </li>
+              {onConsentPortalOpen && (
+                <li>
+                  <button
+                    type="button"
+                    onClick={onConsentPortalOpen}
+                    className="hover:text-white transition-colors cursor-pointer text-left flex items-center text-slate-400"
+                  >
+                    <Lock className="w-3 h-3 mr-1.5 shrink-0" />
+                    <span>Manage Consent</span>
+                  </button>
+                </li>
+              )}
             </ul>
           </div>
 

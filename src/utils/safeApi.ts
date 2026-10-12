@@ -117,7 +117,10 @@ export async function safeParseJson<T = any>(res: Response): Promise<ApiResponse
  */
 export async function safeFetchJson<T = any>(input: RequestInfo | URL, init?: RequestInit): Promise<ApiResponse<T>> {
   try {
-    const res = await fetch(input, init);
+    const res = await fetch(input, {
+      credentials: 'include',
+      ...init,
+    });
     return await safeParseJson<T>(res);
   } catch (networkErr: any) {
     return {

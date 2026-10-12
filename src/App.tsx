@@ -14,6 +14,11 @@ import { ArrowLeft, Shield } from 'lucide-react';
 import { UserAuthProfile } from './types/user';
 import { getBrowserSupabase } from './lib/supabase';
 
+import { TermsPage } from './components/legal/TermsPage';
+import { PrivacyPolicyPage } from './components/legal/PrivacyPolicyPage';
+import { CookiePolicyPage } from './components/legal/CookiePolicyPage';
+import { CareersPage } from './components/company/CareersPage';
+
 export type AppRoute = 
   | 'HOME' 
   | 'CRM' 
@@ -24,7 +29,11 @@ export type AppRoute =
   | 'DASHBOARD'
   | 'PROPERTY_DETAIL'
   | 'LOCALITY_DETAIL'
-  | 'AUTH_CALLBACK';
+  | 'AUTH_CALLBACK'
+  | 'TERMS'
+  | 'PRIVACY_POLICY'
+  | 'COOKIE_POLICY'
+  | 'CAREERS';
 
 export const parseLocalitySlug = (path: string, hash: string): string | null => {
   const pathMatch = path.match(/^\/sell-flat-in-([a-zA-Z0-9-]+)-bangalore/i);
@@ -59,7 +68,13 @@ export function resolveRoute(path: string, hash: string, host: string): AppRoute
     return 'AUTH_CALLBACK';
   }
 
-  // 3. SEO Locality and Contact pages
+  // 3. Legal and Company routes
+  if (hash === '#/terms' || path === '/terms') return 'TERMS';
+  if (hash === '#/privacy-policy' || path === '/privacy-policy') return 'PRIVACY_POLICY';
+  if (hash === '#/cookie-policy' || path === '/cookie-policy') return 'COOKIE_POLICY';
+  if (hash === '#/careers' || path === '/careers') return 'CAREERS';
+
+  // 4. SEO Locality and Contact pages
   if (hash === '#/contact' || path === '/contact') return 'CONTACT';
   if (localitySlug) return 'LOCALITY_DETAIL';
 
@@ -183,6 +198,14 @@ export default function App() {
       }
     } else if (route === 'CONTACT') {
       window.location.hash = '/contact';
+    } else if (route === 'TERMS') {
+      window.location.hash = '/terms';
+    } else if (route === 'PRIVACY_POLICY') {
+      window.location.hash = '/privacy-policy';
+    } else if (route === 'COOKIE_POLICY') {
+      window.location.hash = '/cookie-policy';
+    } else if (route === 'CAREERS') {
+      window.location.hash = '/careers';
     } else if (route === 'AUTH_CALLBACK') {
       window.location.hash = '/auth/callback';
     } else {
@@ -314,6 +337,54 @@ export default function App() {
         onNavigate={navigateTo}
         onSignInClick={() => navigateTo('LOGIN')}
         onConsentPortalOpen={() => navigateTo('CONSENT')}
+      />
+    );
+  }
+
+  // Dedicated Terms of Service Page
+  if (currentRoute === 'TERMS') {
+    return (
+      <TermsPage
+        onBackToHome={() => navigateTo('HOME')}
+        onNavigateToContact={() => navigateTo('CONTACT')}
+        onNavigateToSellerAssisted={() => navigateTo('SELLER_ASSISTED')}
+        onSignInClick={() => navigateTo('LOGIN')}
+      />
+    );
+  }
+
+  // Dedicated Privacy Policy Page (DPDP Act 2023 Compliant)
+  if (currentRoute === 'PRIVACY_POLICY') {
+    return (
+      <PrivacyPolicyPage
+        onBackToHome={() => navigateTo('HOME')}
+        onNavigateToContact={() => navigateTo('CONTACT')}
+        onNavigateToSellerAssisted={() => navigateTo('SELLER_ASSISTED')}
+        onSignInClick={() => navigateTo('LOGIN')}
+      />
+    );
+  }
+
+  // Dedicated Cookie Policy Page
+  if (currentRoute === 'COOKIE_POLICY') {
+    return (
+      <CookiePolicyPage
+        onBackToHome={() => navigateTo('HOME')}
+        onNavigateToContact={() => navigateTo('CONTACT')}
+        onNavigateToSellerAssisted={() => navigateTo('SELLER_ASSISTED')}
+        onSignInClick={() => navigateTo('LOGIN')}
+      />
+    );
+  }
+
+  // Dedicated Careers with Us Page
+  if (currentRoute === 'CAREERS') {
+    return (
+      <CareersPage
+        onBackToHome={() => navigateTo('HOME')}
+        onNavigateToContact={() => navigateTo('CONTACT')}
+        onNavigateToSellerAssisted={() => navigateTo('SELLER_ASSISTED')}
+        onSignInClick={() => navigateTo('LOGIN')}
       />
     );
   }

@@ -510,7 +510,7 @@ export const Header: React.FC<HeaderProps> = ({
                         <div className="space-y-2 text-xs">
                           {(buyerMode === 'BUY' ? [
                             'Registered Deed Benchmarked Flats',
-                            'Direct Owner Resale (Zero Brokerage)',
+                            'Direct Owner Verified Resales',
                             'Ready-to-Move Gated Flats',
                             'OC & CC Verified Resale',
                             'Near Tech Parks (ORR / Whitefield)'
@@ -589,8 +589,12 @@ export const Header: React.FC<HeaderProps> = ({
                         type="button"
                         onClick={() => {
                           setOpenMegaMenu(null);
-                          const el = document.getElementById('calculator');
-                          if (el) el.scrollIntoView({ behavior: 'smooth' });
+                          const el = document.getElementById('holding-calculator') || document.getElementById('calculator');
+                          if (el) {
+                            el.scrollIntoView({ behavior: 'smooth' });
+                          } else {
+                            window.location.hash = '#/holding-calculator';
+                          }
                         }}
                         className="text-xs font-bold text-[#244B8F] hover:underline cursor-pointer"
                       >
@@ -732,9 +736,10 @@ export const Header: React.FC<HeaderProps> = ({
                     e.preventDefault();
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
-                  className="text-white font-extrabold text-base sm:text-lg tracking-tight hover:opacity-90 transition-opacity"
+                  className="text-white font-extrabold text-base sm:text-lg tracking-tight hover:opacity-90 transition-opacity flex items-baseline"
                 >
-                  SellMyGhar
+                  <span>SellMyGhar</span>
+                  <span className="text-white/70 font-semibold text-xs ml-0.5">.in</span>
                 </a>
 
                 {/* Corridor Selector Pill */}
@@ -782,7 +787,7 @@ export const Header: React.FC<HeaderProps> = ({
                   type="text"
                   value={scrolledQuery}
                   onChange={(e) => setScrolledQuery(e.target.value)}
-                  placeholder="Enter Locality / Project / Society / Landmark"
+                  placeholder="Whitefield"
                   className="w-full px-3 py-1 text-xs text-slate-800 placeholder-slate-400 focus:outline-hidden font-medium"
                 />
 
@@ -839,7 +844,7 @@ export const Header: React.FC<HeaderProps> = ({
                   <button
                     type="button"
                     onClick={onDashboardClick}
-                    className="p-2 rounded-lg hover:bg-white/10 text-white transition-colors cursor-pointer"
+                    className="w-8 h-8 rounded-full border border-white/30 bg-white/15 hover:bg-white/25 flex items-center justify-center text-white transition-all cursor-pointer"
                     title="My Dashboard"
                   >
                     <LayoutDashboard className="w-4 h-4" />
@@ -848,7 +853,7 @@ export const Header: React.FC<HeaderProps> = ({
                   <button
                     type="button"
                     onClick={onLoginClick}
-                    className="p-2 rounded-lg hover:bg-white/10 text-white transition-colors cursor-pointer"
+                    className="w-8 h-8 rounded-full border border-white/30 bg-white/15 hover:bg-white/25 flex items-center justify-center text-white transition-all cursor-pointer"
                     title="Sign In"
                   >
                     <User className="w-4 h-4" />
