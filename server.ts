@@ -956,6 +956,74 @@ app.post('/api/auth/logout', async (req, res) => {
 // 5. LEADS & INVENTORY ENDPOINTS
 // ====================================================================
 
+// API: Contact Us Form Submission (Rate limited; records DPDP consent & enters buyer_enquiries)
+app.post('/api/contact', jsonDefault, rateLimit('contact-submit', 5, 900), async (req, res) => {
+  try {
+    const rawName = (req.body.name || req.body.fullName || '').trim();
+    if (!rawName || rawName.length < 2) {
+      return res.status(400).json({ error: 'Name is required (minimum 2 characters).' });
+    }
+
+    const cleanPhone = String(req.body.phone || '').replace(/\D/g, '').slice(-10);
+    if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
+      return res.status(400).json({ error: 'Please enter a valid 10-digit Indian mobile number.' });
+    }
+
+    const email = (req.body.email || '').trim().toLowerCase();
+    const subject = (req.body.subject || 'General Enquiry').trim();
+    const message = (req.body.message || '').trim();
+    const normalizedPhone = `+91${cleanPhone}`;
+    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+
+    const consentId = `cst-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
+    await executeQuery(
+      `INSERT INTO consents (
+        id, phone, user_id, purpose, notice_version,
+        is_consented, consented_at, is_withdrawn,
+        ip_hash, user_agent_hash
+      ) VALUES ($1, $2, $3, $4, $5, true, NOW(), false, $6, $7)
+      ON CONFLICT DO NOTHING;`,
+      [
+        consentId,
+        normalizedPhone,
+        null,
+        'CONTACT_ENQUIRY',
+        'dpdp-notice-v1-2026',
+        'ip-' + clientIp.slice(0, 16),
+        'ua-web'
+      ]
+    );
+
+    const enquiryId = `enq-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
+    const randomNum = Math.floor(1000 + Math.random() * 9000);
+    const referenceId = `SMG-CONT-${new Date().getFullYear()}-${randomNum}`;
+    const fullNotes = `[Contact Form: ${subject}] ${email ? `Email: ${email} | ` : ''}${message ? `Message: ${message}` : 'Direct Contact Request'}`;
+
+    await executeQuery(
+      `INSERT INTO buyer_enquiries (
+        id, buyer_name, phone, preferred_locality_or_society,
+        bhk_type, lead_status, notes, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, 'ANY', 'NEW', $5, NOW(), NOW());`,
+      [
+        enquiryId,
+        rawName,
+        normalizedPhone,
+        subject || 'Bengaluru General Desk',
+        fullNotes
+      ]
+    );
+
+    return res.status(201).json({
+      success: true,
+      referenceId,
+      message: `Thank you, ${rawName}! Your enquiry has been received. Our Bengaluru team will connect with you within 2 business hours.`
+    });
+  } catch (err: any) {
+    console.error('[ContactSubmit] Error:', err);
+    return res.status(500).json({ error: 'Failed to submit contact enquiry. Please try again.' });
+  }
+});
+
 // API: Lead Capture (Rate limited; connects to DPDP consents & buyer_enquiries)
 app.post('/api/leads', jsonDefault, rateLimit('leads-submit', 5, 900), async (req, res) => {
   try {

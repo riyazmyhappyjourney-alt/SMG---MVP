@@ -220,17 +220,6 @@ export const ListedProperties: React.FC<ListedPropertiesProps> = ({ onSelectProp
                     <Heart className={`w-4 h-4 ${favorites.has(property.id) ? 'fill-rose-500 text-rose-500' : 'text-slate-600'}`} />
                   </button>
 
-                  {/* Top-left Verified Indicator */}
-                  <div className="absolute top-3 left-3">
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/90 backdrop-blur-xs text-[#244B8F] text-[10px] font-bold border border-blue-100 shadow-xs">
-                      <img 
-                        src="/images/verified-rosette-badge.svg" 
-                        alt="Verified" 
-                        className="w-3 h-3 object-contain" 
-                      />
-                      <span>Verified</span>
-                    </span>
-                  </div>
 
                 </div>
 

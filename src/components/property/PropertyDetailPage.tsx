@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import {
   Building2,
+  Building,
   MapPin,
-  BedDouble,
-  Maximize,
+  Bed,
+  Bath,
   Maximize2,
   Compass,
   ShieldCheck,
@@ -17,18 +18,31 @@ import {
   Check,
   Info,
   Car,
-  Bath,
   Layers,
   ChevronLeft,
   ChevronRight,
-  Lock,
   Heart,
   ZoomIn,
   X,
-  IndianRupee
+  IndianRupee,
+  Layout,
+  Waves,
+  Dumbbell,
+  Activity,
+  Zap,
+  Trees,
+  Smile,
+  Droplets,
+  TrainFront,
+  Briefcase,
+  Stethoscope,
+  GraduationCap,
+  ArrowRight,
+  Copy
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Logo } from '../brand/Logo';
+import { Header } from '../home/Header';
+import { Footer } from '../home/Footer';
 import { isFavoriteProperty, toggleFavoriteProperty } from '../../utils/favoritesStore';
 
 export interface PublicPropertyDetail {
@@ -101,12 +115,14 @@ interface PropertyDetailPageProps {
   propertyId: string;
   onBackToHome: () => void;
   onNavigateToProperty?: (id: string) => void;
+  onNavigateToLocality?: (slug: string) => void;
 }
 
 export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
   propertyId,
   onBackToHome,
-  onNavigateToProperty
+  onNavigateToProperty,
+  onNavigateToLocality
 }) => {
   const [property, setProperty] = useState<PublicPropertyDetail | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
@@ -134,6 +150,8 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
   } | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const isMobile = typeof window !== 'undefined' ? window.innerWidth < 768 : false;
 
   useEffect(() => {
     let isMounted = true;
@@ -199,39 +217,39 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
     return `₹${amount.toLocaleString('en-IN')}`;
   };
 
-  const handleShare = () => {
-    if (navigator.share) {
-      navigator.share({
-        title: property?.projectName || 'SellMyGhar Verified Home',
-        text: `Verified ${property?.bhkType} apartment in ${property?.projectName}, ${property?.localityName}`,
-        url: window.location.href
-      }).catch(() => {});
-    } else {
-      navigator.clipboard.writeText(window.location.href);
-      showToast('Property link copied to clipboard!');
-    }
+  const handleNextPhoto = () => {
+    if (!property) return;
+    setSlideDirection('right');
+    setActivePhotoIndex((prev) => (prev + 1) % property.photos.length);
   };
 
   const handlePrevPhoto = () => {
-    if (!property || property.photos.length <= 1) return;
+    if (!property) return;
     setSlideDirection('left');
-    setActivePhotoIndex((prev) => (prev > 0 ? prev - 1 : property.photos.length - 1));
+    setActivePhotoIndex((prev) => (prev - 1 + property.photos.length) % property.photos.length);
   };
 
-  const handleNextPhoto = () => {
-    if (!property || property.photos.length <= 1) return;
-    setSlideDirection('right');
-    setActivePhotoIndex((prev) => (prev < property.photos.length - 1 ? prev + 1 : 0));
+  const handleShare = async () => {
+    const url = window.location.href;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: `${property?.bhkType} in ${property?.projectName} | SellMyGhar`,
+          text: `Verified ${property?.bhkType} resale apartment at ${property?.projectName}, ${property?.localityName}. Price: ${formatPriceCroresOrLakhs(property?.askingPriceInr || 0)}`,
+          url
+        });
+      } catch {
+        // User cancelled share
+      }
+    } else {
+      navigator.clipboard?.writeText(url);
+      showToast('Property link copied to clipboard!');
+    }
   };
 
   const handleEnquirySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
-
-    if (!buyerName.trim() || buyerName.trim().length < 2) {
-      setFormError('Please enter your full name.');
-      return;
-    }
 
     const cleanPhone = buyerPhone.replace(/\D/g, '').slice(-10);
     if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
@@ -239,12 +257,18 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
       return;
     }
 
+    if (!buyerName.trim() || buyerName.trim().length < 2) {
+      setFormError('Please enter your full name.');
+      return;
+    }
+
     if (!dpdpConsent) {
-      setFormError('Statutory consent is required under the DPDP Act for visit coordination.');
+      setFormError('Statutory DPDP consent is required to coordinate this private walkthrough.');
       return;
     }
 
     setIsSubmitting(true);
+
     try {
       const payload = {
         fullName: buyerName.trim(),
@@ -290,12 +314,58 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
 
   const rmCallPhone = '+918217873708';
 
+  // Helper to resolve clean, authentic icons for society amenities
+  const getAmenityIcon = (name: string) => {
+    const lower = name.toLowerCase();
+    if (lower.includes('pool') || lower.includes('swimming')) return <Waves className="w-4 h-4 text-[#244B8F] shrink-0" />;
+    if (lower.includes('gym') || lower.includes('fitness')) return <Dumbbell className="w-4 h-4 text-[#244B8F] shrink-0" />;
+    if (lower.includes('club') || lower.includes('hall')) return <Building className="w-4 h-4 text-[#244B8F] shrink-0" />;
+    if (lower.includes('tennis') || lower.includes('court') || lower.includes('badminton') || lower.includes('squash')) {
+      return <Activity className="w-4 h-4 text-[#244B8F] shrink-0" />;
+    }
+    if (lower.includes('power') || lower.includes('backup') || lower.includes('generator')) return <Zap className="w-4 h-4 text-amber-600 shrink-0" />;
+    if (lower.includes('security') || lower.includes('cctv') || lower.includes('guard')) return <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />;
+    if (lower.includes('garden') || lower.includes('park') || lower.includes('lawn')) return <Trees className="w-4 h-4 text-emerald-600 shrink-0" />;
+    if (lower.includes('play') || lower.includes('kids') || lower.includes('children')) return <Smile className="w-4 h-4 text-orange-500 shrink-0" />;
+    if (lower.includes('parking') || lower.includes('car')) return <Car className="w-4 h-4 text-[#244B8F] shrink-0" />;
+    if (lower.includes('water') || lower.includes('rainwater')) return <Droplets className="w-4 h-4 text-sky-500 shrink-0" />;
+    return <CheckCircle2 className="w-4 h-4 text-[#244B8F] shrink-0" />;
+  };
+
+  // Helper to resolve authentic icons for nearby landmarks
+  const getLandmarkIcon = (name: string) => {
+    const lower = name.toLowerCase();
+    if (lower.includes('metro') || lower.includes('station') || lower.includes('transit')) {
+      return <TrainFront className="w-4 h-4 text-[#244B8F] shrink-0" />;
+    }
+    if (lower.includes('tech') || lower.includes('prestige') || lower.includes('cisco') || lower.includes('park') || lower.includes('office')) {
+      return <Briefcase className="w-4 h-4 text-[#244B8F] shrink-0" />;
+    }
+    if (lower.includes('hospital') || lower.includes('medical') || lower.includes('manipal') || lower.includes('columbia') || lower.includes('clinic')) {
+      return <Stethoscope className="w-4 h-4 text-rose-600 shrink-0" />;
+    }
+    if (lower.includes('school') || lower.includes('dps') || lower.includes('academy') || lower.includes('greenwood') || lower.includes('college')) {
+      return <GraduationCap className="w-4 h-4 text-indigo-600 shrink-0" />;
+    }
+    return <MapPin className="w-4 h-4 text-slate-500 shrink-0" />;
+  };
+
+  const handleHeaderTabClick = (tab: 'BUY' | 'SELL' | 'ABOUT' | 'CONTACT') => {
+    if (tab === 'SELL') {
+      window.location.hash = '#/post-property';
+    } else if (tab === 'CONTACT') {
+      window.location.hash = '#/contact';
+    } else {
+      onBackToHome();
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-[#F4F6F9] flex flex-col items-center justify-center p-4 font-['Montserrat']">
         <div className="w-12 h-12 border-4 border-[#244B8F] border-t-transparent rounded-full animate-spin mb-4" />
-        <h2 className="text-base font-bold text-slate-800">Loading Verified Property Details...</h2>
-        <p className="text-xs text-slate-500 mt-1">Inspecting statutory title and registered deed benchmarking data</p>
+        <h2 className="text-base font-bold text-slate-800">Loading Property Details...</h2>
+        <p className="text-xs text-slate-500 mt-1 font-['Poppins']">Inspecting statutory title records and verified inventory benchmarks</p>
       </div>
     );
   }
@@ -303,34 +373,23 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
   if (error || !property) {
     return (
       <div className="min-h-screen bg-[#F4F6F9] flex flex-col font-['Montserrat']">
-        <header className="bg-[#172033] text-white px-4 py-3 border-b border-slate-800">
-          <div className="max-w-7xl mx-auto flex items-center justify-between">
-            <button
-              type="button"
-              onClick={onBackToHome}
-              className="inline-flex items-center space-x-1.5 text-xs text-slate-300 hover:text-white cursor-pointer"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Back to Listings</span>
-            </button>
-            <div className="flex items-center space-x-2">
-              <Logo />
-            </div>
-          </div>
-        </header>
-
+        <Header
+          onPostPropertyClick={() => { window.location.hash = '#/post-property'; }}
+          onLoginClick={() => { window.location.hash = '#/login'; }}
+          onTabClick={handleHeaderTabClick}
+        />
         <div className="flex-1 max-w-xl mx-auto flex flex-col items-center justify-center p-6 text-center">
           <div className="w-16 h-16 bg-rose-100 text-rose-700 rounded-full flex items-center justify-center mb-4">
             <Info className="w-8 h-8" />
           </div>
           <h1 className="text-xl font-extrabold text-slate-900 mb-2">Property Not Available</h1>
-          <p className="text-sm text-slate-600 mb-6">
+          <p className="text-sm text-slate-600 mb-6 font-['Poppins']">
             {error || 'This property is no longer active on the public discovery portal.'}
           </p>
           <button
             type="button"
             onClick={onBackToHome}
-            className="px-6 py-2.5 bg-[#244B8F] text-white font-bold text-xs rounded-xl hover:bg-[#1B396E] transition-all cursor-pointer shadow-md"
+            className="px-6 py-2.5 bg-[#244B8F] text-white font-bold text-xs rounded-xl hover:bg-[#1B396E] transition-all cursor-pointer shadow-md font-['Montserrat']"
           >
             Explore Active Bengaluru Homes
           </button>
@@ -345,7 +404,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
     : [
         {
           id: 'fp-1',
-          title: `${property.bhkType} Architectural Master Plan`,
+          title: `${property.bhkType} Floor Plan`,
           carpetAreaSqft: property.carpetAreaSqft,
           superBuiltUpSqft: property.superBuiltUpSqft,
           imageUrl: property.floorPlanUrl || '/images/sample-architectural-floor-plan.svg',
@@ -354,162 +413,179 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
       ];
 
   const currentFloorPlan = floorPlanList[activeFloorPlanTab] || floorPlanList[0];
+  const localitySlug = property.localityName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
   return (
-    <div className="min-h-screen bg-[#F4F6F9] text-slate-900 font-['Montserrat'] selection:bg-[#244B8F] selection:text-white pb-24 md:pb-12 text-left">
+    <div className="min-h-screen bg-[#F4F6F9] text-slate-900 font-['Montserrat'] selection:bg-[#244B8F] selection:text-white pb-24 md:pb-0 text-left">
       
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 bg-[#172033] text-white px-5 py-3 rounded-xl shadow-2xl flex items-center space-x-3 border border-slate-700 text-xs font-semibold">
+        <div className="fixed bottom-6 right-6 z-50 bg-[#172033] text-white px-5 py-3 rounded-xl shadow-2xl flex items-center space-x-3 border border-slate-700 text-xs font-semibold font-['Montserrat']">
           <CheckCircle2 className="w-4 h-4 text-emerald-400" />
           <span>{toastMessage}</span>
         </div>
       )}
 
-      {/* TOP HEADER */}
-      <header className="sticky top-0 z-40 bg-[#172033]/95 backdrop-blur-md text-white border-b border-slate-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      {/* TOP HEADER: Full interactive header matching Homepage */}
+      <Header
+        onPostPropertyClick={() => { window.location.hash = '#/post-property'; }}
+        onLoginClick={() => { window.location.hash = '#/login'; }}
+        onTabClick={handleHeaderTabClick}
+      />
+
+      {/* SUB-HEADER / FUNCTIONAL BREADCRUMBS BAR */}
+      <div className="bg-white border-b border-slate-200/90 shadow-2xs">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between text-xs gap-3 font-['Poppins']">
           
-          <div className="flex items-center space-x-4">
+          {/* Functional Breadcrumb Links */}
+          <div className="flex items-center space-x-2 text-slate-500 font-medium">
             <button
               type="button"
               onClick={onBackToHome}
-              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition-colors cursor-pointer"
+              className="inline-flex items-center text-slate-500 hover:text-[#244B8F] transition-colors cursor-pointer mr-1"
             >
-              <ArrowLeft className="w-4 h-4" />
-              <span className="hidden sm:inline">Back to Search</span>
-              <span className="sm:hidden">Back</span>
+              <ArrowLeft className="w-3.5 h-3.5 mr-1" />
+              <span>Back</span>
             </button>
-            <div className="h-4 w-px bg-slate-700 hidden sm:block" />
-            <div className="hidden sm:flex items-center space-x-2">
-              <Logo />
-            </div>
+            <span className="text-slate-300">/</span>
+            
+            <button
+              type="button"
+              onClick={onBackToHome}
+              className="hover:text-[#244B8F] transition-colors cursor-pointer"
+            >
+              Bengaluru
+            </button>
+            <span className="text-slate-300">/</span>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (onNavigateToLocality) {
+                  onNavigateToLocality(localitySlug);
+                } else {
+                  window.location.hash = `#/sell-flat-in-${localitySlug}-bangalore`;
+                }
+              }}
+              className="hover:text-[#244B8F] transition-colors cursor-pointer"
+            >
+              {property.localityName}
+            </button>
+            <span className="text-slate-300">/</span>
+
+            <span className="text-slate-900 font-semibold font-['Montserrat'] truncate max-w-[200px] sm:max-w-xs">
+              {property.projectName}
+            </span>
           </div>
 
-          <div className="flex items-center space-x-3">
-            {/* Heart / Save to Favorites Button */}
+          {/* Right Action Icons & Property ID */}
+          <div className="flex items-center space-x-2.5">
+            {/* Property Reference Code */}
+            <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-[11px] font-mono font-medium">
+              <span>REF: {property.id}</span>
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard?.writeText(property.id);
+                  showToast('Property Reference ID copied to clipboard');
+                }}
+                className="text-slate-400 hover:text-slate-700 cursor-pointer transition-colors"
+                title="Copy Property ID"
+              >
+                <Copy className="w-3 h-3" />
+              </button>
+            </div>
+
+            {/* Favorite Button */}
             <button
               type="button"
               onClick={handleToggleSaved}
-              className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-rose-400 transition-colors cursor-pointer"
+              className="p-1.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-white text-slate-600 hover:text-rose-500 transition-colors cursor-pointer"
               title={isSaved ? 'Saved in favorites' : 'Save to favorites'}
               aria-label="Save Property"
             >
-              <Heart className={`w-4 h-4 ${isSaved ? 'fill-rose-500 text-rose-500' : 'text-slate-300'}`} />
+              <Heart className={`w-4 h-4 ${isSaved ? 'fill-rose-500 text-rose-500' : 'text-slate-600'}`} />
             </button>
 
+            {/* Share Button */}
             <button
               type="button"
               onClick={handleShare}
-              className="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors cursor-pointer"
-              title="Share Verified Listing"
+              className="p-1.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-white text-slate-600 hover:text-[#244B8F] transition-colors cursor-pointer"
+              title="Share Listing"
             >
               <Share2 className="w-4 h-4" />
             </button>
-            <a
-              href={`tel:${rmCallPhone}`}
-              className="hidden sm:inline-flex items-center space-x-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-colors cursor-pointer"
-            >
-              <Phone className="w-3.5 h-3.5" />
-              <span>Call RM Desk</span>
-            </a>
+
+            {/* WhatsApp RM */}
             <a
               href={getWhatsAppUrl()}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 bg-[#25D366] hover:bg-[#1EBE5D] text-slate-950 font-bold text-xs rounded-lg transition-colors cursor-pointer"
+              className="inline-flex items-center space-x-1 px-3 py-1 bg-[#25D366] hover:bg-[#1EBE5D] text-slate-950 font-bold text-xs rounded-lg transition-colors cursor-pointer font-['Montserrat']"
             >
               <MessageSquare className="w-3.5 h-3.5" />
-              <span>WhatsApp</span>
+              <span className="hidden sm:inline">WhatsApp</span>
             </a>
           </div>
 
         </div>
-      </header>
-
-      {/* BREADCRUMB / ID BAR */}
-      <div className="bg-white border-b border-slate-200/80">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex flex-wrap items-center justify-between text-xs text-slate-500 gap-2">
-          <div className="flex items-center space-x-2">
-            <span>Bengaluru</span>
-            <span>›</span>
-            <span>{property.localityName}</span>
-            <span>›</span>
-            <strong className="text-slate-800">{property.projectName}</strong>
-          </div>
-          <div className="flex items-center space-x-3 text-[11px]">
-            <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded font-mono font-bold">
-              REF: {property.id}
-            </span>
-            <span className="inline-flex items-center text-emerald-700 font-semibold">
-              <Lock className="w-3 h-3 mr-1 text-emerald-600" />
-              Verified Escorted Resale
-            </span>
-          </div>
-        </div>
       </div>
 
-      {/* MAIN CONTAINER */}
+      {/* MAIN CONTENT CONTAINER */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-8">
         
         {/* ROW 1: TITLE & TOP HIGHLIGHTS */}
         <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-4 border-b border-slate-200 pb-6">
           <div className="space-y-2">
             
-            <div className="flex flex-wrap items-center gap-2">
-              <span className={`px-2.5 py-1 rounded text-[11px] font-black uppercase tracking-wider ${
-                property.verification.badge === 'INSPECTED'
-                  ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                  : property.verification.badge === 'DOCS CHECKED'
-                  ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
-                  : 'bg-blue-100 text-blue-900 border border-blue-300'
-              }`}>
-                <CheckCircle2 className="w-3.5 h-3.5 inline mr-1" />
-                {property.verification.badge}
+            <div className="flex flex-wrap items-center gap-2 font-['Montserrat']">
+              <span className="px-3 py-1 rounded-full bg-[#244B8F] text-white text-[11px] font-bold shadow-xs">
+                For Resale
               </span>
-              <span className="px-2.5 py-1 rounded bg-[#172033] text-white text-[11px] font-bold">
+              <span className="px-2.5 py-1 rounded-md bg-slate-100 text-slate-800 text-[11px] font-bold">
                 {property.bhkType}
               </span>
-              <span className="px-2.5 py-1 rounded bg-slate-200 text-slate-800 text-[11px] font-semibold">
+              <span className="px-2.5 py-1 rounded-md bg-slate-100 text-slate-700 text-[11px] font-semibold">
                 {property.propertyType}
               </span>
             </div>
 
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-[#172033] tracking-tight">
-              {property.bhkType} Resale Apartment in {property.projectName}
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-[#172033] tracking-tight font-['Montserrat']">
+              {property.bhkType} Apartment in {property.projectName}
             </h1>
 
-            <p className="text-sm text-slate-600 flex items-center">
+            <p className="text-sm text-slate-600 flex items-center font-['Poppins']">
               <MapPin className="w-4 h-4 mr-1.5 text-[#244B8F] shrink-0" />
-              <span>{property.localityName}</span>
+              <span>{property.localityName}, Bengaluru</span>
             </p>
           </div>
 
           {/* Pricing Highlight Pill */}
-          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between lg:justify-end gap-6 shrink-0">
+          <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs flex items-center justify-between lg:justify-end gap-6 shrink-0 font-['Montserrat']">
             <div>
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Asking Price</span>
-              <span className="text-2xl sm:text-3xl font-black text-[#172033]">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block font-['Poppins']">Asking Price</span>
+              <span className="text-2xl sm:text-3xl font-extrabold text-[#172033] tracking-tight">
                 {formatPriceCroresOrLakhs(property.askingPriceInr)}
               </span>
             </div>
             <div className="border-l border-slate-200 pl-6 text-right">
-              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block">Price / SBUA</span>
-              <span className="text-base sm:text-lg font-bold text-slate-700">
+              <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider block font-['Poppins']">Price / SBUA</span>
+              <span className="text-base sm:text-lg font-bold text-slate-700 font-mono">
                 ₹{property.pricePerSqft.toLocaleString('en-IN')}/sq.ft
               </span>
             </div>
           </div>
         </div>
 
-        {/* ROW 2: IMAGE GALLERY & SUMMARY LAYOUT (2 Columns on Large Screens) */}
+        {/* ROW 2: IMAGE GALLERY & COMPREHENSIVE DETAILS (2 Columns on Large Screens) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           
-          {/* LEFT COLUMN: Gallery & Comprehensive Details (8 cols) */}
+          {/* LEFT COLUMN: Gallery, Specs, Description, Floor Plan, Legal, Amenities, Developer (8 cols) */}
           <div className="lg:col-span-7 xl:col-span-8 space-y-8">
             
-            {/* 1. Large Sliding Photo Showcase (Smooth Slide Animation with Controls) */}
-            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+            {/* 1. Large Sliding Photo Showcase */}
+            <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
               <div className="relative aspect-16/10 bg-slate-950 overflow-hidden">
                 <AnimatePresence initial={false} mode="wait">
                   <motion.img
@@ -519,13 +595,13 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                     initial={{ opacity: 0, x: slideDirection === 'right' ? 60 : -60 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: slideDirection === 'right' ? -60 : 60 }}
-                    transition={{ duration: 0.28, ease: 'easeOut' }}
+                    transition={{ duration: 0.25, ease: 'easeOut' }}
                     className="w-full h-full object-cover"
                   />
                 </AnimatePresence>
                 
                 {/* Photo Caption Overlay */}
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-4 flex items-end justify-between text-white text-xs">
+                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-4 flex items-end justify-between text-white text-xs font-['Poppins']">
                   <span className="font-semibold">{activePhoto.caption}</span>
                   <span className="px-2 py-0.5 rounded bg-black/60 backdrop-blur-xs font-mono text-[11px]">
                     {activePhotoIndex + 1} of {property.photos.length}
@@ -579,14 +655,14 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
               )}
             </div>
 
-            {/* 2. Key Specifications Grid (Clear, crisp, high-contrast icons) */}
+            {/* 2. Key Specifications Grid (Montserrat headings + Poppins details) */}
             <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-7 shadow-xs space-y-5">
-              <h2 className="text-base font-extrabold text-[#172033] uppercase tracking-wider text-xs flex items-center space-x-2">
+              <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center space-x-2 font-['Montserrat']">
                 <Layers className="w-4 h-4 text-[#244B8F]" />
                 <span>Property Specifications</span>
               </h2>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 font-['Poppins']">
                 
                 {/* Super Built-Up Sqft */}
                 <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80">
@@ -594,16 +670,16 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                     <Maximize2 className="w-3.5 h-3.5 text-[#244B8F]" />
                     <span>Super Built-up</span>
                   </div>
-                  <span className="text-base font-black text-slate-900">{property.superBuiltUpSqft} sq.ft</span>
+                  <span className="text-base font-bold text-slate-900 font-['Montserrat']">{property.superBuiltUpSqft} sq.ft</span>
                 </div>
 
                 {/* Carpet Area Sqft */}
                 <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80">
                   <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1">
-                    <Maximize className="w-3.5 h-3.5 text-emerald-600" />
+                    <Maximize2 className="w-3.5 h-3.5 text-emerald-600" />
                     <span>Carpet Area</span>
                   </div>
-                  <span className="text-base font-black text-slate-900">{property.carpetAreaSqft} sq.ft</span>
+                  <span className="text-base font-bold text-slate-900 font-['Montserrat']">{property.carpetAreaSqft} sq.ft</span>
                   <span className="text-[10px] text-slate-400 block mt-0.5">~{Math.round((property.carpetAreaSqft / property.superBuiltUpSqft) * 100)}% usable</span>
                 </div>
 
@@ -613,16 +689,16 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                     <Building2 className="w-3.5 h-3.5 text-[#244B8F]" />
                     <span>Floor Level</span>
                   </div>
-                  <span className="text-sm font-black text-slate-900">{property.floorBand}</span>
+                  <span className="text-sm font-bold text-slate-900 font-['Montserrat']">{property.floorBand}</span>
                 </div>
 
-                {/* Facing / Vastu */}
+                {/* Facing */}
                 <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200/80">
                   <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1">
                     <Compass className="w-3.5 h-3.5 text-[#244B8F]" />
                     <span>Facing</span>
                   </div>
-                  <span className="text-base font-black text-slate-900">{property.facing}</span>
+                  <span className="text-base font-bold text-slate-900 font-['Montserrat']">{property.facing}</span>
                 </div>
 
                 {/* Bathrooms */}
@@ -631,7 +707,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                     <Bath className="w-3.5 h-3.5 text-[#244B8F]" />
                     <span>Bathrooms</span>
                   </div>
-                  <span className="text-base font-black text-slate-900">{property.bathroomsCount} Baths</span>
+                  <span className="text-base font-bold text-slate-900 font-['Montserrat']">{property.bathroomsCount} Baths</span>
                 </div>
 
                 {/* Parking */}
@@ -640,7 +716,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                     <Car className="w-3.5 h-3.5 text-[#244B8F]" />
                     <span>Parking</span>
                   </div>
-                  <span className="text-base font-black text-slate-900">
+                  <span className="text-base font-bold text-slate-900 font-['Montserrat']">
                     {property.carParksCount} {property.isCoveredParking ? 'Covered' : 'Open'}
                   </span>
                 </div>
@@ -651,7 +727,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                     <Clock className="w-3.5 h-3.5 text-emerald-600" />
                     <span>Occupancy</span>
                   </div>
-                  <span className="text-sm font-black text-slate-900">Ready to Move</span>
+                  <span className="text-sm font-bold text-slate-900 font-['Montserrat']">Ready to Move</span>
                 </div>
 
                 {/* Monthly Maintenance */}
@@ -660,7 +736,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                     <IndianRupee className="w-3.5 h-3.5 text-blue-600" />
                     <span>Est. Maintenance</span>
                   </div>
-                  <span className="text-sm font-black text-slate-900">
+                  <span className="text-sm font-bold text-slate-900 font-['Montserrat'] font-mono">
                     ₹{(property.monthlyMaintenanceInr || 4500).toLocaleString('en-IN')}/mo
                   </span>
                 </div>
@@ -668,108 +744,52 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
               </div>
             </div>
 
-            {/* 3. Statutory Verification & Legal Diligence Card */}
-            <div className="bg-gradient-to-br from-emerald-50/70 via-white to-blue-50/50 rounded-2xl border border-emerald-200/90 p-6 sm:p-7 shadow-xs space-y-4">
-              <div className="flex items-center justify-between border-b border-emerald-200/60 pb-3">
-                <div className="flex items-center space-x-2">
-                  <ShieldCheck className="w-5 h-5 text-emerald-700" />
-                  <h2 className="text-base font-black text-slate-900">
-                    SellMyGhar Advocate Legal Diligence
-                  </h2>
-                </div>
-                <span className="text-[10px] font-black uppercase tracking-wider bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded">
-                  100% Verified Title
-                </span>
-              </div>
-
-              <p className="text-xs text-slate-600 leading-relaxed font-['Poppins']">
-                This property has been vetted by our legal diligence panel. All statutory title deeds, BBMP khata certificates, and Sub-Registrar encumbrance records have been reviewed.
-              </p>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                <div className="flex items-start space-x-2.5 p-3 rounded-xl bg-white border border-emerald-100 shadow-2xs">
-                  <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="text-xs font-bold text-slate-900 block">{property.verification.khata}</span>
-                    <span className="text-[11px] text-slate-500">BBMP A-Khata with valid SAS tax challan</span>
-                  </div>
-                </div>
-
-                <div className="flex items-start space-x-2.5 p-3 rounded-xl bg-white border border-emerald-100 shadow-2xs">
-                  <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="text-xs font-bold text-slate-900 block">{property.verification.encumbrance}</span>
-                    <span className="text-[11px] text-slate-500">Form 15 Sub-Registrar search zero encumbrances</span>
-                  </div>
-                </div>
-
-                <div className="flex items-start space-x-2.5 p-3 rounded-xl bg-white border border-emerald-100 shadow-2xs">
-                  <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="text-xs font-bold text-slate-900 block">{property.verification.titleDeed}</span>
-                    <span className="text-[11px] text-slate-500">Complete registered sale deed & mother deed chain</span>
-                  </div>
-                </div>
-
-                <div className="flex items-start space-x-2.5 p-3 rounded-xl bg-white border border-emerald-100 shadow-2xs">
-                  <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                  <div>
-                    <span className="text-xs font-bold text-slate-900 block">{property.verification.fieldInspection}</span>
-                    <span className="text-[11px] text-slate-500">Physical field verification completed by relationship desk</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="text-[11px] text-slate-500 bg-emerald-100/50 p-2.5 rounded-lg border border-emerald-200/50 flex items-center space-x-2">
-                <Lock className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
-                <span>Private owner deeds and flat identity remain protected under DPDP Act until private viewing.</span>
-              </div>
-            </div>
-
-            {/* 4. Description & Layout Highlights */}
+            {/* 3. Property Description (Renamed from About this Home) */}
             <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-7 shadow-xs space-y-4">
-              <h2 className="text-base font-extrabold text-[#172033] uppercase tracking-wider text-xs">
-                About this Home
+              <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider font-['Montserrat']">
+                Property Description
               </h2>
               <p className="text-sm text-slate-700 leading-relaxed font-['Poppins']">
                 {property.description}
               </p>
             </div>
 
-            {/* 5. Architectural Floor Plan Section */}
+            {/* 4. Floor Plan Section (Renamed from Architectural Floor Plan, updated icon, clean layout) */}
             <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-7 shadow-xs space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <h2 className="text-base font-extrabold text-[#172033] uppercase tracking-wider text-xs flex items-center space-x-2">
-                  <Building2 className="w-4 h-4 text-[#244B8F]" />
-                  <span>Architectural Floor Plan</span>
+                <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center space-x-2 font-['Montserrat']">
+                  <Layout className="w-4 h-4 text-[#244B8F]" />
+                  <span>Floor Plan</span>
                 </h2>
-                <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold border border-emerald-200">
-                  Verified Layout
+                <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold font-['Montserrat']">
+                  Verified Blueprint
                 </span>
               </div>
 
-              <div className="flex items-center space-x-4 border-b border-slate-100 text-xs font-bold">
-                {floorPlanList.map((plan, idx) => (
-                  <button
-                    key={plan.id || idx}
-                    type="button"
-                    onClick={() => setActiveFloorPlanTab(idx)}
-                    className={`pb-2.5 transition-all cursor-pointer border-b-2 ${
-                      activeFloorPlanTab === idx
-                        ? 'border-[#244B8F] text-[#244B8F]'
-                        : 'border-transparent text-slate-400 hover:text-slate-700'
-                    }`}
-                  >
-                    {plan.title || `${property.bhkType} Layout`}
-                  </button>
-                ))}
-              </div>
+              {floorPlanList.length > 1 && (
+                <div className="flex items-center space-x-4 border-b border-slate-100 text-xs font-bold font-['Montserrat']">
+                  {floorPlanList.map((plan, idx) => (
+                    <button
+                      key={plan.id || idx}
+                      type="button"
+                      onClick={() => setActiveFloorPlanTab(idx)}
+                      className={`pb-2.5 transition-all cursor-pointer border-b-2 ${
+                        activeFloorPlanTab === idx
+                          ? 'border-[#244B8F] text-[#244B8F]'
+                          : 'border-transparent text-slate-400 hover:text-slate-700'
+                      }`}
+                    >
+                      {plan.title || `${property.bhkType} Layout`}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               <div className="relative bg-slate-50 rounded-xl border border-slate-200 p-4 flex flex-col items-center group">
                 <div className="w-full max-h-[380px] flex items-center justify-center overflow-hidden">
                   <img
                     src={currentFloorPlan.imageUrl}
-                    alt={currentFloorPlan.title || 'Architectural Floor Plan'}
+                    alt={currentFloorPlan.title || 'Floor Plan'}
                     className="max-h-[360px] w-auto object-contain cursor-zoom-in transition-transform duration-300 group-hover:scale-101"
                     onClick={() => setIsFloorPlanZoomOpen(true)}
                   />
@@ -778,7 +798,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                 <button
                   type="button"
                   onClick={() => setIsFloorPlanZoomOpen(true)}
-                  className="mt-3 inline-flex items-center space-x-1.5 px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
+                  className="mt-3 inline-flex items-center space-x-1.5 px-3.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer font-['Montserrat']"
                 >
                   <ZoomIn className="w-3.5 h-3.5 text-[#244B8F]" />
                   <span>Click to Zoom Floor Plan</span>
@@ -786,100 +806,164 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
               </div>
             </div>
 
-            {/* 6. Amenities Grid */}
+            {/* 5. SellMyGhar Advocate Legal Diligence Card (MOVED AFTER FLOOR PLAN - Premium Redesign without AI look) */}
             <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-7 shadow-xs space-y-4">
-              <h2 className="text-base font-extrabold text-[#172033] uppercase tracking-wider text-xs">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center space-x-2">
+                  <ShieldCheck className="w-5 h-5 text-[#244B8F]" />
+                  <h2 className="text-base font-bold text-[#172033] font-['Montserrat']">
+                    SellMyGhar Advocate Legal Diligence
+                  </h2>
+                </div>
+                <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full font-['Montserrat']">
+                  100% Verified Title
+                </span>
+              </div>
+
+              <p className="text-xs text-slate-600 leading-relaxed font-['Poppins']">
+                This property has been vetted by our legal diligence panel. All statutory title deeds, BBMP khata certificates, and Sub-Registrar encumbrance records have been reviewed.
+              </p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 font-['Poppins']">
+                <div className="flex items-start space-x-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200/80">
+                  <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="text-xs font-bold text-slate-900 block font-['Montserrat']">{property.verification.khata || 'BBMP A-Khata Authenticated'}</span>
+                    <span className="text-[11px] text-slate-500">BBMP A-Khata with valid SAS tax challan</span>
+                  </div>
+                </div>
+
+                <div className="flex items-start space-x-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200/80">
+                  <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="text-xs font-bold text-slate-900 block font-['Montserrat']">{property.verification.encumbrance || 'Form 15 Encumbrance NIL'}</span>
+                    <span className="text-[11px] text-slate-500">Form 15 Sub-Registrar search zero encumbrances</span>
+                  </div>
+                </div>
+
+                <div className="flex items-start space-x-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200/80">
+                  <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="text-xs font-bold text-slate-900 block font-['Montserrat']">{property.verification.titleDeed || '30-Year Continuous Parent Title'}</span>
+                    <span className="text-[11px] text-slate-500">Complete registered sale deed & mother deed chain</span>
+                  </div>
+                </div>
+
+                <div className="flex items-start space-x-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200/80">
+                  <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="text-xs font-bold text-slate-900 block font-['Montserrat']">{property.verification.fieldInspection || 'Physical Inspection Completed'}</span>
+                    <span className="text-[11px] text-slate-500">Physical field verification completed by relationship desk</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="text-[11px] text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-200/80 flex items-center space-x-2 font-['Poppins']">
+                <ShieldCheck className="w-4 h-4 text-[#244B8F] shrink-0" />
+                <span>Private owner deeds and flat identity remain protected under the Digital Personal Data Protection (DPDP) Act until escorted private viewing.</span>
+              </div>
+            </div>
+
+            {/* 6. Township & Society Amenities (Authentic Non-AI Icons) */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-7 shadow-xs space-y-4">
+              <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider font-['Montserrat']">
                 Township & Society Amenities
               </h2>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 font-['Poppins']">
                 {property.amenities.map((amenity, idx) => (
-                  <div key={idx} className="flex items-center space-x-2 p-3 bg-slate-50 rounded-xl border border-slate-200/80 text-xs font-medium text-slate-800">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                    <span>{amenity}</span>
+                  <div key={idx} className="flex items-center space-x-2.5 p-3 bg-slate-50 rounded-xl border border-slate-200/80 text-xs font-medium text-slate-800">
+                    {getAmenityIcon(amenity)}
+                    <span className="truncate">{amenity}</span>
                   </div>
                 ))}
               </div>
             </div>
 
-            {/* 7. Developer & Nearby Landmarks */}
-            {(property.developer || (property.landmarks && property.landmarks.length > 0)) && (
-              <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-7 shadow-xs space-y-5">
-                
-                {property.developer && (
-                  <div className="border-b border-slate-200 pb-4 space-y-1">
-                    <h2 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Developer & Project Information</h2>
-                    <h3 className="text-base font-black text-slate-900">{property.developer.name}</h3>
-                    <p className="text-xs text-slate-500 font-mono">
-                      RERA ID: {property.developer.reraNumber} • Launched: {property.developer.launchYear}
-                    </p>
-                  </div>
-                )}
+            {/* 7. Developer & Project Information */}
+            {property.developer && (
+              <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-7 shadow-xs space-y-3 font-['Poppins']">
+                <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider font-['Montserrat']">
+                  Developer & Project Information
+                </h2>
+                <div className="space-y-1">
+                  <h3 className="text-base font-bold text-slate-900 font-['Montserrat']">{property.developer.name}</h3>
+                  <p className="text-xs text-slate-500 font-mono">
+                    RERA ID: {property.developer.reraNumber} • Launched: {property.developer.launchYear}
+                  </p>
+                </div>
+              </div>
+            )}
 
-                {property.landmarks && property.landmarks.length > 0 && (
-                  <div className="space-y-3">
-                    <h2 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Nearby Transit & Landmarks</h2>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                      {property.landmarks.map((lm, idx) => (
-                        <div key={idx} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200 text-xs">
-                          <span className="font-semibold text-slate-800">{lm.name}</span>
-                          <span className="text-slate-500 font-bold bg-white px-2 py-0.5 rounded border border-slate-200 text-[11px]">{lm.distance}</span>
-                        </div>
-                      ))}
+            {/* 8. Nearby Transit & Landmarks (Authentic Non-AI Icons & Clear Distances) */}
+            {property.landmarks && property.landmarks.length > 0 && (
+              <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-7 shadow-xs space-y-4 font-['Poppins']">
+                <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider font-['Montserrat']">
+                  Nearby Transit & Landmarks
+                </h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {property.landmarks.map((lm, idx) => (
+                    <div key={idx} className="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+                      <div className="flex items-center space-x-2.5 pr-2">
+                        {getLandmarkIcon(lm.name)}
+                        <span className="font-medium text-slate-800">{lm.name}</span>
+                      </div>
+                      <span className="text-slate-600 font-bold bg-white px-2.5 py-1 rounded-md border border-slate-200 text-[11px] shrink-0 font-mono">
+                        {lm.distance}
+                      </span>
                     </div>
-                  </div>
-                )}
-
+                  ))}
+                </div>
               </div>
             )}
 
           </div>
 
-          {/* RIGHT COLUMN: Sticky Viewing Request & RM Desk Card (4-5 cols) */}
+          {/* RIGHT COLUMN: Escorted Private Tour Form & RM Desk (Solid Premium, No Gradients) */}
           <div className="lg:col-span-5 xl:col-span-4 space-y-6 lg:sticky lg:top-20">
             
             {/* 1. Schedule Private Viewing Card */}
-            <div className="bg-white rounded-2xl border-2 border-[#244B8F]/20 p-6 sm:p-7 shadow-lg space-y-5">
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-7 shadow-xs space-y-5">
               
-              <div className="border-b border-slate-200 pb-3">
-                <span className="text-[10px] font-black uppercase tracking-wider bg-blue-100 text-[#244B8F] px-2.5 py-0.5 rounded">
-                  Escorted Private Tour
+              <div className="border-b border-slate-100 pb-3">
+                <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-[#244B8F] px-2.5 py-0.5 rounded-full font-['Montserrat']">
+                  Private Tour
                 </span>
-                <h3 className="text-lg font-black text-[#172033] mt-2">
+                <h3 className="text-lg font-bold text-[#172033] mt-2 font-['Montserrat']">
                   Schedule Private Viewing
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Private walkthrough escorted by assigned SellMyGhar manager. Zero broker calls.
+                <p className="text-xs text-slate-500 mt-0.5 font-['Poppins']">
+                  Walkthrough escorted by dedicated relationship desk. Zero external broker calls.
                 </p>
               </div>
 
               {bookingSuccess ? (
-                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl space-y-2 text-emerald-900 text-xs">
-                  <div className="flex items-center space-x-2 font-bold text-emerald-800">
+                <div className="p-5 bg-emerald-50 border border-emerald-200 rounded-xl space-y-3 text-emerald-900 text-xs font-['Poppins']">
+                  <div className="flex items-center space-x-2 font-bold text-emerald-800 font-['Montserrat']">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                     <span>Viewing Request Received</span>
                   </div>
                   <p>{bookingSuccess.message}</p>
-                  <p className="font-mono font-bold pt-1">
+                  <p className="font-mono font-bold pt-1 text-[11px]">
                     Booking Reference: {bookingSuccess.referenceId}
                   </p>
                   <button
                     type="button"
                     onClick={() => setBookingSuccess(null)}
-                    className="mt-3 w-full py-2 bg-emerald-600 text-white rounded-lg text-xs font-bold hover:bg-emerald-700 cursor-pointer"
+                    className="mt-2 w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold cursor-pointer font-['Montserrat'] transition-colors"
                   >
                     Schedule Another Time
                   </button>
                 </div>
               ) : (
-                <form onSubmit={handleEnquirySubmit} className="space-y-4">
+                <form onSubmit={handleEnquirySubmit} className="space-y-4 font-['Poppins']">
                   {formError && (
-                    <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold rounded-lg">
+                    <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs font-semibold rounded-xl">
                       {formError}
                     </div>
                   )}
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                    <label className="block text-xs font-bold text-slate-700 mb-1 font-['Montserrat']">
                       Your Full Name
                     </label>
                     <input
@@ -893,11 +977,11 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                    <label className="block text-xs font-bold text-slate-700 mb-1 font-['Montserrat']">
                       Mobile Number (10 digits)
                     </label>
                     <div className="relative">
-                      <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400">+91</span>
+                      <span className="absolute left-3 top-2.5 text-xs font-bold text-slate-400 font-['Montserrat']">+91</span>
                       <input
                         type="tel"
                         required
@@ -911,7 +995,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                    <label className="block text-xs font-bold text-slate-700 mb-1 font-['Montserrat']">
                       Preferred Viewing Slot
                     </label>
                     <select
@@ -929,7 +1013,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                    <label className="block text-xs font-bold text-slate-700 mb-1 font-['Montserrat']">
                       Financing Status
                     </label>
                     <select
@@ -962,49 +1046,49 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="w-full py-3 bg-[#244B8F] hover:bg-[#1B396E] text-white font-extrabold text-xs rounded-xl shadow-md transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center space-x-2"
+                    className="w-full py-3 bg-[#244B8F] hover:bg-[#1B396E] text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center space-x-2 font-['Montserrat']"
                   >
                     <Calendar className="w-4 h-4" />
                     <span>{isSubmitting ? 'Confirming Request...' : 'Confirm Private Viewing Slot'}</span>
                   </button>
 
                   <p className="text-[10px] text-slate-400 text-center">
-                    🔒 Zero broker calls. Unit identity revealed exclusively on private viewing day.
+                    Zero broker spam. Unit identity confirmed on escorted visit day.
                   </p>
                 </form>
               )}
 
             </div>
 
-            {/* 2. Assigned Relationship Manager Card */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3.5">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
+            {/* 2. Assigned Relationship Manager Desk Card */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-3.5 font-['Poppins']">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block font-['Montserrat']">
                 Assigned Diligence Desk
               </span>
               
               <div className="flex items-center space-x-3.5">
-                <div className="w-11 h-11 rounded-full bg-[#244B8F] text-white font-black text-sm flex items-center justify-center shadow-xs">
+                <div className="w-10 h-10 rounded-full bg-[#172033] text-white font-bold text-xs flex items-center justify-center font-['Montserrat']">
                   KR
                 </div>
                 <div>
-                  <h4 className="text-sm font-black text-slate-900">{property.relationshipManager.name}</h4>
+                  <h4 className="text-sm font-bold text-slate-900 font-['Montserrat']">{property.relationshipManager.name}</h4>
                   <p className="text-xs text-slate-500">{property.relationshipManager.role}</p>
                 </div>
               </div>
 
-              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs gap-2">
+              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs gap-2 font-['Montserrat']">
                 <a
                   href={`tel:${rmCallPhone}`}
-                  className="flex-1 py-2 px-3 bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-lg font-bold text-slate-800 text-center flex items-center justify-center space-x-1.5 cursor-pointer"
+                  className="flex-1 py-2 px-3 bg-slate-50 hover:bg-slate-100 border border-slate-300 rounded-lg font-bold text-slate-800 text-center flex items-center justify-center space-x-1.5 cursor-pointer transition-colors"
                 >
-                  <Phone className="w-3.5 h-3.5 text-emerald-600" />
+                  <Phone className="w-3.5 h-3.5 text-slate-700" />
                   <span>Call Desk</span>
                 </a>
                 <a
                   href={getWhatsAppUrl()}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex-1 py-2 px-3 bg-[#25D366]/10 hover:bg-[#25D366]/20 border border-[#25D366]/40 text-[#128C7E] rounded-lg font-bold text-center flex items-center justify-center space-x-1.5 cursor-pointer"
+                  className="flex-1 py-2 px-3 bg-[#25D366]/10 hover:bg-[#25D366]/20 border border-[#25D366]/40 text-[#128C7E] rounded-lg font-bold text-center flex items-center justify-center space-x-1.5 cursor-pointer transition-colors"
                 >
                   <MessageSquare className="w-3.5 h-3.5 text-[#25D366]" />
                   <span>WhatsApp</span>
@@ -1016,169 +1100,158 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
 
         </div>
 
-        {/* ROW 3: DETERMINISTIC SIMILAR PROPERTIES SECTION */}
+        {/* ROW 3: SIMILAR PROPERTIES SECTION (Redesigned from Image 2 to match Image 1 Reference Design) */}
         {property.similarProperties && property.similarProperties.length > 0 && (
           <div className="pt-8 border-t border-slate-200 space-y-6">
-            <div>
-              <div className="inline-flex items-center space-x-1.5 bg-blue-50 text-[#244B8F] px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider mb-1">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Deterministic Relevance</span>
-              </div>
-              <h2 className="text-xl sm:text-2xl font-black text-[#172033]">
-                Similar Verified Properties in {property.localityName.split(',')[0]}
+            
+            {/* Header: Clean, direct, with Deterministic Relevance removed */}
+            <div className="text-left">
+              <h2 className="text-xl sm:text-2xl font-extrabold text-[#172033] font-['Montserrat']">
+                Similar Properties in {property.localityName.split(',')[0]}
               </h2>
-              <p className="text-xs text-slate-500 font-['Poppins']">
-                Real backend inventory matched deterministically by project, locality, and bedroom layout.
+              <p className="text-xs text-slate-500 font-['Poppins'] mt-1">
+                Explore comparable verified apartments in this residential corridor
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Grid matching Image 1 Reference Card Design */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
               {property.similarProperties.map((sim) => (
                 <div
                   key={sim.id}
-                  className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs hover:shadow-md transition-shadow flex flex-col justify-between group"
+                  onClick={() => {
+                    const url = `/property/${sim.id}`;
+                    if (isMobile) {
+                      window.location.href = url;
+                    } else {
+                      window.open(url, '_blank', 'noopener,noreferrer');
+                    }
+                  }}
+                  className="bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-xs hover:shadow-lg transition-all duration-300 flex flex-col group cursor-pointer"
                 >
-                  <div>
-                    <div className="relative aspect-16/10 bg-slate-100 overflow-hidden">
-                      <img
-                        src={sim.image}
-                        alt={sim.projectName}
-                        className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-300"
-                        loading="lazy"
-                      />
-                      <div className="absolute top-3 left-3 bg-[#172033] text-white px-2 py-0.5 rounded text-[11px] font-bold">
+                  {/* Card Image Container */}
+                  <div className="relative aspect-16/10 overflow-hidden bg-slate-100">
+                    <img
+                      src={sim.image}
+                      alt={sim.projectName}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      loading="lazy"
+                    />
+
+                    {/* Badge bottom-left: BHK type pill */}
+                    <div className="absolute bottom-3 left-3">
+                      <span className="px-3 py-1 rounded-full bg-[#244B8F] text-white text-[11px] font-bold shadow-md tracking-wide font-['Montserrat']">
                         {sim.bhkType}
-                      </div>
-                      <div className="absolute top-3 right-3 bg-emerald-700 text-white px-2 py-0.5 rounded text-[10px] font-bold uppercase">
-                        {sim.verificationBadge}
-                      </div>
-                      <div className="absolute inset-x-0 bottom-0 bg-[#172033]/90 px-3 py-1.5 text-white flex items-center justify-between text-xs">
-                        <span className="font-black text-sm">{formatPriceCroresOrLakhs(sim.askingPriceInr)}</span>
-                        <span className="text-slate-300 text-[11px]">₹{sim.pricePerSqft.toLocaleString('en-IN')}/sq.ft</span>
-                      </div>
+                      </span>
                     </div>
 
-                    <div className="p-4 space-y-2">
-                      <h3 className="text-sm font-bold text-slate-900 group-hover:text-[#244B8F] transition-colors">
+                    {/* Heart button top-right */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleFavoriteProperty(sim.id);
+                        showToast('Updated favorite properties');
+                      }}
+                      className="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/80 backdrop-blur-xs hover:bg-white flex items-center justify-center text-slate-600 hover:text-rose-500 transition-all shadow-xs cursor-pointer"
+                      aria-label="Save to favorites"
+                    >
+                      <Heart className="w-4 h-4 text-slate-600" />
+                    </button>
+                  </div>
+
+                  {/* Card Content Details */}
+                  <div className="p-5 flex-1 flex flex-col justify-between space-y-3.5 text-left">
+                    <div>
+                      <h3 className="text-base font-bold text-[#172033] font-['Montserrat'] group-hover:text-[#244B8F] transition-colors leading-snug">
                         {sim.projectName}
                       </h3>
-                      <p className="text-xs text-slate-500 flex items-center">
+                      <p className="text-xs text-slate-500 font-['Poppins'] flex items-center mt-1">
                         <MapPin className="w-3.5 h-3.5 mr-1 text-slate-400 shrink-0" />
                         <span>{sim.localityName}</span>
                       </p>
-                      <div className="flex items-center space-x-3 text-[11px] text-slate-600 pt-1 border-t border-slate-100">
-                        <span>{sim.superBuiltUpSqft} sq.ft</span>
-                        <span>•</span>
-                        <span>{sim.floorBand}</span>
-                        <span>•</span>
-                        <span>{sim.facing}</span>
+                    </div>
+
+                    {/* Features Row: Beds, Baths, Sqft */}
+                    <div className="flex items-center justify-between text-xs text-slate-600 pt-3 border-t border-slate-100 font-['Poppins']">
+                      <div className="flex items-center space-x-1.5">
+                        <Bed className="w-4 h-4 text-slate-400" />
+                        <span className="font-medium text-slate-700">{sim.bhkType.replace('BHK', '')} Beds</span>
+                      </div>
+                      <div className="flex items-center space-x-1.5">
+                        <Bath className="w-4 h-4 text-slate-400" />
+                        <span className="font-medium text-slate-700">2 Baths</span>
+                      </div>
+                      <div className="flex items-center space-x-1.5">
+                        <Maximize2 className="w-4 h-4 text-slate-400" />
+                        <span className="font-medium text-slate-700">{sim.superBuiltUpSqft.toLocaleString('en-IN')} sqft</span>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="p-4 pt-0">
-                    {onNavigateToProperty ? (
-                      <button
-                        type="button"
-                        onClick={() => onNavigateToProperty(sim.id)}
-                        className="w-full py-2 bg-[#244B8F]/10 hover:bg-[#244B8F] text-[#244B8F] hover:text-white font-bold text-xs rounded-lg transition-colors cursor-pointer text-center block"
-                      >
-                        View Property
-                      </button>
-                    ) : (
+                    {/* Bottom Row: Price on Left, "View Property →" Outline Pill Button on Right */}
+                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                      <div className="flex flex-col">
+                        <span className="text-lg font-extrabold text-[#172033] tracking-tight font-['Montserrat']">
+                          {formatPriceCroresOrLakhs(sim.askingPriceInr)}
+                        </span>
+                        <span className="text-[11px] text-slate-400 font-['Poppins'] font-mono">
+                          ₹{sim.pricePerSqft.toLocaleString('en-IN')}/sq.ft
+                        </span>
+                      </div>
+
                       <a
                         href={`/property/${sim.id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="w-full py-2 bg-[#244B8F]/10 hover:bg-[#244B8F] text-[#244B8F] hover:text-white font-bold text-xs rounded-lg transition-colors cursor-pointer text-center block"
+                        target={isMobile ? '_self' : '_blank'}
+                        rel={isMobile ? undefined : 'noopener noreferrer'}
+                        onClick={(e) => e.stopPropagation()}
+                        className="px-4 py-2 rounded-full border border-slate-300 hover:border-[#244B8F] hover:bg-[#244B8F] hover:text-white text-xs font-semibold text-slate-700 transition-all flex items-center space-x-1 cursor-pointer group/btn font-['Montserrat']"
                       >
-                        View Property
+                        <span>View Property</span>
+                        <ArrowRight className="w-3.5 h-3.5 group-hover/btn:translate-x-0.5 transition-transform" />
                       </a>
-                    )}
+                    </div>
+
                   </div>
                 </div>
               ))}
             </div>
+
           </div>
         )}
 
       </main>
 
-      {/* FULLSCREEN FLOOR PLAN ZOOM MODAL */}
+      {/* FLOOR PLAN ZOOM MODAL */}
       {isFloorPlanZoomOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md">
-          <div className="fixed inset-0" onClick={() => setIsFloorPlanZoomOpen(false)} />
-          <div className="relative z-10 w-full max-w-4xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="p-4 bg-[#172033] text-white flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-bold">{currentFloorPlan.title || 'Architectural Floor Plan'}</h3>
-                <span className="text-[11px] text-blue-300">
-                  {property.projectName} · SBUA {property.superBuiltUpSqft} sq.ft · Carpet {property.carpetAreaSqft} sq.ft
-                </span>
-              </div>
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-4xl w-full p-6 shadow-2xl relative max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-200">
+              <h3 className="text-base font-bold text-slate-900 font-['Montserrat']">
+                {currentFloorPlan.title || 'Floor Plan'}
+              </h3>
               <button
                 type="button"
                 onClick={() => setIsFloorPlanZoomOpen(false)}
-                className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
+                className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-4 flex-1 overflow-auto flex items-center justify-center bg-[#FAFAF8]">
+            <div className="flex-1 flex items-center justify-center overflow-auto p-4">
               <img
                 src={currentFloorPlan.imageUrl}
-                alt={currentFloorPlan.title}
-                className="max-h-[75vh] w-auto object-contain"
+                alt={currentFloorPlan.title || 'Floor Plan'}
+                className="max-h-[70vh] max-w-full object-contain"
               />
             </div>
           </div>
         </div>
       )}
 
-      {/* MOBILE STICKY BOTTOM BAR (Small Screens Only) */}
-      <div className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-white border-t border-slate-200 px-4 py-2.5 flex items-center justify-between gap-2 shadow-2xl">
-        <div className="text-left">
-          <span className="text-[10px] text-slate-400 font-bold block uppercase">Asking</span>
-          <span className="text-sm font-black text-[#172033]">
-            {formatPriceCroresOrLakhs(property.askingPriceInr)}
-          </span>
-        </div>
-        <div className="flex items-center space-x-2">
-          <button
-            type="button"
-            onClick={handleToggleSaved}
-            className="p-2.5 rounded-lg bg-slate-100 border border-slate-300 text-slate-800"
-            title="Save Property"
-          >
-            <Heart className={`w-4 h-4 ${isSaved ? 'fill-rose-500 text-rose-500' : 'text-slate-600'}`} />
-          </button>
-          <a
-            href={`tel:${rmCallPhone}`}
-            className="p-2.5 rounded-lg bg-slate-100 border border-slate-300 text-slate-800"
-            title="Call RM Desk"
-          >
-            <Phone className="w-4 h-4 text-emerald-600" />
-          </a>
-          <a
-            href={getWhatsAppUrl()}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="p-2.5 rounded-lg bg-[#25D366] text-slate-950 font-bold"
-            title="WhatsApp Desk"
-          >
-            <MessageSquare className="w-4 h-4" />
-          </a>
-          <button
-            type="button"
-            onClick={() => {
-              window.scrollTo({ top: 600, behavior: 'smooth' });
-            }}
-            className="px-4 py-2.5 bg-[#244B8F] text-white font-bold text-xs rounded-lg"
-          >
-            Schedule Visit
-          </button>
-        </div>
-      </div>
+      {/* Footer identical to Homepage */}
+      <Footer
+        onNavClick={handleHeaderTabClick}
+      />
 
     </div>
   );
