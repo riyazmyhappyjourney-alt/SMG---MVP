@@ -145,6 +145,10 @@ async function initSchemaColumns() {
       ALTER TABLE properties ADD COLUMN IF NOT EXISTS public_address TEXT;
       ALTER TABLE properties ADD COLUMN IF NOT EXISTS floor_band VARCHAR(64);
       ALTER TABLE properties ADD COLUMN IF NOT EXISTS developer_name VARCHAR(120);
+      ALTER TABLE properties ADD COLUMN IF NOT EXISTS developer_logo_url TEXT;
+      ALTER TABLE properties ADD COLUMN IF NOT EXISTS developer_rera_id VARCHAR(120);
+      ALTER TABLE properties ADD COLUMN IF NOT EXISTS developer_launch_year INT;
+      ALTER TABLE properties ADD COLUMN IF NOT EXISTS views_count INT NOT NULL DEFAULT 0;
       ALTER TABLE properties ADD COLUMN IF NOT EXISTS landmarks JSONB DEFAULT '[]'::jsonb;
       ALTER TABLE properties ADD COLUMN IF NOT EXISTS highlights JSONB DEFAULT '[]'::jsonb;
       ALTER TABLE properties ADD COLUMN IF NOT EXISTS floor_plan_url TEXT;
@@ -576,6 +580,25 @@ app.post('/api/auth/otp/verify', jsonDefault, rateLimit('otp-verify', 10, 900), 
     const sessionToken = await signSessionToken(authenticatedUser, userRecord?.token_version || 1);
     setSessionCookie(res, sessionToken);
 
+    const userEmail = (req.body.email || authenticatedUser.email || userRecord?.email || '').trim().toLowerCase();
+    if (userEmail && (!userRecord?.email || userRecord.email !== userEmail)) {
+      await executeQuery('UPDATE users SET email = $1, updated_at = NOW() WHERE id = $2;', [userEmail, authenticatedUser.uid]);
+      authenticatedUser.email = userEmail;
+      if (userRecord) userRecord.email = userEmail;
+    }
+
+    if (userEmail) {
+      try {
+        await EmailNotificationService.handleUserOnboarding({
+          name: userRecord?.display_name || name || `User ${normalizedPhone.slice(-4)}`,
+          email: userEmail,
+          role: authenticatedUser.roles[0] || 'OWNER',
+        });
+      } catch (onboardErr: any) {
+        console.warn('[OtpOnboardingEmail] Dispatch note:', onboardErr.message);
+      }
+    }
+
     return res.json({
       success: true,
       authenticated: true,
@@ -778,6 +801,17 @@ app.post('/api/auth/google/session', jsonDefault, rateLimit('google-session', 10
           [newUserId]
         );
         userRecord = fetchRes.rows[0];
+
+        // Dispatch onboarding welcome email for new user registration
+        try {
+          await EmailNotificationService.handleUserOnboarding({
+            name: displayName,
+            email: rawEmail,
+            role: 'BUYER',
+          });
+        } catch (onboardErr: any) {
+          console.warn('[GoogleOnboardingEmail] Dispatch note:', onboardErr.message);
+        }
 
         // Fallback: If insert conflicted concurrently on email, resolve existing record by email
         if (!userRecord) {
@@ -1306,24 +1340,59 @@ app.get('/api/listings', async (_req, res) => {
         car_parks_count, 
         asking_price_inr, 
         verification_tier,
+        internal_verification_notes,
         created_at
       FROM properties
       WHERE COALESCE(listing_status, 'PUBLISHED') = 'PUBLISHED'
         AND COALESCE(crm_status, 'NEW') NOT IN ('LOST', 'DROPPED')
-      ORDER BY created_at DESC
-      LIMIT 12;
+      ORDER BY created_at DESC;
     `);
 
-    const listings = dbResult.rows.map((row: any, idx: number) => {
+    const listings = await Promise.all(dbResult.rows.map(async (row: any, idx: number) => {
       const society = SAMPLE_SOCIETIES[idx % SAMPLE_SOCIETIES.length];
       const priceNum = parseInt(row.asking_price_inr, 10) || 12500000;
       const sqft = row.super_built_up_sqft || 1350;
-      const projectName = row.project_locality_id?.includes(',') 
+
+      let notes: any = {};
+      try {
+        if (row.internal_verification_notes) {
+          notes = typeof row.internal_verification_notes === 'string'
+            ? JSON.parse(row.internal_verification_notes)
+            : row.internal_verification_notes;
+        }
+      } catch {
+        notes = {};
+      }
+
+      let mediaImage: string | null = null;
+      try {
+        const mediaRes = await executeQuery(`SELECT url FROM property_media WHERE property_id = $1 ORDER BY is_featured DESC, created_at ASC LIMIT 1;`, [row.id]);
+        if (mediaRes.rows && mediaRes.rows.length > 0) {
+          mediaImage = mediaRes.rows[0].url;
+        }
+      } catch {}
+
+      const userPhoto = (mediaImage && typeof mediaImage === 'string' && mediaImage.trim())
+        ? mediaImage.trim()
+        : (Array.isArray(notes.photos) && notes.photos.length > 0 && typeof notes.photos[0] === 'string')
+        ? notes.photos[0].trim()
+        : null;
+
+      const projectName = (notes.societyName && notes.societyName.trim())
+        ? notes.societyName.trim()
+        : row.project_locality_id?.includes(',') 
         ? row.project_locality_id.split(',')[0].trim() 
         : society.name;
-      const localityName = row.project_locality_id?.includes(',') 
+
+      const localityName = (notes.locality && notes.locality.trim())
+        ? notes.locality.trim()
+        : row.project_locality_id?.includes(',') 
         ? row.project_locality_id.split(',')[1].trim() 
         : society.locality;
+
+      const image = userPhoto || society.image;
+      const unitFloor = row.unit_floor || 1;
+      const totalFloors = row.total_floors || 10;
 
       return {
         id: row.id,
@@ -1332,20 +1401,22 @@ app.get('/api/listings', async (_req, res) => {
         bhkType: row.bhk_type || '3BHK',
         superBuiltUpSqft: sqft,
         carpetAreaSqft: row.carpet_area_sqft || Math.round(sqft * 0.78),
-        floorBand: `Floor ${row.unit_floor || 5} of ${row.total_floors || 14}`,
+        unitFloor,
+        totalFloors,
+        floorBand: `Floor ${unitFloor} of ${totalFloors}`,
         facing: row.facing || 'EAST',
         bathroomsCount: row.bathrooms_count || 2,
         carParksCount: row.car_parks_count || 1,
         askingPriceInr: priceNum,
         pricePerSqft: Math.round(priceNum / sqft),
-        image: society.image,
+        image,
         verificationBadge: row.verification_tier === 'LEVEL_3_PHYSICALLY_INSPECTED' 
           ? 'INSPECTED' 
           : row.verification_tier === 'LEVEL_2_DOCS_REVIEWED'
           ? 'DOCS CHECKED'
           : 'OWNER VERIFIED'
       };
-    });
+    }));
 
     if (listings.length < 4) {
       SAMPLE_SOCIETIES.forEach((soc, i) => {
@@ -1360,6 +1431,8 @@ app.get('/api/listings', async (_req, res) => {
             bhkType: bhk,
             superBuiltUpSqft: sqft,
             carpetAreaSqft: Math.round(sqft * 0.78),
+            unitFloor: 4 + i,
+            totalFloors: 18,
             floorBand: `Floor ${4 + i} of 18`,
             facing: i % 2 === 0 ? 'EAST' : 'NORTH',
             bathroomsCount: i % 2 === 0 ? 3 : 2,
@@ -1486,26 +1559,43 @@ app.get('/api/listings/:id', rateLimit('listing-detail', 60, 60), async (req, re
       });
     }
 
+    // Increment persistent direct view count
+    executeQuery(`UPDATE properties SET views_count = COALESCE(views_count, 0) + 1 WHERE id = $1;`, [row.id]).catch(() => {});
+
+    // Parse internal notes
+    let notes: any = {};
+    try {
+      if (row.internal_verification_notes) {
+        notes = typeof row.internal_verification_notes === 'string'
+          ? JSON.parse(row.internal_verification_notes)
+          : row.internal_verification_notes;
+      }
+    } catch {
+      notes = {};
+    }
+
     // Resolve project and locality names
     const rawProjectLocality = String(row.project_locality_id || '').trim();
-    let projectName = rawProjectLocality;
-    let localityName = 'Bengaluru';
-    if (rawProjectLocality.includes(',')) {
-      const parts = rawProjectLocality.split(',');
-      projectName = parts[0].trim();
-      localityName = parts.slice(1).join(',').trim();
-    } else if (rawProjectLocality.includes('/')) {
-      const parts = rawProjectLocality.split('/');
-      projectName = parts[0].trim();
-      localityName = parts.slice(1).join('/').trim();
-    } else {
-      const matchedSoc = SAMPLE_SOCIETIES.find(s => 
-        s.name.toLowerCase().includes(rawProjectLocality.toLowerCase()) || 
-        s.locality.toLowerCase().includes(rawProjectLocality.toLowerCase())
-      );
-      if (matchedSoc) {
-        projectName = matchedSoc.name;
-        localityName = matchedSoc.locality;
+    let projectName = (notes.societyName && notes.societyName.trim()) ? notes.societyName.trim() : rawProjectLocality;
+    let localityName = (notes.locality && notes.locality.trim()) ? notes.locality.trim() : 'Bengaluru';
+    if (!notes.societyName) {
+      if (rawProjectLocality.includes(',')) {
+        const parts = rawProjectLocality.split(',');
+        projectName = parts[0].trim();
+        localityName = parts.slice(1).join(',').trim();
+      } else if (rawProjectLocality.includes('/')) {
+        const parts = rawProjectLocality.split('/');
+        projectName = parts[0].trim();
+        localityName = parts.slice(1).join('/').trim();
+      } else {
+        const matchedSoc = SAMPLE_SOCIETIES.find(s => 
+          s.name.toLowerCase().includes(rawProjectLocality.toLowerCase()) || 
+          s.locality.toLowerCase().includes(rawProjectLocality.toLowerCase())
+        );
+        if (matchedSoc) {
+          projectName = matchedSoc.name;
+          localityName = matchedSoc.locality;
+        }
       }
     }
 
@@ -1522,6 +1612,17 @@ app.get('/api/listings/:id', rateLimit('listing-detail', 60, 60), async (req, re
         [row.id]
       );
       mediaRows = mediaResult.rows || [];
+    }
+
+    // Fallback to notes.photos if property_media was empty but user uploaded photos
+    const notePhotos = (Array.isArray(notes.photos) ? notes.photos : []).filter((p: any) => typeof p === 'string' && p.trim());
+    if (mediaRows.length === 0 && notePhotos.length > 0) {
+      mediaRows = notePhotos.map((url: string, idx: number) => ({
+        id: `img-user-${idx + 1}`,
+        url,
+        is_featured: idx === 0,
+        display_order: idx,
+      }));
     }
 
     const matchedSample = SAMPLE_SOCIETIES.find(s => s.name.toLowerCase() === projectName.toLowerCase());
@@ -1659,7 +1760,9 @@ app.get('/api/listings/:id', rateLimit('listing-detail', 60, 60), async (req, re
       bhkType: row.bhk_type || '3BHK',
       superBuiltUpSqft: sqft,
       carpetAreaSqft: carpet,
-      floorBand: row.floor_band || `Floor ${row.unit_floor || 5} of ${row.total_floors || 14} (${row.unit_floor >= 10 ? 'High Floor' : 'Mid Floor'})`,
+      floorBand: row.unit_floor ? `Floor ${row.unit_floor} of ${row.total_floors || 14}` : (row.floor_band || 'Floor 5 of 14'),
+      unitFloor: row.unit_floor || 5,
+      totalFloors: row.total_floors || 14,
       facing: row.facing || 'EAST',
       bathroomsCount: row.bathrooms_count || 2,
       balconiesCount: row.balconies_count || 2,
@@ -1671,9 +1774,10 @@ app.get('/api/listings/:id', rateLimit('listing-detail', 60, 60), async (req, re
       amenities: (Array.isArray(row.amenities) && row.amenities.length > 0) ? row.amenities : defaultAmenities,
       description: row.description || `RERA-compliant ${row.bhk_type || '3BHK'} resale flat in the prestigious ${projectName} community. Featuring ${sqft} sq.ft. of super built-up area and an expansive ${carpet} sq.ft. carpet layout, this ${row.facing || 'East'}-facing home boasts cross-ventilation, zero wasted space, and abundant natural sunlight. Form 15 Encumbrance Certificate verified with clear title. Private viewing escorted by SellMyGhar relationship manager.`,
       developer: {
-        name: projectName.split(' ')[0] + ' Properties',
-        reraNumber: 'PRM/KA/RERA/1251/310/PR/2026/001',
-        launchYear: 2021
+        name: row.developer_name || (notes.developerName || (projectName.split(' ')[0] + ' Properties')),
+        logoUrl: row.developer_logo_url || notes.developerLogoUrl || null,
+        reraNumber: row.developer_rera_id || notes.developerReraId || 'PRM/KA/RERA/1251/310/PR/2026/001',
+        launchYear: row.developer_launch_year || notes.developerLaunchYear || 2021
       },
       landmarks: [
         { name: 'Upcoming ORR Metro Station', distance: '600 meters', type: 'Transit' },
@@ -1803,14 +1907,25 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
 
       // 1. Resolve or Create User
       let userId = req.user?.uid;
+      const declaredEmail = (req.body.ownerEmail || req.body.email || req.body.sellerEmail || req.user?.email || '').trim().toLowerCase() || null;
       if (!userId) {
-        userId = `usr-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
-        await client.query(
-          `INSERT INTO users (id, phone, email, display_name, roles, is_active, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, '{OWNER}', true, NOW(), NOW())
-           ON CONFLICT (phone) DO UPDATE SET display_name = EXCLUDED.display_name, updated_at = NOW();`,
-          [userId, normalizedPhone, null, ownerName.trim()]
-        );
+        const existingUserRes = await client.query('SELECT id, email FROM users WHERE phone = $1 LIMIT 1;', [normalizedPhone]);
+        if (existingUserRes.rows && existingUserRes.rows.length > 0) {
+          userId = existingUserRes.rows[0].id;
+          if (declaredEmail && !existingUserRes.rows[0].email) {
+            await client.query('UPDATE users SET email = $1, display_name = COALESCE(display_name, $2), updated_at = NOW() WHERE id = $3;', [declaredEmail, ownerName.trim(), userId]);
+          }
+        } else {
+          userId = `usr-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
+          await client.query(
+            `INSERT INTO users (id, phone, email, display_name, roles, is_active, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, '{OWNER}', true, NOW(), NOW())
+             ON CONFLICT (phone) DO UPDATE SET display_name = EXCLUDED.display_name, updated_at = NOW();`,
+            [userId, normalizedPhone, declaredEmail, ownerName.trim()]
+          );
+        }
+      } else if (declaredEmail) {
+        await client.query('UPDATE users SET email = COALESCE(email, $1), updated_at = NOW() WHERE id = $2;', [declaredEmail, userId]);
       }
 
       // 2. Insert statutory DPDP consent
@@ -1863,7 +1978,7 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
       // Record statutory CRM Lead Creation in immutable audit logs
       await recordAuditEvent({
         actor: req.user || {
-          uid: userId,
+          uid: userId || 'usr-anon',
           phone: normalizedPhone,
           email: null,
           roles: ['OWNER'],
@@ -1921,6 +2036,7 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
         description: description || null,
         ownerName: ownerName.trim(),
         ownerPhone: normalizedPhone,
+        ownerEmail: declaredEmail,
         source: 'WIZARD_V2'
       });
 
@@ -2011,6 +2127,19 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
         console.warn('[PropertyListedEmail] Dispatch note:', listedEmailErr.message);
       }
 
+      // Dispatch automated onboarding welcome email (idempotent)
+      if (declaredEmail) {
+        try {
+          await EmailNotificationService.handleUserOnboarding({
+            name: ownerName.trim(),
+            email: declaredEmail,
+            role: 'OWNER',
+          });
+        } catch (onboardErr: any) {
+          console.warn('[OwnerOnboardingEmail] Dispatch note:', onboardErr.message);
+        }
+      }
+
       return res.status(201).json({
         success: true,
         propertyId,
@@ -2060,6 +2189,7 @@ app.get('/api/properties', authenticateUser, async (req, res) => {
         sl.assigned_staff_id,
         staff.display_name AS rm_name,
         staff.phone AS rm_phone,
+        p.views_count,
         sl.next_follow_up_at,
         sl.follow_up_notes,
         p.created_at,
@@ -2072,8 +2202,9 @@ app.get('/api/properties', authenticateUser, async (req, res) => {
 
     // IDOR Protection: Non-staff authenticated users can ONLY query their own properties
     if (isOwner) {
-      query += ` WHERE p.owner_id = $1`;
-      params.push(req.user!.uid);
+      const userPhone = req.user!.phone || '';
+      query += ` WHERE (p.owner_id = $1 OR ($2 != '' AND (p.owner_id IN (SELECT id FROM users WHERE phone = $2) OR p.id IN (SELECT property_id FROM seller_leads WHERE phone = $2))))`;
+      params.push(req.user!.uid, userPhone);
     } else {
       // Staff authorization check: verify staff has permission to view listings
       const canList = req.user!.roles.includes('STAFF_SUPER_ADMIN') || 
@@ -2309,7 +2440,7 @@ app.get('/api/properties', authenticateUser, async (req, res) => {
         photoCount: photos.length,
         visibilityScore: status === 'LISTED' ? 94 : 68,
         completionScore: 92,
-        viewsCount: status === 'LISTED' ? (340 + idx * 85) : 42,
+        viewsCount: Number(row.views_count) || 0,
         activityTimeline,
         siteVisits,
         corridorDemand: {
@@ -5601,6 +5732,9 @@ app.get(
         p.public_address,
         p.floor_band,
         p.developer_name,
+        p.developer_logo_url,
+        p.developer_rera_id,
+        p.developer_launch_year,
         p.description,
         p.amenities,
         p.landmarks,
@@ -5662,6 +5796,9 @@ app.get(
           description: row.description || '',
           amenities: Array.isArray(row.amenities) ? row.amenities : [],
           developerName: row.developer_name || projectName.split(' ')[0],
+          developerLogoUrl: row.developer_logo_url || null,
+          developerReraId: row.developer_rera_id || null,
+          developerLaunchYear: row.developer_launch_year || null,
           listingStatus: row.listing_status,
           crmStatus: row.crm_status || 'NEW',
           verificationTier: row.verification_tier || 'LEVEL_1_OWNER_DECLARED',
@@ -5765,6 +5902,9 @@ app.post(
       description = '',
       amenities = [],
       developerName,
+      developerLogoUrl,
+      developerReraId,
+      developerLaunchYear,
       landmarks = [],
       highlights = [],
       unitNumber = 'Declared Unit',
@@ -5792,12 +5932,13 @@ app.post(
         asking_price_inr, reserve_minimum_price_inr, listing_intent,
         crm_status, listing_status, title, description, amenities,
         property_type, public_address, floor_band, developer_name,
+        developer_logo_url, developer_rera_id, developer_launch_year,
         landmarks, highlights, verification_tier, created_at, updated_at
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
         $14, true, 'A_KHATA', 'CLEAR', null, 'READY_TO_MOVE', $15,
         $16, $17, 'SELL', 'NEW', 'DRAFT', $18, $19, $20, $21, $22,
-        $23, $24, $25, $26, 'LEVEL_1_OWNER_DECLARED', NOW(), NOW()
+        $23, $24, $25, $26, $27, $28, $29, 'LEVEL_1_OWNER_DECLARED', NOW(), NOW()
       )
       RETURNING *;
     `, [
@@ -5825,6 +5966,9 @@ app.post(
       publicAddress || finalProjectLocality,
       floorBand,
       developerName || (projectName ? projectName.split(' ')[0] : 'Developer'),
+      developerLogoUrl || null,
+      developerReraId || null,
+      developerLaunchYear ? Number(developerLaunchYear) : null,
       JSON.stringify(landmarks),
       JSON.stringify(highlights),
     ]);
@@ -5886,6 +6030,12 @@ const updatePropertyHandler = async (req: Request, res: Response) => {
       description,
       amenities,
       developerName,
+      developerLogoUrl,
+      developer_logo_url,
+      developerReraId,
+      developer_rera_id,
+      developerLaunchYear,
+      developer_launch_year,
       landmarks,
       highlights,
       crm_status,
@@ -5905,6 +6055,9 @@ const updatePropertyHandler = async (req: Request, res: Response) => {
     const resolvedVerificationTier = verification_tier || verificationTier || null;
     const resolvedFloorPlanUrl = floorPlanUrl || floor_plan_url || null;
     const resolvedFloorPlans = (floorPlans || floor_plans) ? JSON.stringify(floorPlans || floor_plans) : null;
+    const resolvedDeveloperLogoUrl = developerLogoUrl || developer_logo_url || null;
+    const resolvedDeveloperReraId = developerReraId || developer_rera_id || null;
+    const resolvedDeveloperLaunchYear = (developerLaunchYear || developer_launch_year) ? Number(developerLaunchYear || developer_launch_year) : null;
 
     const projectLocality = (projectName && locality) ? `${projectName}, ${locality}` : (req.body.project_locality_id || existing.project_locality_id);
 
@@ -5931,8 +6084,11 @@ const updatePropertyHandler = async (req: Request, res: Response) => {
           verification_tier = COALESCE($19, verification_tier),
           floor_plan_url = COALESCE($20, floor_plan_url),
           floor_plans = COALESCE($21, floor_plans),
+          developer_logo_url = COALESCE($22, developer_logo_url),
+          developer_rera_id = COALESCE($23, developer_rera_id),
+          developer_launch_year = COALESCE($24, developer_launch_year),
           updated_at = NOW()
-      WHERE id = $22
+      WHERE id = $25
       RETURNING *;
     `, [
       title || null,
@@ -5956,6 +6112,9 @@ const updatePropertyHandler = async (req: Request, res: Response) => {
       resolvedVerificationTier,
       resolvedFloorPlanUrl,
       resolvedFloorPlans,
+      resolvedDeveloperLogoUrl,
+      resolvedDeveloperReraId,
+      resolvedDeveloperLaunchYear,
       id,
     ]);
 

@@ -383,17 +383,14 @@ class OwnerPropertyService {
 
   /**
    * Returns all properties belonging to the logged-in owner.
-   * If userId is provided, matches user's ID or includes sample records for development.
+   * If userId is provided, matches user's ID strictly without injecting mock demo records.
    */
   public getProperties(userId?: string): OwnerProperty[] {
     const all = this.getStoredProperties();
-    if (!userId) return all;
+    if (!userId || userId === 'default_owner') return all;
 
     const userProps = all.filter(p => p.owner_user_id === userId);
-    if (userProps.length > 0) {
-      return all; // Return all so the owner can explore realistic sample properties along with their own
-    }
-    return all;
+    return userProps;
   }
 
   public getPropertyById(propertyId: string): OwnerProperty | undefined {

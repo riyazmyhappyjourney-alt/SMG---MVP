@@ -104,6 +104,7 @@ export default function App() {
   });
 
   const [activeUser, setActiveUser] = useState<UserAuthProfile | null>(null);
+  const [loginReturnRoute, setLoginReturnRoute] = useState<AppRoute>('HOME');
 
   // Persistent Login Check: On page load, verify session cookie via /api/auth/me and restore logged-in nav state
   useEffect(() => {
@@ -261,10 +262,17 @@ export default function App() {
     navigateTo('HOME');
   };
 
+  const navigateToLogin = (fromRoute?: AppRoute) => {
+    const origin = fromRoute || (currentRoute !== 'LOGIN' ? currentRoute : 'HOME');
+    setLoginReturnRoute(origin);
+    navigateTo('LOGIN');
+  };
+
   const handleAuthSuccess = useCallback((user: UserAuthProfile) => {
     setActiveUser(user);
-    navigateTo('DASHBOARD');
-  }, []);
+    const dest = loginReturnRoute && loginReturnRoute !== 'LOGIN' ? loginReturnRoute : 'HOME';
+    navigateTo(dest);
+  }, [loginReturnRoute]);
 
   const handleAuthError = useCallback(() => {
     navigateTo('LOGIN');
@@ -322,10 +330,14 @@ export default function App() {
     return (
       <AuthPage
         initialMode="SIGNIN"
-        onBackToHome={() => navigateTo('HOME')}
+        onBackToHome={() => {
+          const dest = loginReturnRoute && loginReturnRoute !== 'LOGIN' ? loginReturnRoute : 'HOME';
+          navigateTo(dest);
+        }}
         onSuccess={(user) => {
           setActiveUser(user);
-          navigateTo('DASHBOARD');
+          const dest = loginReturnRoute && loginReturnRoute !== 'LOGIN' ? loginReturnRoute : 'HOME';
+          navigateTo(dest);
         }}
       />
     );
@@ -336,7 +348,7 @@ export default function App() {
     return (
       <ContactPage
         onNavigate={navigateTo}
-        onSignInClick={() => navigateTo('LOGIN')}
+        onSignInClick={() => navigateToLogin('CONTACT')}
         onConsentPortalOpen={() => navigateTo('CONSENT')}
       />
     );
@@ -349,7 +361,7 @@ export default function App() {
         onBackToHome={() => navigateTo('HOME')}
         onNavigateToContact={() => navigateTo('CONTACT')}
         onNavigateToSellerAssisted={() => navigateTo('SELLER_ASSISTED')}
-        onSignInClick={() => navigateTo('LOGIN')}
+        onSignInClick={() => navigateToLogin('TERMS')}
       />
     );
   }
@@ -361,7 +373,7 @@ export default function App() {
         onBackToHome={() => navigateTo('HOME')}
         onNavigateToContact={() => navigateTo('CONTACT')}
         onNavigateToSellerAssisted={() => navigateTo('SELLER_ASSISTED')}
-        onSignInClick={() => navigateTo('LOGIN')}
+        onSignInClick={() => navigateToLogin('PRIVACY_POLICY')}
       />
     );
   }
@@ -373,7 +385,7 @@ export default function App() {
         onBackToHome={() => navigateTo('HOME')}
         onNavigateToContact={() => navigateTo('CONTACT')}
         onNavigateToSellerAssisted={() => navigateTo('SELLER_ASSISTED')}
-        onSignInClick={() => navigateTo('LOGIN')}
+        onSignInClick={() => navigateToLogin('COOKIE_POLICY')}
       />
     );
   }
@@ -385,7 +397,7 @@ export default function App() {
         onBackToHome={() => navigateTo('HOME')}
         onNavigateToContact={() => navigateTo('CONTACT')}
         onNavigateToSellerAssisted={() => navigateTo('SELLER_ASSISTED')}
-        onSignInClick={() => navigateTo('LOGIN')}
+        onSignInClick={() => navigateToLogin('CAREERS')}
       />
     );
   }
@@ -443,7 +455,6 @@ export default function App() {
       <SellerFunnel
         onBackToHome={() => navigateTo('HOME')}
         onViewDashboard={() => navigateTo('DASHBOARD')}
-        onViewCrm={() => navigateTo('CRM')}
       />
     );
   }
@@ -454,8 +465,15 @@ export default function App() {
       activeUser={activeUser}
       onNavigateToSellerAssisted={() => navigateTo('SELLER_ASSISTED')}
       onNavigateToContact={() => navigateTo('CONTACT')}
-      onNavigateToLogin={() => navigateTo('LOGIN')}
-      onNavigateToDashboard={() => navigateTo('DASHBOARD')}
+      onNavigateToLogin={() => navigateToLogin('HOME')}
+      onNavigateToDashboard={() => {
+        if (activeUser) {
+          navigateTo('DASHBOARD');
+        } else {
+          setLoginReturnRoute('DASHBOARD');
+          navigateTo('LOGIN');
+        }
+      }}
       onConsentPortalOpen={() => navigateTo('CONSENT')}
       onNavigateToLocality={(slug) => navigateToLocality(slug)}
     />

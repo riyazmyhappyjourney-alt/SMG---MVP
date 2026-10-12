@@ -38,7 +38,6 @@ export interface PhotoItem {
 interface SellerFunnelProps {
   onBackToHome?: () => void;
   onViewDashboard?: () => void;
-  onViewCrm?: () => void;
 }
 
 // Indian Rupee currency helpers
@@ -65,7 +64,6 @@ export function formatINRWords(val: number | string): string {
 export function SellerFunnel({
   onBackToHome,
   onViewDashboard,
-  onViewCrm,
 }: SellerFunnelProps) {
   // Wizard active step 1 to 6
   const [currentStep, setCurrentStep] = useState<number>(1);
@@ -136,7 +134,22 @@ export function SellerFunnel({
   const [maintenanceCharges, setMaintenanceCharges] = useState<string>('');
   const [ownerName, setOwnerName] = useState<string>('');
   const [ownerPhone, setOwnerPhone] = useState<string>('');
+  const [ownerEmail, setOwnerEmail] = useState<string>('');
   const [description, setDescription] = useState<string>('');
+
+  // Auto-fill active session user credentials if available
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then(res => res.json())
+      .then(data => {
+        if (data.authenticated && data.user) {
+          if (data.user.name && !ownerName) setOwnerName(data.user.name);
+          if (data.user.phone && !ownerPhone) setOwnerPhone(data.user.phone.replace(/\D/g, '').slice(-10));
+          if (data.user.email && !ownerEmail) setOwnerEmail(data.user.email);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // STEP 6: Declarations & Verification
   const [lawfulDeclaration, setLawfulDeclaration] = useState<boolean>(false);
@@ -630,6 +643,7 @@ export function SellerFunnel({
         description: description.trim(),
         ownerName: ownerName.trim(),
         ownerPhone: normalizedPhone,
+        ownerEmail: ownerEmail.trim() || undefined,
       };
 
       const propRes = await fetch('/api/properties', {
@@ -704,15 +718,6 @@ export function SellerFunnel({
                 className="w-full sm:w-auto px-6 py-3 rounded-xl bg-[#244B8F] hover:bg-[#1B396E] text-white font-semibold text-sm transition-colors cursor-pointer"
               >
                 Go to Seller Dashboard
-              </button>
-            )}
-            {onViewCrm && (
-              <button
-                type="button"
-                onClick={onViewCrm}
-                className="w-full sm:w-auto px-6 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-sm transition-colors cursor-pointer"
-              >
-                View in CRM
               </button>
             )}
             {onBackToHome && (
@@ -2048,6 +2053,22 @@ export function SellerFunnel({
 
                   <div>
                     <label className="block text-xs font-bold text-[#172033] uppercase tracking-wider mb-1.5">
+                      Email Address <span className="text-slate-400 font-normal lowercase">(for listing confirmation & updates)</span>
+                    </label>
+                    <input
+                      type="email"
+                      placeholder="e.g. rajesh.kumar@gmail.com"
+                      value={ownerEmail}
+                      onChange={(e) => setOwnerEmail(e.target.value)}
+                      className="w-full p-3.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#244B8F] bg-white"
+                    />
+                    <p className="text-[11px] text-slate-500 mt-1.5">
+                      We'll send your submission receipt, diligence tracker link, and inquiry alerts to this email.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-[#172033] uppercase tracking-wider mb-1.5">
                       Property Description <span className="text-slate-400 font-normal lowercase">(optional)</span>
                     </label>
                     <textarea
@@ -2170,7 +2191,7 @@ export function SellerFunnel({
                           : `${monthlyRent ? formatINR(monthlyRent) : 'Rent declared'} / month`}
                       </strong>
                       <span className="text-slate-600 block mt-0.5">
-                        Owner: {ownerName || 'Owner'} (+91 {ownerPhone})
+                        Owner: {ownerName || 'Owner'} (+91 {ownerPhone}){ownerEmail ? ` • ${ownerEmail}` : ''}
                       </span>
                       {intent === 'SELL' && maintenanceCharges && (
                         <div className="text-slate-400 text-[11px]">

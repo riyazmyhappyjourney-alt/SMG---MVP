@@ -79,6 +79,7 @@ export interface PublicPropertyDetail {
     name: string;
     reraNumber: string;
     launchYear: number;
+    logoUrl?: string;
   };
   landmarks?: Array<{ name: string; distance: string; type: string }>;
   verification: {
@@ -895,13 +896,25 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                 </div>
                 
                 <div className="space-y-3">
-                  <div>
-                    <h3 className="text-xl font-extrabold text-[#172033] font-['Montserrat'] tracking-tight">
-                      {property.developer.name}
-                    </h3>
-                    <p className="text-xs text-slate-500 font-['Poppins'] mt-0.5">
-                      Master Township & Residential Developer
-                    </p>
+                  <div className="flex items-center space-x-3.5">
+                    {property.developer.logoUrl && (
+                      <div className="w-14 h-14 rounded-xl border border-slate-200 bg-white p-1.5 flex items-center justify-center shrink-0 shadow-2xs">
+                        <img
+                          src={property.developer.logoUrl}
+                          alt={property.developer.name}
+                          className="max-h-full max-w-full object-contain"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                        />
+                      </div>
+                    )}
+                    <div>
+                      <h3 className="text-xl font-extrabold text-[#172033] font-['Montserrat'] tracking-tight">
+                        {property.developer.name}
+                      </h3>
+                      <p className="text-xs text-slate-500 font-['Poppins'] mt-0.5">
+                        Master Township & Residential Developer
+                      </p>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
