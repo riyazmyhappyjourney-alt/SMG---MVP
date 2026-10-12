@@ -300,6 +300,7 @@ export default function App() {
         propertyId={selectedPropertyId || ''}
         onBackToHome={() => navigateTo('HOME')}
         onNavigateToProperty={(id) => navigateToProperty(id)}
+        onNavigateToLocality={(slug) => navigateToLocality(slug)}
       />
     );
   }
