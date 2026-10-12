@@ -259,7 +259,7 @@ export const ListedProperties: React.FC<ListedPropertiesProps> = ({ onSelectProp
                   <div className="grid grid-cols-3 gap-2">
                     {/* Tile 1: SBUA Area */}
                     <div className="bg-slate-50/80 rounded-xl p-2.5 text-center border border-slate-100 flex flex-col items-center justify-center">
-                      <Maximize2 className="w-3.5 h-3.5 text-[#244B8F] mb-1" />
+                      <Maximize2 className="w-5 h-5 text-[#244B8F] mb-1" />
                       <span className="text-xs font-bold text-slate-800 font-['Montserrat'] leading-tight">
                         {property.superBuiltUpSqft.toLocaleString('en-IN')} sq.ft
                       </span>
@@ -268,18 +268,18 @@ export const ListedProperties: React.FC<ListedPropertiesProps> = ({ onSelectProp
 
                     {/* Tile 2: Facing */}
                     <div className="bg-slate-50/80 rounded-xl p-2.5 text-center border border-slate-100 flex flex-col items-center justify-center">
-                      <Compass className="w-3.5 h-3.5 text-[#244B8F] mb-1" />
+                      <Compass className="w-5 h-5 text-[#244B8F] mb-1" />
                       <span className="text-xs font-bold text-slate-800 font-['Montserrat'] uppercase leading-tight">
                         {property.facing || 'EAST'}
                       </span>
                       <span className="text-[10px] text-slate-400 font-['Poppins'] mt-0.5">Facing</span>
                     </div>
 
-                    {/* Tile 3: Floor */}
+                    {/* Tile 3: Floor (Building2 instead of Bed) */}
                     <div className="bg-slate-50/80 rounded-xl p-2.5 text-center border border-slate-100 flex flex-col items-center justify-center">
-                      <Bed className="w-3.5 h-3.5 text-[#244B8F] mb-1" />
+                      <Building2 className="w-5 h-5 text-[#244B8F] mb-1" />
                       <span className="text-xs font-bold text-slate-800 font-['Montserrat'] leading-tight truncate w-full">
-                        {property.floorBand || 'Floor 11 of 18'}
+                        {property.floorBand || 'Floor 8 of 8'}
                       </span>
                       <span className="text-[10px] text-slate-400 font-['Poppins'] mt-0.5">Floor</span>
                     </div>
