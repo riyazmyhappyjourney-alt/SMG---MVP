@@ -23,10 +23,11 @@ async function applySchema() {
     await client.connect();
     console.log('Successfully connected to PostgreSQL database.');
 
-    const sqlPath = path.resolve(process.cwd(), 'src/server/db/core-tables.sql');
+    const schemaFile = process.argv[2] || 'src/server/db/staging-schema.sql';
+    const sqlPath = path.resolve(process.cwd(), schemaFile);
     const sql = fs.readFileSync(sqlPath, 'utf8');
 
-    console.log('Applying core schema (users, consents, seller_leads, properties, documents, erasure_requests, audit_logs)...');
+    console.log(`Applying schema from ${schemaFile}...`);
     await client.query(sql);
 
     console.log('Verifying created tables in information_schema...');
