@@ -5392,7 +5392,7 @@ app.delete('/api/crm/users/:id', jsonDefault, authenticateUser, async (req: Requ
     // Cascade deletions
     if (targetUser.email) {
       await executeQuery(`DELETE FROM user_identities WHERE user_id = $1 OR LOWER(email) = $2;`, [id, targetUser.email.toLowerCase()]).catch(() => {});
-      await executeQuery(`DELETE FROM publication_notifications WHERE LOWER(recipient) = $1;`, [targetUser.email.toLowerCase()]).catch(() => {});
+      await executeQuery(`DELETE FROM publication_notifications WHERE LOWER(recipient_email) = $1;`, [targetUser.email.toLowerCase()]).catch(() => {});
     }
     await executeQuery(`DELETE FROM users WHERE id = $1;`, [id]);
 
@@ -7686,7 +7686,7 @@ async function startServer() {
     DELETE FROM user_identities WHERE LOWER(email) IN ('yashwantkeyan@gmail.com', 'socialmedia@myhappyjourney.com');
   `).catch(() => {});
   await executeQuery(`
-    DELETE FROM publication_notifications WHERE LOWER(recipient) IN ('yashwantkeyan@gmail.com', 'socialmedia@myhappyjourney.com');
+    DELETE FROM publication_notifications WHERE LOWER(recipient_email) IN ('yashwantkeyan@gmail.com', 'socialmedia@myhappyjourney.com');
   `).catch(() => {});
   await executeQuery(`
     DELETE FROM users WHERE LOWER(email) IN ('yashwantkeyan@gmail.com', 'socialmedia@myhappyjourney.com');
