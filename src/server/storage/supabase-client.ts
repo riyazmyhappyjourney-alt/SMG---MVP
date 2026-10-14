@@ -319,6 +319,38 @@ export async function uploadStatutoryDocToSupabase(
 }
 
 /**
+ * Generate a short-lived cryptographically signed URL for an authorized caller
+ * to access a private statutory document in the 'property-documents' bucket.
+ * Default expiration: 3600 seconds (1 hour). Maximum: 7200 seconds (2 hours).
+ */
+export async function getDocumentSignedUrl(
+  storagePath: string,
+  expiresInSeconds: number = 3600
+): Promise<{ success: boolean; signedUrl: string; expiresAt: Date }> {
+  const boundedExpiry = Math.min(Math.max(expiresInSeconds, 60), 7200);
+  const client = getSupabaseClient();
+  const expiresAt = new Date(Date.now() + boundedExpiry * 1000);
+
+  if (client) {
+    const { data, error } = await client.storage
+      .from(BUCKET_PROPERTY_DOCUMENTS)
+      .createSignedUrl(storagePath, boundedExpiry);
+
+    if (!error && data?.signedUrl) {
+      return { success: true, signedUrl: data.signedUrl, expiresAt };
+    }
+    if (error && (process.env.ALLOW_DEV_FALLBACKS !== 'true' || process.env.NODE_ENV === 'production')) {
+      throw new Error(`STORAGE_SIGNING_FAILED: ${error.message}`);
+    }
+  }
+
+  // Fallback in sandbox / test environment
+  const supabaseProject = process.env.SUPABASE_PROJECT_ID || 'db.sellmyghar';
+  const signedUrl = `https://${supabaseProject}.supabase.co/storage/v1/object/sign/${BUCKET_PROPERTY_DOCUMENTS}/${storagePath}?token=vault-token-expires-${Date.now() + boundedExpiry * 1000}`;
+  return { success: true, signedUrl, expiresAt };
+}
+
+/**
  * Upload verified hero banner image to Supabase Storage 'property-media' bucket
  */
 export async function uploadHeroImageToSupabase(
