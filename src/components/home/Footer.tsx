@@ -37,42 +37,57 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
   const [feedbackText, setFeedbackText] = useState('');
 
   return (
-    <footer className="relative overflow-hidden bg-[#EBF4FA] text-slate-700 pt-12 sm:pt-16 border-t border-slate-200/90 font-['Poppins',sans-serif]">
-      {/* Light neutral overlay gradient for reading contrast */}
+    <footer className="relative overflow-hidden bg-[#EBF4FA] text-slate-700 font-['Poppins',sans-serif] border-t border-slate-200/80">
+      
+      {/* 1. Integrated Full-Width Bengaluru Skyline Illustration Background */}
       <div 
-        className="absolute inset-0 bg-gradient-to-b from-[#EBF4FA] via-[#EBF4FA]/95 to-[#EBF4FA]/30 pointer-events-none z-0" 
+        className="absolute inset-0 w-full h-full pointer-events-none z-0 overflow-hidden select-none"
+        aria-hidden="true"
+      >
+        <img
+          id="footer-skyline-backdrop"
+          src="/images/bengaluru-skyline-footer.png"
+          alt="Bengaluru Vidhana Soudha, Metro and Resale Infrastructure Panorama"
+          className="w-full h-full object-cover object-bottom opacity-90 sm:opacity-95"
+          loading="lazy"
+          decoding="async"
+        />
+      </div>
+
+      {/* 2. Soft Pale-Blue / Neutral Overlay Gradient for High-Contrast Text Readability */}
+      <div 
+        className="absolute inset-0 bg-gradient-to-b from-[#EBF4FA]/96 via-[#EBF4FA]/82 to-[#EBF4FA]/25 pointer-events-none z-1" 
         aria-hidden="true" 
       />
 
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 sm:pt-16 pb-16 sm:pb-24 lg:pb-32">
         
         {/* Main 4-Column Layout */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-8 lg:gap-8 pb-10 sm:pb-14">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-8 lg:gap-10">
           
-          {/* Column 1: Brand Info & RERA Approval (lg:col-span-4) */}
+          {/* Column 1: Brand Info & Unified RERA Block (lg:col-span-4) */}
           <div className="lg:col-span-4 space-y-4">
             <div className="inline-block">
-              <Logo height={42} />
+              <Logo height={44} />
             </div>
             <p className="text-xs text-slate-600 font-['Poppins'] leading-relaxed max-w-sm">
               SellMyGhar is Bengaluru’s dedicated apartment resale platform. We eliminate broker spam, provide certified title due diligence, and connect verified sellers directly with serious home buyers.
             </p>
             
-            {/* RERA Pill Badge */}
-            <div className="pt-1 flex flex-col items-start gap-2.5">
-              <div className="inline-flex items-center space-x-2 text-xs text-emerald-800 bg-emerald-50/95 px-3.5 py-1.5 rounded-full border border-emerald-400 font-semibold font-['Montserrat'] shadow-2xs">
-                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>Karnataka RERA Approved Real Estate Resale Platform</span>
-              </div>
-
-              {/* Animated RERA Approval Registration Line with Refined Lighting Sweep */}
+            {/* Unified Karnataka RERA Approved Block with Registration Number & Lighting Sweep */}
+            <div className="pt-1">
               <div 
-                className="relative overflow-hidden inline-flex items-center px-3.5 py-1.5 rounded-lg bg-white/85 border border-[#244B8F]/25 text-[11px] font-mono font-bold text-[#172033] tracking-wide shadow-2xs max-w-full"
-                title="Karnataka Real Estate Regulatory Authority Registration"
+                className="relative overflow-hidden inline-block text-xs bg-emerald-50/95 backdrop-blur-xs px-3.5 py-2.5 rounded-xl border border-emerald-400/90 font-['Montserrat'] shadow-2xs max-w-full"
+                title="Karnataka Real Estate Regulatory Authority Approved Platform"
               >
-                <span className="relative z-10 break-all sm:break-normal select-all">
-                  RERA Approved: PRM/KA/RERA/1251/309/AG/221108/003210
-                </span>
+                <div className="flex items-center space-x-2 font-bold text-emerald-800">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Karnataka RERA Approved Real Estate Resale Platform</span>
+                </div>
+                <div className="mt-1 pl-6 font-mono text-[11px] font-bold text-[#172033] tracking-wide break-all select-all">
+                  PRM/KA/RERA/1251/309/AG/221108/003210
+                </div>
+                {/* Subtle Lighting Sweep Animation Across the Card */}
                 <span className="animate-rera-sweep" aria-hidden="true" />
                 <span className="animate-rera-underline" aria-hidden="true" />
               </div>
@@ -251,25 +266,8 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
         </div>
       </div>
 
-      {/* Footer Panoramic Illustration (Supplied Background Image) */}
-      <div 
-        id="footer-illustration-wrapper"
-        className="w-full relative overflow-hidden select-none z-10 pointer-events-none mt-2 sm:mt-4"
-      >
-        <div className="w-full">
-          <img
-            id="footer-illustration"
-            src="/images/bengaluru-skyline-footer.png"
-            alt="Bengaluru Vidhana Soudha, Metro and Resale Infrastructure Panorama"
-            className="w-full h-auto max-h-[200px] sm:max-h-[280px] md:max-h-[340px] lg:max-h-[400px] object-cover object-bottom"
-            loading="lazy"
-            decoding="async"
-          />
-        </div>
-      </div>
-
       {/* Bottom Bar: Copyright & Compliance */}
-      <div className="relative z-20 pt-4 pb-6 bg-[#172033] text-slate-300 font-['Poppins'] border-t border-slate-700/60">
+      <div className="relative z-20 pt-4 pb-6 bg-[#172033] text-slate-300 font-['Poppins'] border-t border-slate-700/60 shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between text-[11px] gap-2">
           <p>© {new Date().getFullYear()} SellMyGhar Technologies Private Limited. All rights reserved.</p>
           <p className="text-center sm:text-right text-slate-400">
