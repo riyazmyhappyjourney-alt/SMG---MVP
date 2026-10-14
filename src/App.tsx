@@ -18,6 +18,7 @@ import { TermsPage } from './components/legal/TermsPage';
 import { PrivacyPolicyPage } from './components/legal/PrivacyPolicyPage';
 import { CookiePolicyPage } from './components/legal/CookiePolicyPage';
 import { CareersPage } from './components/company/CareersPage';
+import { initGA4, trackPageView } from './utils/analytics';
 
 export type AppRoute = 
   | 'HOME' 
@@ -133,6 +134,16 @@ export default function App() {
     restoreSession();
     return () => { isMounted = false; };
   }, []);
+
+  // Initialize privacy-preserving analytics & track route changes
+  useEffect(() => {
+    initGA4();
+  }, []);
+
+  useEffect(() => {
+    const currentPath = window.location.hash || window.location.pathname || '/';
+    trackPageView(currentPath, document.title || 'SellMyGhar');
+  }, [currentRoute]);
 
   // Staff internal session (Strictly accessible ONLY via custom link e.g. #/crm or crm.domain)
   const [staffSession, setStaffSession] = useState<{ token?: string; user: any } | null>(() => {

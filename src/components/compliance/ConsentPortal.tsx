@@ -13,9 +13,10 @@ import {
   Download,
   Trash2
 } from 'lucide-react';
+import { hasAnalyticsConsent, setAnalyticsConsent } from '../../utils/analytics';
 
 interface UserConsentItem {
-  purpose: 'SELLER_ONBOARDING' | 'MARKETING_OPT_IN' | 'VISIT_COORDINATION';
+  purpose: 'SELLER_ONBOARDING' | 'MARKETING_OPT_IN' | 'VISIT_COORDINATION' | 'ANALYTICS_TELEMETRY';
   title: string;
   description: string;
   noticeVersion: string;
@@ -57,6 +58,17 @@ const INITIAL_DEMO_CONSENTS: UserConsentItem[] = [
     isConsented: false,
     isWithdrawn: false,
     consentedAt: 'Not granted',
+    withdrawnAt: null,
+    confirmationId: null,
+  },
+  {
+    purpose: 'ANALYTICS_TELEMETRY',
+    title: 'Anonymous Usage & Telemetry',
+    description: 'Measures anonymous interaction telemetry (page views, search filters, calculator usage) with zero personal identifying information.',
+    noticeVersion: 'dpdp-notice-2026-v1',
+    isConsented: true,
+    isWithdrawn: false,
+    consentedAt: '2026-09-28 11:30 AM',
     withdrawnAt: null,
     confirmationId: null,
   }
@@ -177,6 +189,9 @@ export function ConsentPortal() {
       setLoading(false);
 
       if (result.status === 'WITHDRAWN') {
+        if (purpose === 'ANALYTICS_TELEMETRY') {
+          setAnalyticsConsent(false);
+        }
         setConsents(prev =>
           prev.map(c =>
             c.purpose === purpose

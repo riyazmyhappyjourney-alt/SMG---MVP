@@ -15,6 +15,7 @@ import {
   Headphones,
   FileCheck
 } from 'lucide-react';
+import { trackEnquirySubmitted } from '../../utils/analytics';
 
 interface ContactPageProps {
   onNavigate: (route: 'HOME' | 'CRM' | 'CONSENT' | 'SELLER_ASSISTED' | 'CONTACT') => void;
@@ -102,6 +103,8 @@ export const ContactPage: React.FC<ContactPageProps> = ({
         referenceId: data.referenceId || `SMG-CONT-${Date.now().toString().slice(-4)}`,
         message: data.message || 'Your enquiry has been received. Our advisory team will reach out within 2 business hours.'
       });
+
+      trackEnquirySubmitted({ enquiryType: 'CONTACT' });
 
       // Reset form fields
       setName('');

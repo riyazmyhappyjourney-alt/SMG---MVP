@@ -23,6 +23,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { BENGALURU_LOCALITIES, BENGALURU_SOCIETIES, LocalityItem, SocietyItem, searchLocalities, searchSocieties } from '../../data/bengaluruData';
+import { trackFunnelStep, trackFunnelCompleted } from '../../utils/analytics';
 
 export type WizardIntent = 'SELL' | 'RENT';
 export type PropertySubtype = 
@@ -798,6 +799,11 @@ export function SellerFunnel({
       setServerReferenceId(propData.referenceId || `SMG-2026-${Math.floor(1000 + Math.random() * 9000)}`);
       setCreatedPropertyId(propData.propertyId || propData.property?.id || '');
       setSubmissionSuccess(true);
+      trackFunnelCompleted('SELLER_WIZARD', {
+        bhkType,
+        locality: localityQuery,
+        totalImages: photos.length,
+      });
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err: any) {
       setOtpError(err.message || 'Verification failed. Please try again.');
@@ -817,6 +823,12 @@ export function SellerFunnel({
     { number: 5, name: 'Commercial Terms', icon: IndianRupee },
     { number: 6, name: 'Photos & Final Review', icon: Camera },
   ];
+
+  // Telemetry: Track Step Progression
+  useEffect(() => {
+    const stepObj = stepsMetadata.find((s) => s.number === currentStep);
+    trackFunnelStep('SELLER_WIZARD', currentStep, stepObj ? stepObj.name : `Step ${currentStep}`);
+  }, [currentStep]);
 
   // ====================================================================
   // SUBMISSION SUCCESS VIEW (Premium Pre-Production Confirmation)
