@@ -90,7 +90,6 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                   </span>
                   {/* Subtle Lighting Sweep Animation Across the Card */}
                   <span className="animate-rera-sweep" aria-hidden="true" />
-                  <span className="animate-rera-underline" aria-hidden="true" />
                 </div>
               </div>
             </div>
@@ -200,7 +199,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                   onClick={() => onNavClick('SELL')}
                   className="whitespace-nowrap hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left py-0.5 block"
                 >
-                  Sell My Flat (Free)
+                  Sell Your Flat (Verified)
                 </button>
               </li>
               <li>
@@ -247,7 +246,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
             <div className="space-y-3 text-xs text-[#1E3A8A] font-['Poppins']">
               <p className="flex items-start leading-relaxed font-medium">
                 <MapPin className="w-3.5 h-3.5 mr-2 text-[#244B8F] shrink-0 mt-0.5" />
-                <span>100 Feet Road, Indiranagar, Bengaluru, KA 560038</span>
+                <span>ESTEEM PARK, Rose Garden Rd, 5th Phase, J P Nagar Phase 5, J. P. Nagar, Bengaluru, Karnataka 560078</span>
               </p>
               <p className="flex items-center font-medium">
                 <Phone className="w-3.5 h-3.5 mr-2 text-[#244B8F] shrink-0" />
@@ -353,7 +352,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                   <p><strong>Designation:</strong> Head of Legal & Data Compliance</p>
                   <p><strong>Direct Email:</strong> <a href="mailto:grievance@sellmyghar.in" className="text-[#244B8F] underline">grievance@sellmyghar.in</a></p>
                   <p><strong>Response SLA:</strong> Acknowledgment within 24 hours, resolution within 48 business hours.</p>
-                  <p><strong>Office:</strong> 100 Feet Road, Indiranagar, Bengaluru, KA 560038</p>
+                  <p><strong>Office:</strong> ESTEEM PARK, Rose Garden Rd, 5th Phase, J P Nagar Phase 5, J. P. Nagar, Bengaluru, Karnataka 560078</p>
                 </div>
                 <p className="text-slate-500 text-[11px]">
                   Users have the statutory right to withdraw consent or request complete erasure of personal data at any time through our Consent Portal.

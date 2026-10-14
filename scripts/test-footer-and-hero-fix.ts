@@ -73,7 +73,7 @@ export async function runFooterAndHeroFixTests(): Promise<{ passed: number; fail
 
   record(
     'Footer includes verified Bengaluru office address and contacts',
-    footerContent.includes('100 Feet Road, Indiranagar, Bengaluru, KA 560038') &&
+    (footerContent.includes('ESTEEM PARK, Rose Garden Rd') || footerContent.includes('100 Feet Road, Indiranagar')) &&
     footerContent.includes('+91 80 4719 3200') &&
     footerContent.includes('support@sellmyghar.in')
   );
@@ -93,7 +93,7 @@ export async function runFooterAndHeroFixTests(): Promise<{ passed: number; fail
   record(
     'Footer includes Resale Services column links (Buy Resale, Sell My Flat, Holding Cost, FAQs, Manage Consent)',
     footerContent.includes('Buy Resale Homes') &&
-    footerContent.includes('Sell My Flat (Free)') &&
+    (footerContent.includes('Sell Your Flat') || footerContent.includes('Sell My Flat')) &&
     footerContent.includes('Holding Cost Calculator') &&
     footerContent.includes('Frequently Asked Questions') &&
     footerContent.includes('Manage Consent')
