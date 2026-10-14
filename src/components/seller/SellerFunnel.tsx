@@ -16,7 +16,11 @@ import {
   Check,
   RefreshCw,
   Video,
-  ExternalLink
+  ExternalLink,
+  ChevronLeft,
+  ChevronRight,
+  Star,
+  Trash2
 } from 'lucide-react';
 import { BENGALURU_LOCALITIES, BENGALURU_SOCIETIES, LocalityItem, SocietyItem, searchLocalities, searchSocieties } from '../../data/bengaluruData';
 
@@ -98,6 +102,10 @@ export function SellerFunnel({
   const [totalFloors, setTotalFloors] = useState<number | ''>(14);
   const [facing, setFacing] = useState<string>('East');
   const [furnishing, setFurnishing] = useState<string>('Semi-Furnished');
+  // Property Status & Possession Details (Decoupled from Property Age)
+  const [propertyStatus, setPropertyStatus] = useState<'Ready to Move' | 'Under Construction'>('Ready to Move');
+  const [possessionMonth, setPossessionMonth] = useState<string>('December');
+  const [possessionYear, setPossessionYear] = useState<string>('2026');
   const [propertyAge, setPropertyAge] = useState<string>('1 to 5 years');
   const [expectedPossessionDate, setExpectedPossessionDate] = useState<string>('');
   const [hasCoveredParking, setHasCoveredParking] = useState<boolean>(true);
@@ -220,6 +228,9 @@ export function SellerFunnel({
         if (d.totalFloors !== undefined) setTotalFloors(d.totalFloors);
         if (d.facing) setFacing(d.facing);
         if (d.furnishing) setFurnishing(d.furnishing);
+        if (d.propertyStatus) setPropertyStatus(d.propertyStatus);
+        if (d.possessionMonth) setPossessionMonth(d.possessionMonth);
+        if (d.possessionYear) setPossessionYear(d.possessionYear);
         if (d.propertyAge) setPropertyAge(d.propertyAge);
         if (d.expectedPossessionDate !== undefined) setExpectedPossessionDate(d.expectedPossessionDate);
         if (d.hasCoveredParking !== undefined) setHasCoveredParking(d.hasCoveredParking);
@@ -287,6 +298,9 @@ export function SellerFunnel({
             totalFloors,
             facing,
             furnishing,
+            propertyStatus,
+            possessionMonth,
+            possessionYear,
             propertyAge,
             expectedPossessionDate,
             hasCoveredParking,
@@ -320,11 +334,12 @@ export function SellerFunnel({
   }, [
     submissionSuccess, currentStep, intent, subType, localityQuery, societyQuery,
     wingTower, houseNo, bhkType, bathrooms, balconies, superBuiltUpSqft,
-    carpetAreaSqft, unitFloor, totalFloors, facing, furnishing, propertyAge,
-    expectedPossessionDate, hasCoveredParking, parkingCount, videoUrl,
-    expectedPrice, isNegotiable, bookingAmount, monthlyRent, securityDeposit,
-    preferredTenant, rentalDuration, customDurationMonths, moveInAvailability,
-    moveInDate, maintenanceCharges, ownerName, ownerPhone, ownerEmail, description
+    carpetAreaSqft, unitFloor, totalFloors, facing, furnishing, propertyStatus,
+    possessionMonth, possessionYear, propertyAge, expectedPossessionDate,
+    hasCoveredParking, parkingCount, videoUrl, expectedPrice, isNegotiable,
+    bookingAmount, monthlyRent, securityDeposit, preferredTenant, rentalDuration,
+    customDurationMonths, moveInAvailability, moveInDate, maintenanceCharges,
+    ownerName, ownerPhone, ownerEmail, description
   ]);
 
   // Close dropdowns on outside click or Escape
@@ -430,6 +445,15 @@ export function SellerFunnel({
         setErrorMessage('Please select a property type.');
         return false;
       }
+      if (!ownerName.trim() || ownerName.trim().length < 2) {
+        setErrorMessage('Please provide your full name.');
+        return false;
+      }
+      const cleanPhone = ownerPhone.replace(/\D/g, '').slice(-10);
+      if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
+        setErrorMessage('Please enter a valid 10-digit mobile number.');
+        return false;
+      }
       return true;
     }
 
@@ -454,6 +478,14 @@ export function SellerFunnel({
         setErrorMessage('Please choose the BHK configuration.');
         return false;
       }
+      if (propertyStatus === 'Under Construction' && !expectedPossessionDate.trim()) {
+        setErrorMessage('Please select the expected possession date for under-construction property.');
+        return false;
+      }
+      return true;
+    }
+
+    if (stepNumber === 4) {
       const sbua = typeof superBuiltUpSqft === 'number' ? superBuiltUpSqft : 0;
       if (sbua < 200) {
         setErrorMessage('Please enter a valid Super Built-up Area in square feet.');
@@ -477,25 +509,6 @@ export function SellerFunnel({
       if (fl > tot) {
         setErrorMessage(`Unit floor (${fl}) cannot be higher than total building floors (${tot}).`);
         return false;
-      }
-      if (propertyAge === 'Under Construction' && !expectedPossessionDate.trim()) {
-        setErrorMessage('Please select the expected possession date for under-construction property.');
-        return false;
-      }
-      return true;
-    }
-
-    if (stepNumber === 4) {
-      if (videoUrl.trim()) {
-        const isSupportedHost = 
-          videoUrl.includes('youtube.com') || 
-          videoUrl.includes('youtu.be') || 
-          videoUrl.includes('drive.google.com') ||
-          videoUrl.includes('dropbox.com');
-        if (!isSupportedHost) {
-          setErrorMessage('Please provide a video share link from YouTube, Google Drive, or Dropbox.');
-          return false;
-        }
       }
       return true;
     }
@@ -522,14 +535,27 @@ export function SellerFunnel({
           return false;
         }
       }
+      return true;
+    }
 
-      if (!ownerName.trim() || ownerName.trim().length < 2) {
-        setErrorMessage('Please provide your full name.');
+    if (stepNumber === 6) {
+      if (videoUrl.trim()) {
+        const isSupportedHost = 
+          videoUrl.includes('youtube.com') || 
+          videoUrl.includes('youtu.be') || 
+          videoUrl.includes('drive.google.com') ||
+          videoUrl.includes('dropbox.com');
+        if (!isSupportedHost) {
+          setErrorMessage('Please provide a video share link from YouTube, Google Drive, or Dropbox.');
+          return false;
+        }
+      }
+      if (!lawfulDeclaration) {
+        setErrorMessage('Please confirm that you are the lawful owner or authorized representative.');
         return false;
       }
-      const cleanPhone = ownerPhone.replace(/\D/g, '').slice(-10);
-      if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
-        setErrorMessage('Please enter a valid 10-digit mobile number.');
+      if (!contactConsent) {
+        setErrorMessage('Please agree to communication and privacy consent.');
         return false;
       }
       return true;
@@ -611,42 +637,22 @@ export function SellerFunnel({
     setPhotos(prev => prev.filter(p => p.id !== id));
   };
 
-  const handleAddSamplePhotos = () => {
-    setUploadError(null);
-    const sampleAssets: PhotoItem[] = [
-      {
-        id: `sample-hero-${Date.now()}`,
-        url: '/images/brigade-granada-hero.webp',
-        name: 'brigade-granada-hero.webp',
-        size: '1.2 MB',
-        isFeatured: photos.length === 0,
-      },
-      {
-        id: `sample-club-${Date.now()}`,
-        url: '/images/brigade-granada-clubhouse.webp',
-        name: 'brigade-granada-clubhouse.webp',
-        size: '980 KB',
-      },
-      {
-        id: `sample-night-${Date.now()}`,
-        url: '/images/brigade-granada-night-vision.webp',
-        name: 'living-hall-balcony.webp',
-        size: '1.1 MB',
-      },
-      {
-        id: `sample-town-${Date.now()}`,
-        url: '/images/luxury-apartment-township-sunset.webp',
-        name: 'township-view.webp',
-        size: '1.4 MB',
-      },
-    ];
-
+  const handleMovePhoto = (index: number, direction: 'LEFT' | 'RIGHT') => {
     setPhotos(prev => {
-      const existingNames = new Set(prev.map(p => p.name));
-      const fresh = sampleAssets.filter(s => !existingNames.has(s.name));
-      const merged = [...prev, ...fresh];
-      return merged.slice(0, 10);
+      const targetIndex = direction === 'LEFT' ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= prev.length) return prev;
+      const copy = [...prev];
+      const [item] = copy.splice(index, 1);
+      copy.splice(targetIndex, 0, item);
+      return copy;
     });
+  };
+
+  const handleSetFeatured = (id: string) => {
+    setPhotos(prev => prev.map(p => ({
+      ...p,
+      isFeatured: p.id === id,
+    })));
   };
 
   // STEP 6: OTP & Final Submission Flow
@@ -802,14 +808,14 @@ export function SellerFunnel({
     }
   };
 
-  // STEP WIZARD METADATA
+  // STEP WIZARD METADATA (Reordered strictly per Section 3 specifications)
   const stepsMetadata = [
-    { number: 1, name: 'Basic Details', icon: Building2 },
-    { number: 2, name: 'Location', icon: MapPin },
-    { number: 3, name: 'Property Profile', icon: Layers },
-    { number: 4, name: 'Photos & Videos', icon: Camera },
-    { number: 5, name: 'Pricing & Owner', icon: IndianRupee },
-    { number: 6, name: 'Review & Submit', icon: ClipboardCheck },
+    { number: 1, name: 'Contact & Type', icon: Building2 },
+    { number: 2, name: 'Location & Society', icon: MapPin },
+    { number: 3, name: 'Configuration & Status', icon: Layers },
+    { number: 4, name: 'Area & Unit Details', icon: Layers },
+    { number: 5, name: 'Commercial Terms', icon: IndianRupee },
+    { number: 6, name: 'Photos & Final Review', icon: Camera },
   ];
 
   // ====================================================================
@@ -1155,20 +1161,20 @@ export function SellerFunnel({
                 )}
               </div>
               <h2 className="text-2xl sm:text-3xl font-extrabold text-[#172033] tracking-tight font-['Montserrat']">
-                {currentStep === 1 && "Let's start with your property"}
+                {currentStep === 1 && "Owner Contact & Listing Type"}
                 {currentStep === 2 && "Where is your property located?"}
-                {currentStep === 3 && "Tell us about the unit"}
-                {currentStep === 4 && "Add photos & video"}
-                {currentStep === 5 && "Pricing & your details"}
-                {currentStep === 6 && "Everything looks good?"}
+                {currentStep === 3 && "Configuration & Possession Status"}
+                {currentStep === 4 && "Area, Floor & Unit Specifications"}
+                {currentStep === 5 && "Commercial Terms & Pricing"}
+                {currentStep === 6 && "Genuine Photos & Final Review"}
               </h2>
               <p className="text-sm text-slate-600 mt-1.5 leading-relaxed">
-                {currentStep === 1 && "Your property details are taking shape. Tell us the type of apartment you want to list."}
+                {currentStep === 1 && "Provide your contact details so our verified Bengaluru residential desk can assist your listing."}
                 {currentStep === 2 && "Pinpointing your apartment community in Bengaluru with verified society suggestions."}
-                {currentStep === 3 && "Add a few more details to help us understand your apartment layout and specifications."}
-                {currentStep === 4 && "Genuine photos build trust with prospective buyers looking for homes in Bengaluru."}
-                {currentStep === 5 && "You're one step closer to listing your property. Provide your commercial expectations and phone number."}
-                {currentStep === 6 && "Review your listing details before our team initiates documentation verification."}
+                {currentStep === 3 && "Specify your apartment configuration, BHK count, and construction completion status."}
+                {currentStep === 4 && "Detailed measurements, floor level, and orientation of your apartment."}
+                {currentStep === 5 && "Set your financial expectations and highlight key society amenities."}
+                {currentStep === 6 && "Upload authentic photos of your flat and review details before verification."}
               </p>
             </div>
 
@@ -1266,6 +1272,70 @@ export function SellerFunnel({
                         </div>
                       </button>
                     ))}
+                  </div>
+                </div>
+
+                {/* Owner Contact Details Section (Collected upfront per Section 3) */}
+                <div className="pt-6 border-t border-slate-200 space-y-4">
+                  <div>
+                    <h3 className="text-sm font-bold text-[#172033] font-['Montserrat']">
+                      Owner Contact Details
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Our verified Bengaluru residential desk will connect directly with you. Your personal details are never shown on the public listing.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-[#172033] uppercase tracking-wider mb-1.5">
+                        Your Full Name <span className="text-red-600">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Rajesh Kumar"
+                        value={ownerName}
+                        onChange={(e) => setOwnerName(e.target.value)}
+                        className="w-full p-3.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#244B8F] bg-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-[#172033] uppercase tracking-wider mb-1.5">
+                        Mobile Number <span className="text-red-600">*</span>
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-4 top-3.5 text-sm font-bold text-slate-500">
+                          +91
+                        </span>
+                        <input
+                          type="tel"
+                          inputMode="tel"
+                          maxLength={10}
+                          placeholder="e.g. 9845012345"
+                          value={ownerPhone}
+                          onChange={(e) => setOwnerPhone(e.target.value.replace(/\D/g, ''))}
+                          className="w-full pl-14 pr-4 py-3.5 rounded-xl border border-slate-300 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#244B8F] bg-white tracking-wider"
+                        />
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-1.5 flex items-center space-x-1.5">
+                        <Lock className="w-3 h-3 text-slate-400 shrink-0" />
+                        <span>Used for listing verification and OTP authentication.</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-[#172033] uppercase tracking-wider mb-1.5">
+                      Email Address <span className="text-slate-400 font-normal lowercase">(for listing receipt & diligence tracker)</span>
+                    </label>
+                    <input
+                      type="email"
+                      placeholder="e.g. rajesh.kumar@gmail.com"
+                      value={ownerEmail}
+                      onChange={(e) => setOwnerEmail(e.target.value)}
+                      className="w-full p-3.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#244B8F] bg-white"
+                    />
                   </div>
                 </div>
               </div>
@@ -1474,7 +1544,7 @@ export function SellerFunnel({
             )}
 
             {/* ======================================================== */}
-            {/* STEP 3: Unit Specifications                              */}
+            {/* STEP 3: Configuration & Status                           */}
             {/* ======================================================== */}
             {currentStep === 3 && (
               <div className="space-y-7">
@@ -1548,7 +1618,196 @@ export function SellerFunnel({
                   </div>
                 </div>
 
-                {/* Super Built-Up & Carpet Area (No Native Spinner Arrows) */}
+                {/* Property Status: Decoupled into Ready to Move vs Under Construction */}
+                <div className="pt-4 border-t border-slate-200 space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-[#172033] uppercase tracking-wider mb-1.5">
+                      Property Status <span className="text-red-600">*</span>
+                    </label>
+                    <p className="text-xs text-slate-500 mb-3">
+                      Is this apartment ready for physical possession or currently under construction?
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPropertyStatus('Ready to Move');
+                        if (propertyAge === 'Under Construction') {
+                          setPropertyAge('1 to 5 years');
+                        }
+                        setExpectedPossessionDate('');
+                      }}
+                      className={`p-4 rounded-xl border-2 text-left transition-all cursor-pointer ${
+                        propertyStatus === 'Ready to Move'
+                          ? 'border-[#244B8F] bg-blue-50/40 shadow-xs'
+                          : 'border-slate-200 hover:border-slate-300 bg-white'
+                      }`}
+                    >
+                      <div className="font-bold text-sm text-[#172033]">
+                        Ready to Move
+                      </div>
+                      <div className="text-xs text-slate-500 mt-0.5">
+                        Occupancy / Completion certificate received, ready for immediate move-in.
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPropertyStatus('Under Construction');
+                        const defaultDate = expectedPossessionDate || `${possessionMonth} ${possessionYear}`;
+                        setExpectedPossessionDate(defaultDate);
+                      }}
+                      className={`p-4 rounded-xl border-2 text-left transition-all cursor-pointer ${
+                        propertyStatus === 'Under Construction'
+                          ? 'border-[#244B8F] bg-blue-50/40 shadow-xs'
+                          : 'border-slate-200 hover:border-slate-300 bg-white'
+                      }`}
+                    >
+                      <div className="font-bold text-sm text-[#172033]">
+                        Under Construction
+                      </div>
+                      <div className="text-xs text-slate-500 mt-0.5">
+                        Work in progress, handover scheduled by builder for a future date.
+                      </div>
+                    </button>
+                  </div>
+
+                  {/* If Ready to Move: Property Age ONLY (NO 'Under Construction' in this dropdown) */}
+                  {propertyStatus === 'Ready to Move' && (
+                    <div className="p-4 sm:p-5 rounded-xl border border-slate-200 bg-slate-50/70 space-y-3">
+                      <div>
+                        <label className="block text-xs font-bold text-[#172033] uppercase tracking-wider mb-1">
+                          Property Age <span className="text-red-600">*</span>
+                        </label>
+                        <p className="text-xs text-slate-500">
+                          How long since the building received occupancy?
+                        </p>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                        {[
+                          'Under 1 year',
+                          '1 to 5 years',
+                          '5 to 10 years',
+                          '10+ years'
+                        ].map((age) => (
+                          <button
+                            key={age}
+                            type="button"
+                            onClick={() => setPropertyAge(age)}
+                            className={`p-3 rounded-lg text-xs font-bold transition-all text-center cursor-pointer ${
+                              propertyAge === age
+                                ? 'bg-[#244B8F] text-white shadow-xs'
+                                : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100'
+                            }`}
+                          >
+                            {age}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* If Under Construction: Expected Possession Month & Year */}
+                  {propertyStatus === 'Under Construction' && (
+                    <div className="p-4 sm:p-5 rounded-xl border border-blue-200 bg-blue-50/40 space-y-4">
+                      <div>
+                        <label className="block text-xs font-bold text-[#172033] uppercase tracking-wider mb-1">
+                          Expected Possession Date <span className="text-red-600">*</span>
+                        </label>
+                        <p className="text-xs text-slate-600">
+                          Specify target month and year of delivery as indicated by the developer.
+                        </p>
+                      </div>
+
+                      {/* Month & Year Selectors */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                            Target Month
+                          </label>
+                          <select
+                            value={possessionMonth}
+                            onChange={(e) => {
+                              const newMonth = e.target.value;
+                              setPossessionMonth(newMonth);
+                              setExpectedPossessionDate(`${newMonth} ${possessionYear}`);
+                            }}
+                            className="w-full p-3 rounded-xl border border-slate-300 bg-white text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#244B8F]"
+                          >
+                            {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].map((m) => (
+                              <option key={m} value={m}>{m}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                            Target Year
+                          </label>
+                          <select
+                            value={possessionYear}
+                            onChange={(e) => {
+                              const newYear = e.target.value;
+                              setPossessionYear(newYear);
+                              setExpectedPossessionDate(`${possessionMonth} ${newYear}`);
+                            }}
+                            className="w-full p-3 rounded-xl border border-slate-300 bg-white text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#244B8F]"
+                          >
+                            {Array.from({ length: 10 }, (_, i) => String(new Date().getFullYear() + i)).map((yr) => (
+                              <option key={yr} value={yr}>{yr}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Quick chips */}
+                      <div>
+                        <div className="text-xs font-semibold text-slate-600 mb-2">
+                          Quick estimate shortcuts:
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {['Within 3 months', 'Within 6 months', 'By 2026', 'By 2027', 'By 2028', 'By 2029'].map((pos) => (
+                            <button
+                              key={pos}
+                              type="button"
+                              onClick={() => {
+                                setExpectedPossessionDate(pos);
+                                const yrMatch = pos.match(/\d{4}/);
+                                if (yrMatch) setPossessionYear(yrMatch[0]);
+                              }}
+                              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                                expectedPossessionDate === pos
+                                  ? 'bg-[#244B8F] text-white shadow-xs font-bold'
+                                  : 'bg-white border border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50'
+                              }`}
+                            >
+                              {pos}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {expectedPossessionDate && (
+                        <div className="text-xs font-bold text-[#244B8F] bg-white px-3 py-1.5 rounded-lg border border-blue-200 w-fit">
+                          Selected Possession: {expectedPossessionDate}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* ======================================================== */}
+            {/* STEP 4: Area, Floor & Unit Specifications                */}
+            {/* ======================================================== */}
+            {currentStep === 4 && (
+              <div className="space-y-7">
+                {/* Super Built-Up & Carpet Area */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-xs font-bold text-[#172033] uppercase tracking-wider mb-2">
@@ -1597,12 +1856,12 @@ export function SellerFunnel({
                       </span>
                     </div>
                     <p className="text-[11px] text-slate-500 mt-1">
-                      Calculated as an estimate. You can adjust this value if you have exact architectural figures.
+                      Calculated automatically from SBUA. You can edit this with your architectural floor plan figure.
                     </p>
                   </div>
                 </div>
 
-                {/* Floor Numbers with Clear Explanation */}
+                {/* Floor Numbers */}
                 <div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                     <div>
@@ -1636,7 +1895,7 @@ export function SellerFunnel({
                     </div>
                   </div>
                   <p className="text-[11px] text-slate-500 mt-1.5">
-                    Helps buyers understand the property's position within the building.
+                    Helps buyers understand elevation, lighting, and elevator access.
                   </p>
                 </div>
 
@@ -1672,119 +1931,28 @@ export function SellerFunnel({
                   </div>
                 </div>
 
-                {/* Furnishing & Property Age (with Under Construction) */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  <div>
-                    <label className="block text-xs font-bold text-[#172033] uppercase tracking-wider mb-2">
-                      Furnishing Status
-                    </label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {['Fully Furnished', 'Semi-Furnished', 'Unfurnished'].map((f) => (
-                        <button
-                          key={f}
-                          type="button"
-                          onClick={() => setFurnishing(f)}
-                          className={`py-2.5 px-1.5 rounded-lg text-xs font-bold text-center cursor-pointer ${
-                            furnishing === f
-                              ? 'bg-[#244B8F] text-white'
-                              : 'bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100'
-                          }`}
-                        >
-                          {f}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-[#172033] uppercase tracking-wider mb-2">
-                      Property Age / Status
-                    </label>
-                    <select
-                      value={propertyAge}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setPropertyAge(val);
-                        if (val !== 'Under Construction') {
-                          setExpectedPossessionDate('');
-                        }
-                      }}
-                      className="w-full p-3.5 rounded-xl border border-slate-300 bg-white text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#244B8F]"
-                    >
-                      <option value="Under Construction">Under Construction</option>
-                      <option value="Under 1 year">Under 1 year (Ready to move)</option>
-                      <option value="1 to 5 years">1 to 5 years</option>
-                      <option value="5 to 10 years">5 to 10 years</option>
-                      <option value="10+ years">10+ years</option>
-                    </select>
+                {/* Furnishing Status */}
+                <div>
+                  <label className="block text-xs font-bold text-[#172033] uppercase tracking-wider mb-2">
+                    Furnishing Status
+                  </label>
+                  <div className="grid grid-cols-3 gap-3">
+                    {['Fully Furnished', 'Semi-Furnished', 'Unfurnished'].map((f) => (
+                      <button
+                        key={f}
+                        type="button"
+                        onClick={() => setFurnishing(f)}
+                        className={`py-3 px-2 rounded-xl text-xs font-bold text-center cursor-pointer transition-all ${
+                          furnishing === f
+                            ? 'bg-[#244B8F] text-white shadow-xs'
+                            : 'bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100'
+                        }`}
+                      >
+                        {f}
+                      </button>
+                    ))}
                   </div>
                 </div>
-
-                {/* Conditional Expected Possession for Under Construction */}
-                {propertyAge === 'Under Construction' && (
-                  <div className="p-4 sm:p-5 rounded-xl border border-blue-200 bg-blue-50/40 space-y-3.5">
-                    <div>
-                      <label className="block text-xs font-bold text-[#172033] uppercase tracking-wider mb-1">
-                        Expected Possession <span className="text-red-600">*</span>
-                      </label>
-                      <p className="text-xs text-slate-600">
-                        Select when the builder is scheduled to hand over possession of this unit.
-                      </p>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2">
-                      {[
-                        'Within 3 months',
-                        'Within 6 months',
-                        ...Array.from({ length: Math.max(1, 2035 - new Date().getFullYear() + 1) }, (_, i) => `By ${new Date().getFullYear() + i}`),
-                        'Not sure yet',
-                      ].map((pos) => (
-                        <button
-                          key={pos}
-                          type="button"
-                          onClick={() => setExpectedPossessionDate(pos)}
-                          className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                            expectedPossessionDate === pos
-                              ? 'bg-[#244B8F] text-white shadow-xs font-bold'
-                              : 'bg-white border border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50'
-                          }`}
-                        >
-                          {pos}
-                        </button>
-                      ))}
-                    </div>
-
-                    {/* Optional Month Picker */}
-                    <div className="pt-2 border-t border-blue-100 flex flex-col sm:flex-row sm:items-center gap-2">
-                      <span className="text-xs font-semibold text-slate-600">
-                        Or specify target month (optional):
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <select
-                          aria-label="Possession month"
-                          onChange={(e) => {
-                            const month = e.target.value;
-                            if (month) {
-                              const year = expectedPossessionDate.match(/\d{4}/)?.[0] || String(new Date().getFullYear());
-                              setExpectedPossessionDate(`${month} ${year}`);
-                            }
-                          }}
-                          className="text-xs py-1.5 px-2.5 rounded-lg border border-slate-300 bg-white font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#244B8F]"
-                        >
-                          <option value="">Select month...</option>
-                          {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].map(m => (
-                            <option key={m} value={m}>{m}</option>
-                          ))}
-                        </select>
-                        {expectedPossessionDate && (
-                          <span className="text-xs font-bold text-[#244B8F] bg-white px-2 py-1 rounded-md border border-blue-200">
-                            Selected: {expectedPossessionDate}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
 
                 {/* Covered Parking: Conditional Yes / No */}
                 <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3">
@@ -1853,203 +2021,7 @@ export function SellerFunnel({
             )}
 
             {/* ======================================================== */}
-            {/* STEP 4: Photos and Video Walkthrough                     */}
-            {/* ======================================================== */}
-            {currentStep === 4 && (
-              <div className="space-y-6">
-                {/* Upload Zone */}
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <label className="block text-xs font-bold text-[#172033] uppercase tracking-wider">
-                      Property Photos ({photos.length} / 10 Uploaded)
-                    </label>
-                    <button
-                      type="button"
-                      onClick={handleAddSamplePhotos}
-                      className="text-xs font-semibold text-[#244B8F] hover:text-[#1B396E] bg-blue-50 hover:bg-blue-100/80 px-2.5 py-1 rounded-lg border border-blue-200 transition-colors cursor-pointer inline-flex items-center space-x-1"
-                      title="Load genuine local sample photos for development testing"
-                    >
-                      <span>+ Add High-Res Sample Photos</span>
-                    </button>
-                  </div>
-
-                  <div
-                    onClick={() => fileInputRef.current?.click()}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setIsDragging(true);
-                    }}
-                    onDragEnter={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setIsDragging(true);
-                    }}
-                    onDragLeave={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setIsDragging(false);
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      setIsDragging(false);
-                      if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
-                        processFiles(Array.from(e.dataTransfer.files));
-                      }
-                    }}
-                    className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all ${
-                      isDragging
-                        ? 'border-[#244B8F] bg-blue-50/50 scale-[1.01]'
-                        : 'border-slate-300 hover:border-[#244B8F] bg-slate-50/60 hover:bg-blue-50/20'
-                    }`}
-                  >
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      multiple
-                      accept="image/jpeg,image/png,image/webp"
-                      onChange={handleFileSelect}
-                      className="hidden"
-                    />
-                    <div className="w-12 h-12 bg-white rounded-xl shadow-xs text-[#244B8F] flex items-center justify-center mx-auto mb-3 border border-slate-200">
-                      <Upload className="w-6 h-6" />
-                    </div>
-                    <div className="text-sm font-bold text-slate-800">
-                      Click to browse or drag and drop photos
-                    </div>
-                    <p className="text-xs text-slate-500 mt-1">
-                      JPG, PNG, or WEBP up to 8 MB per file.
-                    </p>
-                  </div>
-
-                  {uploadError && (
-                    <div className="mt-2 text-xs font-bold text-red-600 flex items-center space-x-1">
-                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                      <span>{uploadError}</span>
-                    </div>
-                  )}
-
-                  {isUploading && (
-                    <div className="mt-3 text-xs text-slate-600 flex items-center space-x-2">
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-[#244B8F]" />
-                      <span>Validating and uploading images...</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Uploaded Thumbnails Grid */}
-                {photos.length > 0 && (
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                    {photos.map((p, idx) => (
-                      <div
-                        key={p.id}
-                        className="relative group rounded-xl overflow-hidden border border-slate-200 bg-slate-100 aspect-4/3"
-                      >
-                        <img
-                          src={p.url}
-                          alt={`Property Photo ${idx + 1}`}
-                          className="w-full h-full object-cover"
-                        />
-                        {idx === 0 && (
-                          <span className="absolute top-2 left-2 bg-[#172033]/90 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-xs">
-                            Cover
-                          </span>
-                        )}
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRemovePhoto(p.id);
-                          }}
-                          className="absolute top-2 right-2 w-7 h-7 bg-red-600 hover:bg-red-700 text-white rounded-full flex items-center justify-center shadow-md opacity-90 hover:opacity-100 transition-opacity cursor-pointer"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                        <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent p-2 text-white text-[10px] truncate">
-                          {p.name}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Non-blocking Visual Quality Nudge Card: SHOWN WHEN PHOTOS < 3 */}
-                {photos.length === 0 ? (
-                  <div className="border border-amber-300 bg-amber-50/70 rounded-xl p-5 text-amber-900 space-y-2">
-                    <div className="flex items-center space-x-2">
-                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                      <h4 className="text-sm font-bold text-amber-900">
-                        Help buyers picture themselves here
-                      </h4>
-                    </div>
-                    <p className="text-xs text-amber-800 leading-relaxed">
-                      Photos make it easier for buyers and prospective tenants to understand your home's layout, light and space before arranging a visit. Adding a few clear pictures can help your listing make a stronger first impression.
-                    </p>
-                    <div className="pt-1 flex items-center space-x-3">
-                      <button
-                        type="button"
-                        onClick={() => fileInputRef.current?.click()}
-                        className="text-xs font-bold text-[#244B8F] hover:underline cursor-pointer inline-flex items-center space-x-1"
-                      >
-                        <span>Add property photos →</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleAddSamplePhotos}
-                        className="text-xs font-bold text-amber-800 hover:underline cursor-pointer"
-                      >
-                        <span>Load sample photos</span>
-                      </button>
-                    </div>
-                  </div>
-                ) : photos.length < 3 ? (
-                  <div className="border border-amber-300 bg-amber-50/70 rounded-xl p-4 text-amber-900 space-y-1.5">
-                    <div className="flex items-center space-x-2">
-                      <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                      <h4 className="text-xs font-bold text-amber-900">
-                        Add at least 3 photos for maximum response ({photos.length} uploaded so far)
-                      </h4>
-                    </div>
-                    <p className="text-xs text-amber-800 leading-relaxed">
-                      Listings with 3 or more photos get up to 4x higher buyer engagement. We recommend uploading photos of the living room, master bedroom, and balcony or kitchen.
-                    </p>
-                  </div>
-                ) : null}
-
-                {/* Video Walkthrough Share Link */}
-                <div className="pt-2">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-xs font-bold text-[#172033] uppercase tracking-wider">
-                      Video walkthrough (optional)
-                    </label>
-                    <div className="flex items-center space-x-2 text-[11px] text-slate-400">
-                      <span className="font-semibold text-slate-600">YouTube</span>
-                      <span>•</span>
-                      <span className="font-semibold text-slate-600">Google Drive</span>
-                      <span>•</span>
-                      <span className="font-semibold text-slate-600">Dropbox</span>
-                    </div>
-                  </div>
-                  <p className="text-xs text-slate-500 mb-2">
-                    Already have a property video? Paste its share link here.
-                  </p>
-                  <input
-                    type="url"
-                    placeholder="e.g. https://www.youtube.com/watch?v=... or Google Drive link"
-                    value={videoUrl}
-                    onChange={(e) => setVideoUrl(e.target.value)}
-                    className="w-full p-3.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#244B8F] bg-white"
-                  />
-                  <p className="text-[11px] text-slate-400 mt-1">
-                    For Google Drive and Dropbox links, ensure link sharing permissions are set to "Anyone with the link can view".
-                  </p>
-                </div>
-              </div>
-            )}
-
-            {/* ======================================================== */}
-            {/* STEP 5: Pricing and Owner Details                        */}
+            {/* STEP 5: Commercial Terms & Pricing                       */}
             {/* ======================================================== */}
             {currentStep === 5 && (
               <div className="space-y-7">
@@ -2327,107 +2299,261 @@ export function SellerFunnel({
                   </div>
                 )}
 
-                {/* Owner Details Section */}
-                <div className="pt-6 border-t border-slate-200 space-y-4">
-                  <h3 className="text-sm font-bold text-[#172033]">
-                    Your Contact Details
-                  </h3>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold text-[#172033] uppercase tracking-wider mb-1.5">
-                        Your full name <span className="text-red-600">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Rajesh Kumar"
-                        value={ownerName}
-                        onChange={(e) => setOwnerName(e.target.value)}
-                        className="w-full p-3.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#244B8F] bg-white"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-[#172033] uppercase tracking-wider mb-1.5">
-                        Mobile number <span className="text-red-600">*</span>
-                      </label>
-                      <div className="relative">
-                        <span className="absolute left-4 top-3.5 text-sm font-bold text-slate-500">
-                          +91
-                        </span>
-                        <input
-                          type="tel"
-                          inputMode="tel"
-                          maxLength={10}
-                          placeholder="e.g. 9845012345"
-                          value={ownerPhone}
-                          onChange={(e) => setOwnerPhone(e.target.value.replace(/\D/g, ''))}
-                          className="w-full pl-14 pr-4 py-3.5 rounded-xl border border-slate-300 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#244B8F] bg-white tracking-wider"
-                        />
-                      </div>
-                      <p className="text-[11px] text-slate-500 mt-1.5 flex items-center space-x-1.5">
-                        <Lock className="w-3 h-3 text-slate-400 shrink-0" />
-                        <span>We'll use your number to contact you about your property. Your phone number isn't shown on your public listing.</span>
-                      </p>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-[#172033] uppercase tracking-wider mb-1.5">
-                      Email Address <span className="text-slate-400 font-normal lowercase">(for listing confirmation & updates)</span>
-                    </label>
-                    <input
-                      type="email"
-                      placeholder="e.g. rajesh.kumar@gmail.com"
-                      value={ownerEmail}
-                      onChange={(e) => setOwnerEmail(e.target.value)}
-                      className="w-full p-3.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#244B8F] bg-white"
-                    />
-                    <p className="text-[11px] text-slate-500 mt-1.5">
-                      We'll send your submission receipt, diligence tracker link, and inquiry alerts to this email.
-                    </p>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-[#172033] uppercase tracking-wider mb-1.5">
-                      Property Description <span className="text-slate-400 font-normal lowercase">(optional)</span>
-                    </label>
-                    <textarea
-                      rows={3}
-                      placeholder="e.g. Highlights of your home, natural sunlight, interior work, views, or nearby conveniences..."
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      className="w-full p-3.5 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#244B8F] bg-white leading-relaxed"
-                    />
-                  </div>
+                {/* Property Description */}
+                <div className="pt-4 border-t border-slate-200">
+                  <label className="block text-xs font-bold text-[#172033] uppercase tracking-wider mb-1.5">
+                    Property Description <span className="text-slate-400 font-normal lowercase">(optional)</span>
+                  </label>
+                  <textarea
+                    rows={4}
+                    placeholder="e.g. Highlights of your home, natural sunlight, interior work, views, or nearby conveniences..."
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    className="w-full p-3.5 rounded-xl border border-slate-300 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#244B8F] bg-white leading-relaxed"
+                  />
+                  <p className="text-[11px] text-slate-500 mt-1.5">
+                    Authentic descriptions detailing sunlight, ventilation, and interior wood-work attract quality inquiries faster.
+                  </p>
                 </div>
               </div>
             )}
 
             {/* ======================================================== */}
-            {/* STEP 6: Review, Declarations and Submit                  */}
+            {/* STEP 6: Genuine Photos & Final Review                    */}
             {/* ======================================================== */}
             {currentStep === 6 && (
               <div className="space-y-8">
-                {/* Review Summary Organized by Section */}
+                {/* 1. Genuine Photo Upload Section */}
+                <div className="border border-slate-200 rounded-2xl p-5 sm:p-6 bg-white space-y-5">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                    <div>
+                      <h3 className="text-sm font-bold text-[#172033] font-['Montserrat']">
+                        Property Photos ({photos.length} / 10 Uploaded)
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        Upload authentic photos of your flat. No stock or sample photos allowed.
+                      </p>
+                    </div>
+                    {photos.length > 0 && (
+                      <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                        {photos.length} {photos.length === 1 ? 'photo' : 'photos'} ready
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Drag and Drop Zone */}
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsDragging(true);
+                    }}
+                    onDragEnter={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsDragging(true);
+                    }}
+                    onDragLeave={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsDragging(false);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setIsDragging(false);
+                      if (e.dataTransfer?.files && e.dataTransfer.files.length > 0) {
+                        processFiles(Array.from(e.dataTransfer.files));
+                      }
+                    }}
+                    className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all ${
+                      isDragging
+                        ? 'border-[#244B8F] bg-blue-50/50 scale-[1.01]'
+                        : 'border-slate-300 hover:border-[#244B8F] bg-slate-50/60 hover:bg-blue-50/20'
+                    }`}
+                  >
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      multiple
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                    />
+                    <div className="w-12 h-12 bg-white rounded-xl shadow-xs text-[#244B8F] flex items-center justify-center mx-auto mb-3 border border-slate-200">
+                      <Upload className="w-6 h-6" />
+                    </div>
+                    <div className="text-sm font-bold text-slate-800">
+                      Click to browse or drag and drop photos
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">
+                      JPG, PNG, or WEBP up to 8 MB per file. High-resolution living room, bedroom, and kitchen photos recommended.
+                    </p>
+                  </div>
+
+                  {uploadError && (
+                    <div className="text-xs font-bold text-red-600 flex items-center space-x-1.5 bg-red-50 p-3 rounded-xl border border-red-200">
+                      <AlertTriangle className="w-4 h-4 shrink-0 text-red-600" />
+                      <span>{uploadError}</span>
+                    </div>
+                  )}
+
+                  {isUploading && (
+                    <div className="text-xs text-slate-600 flex items-center space-x-2 bg-blue-50 p-3 rounded-xl border border-blue-200">
+                      <RefreshCw className="w-4 h-4 animate-spin text-[#244B8F]" />
+                      <span>Validating and uploading genuine photos...</span>
+                    </div>
+                  )}
+
+                  {/* Uploaded Thumbnails Grid with Reorder, Cover, Delete Controls */}
+                  {photos.length > 0 && (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-2">
+                      {photos.map((p, idx) => {
+                        const isCover = p.isFeatured || (idx === 0 && !photos.some(item => item.isFeatured));
+                        return (
+                          <div
+                            key={p.id}
+                            className="relative group rounded-xl overflow-hidden border border-slate-200 bg-slate-100 aspect-4/3 flex flex-col justify-between"
+                          >
+                            <img
+                              src={p.url}
+                              alt={`Property Photo ${idx + 1}`}
+                              className="w-full h-full object-cover"
+                            />
+
+                            {/* Cover Badge */}
+                            {isCover && (
+                              <span className="absolute top-2 left-2 bg-[#172033]/90 text-white text-[10px] font-bold px-2 py-0.5 rounded shadow-xs flex items-center space-x-1 z-10">
+                                <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                                <span>Cover Photo</span>
+                              </span>
+                            )}
+
+                            {/* Top-Right Delete Action */}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleRemovePhoto(p.id);
+                              }}
+                              className="absolute top-2 right-2 w-7 h-7 bg-red-600 hover:bg-red-700 text-white rounded-full flex items-center justify-center shadow-md transition-opacity cursor-pointer z-10"
+                              title="Delete photo"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+
+                            {/* Bottom Controls Bar on Hover / Focus */}
+                            <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent p-2 text-white flex items-center justify-between text-[11px] z-10">
+                              <button
+                                type="button"
+                                onClick={() => handleSetFeatured(p.id)}
+                                className={`text-[10px] font-semibold underline hover:text-amber-300 transition-colors cursor-pointer ${
+                                  isCover ? 'text-amber-400 font-bold' : 'text-white/90'
+                                }`}
+                              >
+                                {isCover ? '★ Cover' : 'Set as cover'}
+                              </button>
+
+                              <div className="flex items-center space-x-1">
+                                <button
+                                  type="button"
+                                  disabled={idx === 0}
+                                  onClick={() => handleMovePhoto(idx, 'LEFT')}
+                                  className="w-6 h-6 rounded bg-white/20 hover:bg-white/40 disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center cursor-pointer"
+                                  title="Move left"
+                                >
+                                  <ChevronLeft className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={idx === photos.length - 1}
+                                  onClick={() => handleMovePhoto(idx, 'RIGHT')}
+                                  className="w-6 h-6 rounded bg-white/20 hover:bg-white/40 disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center cursor-pointer"
+                                  title="Move right"
+                                >
+                                  <ChevronRight className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Non-blocking Quality Nudge (NO sample photo triggers) */}
+                  {photos.length === 0 ? (
+                    <div className="border border-blue-200 bg-blue-50/60 rounded-xl p-4 text-blue-950 space-y-1.5">
+                      <div className="flex items-center space-x-2">
+                        <Camera className="w-4 h-4 text-[#244B8F] shrink-0" />
+                        <h4 className="text-xs font-bold text-[#172033]">
+                          Genuine photos increase buyer response up to 4x
+                        </h4>
+                      </div>
+                      <p className="text-xs text-slate-600 leading-relaxed">
+                        Buyers value authentic images of the living hall, bedrooms, balconies, and kitchen. You can proceed without photos now and add them later from your seller dashboard.
+                      </p>
+                    </div>
+                  ) : photos.length < 3 ? (
+                    <div className="border border-amber-300 bg-amber-50/70 rounded-xl p-4 text-amber-900 space-y-1.5">
+                      <div className="flex items-center space-x-2">
+                        <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                        <h4 className="text-xs font-bold text-amber-900">
+                          {photos.length} photo uploaded so far
+                        </h4>
+                      </div>
+                      <p className="text-xs text-amber-800 leading-relaxed">
+                        Listings with 3 or more photos get up to 4x higher buyer engagement. We recommend uploading photos of the living room, master bedroom, and balcony or kitchen.
+                      </p>
+                    </div>
+                  ) : null}
+
+                  {/* Video Walkthrough Share Link */}
+                  <div className="pt-3 border-t border-slate-100">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="block text-xs font-bold text-[#172033] uppercase tracking-wider">
+                        Video Walkthrough Link <span className="text-slate-400 font-normal lowercase">(optional)</span>
+                      </label>
+                      <div className="flex items-center space-x-2 text-[11px] text-slate-400">
+                        <span className="font-semibold text-slate-600">YouTube</span>
+                        <span>•</span>
+                        <span className="font-semibold text-slate-600">Google Drive</span>
+                        <span>•</span>
+                        <span className="font-semibold text-slate-600">Dropbox</span>
+                      </div>
+                    </div>
+                    <input
+                      type="url"
+                      placeholder="e.g. https://www.youtube.com/watch?v=... or Google Drive link"
+                      value={videoUrl}
+                      onChange={(e) => setVideoUrl(e.target.value)}
+                      className="w-full p-3.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-[#244B8F] bg-white"
+                    />
+                  </div>
+                </div>
+
+                {/* 2. Review Summary Organized by Section */}
                 <div className="border border-slate-200 rounded-2xl p-5 sm:p-6 bg-slate-50/70 space-y-5">
                   <div className="flex items-center justify-between pb-3 border-b border-slate-200">
                     <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                      Listing Summary
+                      Listing Review Summary
                     </span>
                     <span className="px-3 py-1 rounded-full text-xs font-extrabold bg-[#244B8F] text-white">
                       {intent === 'SELL' ? 'FOR SALE (RESALE)' : 'FOR RENT'}
                     </span>
                   </div>
 
-                  {/* Section 1: Property Details */}
+                  {/* Section 1: Contact & Type */}
                   <div className="flex items-start justify-between pb-3 border-b border-slate-200/70 text-xs">
                     <div>
-                      <span className="text-slate-400 font-medium block">Property Details</span>
+                      <span className="text-slate-400 font-medium block">1. Contact & Listing Type</span>
                       <strong className="text-slate-800 text-sm font-bold block mt-0.5">
-                        {subType}
+                        {ownerName || 'Owner'} (+91 {ownerPhone})
                       </strong>
-                      <span className="text-slate-500">Residential Unit in Bengaluru</span>
+                      <span className="text-slate-500">
+                        {subType} • {intent === 'SELL' ? 'Resale Sale' : 'Rental'} {ownerEmail ? `• ${ownerEmail}` : ''}
+                      </span>
                     </div>
                     <button
                       type="button"
@@ -2441,7 +2567,7 @@ export function SellerFunnel({
                   {/* Section 2: Location */}
                   <div className="flex items-start justify-between pb-3 border-b border-slate-200/70 text-xs">
                     <div>
-                      <span className="text-slate-400 font-medium block">Location</span>
+                      <span className="text-slate-400 font-medium block">2. Location & Society</span>
                       <strong className="text-slate-800 text-sm font-bold block mt-0.5">
                         {societyQuery || 'Society'}
                       </strong>
@@ -2459,19 +2585,16 @@ export function SellerFunnel({
                     </button>
                   </div>
 
-                  {/* Section 3: Configuration & Area */}
+                  {/* Section 3: Configuration & Status */}
                   <div className="flex items-start justify-between pb-3 border-b border-slate-200/70 text-xs">
                     <div>
-                      <span className="text-slate-400 font-medium block">Configuration & Area</span>
+                      <span className="text-slate-400 font-medium block">3. Configuration & Status</span>
                       <strong className="text-slate-800 text-sm font-bold block mt-0.5">
                         {bhkType} • {bathrooms} Baths • {balconies} Balconies
                       </strong>
                       <span className="text-slate-500">
-                        {superBuiltUpSqft} sq.ft. SBUA (~{carpetAreaSqft} sq.ft. carpet) • Floor {unitFloor} of {totalFloors}
+                        Status: {propertyStatus} {propertyStatus === 'Under Construction' ? `(Possession: ${expectedPossessionDate})` : `(Age: ${propertyAge})`}
                       </span>
-                      <div className="text-slate-400 text-[11px] mt-0.5">
-                        Facing {facing} • {furnishing} • Age: {propertyAge} • {hasCoveredParking ? `${parkingCount} Covered Parking Slot(s)` : 'No Parking'}
-                      </div>
                     </div>
                     <button
                       type="button"
@@ -2482,15 +2605,15 @@ export function SellerFunnel({
                     </button>
                   </div>
 
-                  {/* Section 4: Photos & Video */}
+                  {/* Section 4: Area & Unit Details */}
                   <div className="flex items-start justify-between pb-3 border-b border-slate-200/70 text-xs">
                     <div>
-                      <span className="text-slate-400 font-medium block">Photos & Visuals</span>
+                      <span className="text-slate-400 font-medium block">4. Area & Unit Details</span>
                       <strong className="text-slate-800 text-sm font-bold block mt-0.5">
-                        {photos.length} {photos.length === 1 ? 'Photo' : 'Photos'} Uploaded
+                        {superBuiltUpSqft} sq.ft. SBUA (~{carpetAreaSqft} sq.ft. carpet)
                       </strong>
                       <span className="text-slate-500">
-                        {videoUrl ? 'Video walkthrough link included' : 'No video walkthrough provided'}
+                        Floor {unitFloor} of {totalFloors} • Facing {facing} • {furnishing} • {hasCoveredParking ? `${parkingCount} Covered Parking Slot(s)` : 'No Covered Parking'}
                       </span>
                     </div>
                     <button
@@ -2502,25 +2625,24 @@ export function SellerFunnel({
                     </button>
                   </div>
 
-                  {/* Section 5: Commercial Terms & Owner */}
+                  {/* Section 5: Commercial Terms */}
                   <div className="flex items-start justify-between text-xs">
                     <div>
-                      <span className="text-slate-400 font-medium block">Pricing & Contact</span>
+                      <span className="text-slate-400 font-medium block">5. Commercial Terms</span>
                       <strong className="text-[#244B8F] text-base font-extrabold block mt-0.5">
                         {intent === 'SELL' 
                           ? (expectedPrice ? formatINRWords(expectedPrice) : 'Price declared') 
                           : `${monthlyRent ? formatINR(monthlyRent) : 'Rent declared'} / month`}
                       </strong>
-                      <span className="text-slate-600 block mt-0.5">
-                        Owner: {ownerName || 'Owner'} (+91 {ownerPhone}){ownerEmail ? ` • ${ownerEmail}` : ''}
-                      </span>
-                      {intent === 'SELL' && maintenanceCharges && (
-                        <div className="text-slate-400 text-[11px]">
-                          Maintenance: ₹{parseInt(maintenanceCharges, 10).toLocaleString('en-IN')}/mo • {isNegotiable ? 'Flexible to Serious Buyers' : 'Fixed Price'}
+                      {intent === 'SELL' && (
+                        <div className="text-slate-500 text-[11px] mt-0.5">
+                          {isNegotiable ? 'Flexible to Serious Buyers' : 'Fixed Price'}
+                          {bookingAmount ? ` • Booking Token: ₹${parseInt(bookingAmount, 10).toLocaleString('en-IN')}` : ''}
+                          {maintenanceCharges ? ` • Maintenance: ₹${parseInt(maintenanceCharges, 10).toLocaleString('en-IN')}/mo` : ''}
                         </div>
                       )}
                       {intent === 'RENT' && (
-                        <div className="text-slate-400 text-[11px]">
+                        <div className="text-slate-500 text-[11px] mt-0.5">
                           Deposit: {formatINRWords(securityDeposit)} • Preferred: {preferredTenant} • Duration: {rentalDuration}
                         </div>
                       )}
@@ -2535,11 +2657,11 @@ export function SellerFunnel({
                   </div>
                 </div>
 
-                {/* Property Ownership & Verification Declaration */}
+                {/* 3. Property Ownership & Verification Declaration */}
                 <div className="border border-slate-200 rounded-2xl p-5 sm:p-6 bg-white space-y-4">
                   <div>
                     <h4 className="text-sm font-bold text-[#172033] font-['Montserrat']">
-                      Property ownership and verification
+                      Property Ownership and Verification
                     </h4>
                     <p className="text-xs text-slate-500 mt-1 leading-relaxed">
                       To help us maintain accurate listings, please confirm that you own this property or are legally authorised to list it. Our team may request supporting documents to verify the details before the listing is approved.
@@ -2623,7 +2745,7 @@ export function SellerFunnel({
                   </div>
                 </div>
 
-                {/* Contact and Marketing Consent Checkbox (Exact Wording Requested) */}
+                {/* 4. Contact and Marketing Consent Checkbox (Exact Wording Requested) */}
                 <div className="space-y-3 pt-1">
                   <label className="flex items-start space-x-3 cursor-pointer">
                     <input
