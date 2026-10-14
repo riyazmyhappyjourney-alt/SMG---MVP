@@ -37,30 +37,30 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
   const [feedbackText, setFeedbackText] = useState('');
 
   return (
-    <footer className="relative overflow-hidden bg-[#EBF4FA] text-slate-700 font-['Poppins',sans-serif] border-t border-slate-200/80">
+    <footer className="relative overflow-hidden bg-gradient-to-b from-[#EBF5FB] via-[#E2F0F9] to-[#D5EBF8] text-[#1E3A8A] font-['Poppins',sans-serif] border-t border-slate-200/80">
       
-      {/* 1. Integrated Full-Width Bengaluru Skyline Illustration Background */}
+      {/* 1. Integrated Bengaluru Skyline Illustration Anchored at the Bottom (Crisp & High-Res) */}
       <div 
-        className="absolute inset-0 w-full h-full pointer-events-none z-0 overflow-hidden select-none"
+        className="absolute inset-x-0 bottom-0 pointer-events-none z-0 overflow-hidden select-none"
         aria-hidden="true"
       >
         <img
           id="footer-skyline-backdrop"
           src="/images/bengaluru-skyline-footer.png"
           alt="Bengaluru Vidhana Soudha, Metro and Resale Infrastructure Panorama"
-          className="w-full h-full object-cover object-bottom opacity-90 sm:opacity-95"
+          className="w-full h-auto object-cover object-bottom max-h-[260px] sm:max-h-[320px] md:max-h-[360px] lg:max-h-[400px]"
           loading="lazy"
           decoding="async"
         />
       </div>
 
-      {/* 2. Soft Pale-Blue / Neutral Overlay Gradient for High-Contrast Text Readability */}
+      {/* 2. Soft Sky Dissolve Gradient: Ensures high-contrast readability without covering the crisp skyline below */}
       <div 
-        className="absolute inset-0 bg-gradient-to-b from-[#EBF4FA]/96 via-[#EBF4FA]/82 to-[#EBF4FA]/25 pointer-events-none z-1" 
+        className="absolute inset-x-0 top-0 h-80 sm:h-96 bg-gradient-to-b from-[#EBF5FB] via-[#EBF5FB]/95 to-transparent pointer-events-none z-1" 
         aria-hidden="true" 
       />
 
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 sm:pt-16 pb-16 sm:pb-24 lg:pb-32">
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 sm:pt-14 pb-20 sm:pb-28 lg:pb-36">
         
         {/* Main 4-Column Layout */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-8 lg:gap-10">
@@ -68,23 +68,23 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
           {/* Column 1: Brand Info & Unified RERA Block (lg:col-span-4) */}
           <div className="lg:col-span-4 space-y-4">
             <div className="inline-block">
-              <Logo height={44} />
+              <Logo height={68} className="mb-1" />
             </div>
-            <p className="text-xs text-slate-600 font-['Poppins'] leading-relaxed max-w-sm">
+            <p className="text-xs text-[#1E3A8A] font-medium leading-relaxed max-w-sm">
               SellMyGhar is Bengaluru’s dedicated apartment resale platform. We eliminate broker spam, provide certified title due diligence, and connect verified sellers directly with serious home buyers.
             </p>
             
             {/* Unified Karnataka RERA Approved Block with Registration Number & Lighting Sweep */}
-            <div className="pt-1">
+            <div className="pt-2">
               <div 
-                className="relative overflow-hidden inline-block text-xs bg-emerald-50/95 backdrop-blur-xs px-3.5 py-2.5 rounded-xl border border-emerald-400/90 font-['Montserrat'] shadow-2xs max-w-full"
+                className="relative overflow-hidden inline-block text-xs bg-emerald-50/95 backdrop-blur-xs px-4 py-2.5 rounded-2xl border border-emerald-400 font-['Montserrat'] shadow-2xs max-w-full"
                 title="Karnataka Real Estate Regulatory Authority Approved Platform"
               >
                 <div className="flex items-center space-x-2 font-bold text-emerald-800">
                   <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
                   <span>Karnataka RERA Approved Real Estate Resale Platform</span>
                 </div>
-                <div className="mt-1 pl-6 font-mono text-[11px] font-bold text-[#172033] tracking-wide break-all select-all">
+                <div className="mt-1.5 pl-6 font-mono text-[11px] font-bold text-[#1E3A8A] tracking-wider break-all select-all">
                   PRM/KA/RERA/1251/309/AG/221108/003210
                 </div>
                 {/* Subtle Lighting Sweep Animation Across the Card */}
@@ -95,8 +95,8 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
           </div>
 
           {/* Column 2: Company (lg:col-span-3, subtle divider on desktop) */}
-          <div className="lg:col-span-3 lg:border-l lg:border-slate-300/40 lg:pl-8 space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-[#172033] font-['Montserrat']">
+          <div className="lg:col-span-3 lg:border-l lg:border-sky-300/40 lg:pl-8 space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-[#1E3A8A] font-['Montserrat']">
               Company
             </h4>
             <ul className="space-y-2 text-xs font-['Poppins']">
@@ -104,7 +104,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                 <button
                   type="button"
                   onClick={() => onNavClick('ABOUT')}
-                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left py-0.5"
+                  className="hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left py-0.5"
                 >
                   About us
                 </button>
@@ -113,7 +113,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                 <button
                   type="button"
                   onClick={() => onNavClick('CONTACT')}
-                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left py-0.5"
+                  className="hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left py-0.5"
                 >
                   Contact us
                 </button>
@@ -121,7 +121,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
               <li>
                 <a
                   href="#/careers"
-                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left block py-0.5"
+                  className="hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left block py-0.5"
                 >
                   Careers with us
                 </a>
@@ -130,7 +130,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                 <button
                   type="button"
                   onClick={() => setModalType('TERMS')}
-                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left py-0.5"
+                  className="hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left py-0.5"
                 >
                   Terms & Conditions
                 </button>
@@ -143,7 +143,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                     setFeedbackText('');
                     setModalType('FEEDBACK');
                   }}
-                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left py-0.5"
+                  className="hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left py-0.5"
                 >
                   Feedback
                 </button>
@@ -152,7 +152,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                 <button
                   type="button"
                   onClick={() => setModalType('PRIVACY')}
-                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left py-0.5"
+                  className="hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left py-0.5"
                 >
                   Privacy Policy
                 </button>
@@ -161,7 +161,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                 <button
                   type="button"
                   onClick={() => setModalType('GRIEVANCE')}
-                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left py-0.5"
+                  className="hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left py-0.5"
                 >
                   Grievances
                 </button>
@@ -170,7 +170,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                 <button
                   type="button"
                   onClick={() => setModalType('COOKIE')}
-                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left py-0.5"
+                  className="hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left py-0.5"
                 >
                   Cookie Policy
                 </button>
@@ -178,9 +178,9 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
             </ul>
           </div>
 
-          {/* Column 3: Resale Services (lg:col-span-2, subtle divider on desktop) */}
-          <div className="lg:col-span-2 lg:border-l lg:border-slate-300/40 lg:pl-8 space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-[#172033] font-['Montserrat']">
+          {/* Column 3: Resale Services (lg:col-span-2.5, subtle divider on desktop) */}
+          <div className="lg:col-span-2.5 lg:border-l lg:border-sky-300/40 lg:pl-8 space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-[#1E3A8A] font-['Montserrat']">
               Resale Services
             </h4>
             <ul className="space-y-2 text-xs font-['Poppins']">
@@ -188,7 +188,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                 <button
                   type="button"
                   onClick={() => onNavClick('BUY')}
-                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left py-0.5"
+                  className="hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left py-0.5"
                 >
                   Buy Resale Homes
                 </button>
@@ -197,7 +197,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                 <button
                   type="button"
                   onClick={() => onNavClick('SELL')}
-                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left py-0.5"
+                  className="hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left py-0.5"
                 >
                   Sell My Flat (Free)
                 </button>
@@ -205,7 +205,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
               <li>
                 <a
                   href="#/holding-calculator"
-                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left block py-0.5"
+                  className="hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left block py-0.5"
                 >
                   Holding Cost Calculator
                 </a>
@@ -217,9 +217,9 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                     setOpenModalFaqIndex(0);
                     setModalType('FAQ');
                   }}
-                  className="hover:text-[#244B8F] transition-colors cursor-pointer text-left flex items-center text-amber-800 font-semibold py-0.5"
+                  className="hover:text-[#B85418] text-[#D96B27] font-semibold transition-colors cursor-pointer text-left flex items-center py-0.5"
                 >
-                  <HelpCircle className="w-3.5 h-3.5 mr-1.5 text-amber-600 shrink-0" />
+                  <HelpCircle className="w-3.5 h-3.5 mr-1.5 text-[#D96B27] shrink-0" />
                   <span>Frequently Asked Questions</span>
                 </button>
               </li>
@@ -228,9 +228,9 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                   <button
                     type="button"
                     onClick={onConsentPortalOpen}
-                    className="hover:text-[#244B8F] transition-colors cursor-pointer text-left flex items-center text-slate-600 py-0.5"
+                    className="hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left flex items-center py-0.5"
                   >
-                    <Lock className="w-3 h-3 mr-1.5 shrink-0 text-slate-500" />
+                    <Lock className="w-3.5 h-3.5 mr-1.5 shrink-0 text-[#1E3A8A]" />
                     <span>Manage Consent</span>
                   </button>
                 </li>
@@ -238,25 +238,25 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
             </ul>
           </div>
 
-          {/* Column 4: Bengaluru Office (lg:col-span-3, subtle divider on desktop) */}
-          <div className="lg:col-span-3 lg:border-l lg:border-slate-300/40 lg:pl-8 space-y-3">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-[#172033] font-['Montserrat']">
+          {/* Column 4: Bengaluru Office (lg:col-span-2.5, subtle divider on desktop) */}
+          <div className="lg:col-span-2.5 lg:border-l lg:border-sky-300/40 lg:pl-8 space-y-3">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-[#1E3A8A] font-['Montserrat']">
               Bengaluru Office
             </h4>
-            <div className="space-y-3 text-xs text-slate-600 font-['Poppins']">
-              <p className="flex items-start leading-relaxed">
+            <div className="space-y-3 text-xs text-[#1E3A8A] font-['Poppins']">
+              <p className="flex items-start leading-relaxed font-medium">
                 <MapPin className="w-3.5 h-3.5 mr-2 text-[#244B8F] shrink-0 mt-0.5" />
                 <span>100 Feet Road, Indiranagar, Bengaluru, KA 560038</span>
               </p>
-              <p className="flex items-center">
+              <p className="flex items-center font-medium">
                 <Phone className="w-3.5 h-3.5 mr-2 text-[#244B8F] shrink-0" />
-                <a href="tel:+918047193200" className="hover:text-[#244B8F] transition-colors">
+                <a href="tel:+918047193200" className="hover:text-[#0F2860] transition-colors">
                   +91 80 4719 3200
                 </a>
               </p>
-              <p className="flex items-center">
+              <p className="flex items-center font-medium">
                 <Mail className="w-3.5 h-3.5 mr-2 text-[#244B8F] shrink-0" />
-                <a href="mailto:support@sellmyghar.in" className="hover:text-[#244B8F] transition-colors">
+                <a href="mailto:support@sellmyghar.in" className="hover:text-[#0F2860] transition-colors">
                   support@sellmyghar.in
                 </a>
               </p>
