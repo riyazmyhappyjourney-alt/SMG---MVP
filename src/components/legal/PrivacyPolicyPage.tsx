@@ -140,7 +140,7 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1.5">
                 <p><strong>Grievance Officer:</strong> Srikanth Narayanan (Principal Compliance Lead)</p>
                 <p><strong>Email:</strong> grievances@sellmyghar.in / privacy@sellmyghar.in</p>
-                <p><strong>Address:</strong> SellMyGhar Advisory, Outer Ring Road, Bellandur, Bengaluru, Karnataka 560103</p>
+                <p><strong>Address:</strong> ESTEEM PARK, Rose Garden Rd, 5th Phase, J P Nagar Phase 5, J. P. Nagar, Bengaluru, Karnataka 560078</p>
                 <p><strong>Response SLA:</strong> Inquiries acknowledged within 24 business hours; resolved within 7 business days.</p>
               </div>
             </section>
