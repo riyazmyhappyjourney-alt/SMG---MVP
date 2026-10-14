@@ -25,24 +25,22 @@ interface HeroSlideItem {
   tag?: string;
 }
 
-// High-fidelity Bengaluru apartment township backdrops
+// High-fidelity Bengaluru apartment township backdrops (production assets only)
 const DEFAULT_HERO_SLIDES: HeroSlideItem[] = [
   {
-    url: '/images/sample-hero-banner-1920x800.png',
-    alt: 'SellMyGhar Verified Bengaluru Residential Resale Platform 1920x800 Banner',
-    tag: 'Verified Platform',
-  },
-  {
+    id: 'slide-township-sunset',
     url: '/images/luxury-apartment-township-sunset.webp',
     alt: 'Luxury Apartment Township at Sunset in Bengaluru',
     tag: 'Township Exterior',
   },
   {
+    id: 'slide-clubhouse-amenities',
     url: '/images/brigade-granada-clubhouse.webp',
     alt: 'Premium Society Clubhouse and Township Amenities in Bengaluru',
     tag: 'Society Amenities',
   },
   {
+    id: 'slide-night-community',
     url: '/images/bengaluru-night-apartments.webp',
     alt: 'Modern Residential Community in Bengaluru Tech Corridor',
     tag: 'Residential Community',
@@ -85,7 +83,7 @@ export const Hero: React.FC<HeroProps> = ({
           const data = await res.json();
           if (isMounted && data.success && Array.isArray(data.slides) && data.slides.length > 0) {
             const activeOnly = data.slides
-              .filter((s: any) => s.is_active)
+              .filter((s: any) => s.is_active && !s.image_url?.includes('sample-hero-banner'))
               .map((s: any) => ({
                 id: s.id,
                 url: s.image_url,
@@ -223,6 +221,7 @@ export const Hero: React.FC<HeroProps> = ({
               idx === activeSlide ? 'opacity-100' : 'opacity-0 pointer-events-none'
             }`}
             loading={idx === 0 ? 'eager' : 'lazy'}
+            fetchPriority={idx === 0 ? 'high' : 'low'}
             decoding="async"
           />
         ))}

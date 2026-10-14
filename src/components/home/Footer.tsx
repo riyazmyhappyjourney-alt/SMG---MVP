@@ -37,28 +37,50 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
   const [feedbackText, setFeedbackText] = useState('');
 
   return (
-    <footer className="relative overflow-hidden bg-white text-slate-600 pt-12 pb-10 border-t border-slate-200 shadow-2xs font-['Poppins']">
+    <footer className="relative overflow-hidden bg-[#EBF4FA] text-slate-700 pt-12 sm:pt-16 border-t border-slate-200/90 font-['Poppins',sans-serif]">
+      {/* Light neutral overlay gradient for reading contrast */}
+      <div 
+        className="absolute inset-0 bg-gradient-to-b from-[#EBF4FA] via-[#EBF4FA]/95 to-[#EBF4FA]/30 pointer-events-none z-0" 
+        aria-hidden="true" 
+      />
+
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
-        {/* Main Footer Columns */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-8 sm:gap-10 pb-10 border-b border-slate-200">
+        {/* Main 4-Column Layout */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-8 lg:gap-8 pb-10 sm:pb-14">
           
-          {/* Brand Info (2 cols) */}
-          <div className="sm:col-span-2 lg:col-span-2 space-y-4">
+          {/* Column 1: Brand Info & RERA Approval (lg:col-span-4) */}
+          <div className="lg:col-span-4 space-y-4">
             <div className="inline-block">
-              <Logo height={40} />
+              <Logo height={42} />
             </div>
             <p className="text-xs text-slate-600 font-['Poppins'] leading-relaxed max-w-sm">
               SellMyGhar is Bengaluru’s dedicated apartment resale platform. We eliminate broker spam, provide certified title due diligence, and connect verified sellers directly with serious home buyers.
             </p>
-            <div className="pt-1 inline-flex items-center space-x-2 text-xs text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200/80 font-semibold font-['Montserrat']">
-              <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-              <span>Karnataka RERA Approved Real Estate Resale Platform</span>
+            
+            {/* RERA Pill Badge */}
+            <div className="pt-1 flex flex-col items-start gap-2.5">
+              <div className="inline-flex items-center space-x-2 text-xs text-emerald-800 bg-emerald-50/95 px-3.5 py-1.5 rounded-full border border-emerald-400 font-semibold font-['Montserrat'] shadow-2xs">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Karnataka RERA Approved Real Estate Resale Platform</span>
+              </div>
+
+              {/* Animated RERA Approval Registration Line with Refined Lighting Sweep */}
+              <div 
+                className="relative overflow-hidden inline-flex items-center px-3.5 py-1.5 rounded-lg bg-white/85 border border-[#244B8F]/25 text-[11px] font-mono font-bold text-[#172033] tracking-wide shadow-2xs max-w-full"
+                title="Karnataka Real Estate Regulatory Authority Registration"
+              >
+                <span className="relative z-10 break-all sm:break-normal select-all">
+                  RERA Approved: PRM/KA/RERA/1251/309/AG/221108/003210
+                </span>
+                <span className="animate-rera-sweep" aria-hidden="true" />
+                <span className="animate-rera-underline" aria-hidden="true" />
+              </div>
             </div>
           </div>
 
-          {/* Company Column (Referenced from 99acres) */}
-          <div className="space-y-3">
+          {/* Column 2: Company (lg:col-span-3, subtle divider on desktop) */}
+          <div className="lg:col-span-3 lg:border-l lg:border-slate-300/40 lg:pl-8 space-y-3">
             <h4 className="text-xs font-bold uppercase tracking-wider text-[#172033] font-['Montserrat']">
               Company
             </h4>
@@ -67,7 +89,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                 <button
                   type="button"
                   onClick={() => onNavClick('ABOUT')}
-                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left"
+                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left py-0.5"
                 >
                   About us
                 </button>
@@ -76,7 +98,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                 <button
                   type="button"
                   onClick={() => onNavClick('CONTACT')}
-                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left"
+                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left py-0.5"
                 >
                   Contact us
                 </button>
@@ -84,58 +106,65 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
               <li>
                 <a
                   href="#/careers"
-                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left block"
+                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left block py-0.5"
                 >
                   Careers with us
                 </a>
               </li>
               <li>
-                <a
-                  href="#/terms"
-                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left block"
+                <button
+                  type="button"
+                  onClick={() => setModalType('TERMS')}
+                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left py-0.5"
                 >
                   Terms & Conditions
-                </a>
+                </button>
               </li>
               <li>
                 <button
                   type="button"
-                  onClick={() => setModalType('FEEDBACK')}
-                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left"
+                  onClick={() => {
+                    setFeedbackSent(false);
+                    setFeedbackText('');
+                    setModalType('FEEDBACK');
+                  }}
+                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left py-0.5"
                 >
                   Feedback
                 </button>
               </li>
               <li>
-                <a
-                  href="#/privacy-policy"
-                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left block"
+                <button
+                  type="button"
+                  onClick={() => setModalType('PRIVACY')}
+                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left py-0.5"
                 >
                   Privacy Policy
-                </a>
+                </button>
               </li>
               <li>
                 <button
                   type="button"
                   onClick={() => setModalType('GRIEVANCE')}
-                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left"
+                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left py-0.5"
                 >
                   Grievances
                 </button>
               </li>
               <li>
-                <a
-                  href="#/cookie-policy"
-                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left block"
+                <button
+                  type="button"
+                  onClick={() => setModalType('COOKIE')}
+                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left py-0.5"
                 >
                   Cookie Policy
-                </a>
+                </button>
               </li>
             </ul>
           </div>
 
-          {/* Resale Services (1 col) */}
-          <div className="space-y-3">
+          {/* Column 3: Resale Services (lg:col-span-2, subtle divider on desktop) */}
+          <div className="lg:col-span-2 lg:border-l lg:border-slate-300/40 lg:pl-8 space-y-3">
             <h4 className="text-xs font-bold uppercase tracking-wider text-[#172033] font-['Montserrat']">
               Resale Services
             </h4>
@@ -144,7 +173,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                 <button
                   type="button"
                   onClick={() => onNavClick('BUY')}
-                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left"
+                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left py-0.5"
                 >
                   Buy Resale Homes
                 </button>
@@ -153,7 +182,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                 <button
                   type="button"
                   onClick={() => onNavClick('SELL')}
-                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left"
+                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left py-0.5"
                 >
                   Sell My Flat (Free)
                 </button>
@@ -161,7 +190,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
               <li>
                 <a
                   href="#/holding-calculator"
-                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left block"
+                  className="hover:text-[#244B8F] text-slate-600 transition-colors cursor-pointer text-left block py-0.5"
                 >
                   Holding Cost Calculator
                 </a>
@@ -173,7 +202,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                     setOpenModalFaqIndex(0);
                     setModalType('FAQ');
                   }}
-                  className="hover:text-[#244B8F] transition-colors cursor-pointer text-left flex items-center text-amber-700 font-semibold"
+                  className="hover:text-[#244B8F] transition-colors cursor-pointer text-left flex items-center text-amber-800 font-semibold py-0.5"
                 >
                   <HelpCircle className="w-3.5 h-3.5 mr-1.5 text-amber-600 shrink-0" />
                   <span>Frequently Asked Questions</span>
@@ -184,7 +213,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                   <button
                     type="button"
                     onClick={onConsentPortalOpen}
-                    className="hover:text-[#244B8F] transition-colors cursor-pointer text-left flex items-center text-slate-600"
+                    className="hover:text-[#244B8F] transition-colors cursor-pointer text-left flex items-center text-slate-600 py-0.5"
                   >
                     <Lock className="w-3 h-3 mr-1.5 shrink-0 text-slate-500" />
                     <span>Manage Consent</span>
@@ -194,62 +223,59 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
             </ul>
           </div>
 
-          {/* Contact & Hours (1 col) */}
-          <div className="space-y-3">
+          {/* Column 4: Bengaluru Office (lg:col-span-3, subtle divider on desktop) */}
+          <div className="lg:col-span-3 lg:border-l lg:border-slate-300/40 lg:pl-8 space-y-3">
             <h4 className="text-xs font-bold uppercase tracking-wider text-[#172033] font-['Montserrat']">
               Bengaluru Office
             </h4>
-            <div className="space-y-2.5 text-xs text-slate-600 font-['Poppins']">
-              <p className="flex items-start">
-                <MapPin className="w-3.5 h-3.5 mr-1.5 text-[#244B8F] shrink-0 mt-0.5" />
+            <div className="space-y-3 text-xs text-slate-600 font-['Poppins']">
+              <p className="flex items-start leading-relaxed">
+                <MapPin className="w-3.5 h-3.5 mr-2 text-[#244B8F] shrink-0 mt-0.5" />
                 <span>100 Feet Road, Indiranagar, Bengaluru, KA 560038</span>
               </p>
               <p className="flex items-center">
-                <Phone className="w-3.5 h-3.5 mr-1.5 text-[#244B8F] shrink-0" />
-                <span>+91 80 4719 3200</span>
+                <Phone className="w-3.5 h-3.5 mr-2 text-[#244B8F] shrink-0" />
+                <a href="tel:+918047193200" className="hover:text-[#244B8F] transition-colors">
+                  +91 80 4719 3200
+                </a>
               </p>
               <p className="flex items-center">
-                <Mail className="w-3.5 h-3.5 mr-1.5 text-[#244B8F] shrink-0" />
-                <span>support@sellmyghar.in</span>
+                <Mail className="w-3.5 h-3.5 mr-2 text-[#244B8F] shrink-0" />
+                <a href="mailto:support@sellmyghar.in" className="hover:text-[#244B8F] transition-colors">
+                  support@sellmyghar.in
+                </a>
               </p>
             </div>
           </div>
 
         </div>
+      </div>
 
-        {/* ============================================================== */}
-        {/* FOOTER ILLUSTRATION SHOWCASE AREA                               */}
-        {/* Dedicated Slot Ready for User Uploaded Illustration             */}
-        {/* ============================================================== */}
-        <div 
-          id="footer-illustration-wrapper"
-          className="w-full pt-6 pb-4 flex flex-col items-center justify-center overflow-hidden"
-        >
-          <div className="w-full max-w-5xl mx-auto px-2 sm:px-4 flex items-center justify-center">
-            <img
-              id="footer-illustration"
-              src="/images/bengaluru-cityscape-footer.svg"
-              alt="SellMyGhar Resale Architecture Illustration"
-              className="w-full max-h-[160px] sm:max-h-[220px] md:max-h-[260px] object-contain object-bottom opacity-90 hover:opacity-100 transition-opacity"
-              onError={(e) => {
-                // Graceful fallback if user uploads or swaps image
-                (e.currentTarget as HTMLElement).style.display = 'none';
-              }}
-            />
-          </div>
-          <p className="text-[10px] text-slate-400 font-['Poppins'] mt-1 tracking-wide text-center">
-            Bengaluru Residential Resale Infrastructure • Curated Gated Communities
-          </p>
+      {/* Footer Panoramic Illustration (Supplied Background Image) */}
+      <div 
+        id="footer-illustration-wrapper"
+        className="w-full relative overflow-hidden select-none z-10 pointer-events-none mt-2 sm:mt-4"
+      >
+        <div className="w-full">
+          <img
+            id="footer-illustration"
+            src="/images/bengaluru-skyline-footer.png"
+            alt="Bengaluru Vidhana Soudha, Metro and Resale Infrastructure Panorama"
+            className="w-full h-auto max-h-[200px] sm:max-h-[280px] md:max-h-[340px] lg:max-h-[400px] object-cover object-bottom"
+            loading="lazy"
+            decoding="async"
+          />
         </div>
+      </div>
 
-        {/* Bottom Bar: Copyright & DPDP Notice */}
-        <div className="pt-6 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-500 font-['Poppins'] gap-3">
+      {/* Bottom Bar: Copyright & Compliance */}
+      <div className="relative z-20 pt-4 pb-6 bg-[#172033] text-slate-300 font-['Poppins'] border-t border-slate-700/60">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between text-[11px] gap-2">
           <p>© {new Date().getFullYear()} SellMyGhar Technologies Private Limited. All rights reserved.</p>
-          <p className="text-center sm:text-right">
+          <p className="text-center sm:text-right text-slate-400">
             Karnataka RERA Approved Real Estate Resale Facilitator. Transparent legal due diligence & certified document verification.
           </p>
         </div>
-
       </div>
 
       {/* Legal & FAQ Information Modal */}
@@ -368,6 +394,56 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                 </p>
                 <p className="text-slate-600 leading-relaxed">
                   Misrepresentation of title or fraudulent document submission will lead to immediate removal and reporting to appropriate civil authorities.
+                </p>
+              </div>
+            )}
+
+            {modalType === 'FEEDBACK' && (
+              <div className="space-y-4 font-['Poppins'] text-xs">
+                <div className="flex items-center space-x-2 text-[#244B8F]">
+                  <HelpCircle className="w-6 h-6 text-[#244B8F]" />
+                  <h3 className="text-lg font-bold font-['Montserrat'] text-[#172033]">
+                    Feedback & Suggestions
+                  </h3>
+                </div>
+                {feedbackSent ? (
+                  <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800">
+                    Thank you! Your feedback has been received by our Bengaluru customer advisory team.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <p className="text-slate-600 leading-relaxed">
+                      We continuously refine our platform for Bengaluru apartment owners and buyers. Share your thoughts or feature requests:
+                    </p>
+                    <textarea
+                      value={feedbackText}
+                      onChange={(e) => setFeedbackText(e.target.value)}
+                      placeholder="Share your thoughts, feedback, or suggestions..."
+                      className="w-full p-3 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-[#244B8F] focus:outline-none min-h-[100px]"
+                    />
+                    <button
+                      type="button"
+                      disabled={!feedbackText.trim()}
+                      onClick={() => setFeedbackSent(true)}
+                      className="px-4 py-2 bg-[#244B8F] text-white rounded-lg text-xs font-semibold cursor-pointer hover:bg-[#1B396E] disabled:opacity-50 transition-colors"
+                    >
+                      Submit Feedback
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {modalType === 'COOKIE' && (
+              <div className="space-y-4 font-['Poppins'] text-xs">
+                <div className="flex items-center space-x-2 text-[#244B8F]">
+                  <Lock className="w-6 h-6" />
+                  <h3 className="text-lg font-bold font-['Montserrat'] text-[#172033]">
+                    Cookie Policy
+                  </h3>
+                </div>
+                <p className="text-slate-600 leading-relaxed">
+                  SellMyGhar uses essential first-party cookies solely to maintain secure authentication sessions, verify user identity, and preserve your property preferences. We do not use intrusive third-party cross-site tracking cookies.
                 </p>
               </div>
             )}
