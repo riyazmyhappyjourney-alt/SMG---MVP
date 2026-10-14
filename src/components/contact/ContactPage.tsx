@@ -167,8 +167,8 @@ export const ContactPage: React.FC<ContactPageProps> = ({
                     <div>
                       <p className="font-semibold text-slate-900 font-['Montserrat']">SellMyGhar Technologies Pvt. Ltd.</p>
                       <p className="text-slate-600 text-xs sm:text-sm mt-0.5 leading-relaxed">
-                        Suite 402, 100 Feet Road, HAL 2nd Stage, Indiranagar,<br />
-                        Bengaluru, Karnataka 560038
+                        ESTEEM PARK, Rose Garden Rd, 5th Phase, J P Nagar Phase 5,<br />
+                        J. P. Nagar, Bengaluru, Karnataka 560078
                       </p>
                     </div>
                   </div>
@@ -438,7 +438,7 @@ export const ContactPage: React.FC<ContactPageProps> = ({
                           disabled={isSubmitting}
                           className="w-full py-3 px-6 bg-[#244B8F] hover:bg-[#1B396E] text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center space-x-2 font-['Montserrat']"
                         >
-                          <Send className="w-3.5 h-3.5" />
+                          <Send className={`w-3.5 h-3.5 ${isSubmitting ? 'animate-paper-plane' : ''}`} />
                           <span>{isSubmitting ? 'Sending Enquiry...' : 'Submit Enquiry'}</span>
                         </button>
                       </div>

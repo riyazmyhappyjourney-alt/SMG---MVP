@@ -99,6 +99,22 @@ export const HoldingCostCalculator: React.FC<HoldingCostCalculatorProps> = ({
                     placeholder="10800000"
                   />
                 </div>
+                <div className="mt-2.5">
+                  <input
+                    type="range"
+                    min="5000000"
+                    max="50000000"
+                    step="500000"
+                    value={Math.min(50000000, Math.max(5000000, numValue))}
+                    onChange={(e) => setPropertyValueInr(Number(e.target.value))}
+                    className="w-full accent-[#244B8F] h-2 bg-slate-200 rounded-lg cursor-pointer"
+                  />
+                  <div className="flex justify-between text-[10px] text-slate-400 mt-0.5">
+                    <span>₹50 L</span>
+                    <span>₹2.5 Cr</span>
+                    <span>₹5 Cr</span>
+                  </div>
+                </div>
               </div>
 
               {/* 2. Super Built-up Area & Maintenance Rate */}
@@ -193,10 +209,15 @@ export const HoldingCostCalculator: React.FC<HoldingCostCalculatorProps> = ({
 
               {/* 4. Holding Period Selector */}
               <div>
-                <label htmlFor={monthsId} className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Holding Period
-                </label>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="flex justify-between items-center text-xs mb-1.5">
+                  <label htmlFor={monthsId} className="font-semibold text-slate-700">
+                    Holding Period
+                  </label>
+                  <span className="font-bold text-[#244B8F]">
+                    {holdingMonths} Months
+                  </span>
+                </div>
+                <div className="grid grid-cols-4 gap-2 mb-2.5">
                   {[6, 9, 12, 18].map((m) => (
                     <button
                       key={m}
@@ -211,6 +232,21 @@ export const HoldingCostCalculator: React.FC<HoldingCostCalculatorProps> = ({
                       {m} Months
                     </button>
                   ))}
+                </div>
+                <input
+                  type="range"
+                  id={monthsId}
+                  min="3"
+                  max="24"
+                  step="1"
+                  value={holdingMonths}
+                  onChange={(e) => setHoldingMonths(Number(e.target.value))}
+                  className="w-full accent-[#244B8F] h-2 bg-slate-200 rounded-lg cursor-pointer"
+                />
+                <div className="flex justify-between text-[10px] text-slate-400 mt-0.5">
+                  <span>3 Months</span>
+                  <span>12 Months</span>
+                  <span>24 Months</span>
                 </div>
               </div>
 
@@ -244,6 +280,51 @@ export const HoldingCostCalculator: React.FC<HoldingCostCalculatorProps> = ({
                     <span className="font-bold text-slate-800 tabular-nums">
                       {formatIndianNumberFull(totalBrokerage)}
                     </span>
+                  </div>
+                </div>
+
+                {/* Visual Proportion Breakdown Bar */}
+                <div className="pt-3 border-t border-slate-200/60 space-y-1.5">
+                  <div className="flex justify-between text-[10px] font-semibold text-slate-500">
+                    <span>Cost Distribution</span>
+                    <span>{totalHoldingCost > 0 ? '100%' : '0%'}</span>
+                  </div>
+                  <div className="h-2.5 w-full bg-slate-200 rounded-full overflow-hidden flex shadow-inner">
+                    {totalHoldingCost > 0 && (
+                      <>
+                        <div
+                          style={{ width: `${(totalMaintenance / totalHoldingCost) * 100}%` }}
+                          className="bg-amber-500 h-full transition-all duration-300"
+                          title={`Maintenance: ${Math.round((totalMaintenance / totalHoldingCost) * 100)}%`}
+                        />
+                        <div
+                          style={{ width: `${(totalForegoneRent / totalHoldingCost) * 100}%` }}
+                          className="bg-sky-600 h-full transition-all duration-300"
+                          title={`Foregone Rent: ${Math.round((totalForegoneRent / totalHoldingCost) * 100)}%`}
+                        />
+                        <div
+                          style={{ width: `${(totalBrokerage / totalHoldingCost) * 100}%` }}
+                          className="bg-indigo-700 h-full transition-all duration-300"
+                          title={`Brokerage: ${Math.round((totalBrokerage / totalHoldingCost) * 100)}%`}
+                        />
+                      </>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-3 text-[10px] text-slate-600 pt-0.5">
+                    <div className="flex items-center space-x-1">
+                      <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                      <span>Maint ({totalHoldingCost > 0 ? Math.round((totalMaintenance / totalHoldingCost) * 100) : 0}%)</span>
+                    </div>
+                    {isVacant && (
+                      <div className="flex items-center space-x-1">
+                        <span className="w-2 h-2 rounded-full bg-sky-600 shrink-0" />
+                        <span>Rent ({totalHoldingCost > 0 ? Math.round((totalForegoneRent / totalHoldingCost) * 100) : 0}%)</span>
+                      </div>
+                    )}
+                    <div className="flex items-center space-x-1">
+                      <span className="w-2 h-2 rounded-full bg-indigo-700 shrink-0" />
+                      <span>Brokerage ({totalHoldingCost > 0 ? Math.round((totalBrokerage / totalHoldingCost) * 100) : 0}%)</span>
+                    </div>
                   </div>
                 </div>
               </div>
