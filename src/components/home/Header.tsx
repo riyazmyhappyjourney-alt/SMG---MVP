@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Logo } from '../brand/Logo';
 import { 
   Menu, 
   X, 
@@ -96,6 +95,20 @@ export const Header: React.FC<HeaderProps> = ({
     onTabClick(tab);
   };
 
+  const handleBrandHomeClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    setActiveTab('BUY');
+    onTabClick('BUY');
+    if (window.location.hash) {
+      window.location.hash = '';
+    }
+    if (window.location.pathname !== '/' && !window.location.pathname.startsWith('/#')) {
+      window.location.href = '/';
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
   const handleMouseEnterTab = (tabKey: 'BUY' | 'SELL' | 'ABOUT' | 'CONTACT') => {
     if (megaMenuTimeoutRef.current) clearTimeout(megaMenuTimeoutRef.current);
     setHoveredTab(tabKey);
@@ -133,21 +146,17 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 sm:h-18">
             
-            {/* Brand Logo */}
+            {/* Brand Title (Text-only as requested, reliable home link) */}
             <div className="flex items-center">
               <a 
-                href="#" 
-                onClick={(e) => {
-                  e.preventDefault();
-                  setActiveTab('BUY');
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
-                }}
-                className="flex items-center space-x-2 focus:outline-hidden group"
+                href="/" 
+                onClick={handleBrandHomeClick}
+                className="flex items-baseline space-x-0.5 focus:outline-hidden group cursor-pointer"
+                title="SellMyGhar.in - Home"
               >
-                <Logo height={36} className="brightness-0 invert drop-shadow-xs" />
-                <span className="text-white font-extrabold text-xl tracking-tight hidden sm:flex items-baseline group-hover:opacity-95 transition-opacity">
+                <span className="text-white font-extrabold text-xl sm:text-2xl tracking-tight flex items-baseline group-hover:opacity-95 transition-opacity">
                   <span>SellMyGhar</span>
-                  <span className="text-white/70 font-semibold text-xs ml-0.5">.in</span>
+                  <span className="text-white/75 font-semibold text-xs sm:text-sm ml-0.5">.in</span>
                 </span>
               </a>
             </div>
@@ -735,12 +744,10 @@ export const Header: React.FC<HeaderProps> = ({
               {/* Logo & Locality Dropdown */}
               <div className="flex items-center space-x-4 shrink-0">
                 <a 
-                  href="#" 
-                  onClick={(e) => {
-                    e.preventDefault();
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  className="text-white font-extrabold text-base sm:text-lg tracking-tight hover:opacity-90 transition-opacity flex items-baseline"
+                  href="/" 
+                  onClick={handleBrandHomeClick}
+                  className="text-white font-extrabold text-base sm:text-lg tracking-tight hover:opacity-90 transition-opacity flex items-baseline cursor-pointer"
+                  title="SellMyGhar.in - Home"
                 >
                   <span>SellMyGhar</span>
                   <span className="text-white/70 font-semibold text-xs ml-0.5">.in</span>

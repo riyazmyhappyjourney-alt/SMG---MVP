@@ -68,8 +68,12 @@ export const StaffLogin: React.FC<StaffLoginProps> = ({ onSuccess, onBackToHome 
       <div className="sm:mx-auto sm:w-full sm:max-w-md px-4">
         {/* Brand & Security Header */}
         <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-[#244B8F]/10 text-[#244B8F] mb-3">
-            <Lock className="w-6 h-6 text-[#244B8F]" />
+          <div className="flex justify-center mb-4">
+            <img
+              src="/logo.png"
+              alt="SellMyGhar"
+              className="h-12 w-auto object-contain"
+            />
           </div>
           <h2 className="text-2xl font-extrabold text-[#172033] tracking-tight">
             Staff Operations Portal
