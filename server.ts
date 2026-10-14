@@ -2140,6 +2140,7 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
         wingTower: wingTowerStr,
         furnishing: furnishing || 'Semi-Furnished',
         propertyAge: propertyAge || '1 to 5 years',
+        expectedPossessionDate: req.body.expectedPossessionDate || null,
         bookingAmount: isRental ? null : (parseInt(bookingAmount, 10) || null),
         securityDeposit: isRental ? (parseInt(securityDeposit, 10) || null) : null,
         preferredTenant: isRental ? (preferredTenant || 'Any') : null,
@@ -2274,6 +2275,30 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
         } catch (onboardErr: any) {
           console.warn('[OwnerOnboardingEmail] Dispatch note:', onboardErr.message);
         }
+      }
+
+      // Dispatch internal operations desk intake notification to sellmyghar1@gmail.com (idempotent, non-blocking)
+      try {
+        await EmailNotificationService.handleInternalStaffPropertyIntakeNotification({
+          id: propertyId,
+          referenceId,
+          ownerName: ownerName.trim(),
+          ownerPhone: normalizedPhone,
+          ownerEmail: declaredEmail,
+          societyName: societyName.trim(),
+          locality: locality.trim(),
+          bhkType: bhkLabel,
+          propertyType: `${bhkLabel} ${subType || 'Flat / Apartment'}`,
+          priceOrRent: askingPriceNum,
+          intent: isRental ? 'RENT' : 'SELL',
+          facing: facingStr,
+          areaSqft: sqft,
+          propertyAge: propertyAge || '1 to 5 years',
+          expectedPossessionDate: req.body.expectedPossessionDate || null,
+          createdAt: new Date().toISOString(),
+        });
+      } catch (internalAlertErr: any) {
+        console.warn('[InternalStaffIntakeAlert] Dispatch note:', internalAlertErr.message);
       }
 
       return res.status(201).json({

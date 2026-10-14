@@ -18,7 +18,7 @@ import {
   Video,
   ExternalLink
 } from 'lucide-react';
-import { BENGALURU_LOCALITIES, BENGALURU_SOCIETIES, LocalityItem, SocietyItem } from '../../data/bengaluruData';
+import { BENGALURU_LOCALITIES, BENGALURU_SOCIETIES, LocalityItem, SocietyItem, searchLocalities, searchSocieties } from '../../data/bengaluruData';
 
 export type WizardIntent = 'SELL' | 'RENT';
 export type PropertySubtype = 
@@ -99,6 +99,7 @@ export function SellerFunnel({
   const [facing, setFacing] = useState<string>('East');
   const [furnishing, setFurnishing] = useState<string>('Semi-Furnished');
   const [propertyAge, setPropertyAge] = useState<string>('1 to 5 years');
+  const [expectedPossessionDate, setExpectedPossessionDate] = useState<string>('');
   const [hasCoveredParking, setHasCoveredParking] = useState<boolean>(true);
   const [parkingCount, setParkingCount] = useState<number>(1);
 
@@ -169,6 +170,163 @@ export function SellerFunnel({
   const [serverReferenceId, setServerReferenceId] = useState<string>('');
   const [createdPropertyId, setCreatedPropertyId] = useState<string>('');
 
+  // Draft Persistence State
+  const DRAFT_STORAGE_KEY = 'sellmyghar_seller_draft_v1';
+  const [hasExistingDraft, setHasExistingDraft] = useState<{ savedAt: string; step: number; summary: string } | null>(null);
+  const [draftSavedStatus, setDraftSavedStatus] = useState<string | null>(null);
+
+  // Check for saved draft on initial mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.data && (parsed.data.societyQuery || parsed.data.localityQuery || parsed.data.expectedPrice || parsed.data.monthlyRent || parsed.data.ownerPhone)) {
+          const loc = parsed.data.societyQuery || parsed.data.localityQuery || 'Apartment';
+          const savedDate = new Date(parsed.savedAt);
+          const timeStr = !isNaN(savedDate.getTime())
+            ? savedDate.toLocaleDateString('en-IN', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+            : 'earlier';
+          setHasExistingDraft({
+            savedAt: timeStr,
+            step: parsed.currentStep || 1,
+            summary: `${loc} (Step ${parsed.currentStep || 1})`
+          });
+        }
+      }
+    } catch {}
+  }, []);
+
+  // Resume draft handler
+  const resumeDraft = () => {
+    try {
+      const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed.data) {
+        const d = parsed.data;
+        if (d.intent) setIntent(d.intent);
+        if (d.subType) setSubType(d.subType);
+        if (d.localityQuery !== undefined) setLocalityQuery(d.localityQuery);
+        if (d.societyQuery !== undefined) setSocietyQuery(d.societyQuery);
+        if (d.wingTower !== undefined) setWingTower(d.wingTower);
+        if (d.houseNo !== undefined) setHouseNo(d.houseNo);
+        if (d.bhkType) setBhkType(d.bhkType);
+        if (d.bathrooms !== undefined) setBathrooms(d.bathrooms);
+        if (d.balconies !== undefined) setBalconies(d.balconies);
+        if (d.superBuiltUpSqft !== undefined) setSuperBuiltUpSqft(d.superBuiltUpSqft);
+        if (d.carpetAreaSqft !== undefined) setCarpetAreaSqft(d.carpetAreaSqft);
+        if (d.unitFloor !== undefined) setUnitFloor(d.unitFloor);
+        if (d.totalFloors !== undefined) setTotalFloors(d.totalFloors);
+        if (d.facing) setFacing(d.facing);
+        if (d.furnishing) setFurnishing(d.furnishing);
+        if (d.propertyAge) setPropertyAge(d.propertyAge);
+        if (d.expectedPossessionDate !== undefined) setExpectedPossessionDate(d.expectedPossessionDate);
+        if (d.hasCoveredParking !== undefined) setHasCoveredParking(d.hasCoveredParking);
+        if (d.parkingCount !== undefined) setParkingCount(d.parkingCount);
+        if (d.videoUrl !== undefined) setVideoUrl(d.videoUrl);
+        if (d.expectedPrice !== undefined) setExpectedPrice(d.expectedPrice);
+        if (d.isNegotiable !== undefined) setIsNegotiable(d.isNegotiable);
+        if (d.bookingAmount !== undefined) setBookingAmount(d.bookingAmount);
+        if (d.monthlyRent !== undefined) setMonthlyRent(d.monthlyRent);
+        if (d.securityDeposit !== undefined) setSecurityDeposit(d.securityDeposit);
+        if (d.preferredTenant) setPreferredTenant(d.preferredTenant);
+        if (d.rentalDuration) setRentalDuration(d.rentalDuration);
+        if (d.customDurationMonths !== undefined) setCustomDurationMonths(d.customDurationMonths);
+        if (d.moveInAvailability) setMoveInAvailability(d.moveInAvailability);
+        if (d.moveInDate !== undefined) setMoveInDate(d.moveInDate);
+        if (d.maintenanceCharges !== undefined) setMaintenanceCharges(d.maintenanceCharges);
+        if (d.ownerName && !ownerName) setOwnerName(d.ownerName);
+        if (d.ownerPhone && !ownerPhone) setOwnerPhone(d.ownerPhone);
+        if (d.ownerEmail && !ownerEmail) setOwnerEmail(d.ownerEmail);
+        if (d.description !== undefined) setDescription(d.description);
+      }
+      if (parsed.currentStep && parsed.currentStep >= 1 && parsed.currentStep <= 6) {
+        setCurrentStep(parsed.currentStep);
+      }
+      setHasExistingDraft(null);
+      setDraftSavedStatus('Draft restored from your last session');
+    } catch (e) {
+      console.warn('Failed to resume draft:', e);
+    }
+  };
+
+  // Discard draft handler
+  const discardDraft = () => {
+    try {
+      localStorage.removeItem(DRAFT_STORAGE_KEY);
+    } catch {}
+    setHasExistingDraft(null);
+    setDraftSavedStatus(null);
+  };
+
+  // Auto-save draft debounced
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (submissionSuccess) return;
+      if (!localityQuery && !societyQuery && !ownerPhone && !expectedPrice && !monthlyRent) return;
+
+      try {
+        const draft = {
+          version: 1,
+          savedAt: new Date().toISOString(),
+          currentStep,
+          data: {
+            intent,
+            subType,
+            localityQuery,
+            societyQuery,
+            wingTower,
+            houseNo,
+            bhkType,
+            bathrooms,
+            balconies,
+            superBuiltUpSqft,
+            carpetAreaSqft,
+            unitFloor,
+            totalFloors,
+            facing,
+            furnishing,
+            propertyAge,
+            expectedPossessionDate,
+            hasCoveredParking,
+            parkingCount,
+            videoUrl,
+            expectedPrice,
+            isNegotiable,
+            bookingAmount,
+            monthlyRent,
+            securityDeposit,
+            preferredTenant,
+            rentalDuration,
+            customDurationMonths,
+            moveInAvailability,
+            moveInDate,
+            maintenanceCharges,
+            ownerName,
+            ownerPhone,
+            ownerEmail,
+            description,
+          }
+        };
+        localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
+        setDraftSavedStatus('Draft saved just now');
+      } catch (err) {
+        console.warn('Auto-save error:', err);
+      }
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [
+    submissionSuccess, currentStep, intent, subType, localityQuery, societyQuery,
+    wingTower, houseNo, bhkType, bathrooms, balconies, superBuiltUpSqft,
+    carpetAreaSqft, unitFloor, totalFloors, facing, furnishing, propertyAge,
+    expectedPossessionDate, hasCoveredParking, parkingCount, videoUrl,
+    expectedPrice, isNegotiable, bookingAmount, monthlyRent, securityDeposit,
+    preferredTenant, rentalDuration, customDurationMonths, moveInAvailability,
+    moveInDate, maintenanceCharges, ownerName, ownerPhone, ownerEmail, description
+  ]);
+
   // Close dropdowns on outside click or Escape
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -202,49 +360,14 @@ export function SellerFunnel({
     return () => clearInterval(interval);
   }, [showOtpModal, otpCooldown]);
 
-  // Filtered Locality Suggestions (Ranked: Prefix match first, then substring)
+  // Filtered Locality Suggestions (Ranked: Prefix match first, then word boundary, sub-locality, substring)
   const filteredLocalities = useMemo(() => {
-    const q = localityQuery.trim().toLowerCase();
-    if (!q) return BENGALURU_LOCALITIES.slice(0, 7);
-
-    const prefixMatches: LocalityItem[] = [];
-    const substringMatches: LocalityItem[] = [];
-
-    BENGALURU_LOCALITIES.forEach(item => {
-      const nameLower = item.name.toLowerCase();
-      if (nameLower.startsWith(q)) {
-        prefixMatches.push(item);
-      } else if (nameLower.includes(q)) {
-        substringMatches.push(item);
-      }
-    });
-
-    return [...prefixMatches, ...substringMatches].slice(0, 7);
+    return searchLocalities(localityQuery).slice(0, 8);
   }, [localityQuery]);
 
-  // Filtered Society Suggestions (Ranked: Prefix match first, then substring)
+  // Filtered Society Suggestions (Ranked: Name prefix, builder prefix, word boundary, substring)
   const filteredSocieties = useMemo(() => {
-    const q = societyQuery.trim().toLowerCase();
-    if (!q) {
-      // Prioritize societies in selected locality if any
-      const locLower = localityQuery.toLowerCase();
-      const inLoc = BENGALURU_SOCIETIES.filter(s => s.locality.toLowerCase().includes(locLower));
-      return inLoc.length > 0 ? inLoc.slice(0, 7) : BENGALURU_SOCIETIES.slice(0, 7);
-    }
-
-    const prefixMatches: SocietyItem[] = [];
-    const substringMatches: SocietyItem[] = [];
-
-    BENGALURU_SOCIETIES.forEach(item => {
-      const nameLower = item.name.toLowerCase();
-      if (nameLower.startsWith(q)) {
-        prefixMatches.push(item);
-      } else if (nameLower.includes(q)) {
-        substringMatches.push(item);
-      }
-    });
-
-    return [...prefixMatches, ...substringMatches].slice(0, 7);
+    return searchSocieties(societyQuery, localityQuery).slice(0, 10);
   }, [societyQuery, localityQuery]);
 
   // Dynamic Listing Readiness Calculation
@@ -353,6 +476,10 @@ export function SellerFunnel({
       }
       if (fl > tot) {
         setErrorMessage(`Unit floor (${fl}) cannot be higher than total building floors (${tot}).`);
+        return false;
+      }
+      if (propertyAge === 'Under Construction' && !expectedPossessionDate.trim()) {
+        setErrorMessage('Please select the expected possession date for under-construction property.');
         return false;
       }
       return true;
@@ -627,6 +754,7 @@ export function SellerFunnel({
         totalFloors: typeof totalFloors === 'number' ? totalFloors : 10,
         facing,
         propertyAge,
+        expectedPossessionDate: propertyAge === 'Under Construction' ? (expectedPossessionDate.trim() || null) : null,
         hasCoveredParking,
         parkingCount: hasCoveredParking ? parkingCount : 0,
         photos: photos.map(p => p.url),
@@ -657,6 +785,10 @@ export function SellerFunnel({
         throw new Error(propData.error || 'Failed to submit property listing.');
       }
 
+      try {
+        localStorage.removeItem(DRAFT_STORAGE_KEY);
+      } catch {}
+
       setServerReferenceId(propData.referenceId || `SMG-2026-${Math.floor(1000 + Math.random() * 9000)}`);
       setCreatedPropertyId(propData.propertyId || propData.property?.id || '');
       setSubmissionSuccess(true);
@@ -681,41 +813,110 @@ export function SellerFunnel({
   ];
 
   // ====================================================================
-  // SUBMISSION SUCCESS VIEW (Preserved existing complete view)
+  // SUBMISSION SUCCESS VIEW (Premium Pre-Production Confirmation)
   // ====================================================================
   if (submissionSuccess) {
+    const cleanPhone = ownerPhone.replace(/\D/g, '').slice(-10);
+    const formattedPrice = intent === 'SELL' ? formatINRWords(expectedPrice) : `${formatINR(monthlyRent)}/mo`;
+
     return (
       <div className="min-h-screen bg-[#F4F6F9] py-12 px-4 sm:px-6 lg:px-8 font-['Plus_Jakarta_Sans',sans-serif]">
         <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow-xs border border-slate-200 p-8 sm:p-10 text-center">
-          <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6">
+          <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
             <CheckCircle2 className="w-9 h-9" />
           </div>
+
+          <span className="inline-block px-3 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200 mb-3">
+            Listing Status: Under Diligence Review
+          </span>
 
           <h1 className="text-2xl sm:text-3xl font-extrabold text-[#172033] tracking-tight mb-2 font-['Montserrat']">
             Property Listed Successfully
           </h1>
           <p className="text-slate-600 text-sm leading-relaxed mb-6 max-w-lg mx-auto">
-            Your property at <strong className="text-slate-800">{societyQuery}, {localityQuery}</strong> has been received by our Bengaluru property team.
+            Your listing details have been saved and assigned to our Bengaluru title and seller advisory team.
           </p>
 
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 mb-8 max-w-md mx-auto">
+          {/* Reference ID Box */}
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-5 mb-6 max-w-md mx-auto text-center">
             <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
-              Listing Reference ID
+              Property Reference ID
             </div>
-            <div className="text-2xl font-mono font-extrabold text-[#244B8F] tracking-wide">
+            <div className="text-2xl sm:text-3xl font-mono font-extrabold text-[#244B8F] tracking-wide">
               {serverReferenceId}
             </div>
             <div className="text-[11px] text-slate-500 mt-2">
-              Please quote this reference ID whenever you contact our support desk.
+              Please quote this reference ID for any queries regarding your property listing.
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+          {/* Concise Property Summary Card */}
+          <div className="bg-white border border-slate-200 rounded-xl p-5 mb-6 text-left max-w-md mx-auto">
+            <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">
+              Submitted Property Details
+            </div>
+            <div className="space-y-2 text-xs text-slate-700">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Property:</span>
+                <span className="font-bold text-slate-900">{bhkType} {subType}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Society:</span>
+                <span className="font-semibold text-slate-900">{societyQuery}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Locality:</span>
+                <span className="font-medium text-slate-800">{localityQuery}, Bengaluru</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Super Built-up Area:</span>
+                <span className="font-medium text-slate-800">{superBuiltUpSqft} sq. ft.</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Floor & Facing:</span>
+                <span className="font-medium text-slate-800">Floor {unitFloor} of {totalFloors} • {facing} Facing</span>
+              </div>
+              {propertyAge === 'Under Construction' && expectedPossessionDate && (
+                <div className="flex justify-between">
+                  <span className="text-slate-500">Possession:</span>
+                  <span className="font-semibold text-[#244B8F]">{expectedPossessionDate}</span>
+                </div>
+              )}
+              <div className="flex justify-between pt-2 border-t border-slate-100">
+                <span className="text-slate-500">{intent === 'SELL' ? 'Expected Price:' : 'Expected Rent:'}</span>
+                <span className="font-extrabold text-emerald-700 text-sm">{formattedPrice}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Transparent Next Steps */}
+          <div className="bg-blue-50/60 border border-blue-200/80 rounded-xl p-5 mb-8 text-left max-w-md mx-auto">
+            <div className="text-xs font-bold text-[#244B8F] uppercase tracking-wider mb-2">
+              Next Steps & Verification
+            </div>
+            <ul className="text-xs text-slate-700 space-y-2">
+              <li className="flex items-start space-x-2">
+                <span className="w-4 h-4 rounded-full bg-[#244B8F] text-white flex items-center justify-center shrink-0 font-bold text-[10px]">1</span>
+                <span>A dedicated Relationship Manager will review your submission within 24 hours.</span>
+              </li>
+              <li className="flex items-start space-x-2">
+                <span className="w-4 h-4 rounded-full bg-[#244B8F] text-white flex items-center justify-center shrink-0 font-bold text-[10px]">2</span>
+                <span>We will call you at <strong>+91 {cleanPhone}</strong> to confirm ownership details and schedule an escorted physical verification.</span>
+              </li>
+              <li className="flex items-start space-x-2">
+                <span className="w-4 h-4 rounded-full bg-[#244B8F] text-white flex items-center justify-center shrink-0 font-bold text-[10px]">3</span>
+                <span>Once verified, your listing goes live to active buyers across Bengaluru.</span>
+              </li>
+            </ul>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mb-6">
             {onViewDashboard && (
               <button
                 type="button"
                 onClick={onViewDashboard}
-                className="w-full sm:w-auto px-6 py-3 rounded-xl bg-[#244B8F] hover:bg-[#1B396E] text-white font-semibold text-sm transition-colors cursor-pointer"
+                className="w-full sm:w-auto px-6 py-3 rounded-xl bg-[#244B8F] hover:bg-[#1B396E] text-white font-semibold text-sm transition-colors cursor-pointer shadow-xs"
               >
                 Go to Seller Dashboard
               </button>
@@ -729,6 +930,21 @@ export function SellerFunnel({
                 Back to Home
               </button>
             )}
+          </div>
+
+          {/* Official Support Helpline */}
+          <div className="pt-6 border-t border-slate-100 text-xs text-slate-500">
+            Need urgent assistance? Contact SellMyGhar Seller Support at{' '}
+            <a href="tel:+918217873708" className="text-[#244B8F] font-semibold hover:underline">
+              +91 8217873708
+            </a>{' '}
+            or{' '}
+            <a href="mailto:support@sellmyghar.in" className="text-[#244B8F] font-semibold hover:underline">
+              support@sellmyghar.in
+            </a>
+            <div className="text-[11px] text-slate-400 mt-1">
+              Available Monday – Saturday, 9:30 AM to 7:00 PM IST
+            </div>
           </div>
         </div>
       </div>
@@ -767,6 +983,41 @@ export function SellerFunnel({
           <span className="font-bold text-[#244B8F]">{listingReadiness}% Ready</span>
         </div>
       </div>
+
+      {/* Draft Resume Banner */}
+      {hasExistingDraft && (
+        <div className="max-w-6xl mx-auto mb-6 p-4 rounded-xl bg-blue-50 border border-blue-200 text-[#172033] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center space-x-3">
+            <div className="w-9 h-9 rounded-lg bg-[#244B8F] text-white flex items-center justify-center shrink-0">
+              <ClipboardCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="text-sm font-bold text-[#172033]">
+                Continue where you left off
+              </div>
+              <div className="text-xs text-slate-600">
+                You have an unfinished draft for <strong>{hasExistingDraft.summary}</strong> saved on {hasExistingDraft.savedAt}.
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center space-x-2 w-full sm:w-auto justify-end">
+            <button
+              type="button"
+              onClick={discardDraft}
+              className="px-3 py-1.5 rounded-lg border border-slate-300 text-xs font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer transition-colors"
+            >
+              Discard Draft
+            </button>
+            <button
+              type="button"
+              onClick={resumeDraft}
+              className="px-4 py-1.5 rounded-lg bg-[#244B8F] hover:bg-[#1B396E] text-white text-xs font-bold cursor-pointer transition-colors shadow-xs"
+            >
+              Resume Draft
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Mobile Sticky Step Tracker */}
       <div className="lg:hidden max-w-6xl mx-auto mb-6 bg-white border border-slate-200 rounded-xl p-4 shadow-xs sticky top-2 z-20">
@@ -892,9 +1143,17 @@ export function SellerFunnel({
           <div className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200/90 shadow-xs">
             {/* Step Header */}
             <div className="mb-8">
-              <span className="text-xs font-bold text-[#244B8F] tracking-wider uppercase block mb-1">
-                STEP {currentStep} OF 6
-              </span>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-bold text-[#244B8F] tracking-wider uppercase block">
+                  STEP {currentStep} OF 6
+                </span>
+                {draftSavedStatus && (
+                  <span className="text-[11px] font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                    <Check className="w-3 h-3 text-emerald-600" />
+                    <span>{draftSavedStatus}</span>
+                  </span>
+                )}
+              </div>
               <h2 className="text-2xl sm:text-3xl font-extrabold text-[#172033] tracking-tight font-['Montserrat']">
                 {currentStep === 1 && "Let's start with your property"}
                 {currentStep === 2 && "Where is your property located?"}
@@ -904,12 +1163,12 @@ export function SellerFunnel({
                 {currentStep === 6 && "Everything looks good?"}
               </h2>
               <p className="text-sm text-slate-600 mt-1.5 leading-relaxed">
-                {currentStep === 1 && "Just a few simple details to get started. We'll guide you through the rest, one step at a time."}
-                {currentStep === 2 && "Start typing your locality or society name to choose from verified Bengaluru projects."}
-                {currentStep === 3 && "Share the layout, size, and floor specifications of your home."}
-                {currentStep === 4 && "Genuine photos help prospective buyers and tenants picture themselves in your home."}
-                {currentStep === 5 && "Set your commercial terms and provide the best phone number to contact you."}
-                {currentStep === 6 && "Take a quick look at your details. You can still make changes before submitting your property."}
+                {currentStep === 1 && "Your property details are taking shape. Tell us the type of apartment you want to list."}
+                {currentStep === 2 && "Pinpointing your apartment community in Bengaluru with verified society suggestions."}
+                {currentStep === 3 && "Add a few more details to help us understand your apartment layout and specifications."}
+                {currentStep === 4 && "Genuine photos build trust with prospective buyers looking for homes in Bengaluru."}
+                {currentStep === 5 && "You're one step closer to listing your property. Provide your commercial expectations and phone number."}
+                {currentStep === 6 && "Review your listing details before our team initiates documentation verification."}
               </p>
             </div>
 
@@ -971,12 +1230,12 @@ export function SellerFunnel({
                   </div>
                 </div>
 
-                {/* Property Subtype (Flat, Villa, Penthouse, Duplex) */}
+                {/* Property Subtype (Flat / Apartment, Penthouse) */}
                 <div>
                   <label className="block text-xs font-bold text-[#172033] uppercase tracking-wider mb-3">
                     Property type
                   </label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {[
                       {
                         type: 'Flat / Apartment',
@@ -984,26 +1243,16 @@ export function SellerFunnel({
                         desc: 'Gated society or apartment complex',
                       },
                       {
-                        type: 'Independent House / Villa',
-                        label: 'Independent House / Villa',
-                        desc: 'Standalone villa or gated community',
-                      },
-                      {
                         type: 'Penthouse',
                         label: 'Penthouse',
                         desc: 'Top-floor luxury unit with private terrace',
-                      },
-                      {
-                        type: 'Duplex',
-                        label: 'Duplex',
-                        desc: 'Two-floor connected residential unit',
                       },
                     ].map((item) => (
                       <button
                         key={item.type}
                         type="button"
                         onClick={() => setSubType(item.type as PropertySubtype)}
-                        className={`p-4 rounded-xl border-2 text-left transition-all cursor-pointer ${
+                        className={`p-4 sm:p-5 rounded-xl border-2 text-left transition-all cursor-pointer ${
                           subType === item.type
                             ? 'border-[#244B8F] bg-blue-50/30 shadow-xs'
                             : 'border-slate-200 hover:border-slate-300 bg-white'
@@ -1399,20 +1648,20 @@ export function SellerFunnel({
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                     {[
                       'East',
-                      'North',
-                      'North-East',
-                      'South',
                       'West',
-                      'North-West',
-                      'South-East',
-                      'South-West',
+                      'North',
+                      'South',
+                      'South East',
+                      'South West',
+                      'North East',
+                      'North West',
                     ].map((dir) => (
                       <button
                         key={dir}
                         type="button"
                         onClick={() => setFacing(dir)}
                         className={`py-2.5 px-3 rounded-lg text-xs font-semibold text-center cursor-pointer transition-colors ${
-                          facing === dir
+                          facing === dir || facing.replace(/-/g, ' ') === dir
                             ? 'bg-[#244B8F] text-white shadow-xs font-bold'
                             : 'bg-slate-50 border border-slate-200 text-slate-700 hover:bg-slate-100'
                         }`}
@@ -1449,11 +1698,17 @@ export function SellerFunnel({
 
                   <div>
                     <label className="block text-xs font-bold text-[#172033] uppercase tracking-wider mb-2">
-                      Property Age
+                      Property Age / Status
                     </label>
                     <select
                       value={propertyAge}
-                      onChange={(e) => setPropertyAge(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setPropertyAge(val);
+                        if (val !== 'Under Construction') {
+                          setExpectedPossessionDate('');
+                        }
+                      }}
                       className="w-full p-3.5 rounded-xl border border-slate-300 bg-white text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#244B8F]"
                     >
                       <option value="Under Construction">Under Construction</option>
@@ -1464,6 +1719,72 @@ export function SellerFunnel({
                     </select>
                   </div>
                 </div>
+
+                {/* Conditional Expected Possession for Under Construction */}
+                {propertyAge === 'Under Construction' && (
+                  <div className="p-4 sm:p-5 rounded-xl border border-blue-200 bg-blue-50/40 space-y-3.5">
+                    <div>
+                      <label className="block text-xs font-bold text-[#172033] uppercase tracking-wider mb-1">
+                        Expected Possession <span className="text-red-600">*</span>
+                      </label>
+                      <p className="text-xs text-slate-600">
+                        Select when the builder is scheduled to hand over possession of this unit.
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        'Within 3 months',
+                        'Within 6 months',
+                        ...Array.from({ length: Math.max(1, 2035 - new Date().getFullYear() + 1) }, (_, i) => `By ${new Date().getFullYear() + i}`),
+                        'Not sure yet',
+                      ].map((pos) => (
+                        <button
+                          key={pos}
+                          type="button"
+                          onClick={() => setExpectedPossessionDate(pos)}
+                          className={`px-3 py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                            expectedPossessionDate === pos
+                              ? 'bg-[#244B8F] text-white shadow-xs font-bold'
+                              : 'bg-white border border-slate-200 text-slate-700 hover:border-slate-300 hover:bg-slate-50'
+                          }`}
+                        >
+                          {pos}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Optional Month Picker */}
+                    <div className="pt-2 border-t border-blue-100 flex flex-col sm:flex-row sm:items-center gap-2">
+                      <span className="text-xs font-semibold text-slate-600">
+                        Or specify target month (optional):
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <select
+                          aria-label="Possession month"
+                          onChange={(e) => {
+                            const month = e.target.value;
+                            if (month) {
+                              const year = expectedPossessionDate.match(/\d{4}/)?.[0] || String(new Date().getFullYear());
+                              setExpectedPossessionDate(`${month} ${year}`);
+                            }
+                          }}
+                          className="text-xs py-1.5 px-2.5 rounded-lg border border-slate-300 bg-white font-medium text-slate-700 focus:outline-none focus:ring-1 focus:ring-[#244B8F]"
+                        >
+                          <option value="">Select month...</option>
+                          {['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'].map(m => (
+                            <option key={m} value={m}>{m}</option>
+                          ))}
+                        </select>
+                        {expectedPossessionDate && (
+                          <span className="text-xs font-bold text-[#244B8F] bg-white px-2 py-1 rounded-md border border-blue-200">
+                            Selected: {expectedPossessionDate}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* Covered Parking: Conditional Yes / No */}
                 <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-3">

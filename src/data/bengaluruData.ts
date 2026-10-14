@@ -83,7 +83,9 @@ export const BENGALURU_LOCALITIES: LocalityItem[] = [
   { id: 'kogilu', name: 'Kogilu / Kogilu Cross', zone: 'North', popularSubLocalities: ['Prakruthi Nagar', 'Maruthi Nagar', 'Yelahanka Extension'] },
   { id: 'budigere-cross', name: 'Budigere Cross / OMR Corridor', zone: 'East', popularSubLocalities: ['Mandur', 'Konadasapura', 'Old Madras Road Junction'] },
   { id: 'gunjur', name: 'Gunjur / Varthur', zone: 'East', popularSubLocalities: ['Gunjur Palya', 'Chrysalis High Corridor', 'Balagere Link'] },
-  { id: 'carmelaram', name: 'Carmelaram / Doddakannelli', zone: 'East', popularSubLocalities: ['Carmelaram Station Road', 'Decathlon Corridor', 'Chikka Bellandur'] }
+  { id: 'carmelaram', name: 'Carmelaram / Doddakannelli', zone: 'East', popularSubLocalities: ['Carmelaram Station Road', 'Decathlon Corridor', 'Chikka Bellandur'] },
+  { id: 'kadugodi', name: 'Kadugodi', zone: 'East', popularSubLocalities: ['Kadugodi Tree Park', 'Belathur', 'Channasandra Main Road', 'Hope Farm Junction'] },
+  { id: 'kammanahalli', name: 'Kammanahalli', zone: 'North', popularSubLocalities: ['Nehru Road', 'Kullappa Circle', 'Kammanahalli Main Road', 'Ramaiah Layout'] }
 ];
 
 export const BENGALURU_SOCIETIES: SocietyItem[] = [
@@ -112,6 +114,14 @@ export const BENGALURU_SOCIETIES: SocietyItem[] = [
   { id: 'soc-15c', name: 'Sobha Palm Court', locality: 'Yelahanka', zone: 'North', builder: 'Sobha Limited' },
   { id: 'soc-15d', name: 'Sobha Morzaria Grandeur', locality: 'Bannerghatta Road', zone: 'South', builder: 'Sobha Limited' },
   { id: 'soc-15e', name: 'Sobha Clovelly', locality: 'Banashankari', zone: 'South', builder: 'Sobha Limited' },
+  { id: 'soc-15f', name: 'Sobha Neopolis', locality: 'Panathur / Marathahalli', zone: 'East', builder: 'Sobha Limited' },
+  { id: 'soc-15g', name: 'Sobha Windsor', locality: 'Whitefield', zone: 'East', builder: 'Sobha Limited' },
+  { id: 'soc-15h', name: 'Sobha Insignia', locality: 'Bellandur', zone: 'East', builder: 'Sobha Limited' },
+  { id: 'soc-15i', name: 'Sobha Forest View', locality: 'Kanakapura Road', zone: 'South', builder: 'Sobha Limited' },
+  { id: 'soc-15j', name: 'Sobha Heritage', locality: 'Banashankari', zone: 'South', builder: 'Sobha Limited' },
+  { id: 'soc-15k', name: 'Sobha Moonstone', locality: 'Hennur Road', zone: 'North', builder: 'Sobha Limited' },
+  { id: 'soc-15l', name: 'Sobha Ruby', locality: 'Tumkur Road', zone: 'West', builder: 'Sobha Limited' },
+  { id: 'soc-15m', name: 'Sobha Quartz', locality: 'Outer Ring Road / Bellandur', zone: 'East', builder: 'Sobha Limited' },
   
   { id: 'soc-16', name: 'Salarpuria Sattva Greenage', locality: 'Hosur Road / Bommanahalli', zone: 'South', builder: 'Sattva Group' },
   { id: 'soc-17', name: 'Salarpuria Sattva Magnificia', locality: 'Old Madras Road', zone: 'East', builder: 'Sattva Group' },
@@ -180,22 +190,61 @@ export const BENGALURU_SOCIETIES: SocietyItem[] = [
 ];
 
 /**
- * Filter localities matching query with ranked matching across name, zone, and popular sub-localities
+ * Ranked Bengaluru locality search:
+ * Tier 1: Locality name starts with query (e.g. "w" -> "Whitefield", "kad" -> "Kadugodi", "ka" -> "Kadugodi", "Kammanahalli", "Kanakapura Road", etc.)
+ * Tier 2: Word boundary in locality name starts with query
+ * Tier 3: Popular sub-localities start with query
+ * Tier 4: Substring match anywhere in locality name
+ * Tier 5: Substring match in sub-localities or zone
  */
 export function searchLocalities(query: string): LocalityItem[] {
   if (!query || query.trim().length === 0) {
     return BENGALURU_LOCALITIES.slice(0, 16);
   }
   const clean = query.toLowerCase().trim();
-  return BENGALURU_LOCALITIES.filter(
-    loc => loc.name.toLowerCase().includes(clean) || 
-           loc.zone.toLowerCase().includes(clean) ||
-           (loc.popularSubLocalities && loc.popularSubLocalities.some(sub => sub.toLowerCase().includes(clean)))
-  ).slice(0, 16);
+
+  const tier1NamePrefix: LocalityItem[] = [];
+  const tier2WordBoundary: LocalityItem[] = [];
+  const tier3SubPrefix: LocalityItem[] = [];
+  const tier4NameSubstring: LocalityItem[] = [];
+  const tier5Other: LocalityItem[] = [];
+
+  for (const loc of BENGALURU_LOCALITIES) {
+    const nameLower = loc.name.toLowerCase();
+    const subList = (loc.popularSubLocalities || []).map(s => s.toLowerCase());
+
+    if (nameLower.startsWith(clean)) {
+      tier1NamePrefix.push(loc);
+    } else if (new RegExp(`\\b${clean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`, 'i').test(nameLower)) {
+      tier2WordBoundary.push(loc);
+    } else if (subList.some(s => s.startsWith(clean))) {
+      tier3SubPrefix.push(loc);
+    } else if (nameLower.includes(clean)) {
+      tier4NameSubstring.push(loc);
+    } else if (
+      loc.zone.toLowerCase().includes(clean) ||
+      subList.some(s => s.includes(clean))
+    ) {
+      tier5Other.push(loc);
+    }
+  }
+
+  return [
+    ...tier1NamePrefix,
+    ...tier2WordBoundary,
+    ...tier3SubPrefix,
+    ...tier4NameSubstring,
+    ...tier5Other
+  ].slice(0, 16);
 }
 
 /**
- * Filter societies matching query and optional locality
+ * Ranked Bengaluru society / apartment / developer search:
+ * Tier 1: Society name starts with query (e.g. "Sobha..." or "S...")
+ * Tier 2: Builder / developer starts with query (e.g. typing "S" or "Sobha" surfaces all Sobha projects!)
+ * Tier 3: Word boundary in society name starts with query
+ * Tier 4: Substring in society name
+ * Tier 5: Substring in builder or locality
  */
 export function searchSocieties(query: string, localityFilter?: string): SocietyItem[] {
   const clean = (query || '').toLowerCase().trim();
@@ -213,11 +262,38 @@ export function searchSocieties(query: string, localityFilter?: string): Society
     return list.slice(0, 16);
   }
 
-  return list.filter(
-    soc => soc.name.toLowerCase().includes(clean) || 
-           soc.builder.toLowerCase().includes(clean) || 
-           soc.locality.toLowerCase().includes(clean)
-  ).slice(0, 16);
+  const escaped = clean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const tier1NamePrefix: SocietyItem[] = [];
+  const tier2BuilderPrefix: SocietyItem[] = [];
+  const tier3WordBoundary: SocietyItem[] = [];
+  const tier4NameSubstring: SocietyItem[] = [];
+  const tier5Other: SocietyItem[] = [];
+
+  for (const soc of list) {
+    const nameLower = soc.name.toLowerCase();
+    const builderLower = soc.builder.toLowerCase();
+    const locLower = soc.locality.toLowerCase();
+
+    if (nameLower.startsWith(clean)) {
+      tier1NamePrefix.push(soc);
+    } else if (builderLower.startsWith(clean)) {
+      tier2BuilderPrefix.push(soc);
+    } else if (new RegExp(`\\b${escaped}`, 'i').test(nameLower)) {
+      tier3WordBoundary.push(soc);
+    } else if (nameLower.includes(clean)) {
+      tier4NameSubstring.push(soc);
+    } else if (builderLower.includes(clean) || locLower.includes(clean)) {
+      tier5Other.push(soc);
+    }
+  }
+
+  return [
+    ...tier1NamePrefix,
+    ...tier2BuilderPrefix,
+    ...tier3WordBoundary,
+    ...tier4NameSubstring,
+    ...tier5Other
+  ].slice(0, 16);
 }
 
 /**
