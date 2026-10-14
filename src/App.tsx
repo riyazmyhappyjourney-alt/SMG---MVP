@@ -33,7 +33,8 @@ export type AppRoute =
   | 'TERMS'
   | 'PRIVACY_POLICY'
   | 'COOKIE_POLICY'
-  | 'CAREERS';
+  | 'CAREERS'
+  | 'RESET_PASSWORD';
 
 export const parseLocalitySlug = (path: string, hash: string): string | null => {
   const pathMatch = path.match(/^\/sell-flat-in-([a-zA-Z0-9-]+)-bangalore/i);
@@ -58,6 +59,7 @@ export function resolveRoute(path: string, hash: string, host: string): AppRoute
   if (host.startsWith('crm.') || hash === '#/crm' || path === '/crm') return 'CRM';
   if (hash === '#/dashboard' || hash === '#/seller-dashboard' || path === '/dashboard' || path === '/seller-dashboard') return 'DASHBOARD';
   if (hash === '#/login' || hash === '#/register' || path === '/login' || path === '/register') return 'LOGIN';
+  if (hash.startsWith('#/reset-password') || path === '/reset-password') return 'RESET_PASSWORD';
   if (hash === '#/consent' || path === '/consent') return 'CONSENT';
   if (hash === '#/seller-assisted' || path === '/seller-assisted' || hash === '#/post-property' || path === '/post-property') return 'SELLER_ASSISTED';
   if (hash.startsWith('#/property/')) return 'PROPERTY_DETAIL';
@@ -398,6 +400,20 @@ export default function App() {
         onNavigateToContact={() => navigateTo('CONTACT')}
         onNavigateToSellerAssisted={() => navigateTo('SELLER_ASSISTED')}
         onSignInClick={() => navigateToLogin('CAREERS')}
+      />
+    );
+  }
+
+  // Dedicated Password Reset Route (#/reset-password?token=...)
+  if (currentRoute === 'RESET_PASSWORD') {
+    return (
+      <StaffLogin
+        initialMode="RESET"
+        onSuccess={(session) => {
+          setStaffSession(session);
+          navigateTo('CRM');
+        }}
+        onBackToHome={() => navigateTo('HOME')}
       />
     );
   }

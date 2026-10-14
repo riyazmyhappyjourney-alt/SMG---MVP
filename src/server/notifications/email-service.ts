@@ -46,6 +46,40 @@ export type MockEmailProvider = (payload: {
 }) => Promise<{ success: boolean; messageId?: string; error?: string }>;
 
 // ====================================================================
+// 0. CENTRALIZED EMAIL SENDER & BRAND IDENTITY CONFIGURATION
+// ====================================================================
+
+export interface EmailSenderConfig {
+  displayName: string;
+  senderEmail: string;
+  onboardingDisplayName: string;
+  onboardingSenderEmail: string;
+  supportEmail: string;
+  replyToEmail: string;
+  legalOffice: string;
+}
+
+export const EMAIL_SENDER_CONFIG: EmailSenderConfig = {
+  displayName: process.env.EMAIL_SENDER_NAME || 'SellMyGhar.in',
+  senderEmail: process.env.EMAIL_SENDER_ADDRESS || 'notifications@sellmyghar.in',
+  onboardingDisplayName: process.env.EMAIL_ONBOARDING_SENDER_NAME || 'SellMyGhar Onboarding',
+  onboardingSenderEmail: process.env.EMAIL_ONBOARDING_SENDER_ADDRESS || 'onboarding@sellmyghar.in',
+  supportEmail: 'support@sellmyghar.in',
+  replyToEmail: process.env.EMAIL_REPLY_TO || 'support@sellmyghar.in',
+  legalOffice: 'ESTEEM PARK, Rose Garden Rd, 5th Phase, J P Nagar Phase 5, J. P. Nagar, Bengaluru, Karnataka 560078',
+};
+
+export function getFormattedSender(type: 'DEFAULT' | 'ONBOARDING' | 'SUPPORT' = 'DEFAULT'): string {
+  if (type === 'DEFAULT') {
+    return process.env.RESEND_FROM_EMAIL || `${EMAIL_SENDER_CONFIG.displayName} <${EMAIL_SENDER_CONFIG.senderEmail}>`;
+  }
+  if (type === 'ONBOARDING') {
+    return process.env.RESEND_ONBOARDING_FROM_EMAIL || `${EMAIL_SENDER_CONFIG.onboardingDisplayName} <${EMAIL_SENDER_CONFIG.onboardingSenderEmail}>`;
+  }
+  return `${EMAIL_SENDER_CONFIG.displayName} <${EMAIL_SENDER_CONFIG.supportEmail}>`;
+}
+
+// ====================================================================
 // 1. DEFAULT EMAIL TEMPLATES (4 Required Workflows)
 // ====================================================================
 
@@ -491,7 +525,7 @@ export function generateIcsCalendar(params: {
     `SUMMARY:${escapeIcs(params.summary)}`,
     `DESCRIPTION:${escapeIcs(params.description)}`,
     `LOCATION:${escapeIcs(params.location)}`,
-    `ORGANIZER;CN=SellMyGhar Operations:mailto:${organizerEmail}`,
+    `ORGANIZER;CN=SellMyGhar.in:mailto:${organizerEmail}`,
     `ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE;CN=${escapeIcs(params.clientName)}:mailto:${clientEmail}`,
     'STATUS:CONFIRMED',
     'SEQUENCE:0',
@@ -728,8 +762,8 @@ export class EmailNotificationService {
     success: boolean;
   } {
     const resendApiKey = process.env.RESEND_API_KEY;
-    const senderAddress = process.env.RESEND_FROM_EMAIL || 'SellMyGhar Operations <notifications@sellmyghar.in>';
-    const onboardingSenderAddress = process.env.RESEND_ONBOARDING_FROM_EMAIL || 'SellMyGhar Onboarding <onboarding@sellmyghar.in>';
+    const senderAddress = getFormattedSender('DEFAULT');
+    const onboardingSenderAddress = getFormattedSender('ONBOARDING');
 
     const missing: string[] = [];
     if (!resendApiKey) {
@@ -996,7 +1030,7 @@ export class EmailNotificationService {
 
     const currentAttempts = (existingRes.rows && existingRes.rows.length > 0 ? (existingRes.rows[0].delivery_attempts || 1) : 0) + 1;
 
-    const fromAddress = args.fromAddress || process.env.RESEND_FROM_EMAIL || 'SellMyGhar Operations <notifications@sellmyghar.in>';
+    const fromAddress = args.fromAddress || getFormattedSender('DEFAULT');
     const apiKey = process.env.RESEND_API_KEY;
 
     let finalStatus: PublicationNotificationRecord['status'] = 'SIMULATED';
@@ -1769,6 +1803,49 @@ export class EmailNotificationService {
   }
 
   // ====================================================================
+  // 7b. TRANSACTIONAL PASSWORD RESET EMAIL DISPATCH
+  // ====================================================================
+
+  static async sendPasswordResetEmail(args: {
+    recipientEmail: string;
+    resetUrl: string;
+    expiresInMinutes?: number;
+  }): Promise<{ success: boolean; status: string }> {
+    const html = `
+      <div style="font-family: 'Poppins', sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; border: 1px solid #E2E8F0; border-radius: 12px; background: #ffffff;">
+        <h2 style="color: #244B8F; margin-top: 0;">Password Reset Request</h2>
+        <p style="font-size: 14px; color: #475569; line-height: 1.6;">
+          We received a request to reset your SellMyGhar portal password. Click the secure button below to set a new password. This link is single-use and will expire in ${args.expiresInMinutes || 15} minutes.
+        </p>
+        <div style="text-align: center; margin: 28px 0;">
+          <a href="${args.resetUrl}" style="background: #244B8F; color: #ffffff; text-decoration: none; padding: 12px 28px; border-radius: 8px; font-weight: 700; font-size: 14px; display: inline-block;">
+            Reset My Password
+          </a>
+        </div>
+        <p style="font-size: 12px; color: #94A3B8; line-height: 1.5;">
+          If you did not initiate this request, you can safely disregard this message. Your account credentials remain secure.
+        </p>
+        <hr style="border: 0; border-top: 1px solid #EDF2F7; margin: 20px 0;" />
+        <p style="font-size: 11px; color: #94A3B8; text-align: center;">
+          SellMyGhar.in &bull; ${EMAIL_SENDER_CONFIG.legalOffice}
+        </p>
+      </div>
+    `.trim();
+
+    const dispatchRes = await this.dispatchEmail({
+      recipient: args.recipientEmail,
+      subject: 'Reset Your SellMyGhar Password',
+      html,
+      eventType: 'TEST',
+      idempotencyKey: `pw-reset-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`,
+      propertyId: null,
+      fromAddress: getFormattedSender('SUPPORT'),
+    });
+
+    return { success: dispatchRes.dispatched, status: dispatchRes.status };
+  }
+
+  // ====================================================================
   // 8. TEST DISPATCH & NOTIFICATION LISTING
   // ====================================================================
 
@@ -1792,8 +1869,8 @@ export class EmailNotificationService {
 
     const idempotencyKey = `test-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const fromAddress = templateKey === 'USER_ONBOARDING_WELCOME'
-      ? (process.env.RESEND_ONBOARDING_FROM_EMAIL || 'SellMyGhar Onboarding <onboarding@sellmyghar.in>')
-      : (process.env.RESEND_FROM_EMAIL || 'SellMyGhar Operations <notifications@sellmyghar.in>');
+      ? getFormattedSender('ONBOARDING')
+      : getFormattedSender('DEFAULT');
 
     const dispatchRes = await this.dispatchEmail({
       recipient: targetEmail,

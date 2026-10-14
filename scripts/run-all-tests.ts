@@ -14,6 +14,7 @@ import { runEmailAutomationTests } from './run-email-automation-tests';
 import { runPropertyBrochureTests } from './run-property-brochure-tests';
 import { runApprovalAndImageFixTests } from './run-approval-image-fix-tests';
 import { runFooterAndHeroFixTests } from './test-footer-and-hero-fix';
+import { runGroup4FeatureTests } from './test-group4-features';
 
 async function runAll() {
   console.log('====================================================');
@@ -167,6 +168,14 @@ async function runAll() {
   totalFailed += footerHeroRes.failed;
   suiteResults.push({ name: 'Footer Redesign & Hero Image Flash Fix', passed: footerHeroRes.passed, failed: footerHeroRes.failed, tests: footerHeroRes.results });
   console.log(`Subtotal: ${footerHeroRes.passed} passed, ${footerHeroRes.failed} failed\n`);
+
+  // Suite 17: Group 4 Features (Password Reset, Centralized Email Sender & CSV Suggestions)
+  const group4Res = await runGroup4FeatureTests();
+  group4Res.results.forEach(r => console.log(' ', r));
+  totalPassed += group4Res.passed;
+  totalFailed += group4Res.failed;
+  suiteResults.push({ name: 'Group 4: Password Reset, Centralized Email, & CSV Suggestions', passed: group4Res.passed, failed: group4Res.failed, tests: group4Res.results });
+  console.log(`Subtotal: ${group4Res.passed} passed, ${group4Res.failed} failed\n`);
 
   console.log('====================================================');
   console.log(`FINAL RESULTS: ${totalPassed} PASSED, ${totalFailed} FAILED (TOTAL: ${totalPassed + totalFailed}/${totalPassed + totalFailed})`);

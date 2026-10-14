@@ -1513,56 +1513,68 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                   </span>
                 </div>
 
-                <div className="space-y-4">
-                  {properties.map(p => (
-                    p.siteVisits?.map(visit => (
-                      <div
-                        key={visit.id}
-                        className="p-5 bg-slate-50 rounded-2xl border border-slate-200 space-y-3"
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3">
-                          <div className="flex items-center space-x-2">
-                            <span className="w-2.5 h-2.5 rounded-full bg-indigo-600" />
-                            <span className="font-black text-sm text-slate-900">
-                              {visit.visitorProfile}
-                            </span>
-                            <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-indigo-100 text-indigo-800">
-                              Screened Tech Buyer
-                            </span>
+                {kpiStats.totalSiteVisits === 0 ? (
+                  <div className="text-center py-12 px-4 bg-slate-50 rounded-2xl border border-dashed border-slate-200 space-y-3">
+                    <div className="w-12 h-12 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center mx-auto text-[#244B8F]">
+                      <Users className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-sm font-bold text-slate-800">No Site Visits Scheduled Yet</h3>
+                    <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+                      As soon as your property passes title diligence and prospective buyers or tenants are pre-screened for loan eligibility, your assigned Relationship Manager will schedule visits and log field feedback notes here.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {properties.map(p => (
+                      p.siteVisits?.map(visit => (
+                        <div
+                          key={visit.id}
+                          className="p-5 bg-slate-50 rounded-2xl border border-slate-200 space-y-3"
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3">
+                            <div className="flex items-center space-x-2">
+                              <span className="w-2.5 h-2.5 rounded-full bg-indigo-600" />
+                              <span className="font-black text-sm text-slate-900">
+                                {visit.visitorProfile}
+                              </span>
+                              <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-indigo-100 text-indigo-800">
+                                Screened Tech Buyer
+                              </span>
+                            </div>
+
+                            <div className="flex items-center space-x-2 text-xs">
+                              <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                              <span className="font-bold text-slate-700">{visit.scheduledTime}</span>
+                            </div>
                           </div>
 
-                          <div className="flex items-center space-x-2 text-xs">
-                            <Calendar className="w-3.5 h-3.5 text-slate-400" />
-                            <span className="font-bold text-slate-700">{visit.scheduledTime}</span>
+                          <div className="text-xs text-slate-700 bg-white p-3 rounded-xl border border-slate-200 space-y-1">
+                            <span className="font-bold text-[#244B8F] block">
+                              RM Field Notes ({visit.rmEscort}):
+                            </span>
+                            <p className="text-slate-600 italic">
+                              "{visit.feedbackNotes}"
+                            </p>
+                          </div>
+
+                          <div className="flex items-center justify-between text-xs pt-1">
+                            <span className="text-slate-500 text-[11px]">
+                              Property: <strong>{p.societyName}</strong> ({p.bhkType}) • Ref: {p.referenceId}
+                            </span>
+
+                            <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${
+                              visit.status === 'COMPLETED'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-amber-100 text-amber-800'
+                            }`}>
+                              {visit.status === 'COMPLETED' ? '✓ VISIT COMPLETED' : '⏳ SCHEDULED WITH RM'}
+                            </span>
                           </div>
                         </div>
-
-                        <div className="text-xs text-slate-700 bg-white p-3 rounded-xl border border-slate-200 space-y-1">
-                          <span className="font-bold text-[#244B8F] block">
-                            RM Field Notes ({visit.rmEscort}):
-                          </span>
-                          <p className="text-slate-600 italic">
-                            "{visit.feedbackNotes}"
-                          </p>
-                        </div>
-
-                        <div className="flex items-center justify-between text-xs pt-1">
-                          <span className="text-slate-500 text-[11px]">
-                            Property: <strong>{p.societyName}</strong> ({p.bhkType}) • Ref: {p.referenceId}
-                          </span>
-
-                          <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase ${
-                            visit.status === 'COMPLETED'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : 'bg-amber-100 text-amber-800'
-                          }`}>
-                            {visit.status === 'COMPLETED' ? '✓ VISIT COMPLETED' : '⏳ SCHEDULED WITH RM'}
-                          </span>
-                        </div>
-                      </div>
-                    ))
-                  ))}
-                </div>
+                      ))
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
