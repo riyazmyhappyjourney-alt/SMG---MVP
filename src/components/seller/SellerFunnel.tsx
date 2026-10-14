@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { BENGALURU_LOCALITIES, BENGALURU_SOCIETIES, LocalityItem, SocietyItem, searchLocalities, searchSocieties } from '../../data/bengaluruData';
 import { trackFunnelStep, trackFunnelCompleted } from '../../utils/analytics';
+import { getBrowserSupabase } from '../../lib/supabase';
 
 export type WizardIntent = 'SELL' | 'RENT';
 export type PropertySubtype = 
@@ -147,18 +148,28 @@ export function SellerFunnel({
   const [ownerEmail, setOwnerEmail] = useState<string>('');
   const [description, setDescription] = useState<string>('');
 
+  const [authSession, setAuthSession] = useState<{
+    authenticated: boolean;
+    user?: { id: string; name?: string; email?: string; phone?: string; roles?: string[] };
+  } | null>(null);
+
   // Auto-fill active session user credentials if available
   useEffect(() => {
     fetch('/api/auth/me', { credentials: 'include' })
       .then(res => res.json())
       .then(data => {
         if (data.authenticated && data.user) {
+          setAuthSession(data);
           if (data.user.name && !ownerName) setOwnerName(data.user.name);
           if (data.user.phone && !ownerPhone) setOwnerPhone(data.user.phone.replace(/\D/g, '').slice(-10));
           if (data.user.email && !ownerEmail) setOwnerEmail(data.user.email);
+        } else {
+          setAuthSession({ authenticated: false });
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        setAuthSession({ authenticated: false });
+      });
   }, []);
 
   // STEP 6: Declarations & Verification
@@ -446,15 +457,6 @@ export function SellerFunnel({
         setErrorMessage('Please select a property type.');
         return false;
       }
-      if (!ownerName.trim() || ownerName.trim().length < 2) {
-        setErrorMessage('Please provide your full name.');
-        return false;
-      }
-      const cleanPhone = ownerPhone.replace(/\D/g, '').slice(-10);
-      if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
-        setErrorMessage('Please enter a valid 10-digit mobile number.');
-        return false;
-      }
       return true;
     }
 
@@ -540,6 +542,15 @@ export function SellerFunnel({
     }
 
     if (stepNumber === 6) {
+      if (!ownerName.trim() || ownerName.trim().length < 2) {
+        setErrorMessage('Please enter your full name for listing verification.');
+        return false;
+      }
+      const cleanPhone = ownerPhone.replace(/\D/g, '').slice(-10);
+      if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
+        setErrorMessage('Please enter a valid 10-digit mobile number for OTP verification.');
+        return false;
+      }
       if (videoUrl.trim()) {
         const isSupportedHost = 
           videoUrl.includes('youtube.com') || 
@@ -656,8 +667,33 @@ export function SellerFunnel({
     })));
   };
 
-  // STEP 6: OTP & Final Submission Flow
-  const handleInitiateOtp = async () => {
+  // Google Sign-In for unauthenticated users (preserves drafted property specifications)
+  const handleGoogleSignIn = async () => {
+    try {
+      const supabase = await getBrowserSupabase();
+      if (!supabase) {
+        window.location.hash = '/login';
+        return;
+      }
+      const redirectUrl = `${window.location.origin}/auth/callback`;
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: redirectUrl,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'select_account',
+          },
+        },
+      });
+      if (error) throw error;
+    } catch (err: any) {
+      setErrorMessage(err.message || 'Google sign-in could not be initialized.');
+    }
+  };
+
+  // Submit Property directly for authenticated Google / Session users
+  const handleSubmitPropertyDirectly = async () => {
     setErrorMessage(null);
 
     if (!validateStep(5)) {
@@ -674,33 +710,117 @@ export function SellerFunnel({
       return;
     }
 
-    const cleanPhone = ownerPhone.replace(/\D/g, '').slice(-10);
+    if (!contactConsent) {
+      setErrorMessage('Please agree to communication and privacy consent.');
+      return;
+    }
 
-    setOtpLoading(true);
-    setOtpError(null);
+    if (!ownerName.trim() || ownerName.trim().length < 2) {
+      setErrorMessage('Please enter your full name for listing verification.');
+      return;
+    }
+
+    const cleanPhone = ownerPhone.replace(/\D/g, '').slice(-10);
+    if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
+      setErrorMessage('Please enter a valid 10-digit Indian callback number.');
+      return;
+    }
+
+    setIsSubmitting(true);
+    const normalizedPhone = `+91${cleanPhone}`;
+
+    const effPrice = intent === 'SELL'
+      ? parseInt(expectedPrice.replace(/\D/g, ''), 10)
+      : parseInt(monthlyRent.replace(/\D/g, ''), 10);
+
+    const payload = {
+      intent: intent.toLowerCase(),
+      listing_intent: intent,
+      propertyType: 'Residential',
+      subType,
+      locality: localityQuery.trim(),
+      subLocality: localityQuery.trim(),
+      societyName: societyQuery.trim(),
+      houseNo: houseNo.trim(),
+      wingTower: wingTower.trim() || 'Wing-A',
+      bedrooms: bhkType.includes('1') ? 1 : bhkType.includes('2.5') ? 2 : bhkType.includes('2') ? 2 : bhkType.includes('3.5') ? 3 : bhkType.includes('3') ? 3 : 4,
+      bathrooms,
+      balconies,
+      superBuiltUpSqft: typeof superBuiltUpSqft === 'number' ? superBuiltUpSqft : 1550,
+      carpetAreaSqft: typeof carpetAreaSqft === 'number' ? carpetAreaSqft : 1209,
+      furnishing,
+      floorNumber: typeof unitFloor === 'number' ? unitFloor : 1,
+      totalFloors: typeof totalFloors === 'number' ? totalFloors : 10,
+      facing,
+      propertyAge,
+      expectedPossessionDate: propertyAge === 'Under Construction' ? (expectedPossessionDate.trim() || null) : null,
+      hasCoveredParking,
+      parkingCount: hasCoveredParking ? parkingCount : 0,
+      photos: photos.map(p => p.url),
+      videoUrl: videoUrl.trim() || null,
+      expectedPrice: effPrice,
+      isNegotiable,
+      maintenanceCharges: parseInt(maintenanceCharges.replace(/\D/g, ''), 10) || 0,
+      bookingAmount: intent === 'SELL' ? (parseInt(bookingAmount.replace(/\D/g, ''), 10) || null) : null,
+      securityDeposit: intent === 'RENT' ? (parseInt(securityDeposit.replace(/\D/g, ''), 10) || null) : null,
+      preferredTenant: intent === 'RENT' ? preferredTenant : null,
+      rentalDuration: intent === 'RENT' ? (rentalDuration === 'Custom Duration' ? `${customDurationMonths} Months` : rentalDuration) : null,
+      moveInAvailability: intent === 'RENT' ? moveInAvailability : null,
+      moveInDate: intent === 'RENT' && moveInAvailability === 'Specific Date' ? moveInDate : null,
+      description: description.trim(),
+      ownerName: ownerName.trim(),
+      ownerPhone: normalizedPhone,
+      ownerEmail: ownerEmail.trim() || undefined,
+    };
 
     try {
-      const res = await fetch('/api/auth/otp/request', {
+      const propRes = await fetch('/api/properties', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: `+91${cleanPhone}` }),
+        credentials: 'include',
+        body: JSON.stringify(payload),
       });
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Unable to send OTP. Please check your mobile number.');
+      const propData = await propRes.json();
+      if (!propRes.ok || !propData.success) {
+        throw new Error(propData.error || 'Failed to submit property listing.');
       }
 
-      setOtpCooldown(data.cooldownSeconds || 60);
-      if (data.devOtp) {
-        setDevOtpHint(data.devOtp);
-      }
-      setShowOtpModal(true);
+      try {
+        localStorage.removeItem(DRAFT_STORAGE_KEY);
+        localStorage.setItem('sellmyghar_last_owner_phone', normalizedPhone);
+        if (ownerEmail && ownerEmail.trim()) {
+          localStorage.setItem('sellmyghar_last_owner_email', ownerEmail.trim().toLowerCase());
+        }
+      } catch {}
+
+      setServerReferenceId(propData.referenceId || `SMG-2026-${Math.floor(1000 + Math.random() * 9000)}`);
+      setCreatedPropertyId(propData.propertyId || propData.property?.id || '');
+      setSubmissionSuccess(true);
+      trackFunnelCompleted('SELLER_WIZARD', {
+        bhkType,
+        locality: localityQuery,
+        totalImages: photos.length,
+      });
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err: any) {
-      setErrorMessage(err.message || 'Error sending verification code. Please try again.');
+      setErrorMessage(err.message || 'Submission failed. Please try again.');
     } finally {
-      setOtpLoading(false);
+      setIsSubmitting(false);
     }
+  };
+
+  // STEP 6: OTP & Final Submission Flow
+  const handleInitiateOtp = async () => {
+    setErrorMessage(null);
+
+    if (authSession?.authenticated) {
+      await handleSubmitPropertyDirectly();
+      return;
+    }
+
+    setErrorMessage('Google sign-in is required to submit a property. Mobile SMS OTP is temporarily unavailable pending carrier registration.');
+    await handleGoogleSignIn();
   };
 
   const handleVerifyOtpAndSubmit = async () => {
@@ -721,6 +841,7 @@ export function SellerFunnel({
       const verifyRes = await fetch('/api/auth/otp/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({
           phone: normalizedPhone,
           otp: enteredOtp,
@@ -784,6 +905,7 @@ export function SellerFunnel({
       const propRes = await fetch('/api/properties', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(payload),
       });
 
@@ -794,6 +916,10 @@ export function SellerFunnel({
 
       try {
         localStorage.removeItem(DRAFT_STORAGE_KEY);
+        localStorage.setItem('sellmyghar_last_owner_phone', normalizedPhone);
+        if (ownerEmail && ownerEmail.trim()) {
+          localStorage.setItem('sellmyghar_last_owner_email', ownerEmail.trim().toLowerCase());
+        }
       } catch {}
 
       setServerReferenceId(propData.referenceId || `SMG-2026-${Math.floor(1000 + Math.random() * 9000)}`);
@@ -816,12 +942,12 @@ export function SellerFunnel({
 
   // STEP WIZARD METADATA (Reordered strictly per Section 3 specifications)
   const stepsMetadata = [
-    { number: 1, name: 'Contact & Type', icon: Building2 },
+    { number: 1, name: 'Type & Intent', icon: Building2 },
     { number: 2, name: 'Location & Society', icon: MapPin },
     { number: 3, name: 'Configuration & Status', icon: Layers },
     { number: 4, name: 'Area & Unit Details', icon: Layers },
     { number: 5, name: 'Commercial Terms', icon: IndianRupee },
-    { number: 6, name: 'Photos & Final Review', icon: Camera },
+    { number: 6, name: 'Contact & Verification', icon: Camera },
   ];
 
   // Telemetry: Track Step Progression
@@ -1284,70 +1410,6 @@ export function SellerFunnel({
                         </div>
                       </button>
                     ))}
-                  </div>
-                </div>
-
-                {/* Owner Contact Details Section (Collected upfront per Section 3) */}
-                <div className="pt-6 border-t border-slate-200 space-y-4">
-                  <div>
-                    <h3 className="text-sm font-bold text-[#172033] font-['Montserrat']">
-                      Owner Contact Details
-                    </h3>
-                    <p className="text-xs text-slate-500 mt-1">
-                      Our verified Bengaluru residential desk will connect directly with you. Your personal details are never shown on the public listing.
-                    </p>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-bold text-[#172033] uppercase tracking-wider mb-1.5">
-                        Your Full Name <span className="text-red-600">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="e.g. Rajesh Kumar"
-                        value={ownerName}
-                        onChange={(e) => setOwnerName(e.target.value)}
-                        className="w-full p-3.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#244B8F] bg-white"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-bold text-[#172033] uppercase tracking-wider mb-1.5">
-                        Mobile Number <span className="text-red-600">*</span>
-                      </label>
-                      <div className="relative">
-                        <span className="absolute left-4 top-3.5 text-sm font-bold text-slate-500">
-                          +91
-                        </span>
-                        <input
-                          type="tel"
-                          inputMode="tel"
-                          maxLength={10}
-                          placeholder="e.g. 9845012345"
-                          value={ownerPhone}
-                          onChange={(e) => setOwnerPhone(e.target.value.replace(/\D/g, ''))}
-                          className="w-full pl-14 pr-4 py-3.5 rounded-xl border border-slate-300 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#244B8F] bg-white tracking-wider"
-                        />
-                      </div>
-                      <p className="text-[11px] text-slate-500 mt-1.5 flex items-center space-x-1.5">
-                        <Lock className="w-3 h-3 text-slate-400 shrink-0" />
-                        <span>Used for listing verification and OTP authentication.</span>
-                      </p>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold text-[#172033] uppercase tracking-wider mb-1.5">
-                      Email Address <span className="text-slate-400 font-normal lowercase">(for listing receipt & diligence tracker)</span>
-                    </label>
-                    <input
-                      type="email"
-                      placeholder="e.g. rajesh.kumar@gmail.com"
-                      value={ownerEmail}
-                      onChange={(e) => setOwnerEmail(e.target.value)}
-                      className="w-full p-3.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#244B8F] bg-white"
-                    />
                   </div>
                 </div>
               </div>
@@ -2335,6 +2397,63 @@ export function SellerFunnel({
             {/* ======================================================== */}
             {currentStep === 6 && (
               <div className="space-y-8">
+                {/* 0. Seller Identity Status Banner */}
+                {authSession?.authenticated ? (
+                  <div className="p-4 bg-emerald-50/80 border border-emerald-200 rounded-2xl flex items-center justify-between shadow-2xs">
+                    <div className="flex items-center space-x-3.5">
+                      <div className="w-10 h-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-base shadow-xs">
+                        <CheckCircle2 className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-emerald-950 flex items-center space-x-2">
+                          <span>Verified Seller: {authSession.user?.name || 'Google User'}</span>
+                          <span className="text-[10px] bg-emerald-200/90 text-emerald-900 px-2 py-0.5 rounded-full font-semibold">
+                            Google Authenticated
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-emerald-800 font-mono mt-0.5">{authSession.user?.email}</div>
+                      </div>
+                    </div>
+                    <span className="hidden sm:inline-block text-xs font-semibold text-emerald-800 bg-emerald-100/70 px-3 py-1 rounded-full">
+                      Ready for Assisted Resale Listing
+                    </span>
+                  </div>
+                ) : (
+                  <div className="p-5 bg-amber-50/90 border border-amber-300 rounded-2xl space-y-3.5 shadow-2xs">
+                    <div className="flex items-start space-x-3">
+                      <div className="w-8 h-8 rounded-lg bg-amber-500 text-white flex items-center justify-center shrink-0 mt-0.5">
+                        <AlertTriangle className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-amber-950 font-['Montserrat']">
+                          Google Sign-In Required to List Property
+                        </h4>
+                        <p className="text-xs text-amber-900 mt-1 leading-relaxed">
+                          Mobile SMS OTP verification is temporarily unavailable while telecom carrier registration is being finalized. To list your property securely, please sign in with your Google account. Your drafted property specifications are safely preserved and will not be lost.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="pt-1 flex flex-wrap items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={handleGoogleSignIn}
+                        className="px-5 py-2.5 bg-white hover:bg-slate-50 border border-slate-300 text-slate-800 font-bold text-xs rounded-xl flex items-center space-x-2.5 shadow-xs transition-colors cursor-pointer"
+                      >
+                        <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                        </svg>
+                        <span>Sign In with Google</span>
+                      </button>
+                      <span className="text-[11px] text-amber-800 font-medium">
+                        One-click sign in • Instant access
+                      </span>
+                    </div>
+                  </div>
+                )}
+
                 {/* 1. Genuine Photo Upload Section */}
                 <div className="border border-slate-200 rounded-2xl p-5 sm:p-6 bg-white space-y-5">
                   <div className="flex items-center justify-between pb-3 border-b border-slate-200">
@@ -2556,15 +2675,15 @@ export function SellerFunnel({
                     </span>
                   </div>
 
-                  {/* Section 1: Contact & Type */}
+                  {/* Section 1: Property Type & Intent */}
                   <div className="flex items-start justify-between pb-3 border-b border-slate-200/70 text-xs">
                     <div>
-                      <span className="text-slate-400 font-medium block">1. Contact & Listing Type</span>
+                      <span className="text-slate-400 font-medium block">1. Property Type & Listing Intent</span>
                       <strong className="text-slate-800 text-sm font-bold block mt-0.5">
-                        {ownerName || 'Owner'} (+91 {ownerPhone})
+                        {subType}
                       </strong>
                       <span className="text-slate-500">
-                        {subType} • {intent === 'SELL' ? 'Resale Sale' : 'Rental'} {ownerEmail ? `• ${ownerEmail}` : ''}
+                        {intent === 'SELL' ? 'Resale (Full Ownership)' : 'Residential Tenancy (Rental)'}
                       </span>
                     </div>
                     <button
@@ -2669,7 +2788,71 @@ export function SellerFunnel({
                   </div>
                 </div>
 
-                {/* 3. Property Ownership & Verification Declaration */}
+                {/* 3. Owner Verification Contact Details (Collected in Final Step) */}
+                <div className="border border-slate-200 rounded-2xl p-5 sm:p-6 bg-white space-y-4 shadow-2xs">
+                  <div>
+                    <h3 className="text-sm font-bold text-[#172033] font-['Montserrat']">
+                      Owner Contact & Verification Details
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Our verified Bengaluru residential desk will connect directly with you to coordinate title review and buyer visits. Your contact details are strictly confidential and never displayed on public listings.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-[#172033] uppercase tracking-wider mb-1.5">
+                        Your Full Name <span className="text-red-600">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Rajesh Kumar"
+                        value={ownerName}
+                        onChange={(e) => setOwnerName(e.target.value)}
+                        className="w-full p-3.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#244B8F] bg-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-[#172033] uppercase tracking-wider mb-1.5">
+                        Contact Callback Phone Number <span className="text-red-600">*</span>
+                      </label>
+                      <div className="relative">
+                        <span className="absolute left-4 top-3.5 text-sm font-bold text-slate-500">
+                          +91
+                        </span>
+                        <input
+                          type="tel"
+                          inputMode="tel"
+                          maxLength={10}
+                          placeholder="e.g. 9845012345"
+                          value={ownerPhone}
+                          onChange={(e) => setOwnerPhone(e.target.value.replace(/\D/g, ''))}
+                          className="w-full pl-14 pr-4 py-3.5 rounded-xl border border-slate-300 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#244B8F] bg-white tracking-wider"
+                        />
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-1.5 flex items-center space-x-1.5">
+                        <Lock className="w-3 h-3 text-slate-400 shrink-0" />
+                        <span>Dedicated advisor callback contact number (not phone/OTP verified).</span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-[#172033] uppercase tracking-wider mb-1.5">
+                      Email Address <span className="text-slate-400 font-normal lowercase">(for listing confirmation receipt & diligence tracker)</span>
+                    </label>
+                    <input
+                      type="email"
+                      placeholder="e.g. rajesh.kumar@gmail.com"
+                      value={ownerEmail}
+                      onChange={(e) => setOwnerEmail(e.target.value)}
+                      className="w-full p-3.5 rounded-xl border border-slate-300 text-sm font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#244B8F] bg-white"
+                    />
+                  </div>
+                </div>
+
+                {/* 4. Property Ownership & Verification Declaration */}
                 <div className="border border-slate-200 rounded-2xl p-5 sm:p-6 bg-white space-y-4">
                   <div>
                     <h4 className="text-sm font-bold text-[#172033] font-['Montserrat']">
@@ -2816,24 +2999,38 @@ export function SellerFunnel({
                   <span>Continue to Step {currentStep + 1}</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
-              ) : (
+              ) : authSession?.authenticated ? (
                 <button
                   type="button"
-                  onClick={handleInitiateOtp}
-                  disabled={otpLoading || isSubmitting}
+                  onClick={handleSubmitPropertyDirectly}
+                  disabled={isSubmitting}
                   className="px-7 py-3.5 rounded-xl bg-[#244B8F] hover:bg-[#1B396E] text-white font-bold text-sm flex items-center space-x-2 shadow-sm transition-all cursor-pointer disabled:opacity-50"
                 >
-                  {otpLoading || isSubmitting ? (
+                  {isSubmitting ? (
                     <>
                       <RefreshCw className="w-4 h-4 animate-spin" />
-                      <span>Processing...</span>
+                      <span>Submitting Property...</span>
                     </>
                   ) : (
                     <>
-                      <span>Verify & Submit Property</span>
+                      <span>Submit Property Listing</span>
                       <ArrowRight className="w-4 h-4" />
                     </>
                   )}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleGoogleSignIn}
+                  className="px-7 py-3.5 rounded-xl bg-[#244B8F] hover:bg-[#1B396E] text-white font-bold text-sm flex items-center space-x-2.5 shadow-sm transition-all cursor-pointer"
+                >
+                  <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+                  </svg>
+                  <span>Sign In with Google to Submit</span>
                 </button>
               )}
             </div>

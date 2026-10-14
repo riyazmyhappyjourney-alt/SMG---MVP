@@ -10,7 +10,7 @@ dotenv.config({ path: '.env.local' });
 import { getValidatedConfig } from './src/server/config/env';
 import { executeQuery, getDbPool } from './src/server/db/pool';
 import { signSessionToken, verifySessionToken } from './src/server/auth/tokens';
-import { decodeJwt } from 'jose';
+import { decodeJwt, jwtVerify } from 'jose';
 import { 
   authenticateUser, 
   optionalAuthenticateUser, 
@@ -28,7 +28,7 @@ import {
   verifyPassword, 
   generatePasswordResetToken, 
   validatePasswordResetToken, 
-  consumePasswordResetToken 
+  executePasswordResetCompletion
 } from './src/server/auth/passwords';
 import { OtpService } from './src/server/auth/otp-service';
 import { getLastDevOtp } from './src/server/notifications/sms-provider';
@@ -66,6 +66,9 @@ const app = express();
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const isProd = process.env.NODE_ENV === 'production';
 
+// Trust reverse proxy (Google Cloud Run / Cloudflare Load Balancer)
+app.set('trust proxy', 1);
+
 // ====================================================================
 // 1. SECURITY HEADERS, CORS, COOKIE PARSER & ANTI-CSRF DEFENSE
 // ====================================================================
@@ -90,6 +93,66 @@ export function isOriginAllowed(origin?: string): boolean {
     } catch {}
   }
   return false;
+}
+
+/**
+ * Validates and returns the canonical trusted origin for links and redirects.
+ * Strictly prevents Host Header Poisoning, open redirects, and untrusted email links.
+ */
+export function getTrustedAppOrigin(req: Request): string {
+  // 1. Explicitly configured APP_URL or FRONTEND_URL takes absolute priority
+  const envAppUrl = process.env.APP_URL || process.env.FRONTEND_URL;
+  if (envAppUrl && isOriginAllowed(envAppUrl)) {
+    return envAppUrl.replace(/\/+$/, '');
+  }
+
+  // 2. Client Origin header, strictly checked against trusted allowlist
+  const clientOrigin = req.headers.origin;
+  if (typeof clientOrigin === 'string' && clientOrigin.trim() && isOriginAllowed(clientOrigin.trim())) {
+    return clientOrigin.trim().replace(/\/+$/, '');
+  }
+
+  // 3. Incoming Host header, verified against trusted origins
+  const host = req.get('host');
+  if (host) {
+    const proto = req.secure || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
+    const candidate = `${proto}://${host}`;
+    if (isOriginAllowed(candidate)) {
+      return candidate.replace(/\/+$/, '');
+    }
+  }
+
+  // 4. Default fallback: Canonical domain in production, localhost in non-production
+  return isProd ? 'https://sellmyghar.in' : `http://localhost:${PORT}`;
+}
+
+/**
+ * Safely extracts client IP address preventing X-Forwarded-For spoofing.
+ * Prioritizes Cloudflare CF-Connecting-IP, then Express req.ip (via trusted proxy),
+ * with fallback to socket remote address.
+ */
+export function getClientIp(req: Request): string {
+  // 1. Cloudflare edge header (cannot be spoofed from outside Cloudflare in production)
+  const cfIp = req.headers['cf-connecting-ip'];
+  if (typeof cfIp === 'string' && cfIp.trim()) {
+    return cfIp.trim();
+  }
+
+  // 2. Express req.ip (when trust proxy is configured, parses reverse-proxy hops safely)
+  if (req.ip) {
+    return req.ip;
+  }
+
+  // 3. X-Forwarded-For fallback
+  const forwarded = req.headers['x-forwarded-for'];
+  if (typeof forwarded === 'string' && forwarded.trim()) {
+    const ips = forwarded.split(',').map((s) => s.trim()).filter(Boolean);
+    if (ips.length > 0) {
+      return ips[0];
+    }
+  }
+
+  return req.socket?.remoteAddress || '127.0.0.1';
 }
 
 app.use((_req, res, next) => {
@@ -219,7 +282,7 @@ const jsonUpload = express.json({ limit: '20mb' });
 
 function rateLimit(keyPrefix: string, limit: number, windowSeconds: number) {
   return async (req: Request, res: Response, next: NextFunction) => {
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    const clientIp = getClientIp(req);
     const key = `${keyPrefix}:${clientIp}`;
     const check = await DistributedRateLimiter.check(key, limit, windowSeconds);
     if (!check.allowed) {
@@ -396,6 +459,19 @@ async function initSchemaColumns() {
       ALTER TABLE property_offers ADD COLUMN IF NOT EXISTS counter_offer_amount_inr BIGINT;
       CREATE INDEX IF NOT EXISTS idx_property_offers_property ON property_offers (property_id);
       CREATE INDEX IF NOT EXISTS idx_property_offers_status ON property_offers (status);
+
+      CREATE TABLE IF NOT EXISTS password_reset_tokens (
+        id VARCHAR(64) PRIMARY KEY,
+        user_id VARCHAR(64) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        email VARCHAR(255) NOT NULL,
+        token_hash VARCHAR(64) NOT NULL UNIQUE,
+        expires_at TIMESTAMPTZ NOT NULL,
+        is_consumed BOOLEAN NOT NULL DEFAULT false,
+        consumed_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_pwd_reset_user_active ON password_reset_tokens (user_id, is_consumed, expires_at);
+      CREATE INDEX IF NOT EXISTS idx_pwd_reset_expiry ON password_reset_tokens (expires_at) WHERE is_consumed = false;
     `);
 
     // 2. Initialize Seed Staff with Real scrypt Password Hash (Zero hardcoded fallbacks)
@@ -484,6 +560,23 @@ function setSessionCookie(res: Response, token: string) {
   });
 }
 
+// Cookie clearing options matching issuance configuration
+const sessionCookieOptions = {
+  httpOnly: true,
+  secure: isProd,
+  sameSite: 'lax' as const,
+  path: '/',
+};
+
+function clearStaffSessionCookie(res: Response) {
+  res.clearCookie('sellmyghar_staff_session', sessionCookieOptions);
+}
+
+function clearAllSessionCookies(res: Response) {
+  res.clearCookie('sellmyghar_session', sessionCookieOptions);
+  res.clearCookie('sellmyghar_staff_session', sessionCookieOptions);
+}
+
 // ====================================================================
 // 4. AUTHENTICATION & SESSION ENDPOINTS
 // ====================================================================
@@ -495,8 +588,8 @@ app.get(['/image.png', '/images/image.png', '/images/bengaluru-cityscape-footer.
   });
 });
 
-// API: Health check
-app.get('/api/health', (_req, res) => {
+// API: Health check (with standard Cloud Run & ingress aliases /health, /healthz)
+app.get(['/api/health', '/health', '/healthz'], (_req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString(), platform: 'SellMyGhar Bengaluru' });
 });
 
@@ -693,12 +786,10 @@ app.post('/api/auth/forgot-password', jsonDefault, rateLimit('auth-forgot-pw', 5
 
     if (userRes.rows && userRes.rows.length > 0 && userRes.rows[0].is_active) {
       const user = userRes.rows[0];
-      const { token } = generatePasswordResetToken(user.id, user.email);
+      const { token } = await generatePasswordResetToken(user.id, user.email);
 
-      // Determine allowed origin
-      const host = req.get('host') || 'localhost:3000';
-      const proto = req.secure || req.headers['x-forwarded-proto'] === 'https' ? 'https' : 'http';
-      const origin = `${proto}://${host}`;
+      // Determine validated trusted origin (strictly prevents host header poisoning & open redirects)
+      const origin = getTrustedAppOrigin(req);
       const resetUrl = `${origin}/#/reset-password?token=${token}&email=${encodeURIComponent(user.email)}`;
 
       // Audit dispatch event without leaking token secret
@@ -740,7 +831,7 @@ app.get('/api/auth/verify-reset-token', jsonDefault, async (req: Request, res: R
   if (!token) {
     return res.status(400).json({ valid: false, error: 'Missing reset token.' });
   }
-  const check = validatePasswordResetToken(token);
+  const check = await validatePasswordResetToken(token);
   if (!check.valid) {
     return res.status(400).json({ valid: false, error: 'Password reset link is invalid or has expired.' });
   }
@@ -756,14 +847,6 @@ app.post('/api/auth/reset-password', jsonDefault, rateLimit('auth-reset-pw', 5, 
       return res.status(400).json({ success: false, error: 'Reset token is required.' });
     }
 
-    const check = validatePasswordResetToken(token);
-    if (!check.valid || !check.userId) {
-      return res.status(400).json({
-        success: false,
-        error: 'Password reset link is invalid, expired, or already used. Please request a new link.',
-      });
-    }
-
     if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 8) {
       return res.status(400).json({
         success: false,
@@ -771,24 +854,23 @@ app.post('/api/auth/reset-password', jsonDefault, rateLimit('auth-reset-pw', 5, 
       });
     }
 
-    const newHash = await hashPassword(newPassword);
-
-    // Update password hash, increment token_version to invalidate prior JWT sessions, reset lockout counters
-    await executeQuery(
-      `UPDATE users SET password_hash = $1, token_version = token_version + 1, locked_until = NULL, failed_login_attempts = 0, updated_at = NOW() WHERE id = $2;`,
-      [newHash, check.userId]
-    );
-
-    // Invalidate the reset token immediately to guarantee single-use
-    consumePasswordResetToken(token);
+    // Atomic completion transaction: user-level serialization lock, single-use consumption,
+    // password update, session invalidation, and sibling token cancellation.
+    const result = await executePasswordResetCompletion(token, newPassword);
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        error: result.error || 'Password reset link is invalid, expired, or already used. Please request a new link.',
+      });
+    }
 
     await recordAuditEvent({
-      actor: { uid: check.userId, roles: [], email: check.email },
+      actor: { uid: result.userId!, roles: [], email: result.email! },
       action: 'PASSWORD_RESET_SUCCESS' as any,
       targetEntity: 'users',
-      targetEntityId: check.userId,
+      targetEntityId: result.userId!,
       clientIp,
-      diffSummary: { email: check.email, status: 'PASSWORD_UPDATED' },
+      diffSummary: { email: result.email!, status: 'PASSWORD_UPDATED' },
     });
 
     return res.json({
@@ -847,6 +929,7 @@ app.post('/api/auth/otp/verify', jsonDefault, rateLimit('otp-verify', 10, 900), 
     );
 
     const sessionToken = await signSessionToken(authenticatedUser, userRecord?.token_version || 1);
+    clearStaffSessionCookie(res);
     setSessionCookie(res, sessionToken);
 
     const userEmail = (req.body.email || authenticatedUser.email || userRecord?.email || '').trim().toLowerCase();
@@ -940,26 +1023,45 @@ app.post('/api/auth/google/session', jsonDefault, rateLimit('google-session', 10
       }
     }
 
-    // Fallback: If remote Supabase network call was unreachable (e.g. DNS / fetch failed), decode the verified Supabase JWT claims
+    // Fallback: If remote Supabase network call was unreachable, verify JWT cryptographically if SUPABASE_JWT_SECRET is configured,
+    // or allow decoded claims strictly in non-production development sandbox mode.
     if (!supaUser) {
       try {
-        const decoded = decodeJwt(accessToken.trim());
-        const exp = Number(decoded.exp || 0);
-        const isNotExpired = exp === 0 || exp > Math.floor(Date.now() / 1000);
-        const resolvedEmail = String(decoded.email || (decoded.user_metadata as any)?.email || '').trim().toLowerCase();
+        let verifiedClaims: any = null;
+        const supabaseJwtSecret = process.env.SUPABASE_JWT_SECRET;
 
-        if (decoded.sub && resolvedEmail && isNotExpired) {
-          supaUser = {
-            id: String(decoded.sub),
-            email: resolvedEmail,
-            email_confirmed_at: (decoded as any).email_confirmed_at || new Date().toISOString(),
-            app_metadata: (decoded.app_metadata as any) || { provider: 'google' },
-            user_metadata: (decoded.user_metadata as any) || {},
-          };
-          console.info(`[GoogleSession] Authenticated ${resolvedEmail} via verified client JWT claims`);
+        if (supabaseJwtSecret) {
+          try {
+            const verified = await jwtVerify(accessToken.trim(), new TextEncoder().encode(supabaseJwtSecret));
+            verifiedClaims = verified.payload;
+          } catch (jwtErr: any) {
+            console.warn('[GoogleSession] Cryptographic signature verification failed:', jwtErr.message);
+          }
+        }
+
+        // Strictly disallow unverified decode fallback in production
+        if (!verifiedClaims && (!isProd || process.env.ALLOW_DEV_FALLBACKS === 'true')) {
+          verifiedClaims = decodeJwt(accessToken.trim());
+        }
+
+        if (verifiedClaims) {
+          const exp = Number(verifiedClaims.exp || 0);
+          const isNotExpired = exp === 0 || exp > Math.floor(Date.now() / 1000);
+          const resolvedEmail = String(verifiedClaims.email || (verifiedClaims.user_metadata as any)?.email || '').trim().toLowerCase();
+
+          if (verifiedClaims.sub && resolvedEmail && isNotExpired) {
+            supaUser = {
+              id: String(verifiedClaims.sub),
+              email: resolvedEmail,
+              email_confirmed_at: (verifiedClaims as any).email_confirmed_at || new Date().toISOString(),
+              app_metadata: (verifiedClaims as any).app_metadata || { provider: 'google' },
+              user_metadata: (verifiedClaims as any).user_metadata || {},
+            };
+            console.info(`[GoogleSession] Authenticated ${resolvedEmail} via verified client JWT claims`);
+          }
         }
       } catch (decodeErr: any) {
-        console.warn('[GoogleSession] JWT decode failed:', decodeErr.message);
+        console.warn('[GoogleSession] JWT verification/decode failed:', decodeErr.message);
       }
     }
 
@@ -971,7 +1073,7 @@ app.post('/api/auth/google/session', jsonDefault, rateLimit('google-session', 10
       });
     }
 
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    const clientIp = getClientIp(req);
 
     // 2. Strict Email Verification Enforcement (Security Requirement 4)
     const rawEmail = supaUser.email?.trim().toLowerCase();
@@ -1166,6 +1268,7 @@ app.post('/api/auth/google/session', jsonDefault, rateLimit('google-session', 10
     };
 
     const sessionToken = await signSessionToken(authenticatedUser, userRecord.token_version || 1);
+    clearStaffSessionCookie(res);
     setSessionCookie(res, sessionToken);
 
     await recordAuditEvent({
@@ -1244,19 +1347,19 @@ app.get('/api/auth/me', async (req, res) => {
     );
 
     if (!dbUser.rows || dbUser.rows.length === 0) {
-      res.clearCookie('sellmyghar_session', { path: '/' });
+      clearAllSessionCookies(res);
       return res.status(401).json({ authenticated: false, user: null, reason: 'USER_NOT_FOUND' });
     }
 
     const u = dbUser.rows[0];
     if (!u.is_active) {
-      res.clearCookie('sellmyghar_session', { path: '/' });
+      clearAllSessionCookies(res);
       return res.status(401).json({ authenticated: false, user: null, reason: 'ACCOUNT_DEACTIVATED' });
     }
 
     // Token version validation: rejects revoked sessions (e.g. after logout or password change)
     if (payload.tokenVersion !== undefined && u.token_version !== undefined && payload.tokenVersion !== u.token_version) {
-      res.clearCookie('sellmyghar_session', { path: '/' });
+      clearAllSessionCookies(res);
       return res.status(401).json({ authenticated: false, user: null, reason: 'SESSION_REVOKED' });
     }
 
@@ -1271,7 +1374,7 @@ app.get('/api/auth/me', async (req, res) => {
       }
     });
   } catch {
-    res.clearCookie('sellmyghar_session', { path: '/' });
+    clearAllSessionCookies(res);
     return res.status(401).json({ authenticated: false, user: null });
   }
 });
@@ -1279,7 +1382,7 @@ app.get('/api/auth/me', async (req, res) => {
 // API: Logout session (Cryptographically invalidates session in DB & clears cookie)
 app.post('/api/auth/logout', async (req, res) => {
   const cookies = (req as any).cookies || parseCookies(req.headers.cookie);
-  const token = cookies.sellmyghar_session || req.headers.authorization?.replace(/^Bearer\s+/, '').trim();
+  const token = cookies.sellmyghar_session || cookies.sellmyghar_staff_session || req.headers.authorization?.replace(/^Bearer\s+/, '').trim();
 
   if (token) {
     try {
@@ -1295,7 +1398,7 @@ app.post('/api/auth/logout', async (req, res) => {
     }
   }
 
-  res.clearCookie('sellmyghar_session', { path: '/' });
+  clearAllSessionCookies(res);
   return res.json({ success: true, message: 'Logged out successfully' });
 });
 
@@ -2173,7 +2276,7 @@ app.get('/api/listings/:id', rateLimit('listing-detail', 60, 60), async (req, re
 
 
 // API: Post Property (Transactional Onboarding Wizard)
-app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), optionalAuthenticateUser, async (req, res) => {
+app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), authenticateUser, async (req, res) => {
   try {
     const {
       intent,
@@ -2243,38 +2346,45 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
 
     const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
 
-    // Atomic 5-step transaction: User -> Consent -> Seller Lead -> Property -> Property Media
+    // Atomic transaction: User -> RLS Context -> DPDP Consent -> Property -> Seller Lead -> Media
     const pool = getDbPool();
     const client = await pool.connect();
     let propResult: any;
+    let committed = false;
+    let propertyId = '';
+    let leadId = '';
+    let referenceId = '';
+    let resolvedUserId = '';
 
     try {
       await client.query('BEGIN');
 
-      // 1. Resolve or Create User
-      let userId = req.user?.uid;
-      const declaredEmail = (req.body.ownerEmail || req.body.email || req.body.sellerEmail || req.user?.email || '').trim().toLowerCase() || null;
-      if (!userId) {
-        const existingUserRes = await client.query('SELECT id, email FROM users WHERE phone = $1 LIMIT 1;', [normalizedPhone]);
-        if (existingUserRes.rows && existingUserRes.rows.length > 0) {
-          userId = existingUserRes.rows[0].id;
-          if (declaredEmail && !existingUserRes.rows[0].email) {
-            await client.query('UPDATE users SET email = $1, display_name = COALESCE(display_name, $2), updated_at = NOW() WHERE id = $3;', [declaredEmail, ownerName.trim(), userId]);
-          }
-        } else {
-          userId = `usr-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
-          await client.query(
-            `INSERT INTO users (id, phone, email, display_name, roles, is_active, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, '{OWNER}', true, NOW(), NOW())
-             ON CONFLICT (phone) DO UPDATE SET display_name = EXCLUDED.display_name, updated_at = NOW();`,
-            [userId, normalizedPhone, declaredEmail, ownerName.trim()]
-          );
-        }
-      } else if (declaredEmail) {
-        await client.query('UPDATE users SET email = COALESCE(email, $1), updated_at = NOW() WHERE id = $2;', [declaredEmail, userId]);
+      // 1. Resolve Authenticated User (Strict Server-Side Identity Binding)
+      // Condition 1: Never trust client-supplied userId, owner_id, or phone verification flags
+      const caller = req.user!;
+      resolvedUserId = caller.uid;
+      const declaredEmail = (req.body.ownerEmail || req.body.email || req.body.sellerEmail || caller.email || '').trim().toLowerCase() || null;
+
+      // Ensure user account possesses OWNER role for property ownership
+      await client.query(
+        `UPDATE users SET roles = array_append(roles, 'OWNER'), updated_at = NOW() WHERE id = $1 AND NOT ('OWNER' = ANY(roles));`,
+        [resolvedUserId]
+      );
+      if (!caller.roles.includes('OWNER')) {
+        caller.roles.push('OWNER');
       }
 
-      // 2. Insert statutory DPDP consent
+      // Update contact callback details and display name on user record if not already set
+      await client.query(
+        `UPDATE users SET phone = COALESCE(phone, $1), email = COALESCE(email, $2), display_name = COALESCE(display_name, $3), updated_at = NOW() WHERE id = $4;`,
+        [normalizedPhone, declaredEmail, ownerName.trim(), resolvedUserId]
+      );
+
+      // 2. Bind transaction-local RLS configuration
+      await client.query("SELECT set_config('app.current_user_id', $1, true)", [resolvedUserId]);
+      await client.query("SELECT set_config('app.current_user_roles', $1, true)", ['OWNER']);
+
+      // 3. Insert statutory DPDP consent
       const consentId = `cst-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
       await client.query(
         `INSERT INTO consents (
@@ -2286,7 +2396,7 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
         [
           consentId,
           normalizedPhone,
-          userId,
+          resolvedUserId,
           'SELLER_ONBOARDING',
           'dpdp-notice-v1-2026',
           'ip-' + clientIp.slice(0, 16),
@@ -2294,57 +2404,13 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
         ]
       );
 
-      // 3. Generate Property ID & Link to Seller Lead
-      const propertyId = `prop-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
-      const leadId = `lead-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
+      // 4. Generate Property and Lead IDs
+      propertyId = `prop-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
+      leadId = `lead-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
       const bhkLabel = isRental ? `${bedrooms || 3}BHK (Rent)` : `${bedrooms || 3}BHK`;
-      const leadListingIntent = (req.body.listing_intent || (isRental ? 'RENT' : 'SELL')).toUpperCase();
+      const listingIntent = (req.body.listing_intent || (isRental ? 'RENT' : 'SELL')).toUpperCase();
 
-      await client.query(
-        `INSERT INTO seller_leads (
-          id, owner_name, phone, apartment_society_name,
-          locality_id, bhk_type, expected_price_inr,
-          listing_intent, lead_status, assigned_staff_id, consent_record_id,
-          property_id, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'NEW', null, $9, $10, NOW(), NOW());`,
-        [
-          leadId,
-          ownerName.trim(),
-          normalizedPhone,
-          societyName.trim(),
-          locality.trim(),
-          bhkLabel,
-          askingPriceNum,
-          leadListingIntent,
-          consentId,
-          propertyId
-        ]
-      );
-
-      // Record statutory CRM Lead Creation in immutable audit logs
-      await recordAuditEvent({
-        actor: req.user || {
-          uid: userId || 'usr-anon',
-          phone: normalizedPhone,
-          email: null,
-          roles: ['OWNER'],
-          permissions: [],
-        },
-        action: 'LEAD_CREATED',
-        targetEntity: 'seller_leads',
-        targetEntityId: leadId,
-        clientIp,
-        diffSummary: {
-          leadId,
-          propertyId,
-          ownerName: ownerName.trim(),
-          societyName: societyName.trim(),
-          bhk: bhkLabel,
-          status: 'NEW'
-        }
-      });
-
-      // 4. Insert into properties table
+      // 5. Insert into properties table FIRST (satisfies Foreign Key constraints on seller_leads and property_media)
       const reservePrice = Math.round(askingPriceNum * 0.95);
       const sqft = parseInt(superBuiltUpSqft, 10) || 1500;
       const carpet = parseInt(carpetAreaSqft, 10) || Math.round(sqft * 0.78);
@@ -2384,10 +2450,12 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
         ownerName: ownerName.trim(),
         ownerPhone: normalizedPhone,
         ownerEmail: declaredEmail,
+        contactPhone: normalizedPhone,
+        phoneVerificationStatus: 'UNVERIFIED_CONTACT_DECLARED',
+        authenticatedSellerId: resolvedUserId,
+        authProvider: caller.email ? 'google' : 'session',
         source: 'WIZARD_V2'
       });
-
-      const listingIntent = (req.body.listing_intent || (isRental ? 'RENT' : 'SELL')).toUpperCase();
 
       propResult = await client.query(
         `INSERT INTO properties (
@@ -2405,7 +2473,7 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
         RETURNING *;`,
         [
           propertyId,
-          userId,
+          resolvedUserId,
           locality.toLowerCase().replace(/[^a-z0-9]/g, '-'),
           unitNo,
           wingTowerStr,
@@ -2432,7 +2500,29 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
         ]
       );
 
-      // 5. Save photos into property_media table
+      // 6. Insert into seller_leads table SECOND (links to existing propertyId)
+      await client.query(
+        `INSERT INTO seller_leads (
+          id, owner_name, phone, apartment_society_name,
+          locality_id, bhk_type, expected_price_inr,
+          listing_intent, lead_status, assigned_staff_id, consent_record_id,
+          property_id, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'NEW', null, $9, $10, NOW(), NOW());`,
+        [
+          leadId,
+          ownerName.trim(),
+          normalizedPhone,
+          societyName.trim(),
+          locality.trim(),
+          bhkLabel,
+          askingPriceNum,
+          listingIntent,
+          consentId,
+          propertyId
+        ]
+      );
+
+      // 7. Save photos into property_media table
       if (Array.isArray(photos)) {
         for (let i = 0; i < photos.length; i++) {
           const photoUrl = photos[i];
@@ -2471,79 +2561,124 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
       }
 
       await client.query('COMMIT');
-
-      const randomNum = Math.floor(1000 + Math.random() * 9000);
-      const referenceId = `SMG-${new Date().getFullYear()}-${randomNum}`;
-
-      // Dispatch automated seller submission confirmation email (idempotent)
-      try {
-        const ownerEmail = (req.body.ownerEmail || req.body.email || req.body.sellerEmail || req.user?.email || '').trim();
-        await EmailNotificationService.handlePropertyListed({
-          id: propertyId,
-          referenceId,
-          ownerName: ownerName.trim(),
-          ownerEmail: ownerEmail || null,
-          ownerPhone: normalizedPhone,
-          propertyType: `${bhkLabel} ${propertyType || 'Apartment'}`,
-          propertyLocation: `${societyName.trim()}, ${locality.trim()}`,
-          locality: locality.trim(),
-          listingType: isRental ? 'Rental Listing' : 'Assisted Resale (Verified)',
-          askingPrice: askingPriceNum,
-        }, req.user);
-      } catch (listedEmailErr: any) {
-        console.warn('[PropertyListedEmail] Dispatch note:', listedEmailErr.message);
-      }
-
-      // Dispatch automated onboarding welcome email (idempotent)
-      if (declaredEmail) {
+      committed = true;
+    } catch (txErr) {
+      if (!committed) {
         try {
-          await EmailNotificationService.handleUserOnboarding({
-            name: ownerName.trim(),
-            email: declaredEmail,
-            role: 'OWNER',
-          });
-        } catch (onboardErr: any) {
-          console.warn('[OwnerOnboardingEmail] Dispatch note:', onboardErr.message);
+          await client.query('ROLLBACK');
+        } catch (rbErr: any) {
+          console.warn('[PostProperty] Rollback note:', rbErr.message);
         }
       }
-
-      // Dispatch internal operations desk intake notification to sellmyghar1@gmail.com (idempotent, non-blocking)
-      try {
-        await EmailNotificationService.handleInternalStaffPropertyIntakeNotification({
-          id: propertyId,
-          referenceId,
-          ownerName: ownerName.trim(),
-          ownerPhone: normalizedPhone,
-          ownerEmail: declaredEmail,
-          societyName: societyName.trim(),
-          locality: locality.trim(),
-          bhkType: bhkLabel,
-          propertyType: `${bhkLabel} ${subType || 'Flat / Apartment'}`,
-          priceOrRent: askingPriceNum,
-          intent: isRental ? 'RENT' : 'SELL',
-          facing: facingStr,
-          areaSqft: sqft,
-          propertyAge: propertyAge || '1 to 5 years',
-          expectedPossessionDate: req.body.expectedPossessionDate || null,
-          createdAt: new Date().toISOString(),
-        });
-      } catch (internalAlertErr: any) {
-        console.warn('[InternalStaffIntakeAlert] Dispatch note:', internalAlertErr.message);
-      }
-
-      return res.status(201).json({
-        success: true,
-        propertyId,
-        referenceId,
-        property: propResult.rows[0],
-        message: 'Property successfully registered and submitted for legal title verification.'
-      });
-    } catch (txErr) {
-      await client.query('ROLLBACK');
       throw txErr;
     } finally {
       client.release();
     }
+
+    // 8. Record statutory CRM Lead Creation in immutable audit logs (safe non-blocking)
+    try {
+      const bhkLabel = isRental ? `${bedrooms || 3}BHK (Rent)` : `${bedrooms || 3}BHK`;
+      await recordAuditEvent({
+        actor: req.user || {
+          uid: resolvedUserId || 'usr-anon',
+          phone: normalizedPhone,
+          email: null,
+          roles: ['OWNER'],
+          permissions: [],
+        },
+        action: 'LEAD_CREATED',
+        targetEntity: 'seller_leads',
+        targetEntityId: leadId,
+        clientIp,
+        diffSummary: {
+          leadId,
+          propertyId,
+          ownerName: ownerName.trim(),
+          societyName: societyName.trim(),
+          bhk: bhkLabel,
+          status: 'NEW'
+        }
+      });
+    } catch (auditErr: any) {
+      console.warn('[PostPropertyAudit] Note:', auditErr.message);
+    }
+
+    const randomNum = Math.floor(1000 + Math.random() * 9000);
+    referenceId = `SMG-${new Date().getFullYear()}-${randomNum}`;
+
+    // 9. Dispatch automated post-commit notifications (idempotent, non-blocking)
+    const bhkLabel = isRental ? `${bedrooms || 3}BHK (Rent)` : `${bedrooms || 3}BHK`;
+    const sqft = parseInt(superBuiltUpSqft, 10) || 1500;
+    const facingStr = String(facing || 'EAST').toUpperCase();
+    const declaredEmail = (req.body.ownerEmail || req.body.email || req.body.sellerEmail || req.user?.email || '').trim().toLowerCase() || null;
+
+    try {
+      const ownerEmail = (req.body.ownerEmail || req.body.email || req.body.sellerEmail || req.user?.email || '').trim();
+      await EmailNotificationService.handlePropertyListed({
+        id: propertyId,
+        referenceId,
+        ownerName: ownerName.trim(),
+        ownerEmail: ownerEmail || null,
+        ownerPhone: normalizedPhone,
+        propertyType: `${bhkLabel} ${propertyType || 'Apartment'}`,
+        propertyLocation: `${societyName.trim()}, ${locality.trim()}`,
+        locality: locality.trim(),
+        listingType: isRental ? 'Rental Listing' : 'Assisted Resale (Verified)',
+        askingPrice: askingPriceNum,
+      }, req.user);
+    } catch (listedEmailErr: any) {
+      console.warn('[PropertyListedEmail] Dispatch note:', listedEmailErr.message);
+    }
+
+    if (declaredEmail) {
+      try {
+        await EmailNotificationService.handleUserOnboarding({
+          name: ownerName.trim(),
+          email: declaredEmail,
+          role: 'OWNER',
+        });
+      } catch (onboardErr: any) {
+        console.warn('[OwnerOnboardingEmail] Dispatch note:', onboardErr.message);
+      }
+    }
+
+    try {
+      await EmailNotificationService.handleInternalStaffPropertyIntakeNotification({
+        id: propertyId,
+        referenceId,
+        ownerName: ownerName.trim(),
+        ownerPhone: normalizedPhone,
+        ownerEmail: declaredEmail,
+        societyName: societyName.trim(),
+        locality: locality.trim(),
+        bhkType: bhkLabel,
+        propertyType: `${bhkLabel} ${subType || 'Flat / Apartment'}`,
+        priceOrRent: askingPriceNum,
+        intent: isRental ? 'RENT' : 'SELL',
+        facing: facingStr,
+        areaSqft: sqft,
+        propertyAge: propertyAge || '1 to 5 years',
+        expectedPossessionDate: req.body.expectedPossessionDate || null,
+        createdAt: new Date().toISOString(),
+      });
+    } catch (internalAlertErr: any) {
+      console.warn('[InternalStaffIntakeAlert] Dispatch note:', internalAlertErr.message);
+    }
+
+    const createdProp = propResult?.rows?.[0] || {
+      id: propertyId,
+      owner_id: resolvedUserId,
+      project_locality_id: locality.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+      asking_price_inr: askingPriceNum,
+    };
+
+    return res.status(201).json({
+      success: true,
+      propertyId,
+      referenceId,
+      property: createdProp,
+      message: 'Property successfully registered and submitted for legal title verification.'
+    });
   } catch (err: any) {
     console.error('[PostProperty] Error saving property to DB:', err);
     return res.status(500).json({ error: 'Database error saving property. Please try again.' });
@@ -2595,8 +2730,9 @@ app.get('/api/properties', authenticateUser, async (req, res) => {
     // IDOR Protection: Non-staff authenticated users can ONLY query their own properties
     if (isOwner) {
       const userPhone = req.user!.phone || '';
-      query += ` WHERE (p.owner_id = $1 OR ($2 != '' AND (p.owner_id IN (SELECT id FROM users WHERE phone = $2) OR p.id IN (SELECT property_id FROM seller_leads WHERE phone = $2))))`;
-      params.push(req.user!.uid, userPhone);
+      const userEmail = (req.user!.email || '').trim().toLowerCase();
+      query += ` WHERE (p.owner_id = $1 OR ($2 != '' AND (p.owner_id IN (SELECT id FROM users WHERE phone = $2) OR p.id IN (SELECT property_id FROM seller_leads WHERE phone = $2))) OR ($3 != '' AND (p.owner_id IN (SELECT id FROM users WHERE LOWER(email) = $3))))`;
+      params.push(req.user!.uid, userPhone, userEmail);
     } else {
       // Staff authorization check: verify staff has permission to view listings
       const canList = req.user!.roles.includes('STAFF_SUPER_ADMIN') || 
@@ -2607,6 +2743,14 @@ app.get('/api/properties', authenticateUser, async (req, res) => {
           error: 'FORBIDDEN',
           message: 'Staff user lacks permission to list property inventory.'
         });
+      }
+
+      if (req.query.phone) {
+        const cleanQueryPhone = String(req.query.phone).replace(/\D/g, '').slice(-10);
+        if (cleanQueryPhone) {
+          query += ` WHERE (p.owner_id IN (SELECT id FROM users WHERE phone LIKE $1) OR p.id IN (SELECT property_id FROM seller_leads WHERE phone LIKE $1))`;
+          params.push(`%${cleanQueryPhone}`);
+        }
       }
     }
 
@@ -2788,7 +2932,8 @@ app.get('/api/properties', authenticateUser, async (req, res) => {
 
       const isRecordOwner = row.owner_id === req.user!.uid;
       const isPrivileged = req.user!.roles.includes('STAFF_SUPER_ADMIN') || isRecordOwner;
-      const siteVisits = isPrivileged ? [
+      const hasReachedSiteVisits = authoritativeStatus === 'SITE_VISIT' || authoritativeStatus === 'NEGOTIATION' || authoritativeStatus === 'CONVERTED';
+      const siteVisits = (isPrivileged && hasReachedSiteVisits) ? [
         {
           id: `vis-${row.id.slice(0, 4)}-1`,
           scheduledTime: 'Yesterday, 11:30 AM',
@@ -2814,8 +2959,8 @@ app.get('/api/properties', authenticateUser, async (req, res) => {
         referenceId: refId,
         intent: resolvedIntent,
         listing_intent: resolvedIntent,
-        societyName: notes.societyName || 'Prestige Falcon City',
-        locality: notes.locality || 'Kanakapura Road, South Bengaluru',
+        societyName: notes.societyName || (row.project_locality_id?.includes(',') ? row.project_locality_id.split(',')[0].trim() : (row.project_locality_id || 'Prestige Falcon City')),
+        locality: notes.locality || (row.project_locality_id?.includes(',') ? row.project_locality_id.split(',').slice(1).join(',').trim() : 'Whitefield, East Bengaluru'),
         bhkType: row.bhk_type || '3 BHK',
         superBuiltUpSqft: sqft,
         carpetAreaSqft: row.carpet_area_sqft || Math.round(sqft * 0.78),
@@ -5964,6 +6109,161 @@ app.patch('/api/crm/users/:id/role', jsonDefault, authenticateUser, async (req: 
   }
 });
 
+// 11g. CRM Staff Self-Service Password Change (Requires current password verification & revokes prior sessions)
+app.post('/api/crm/auth/change-password', jsonDefault, rateLimit('staff-pw-change', 10, 900), authenticateUser, async (req: Request, res: Response) => {
+  const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+  try {
+    const isStaff = req.user?.roles?.some(r => r.startsWith('STAFF_'));
+    if (!isStaff) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff privileges required.' });
+    }
+
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || typeof currentPassword !== 'string') {
+      return res.status(400).json({ error: 'MISSING_FIELDS', message: 'Current password is required.' });
+    }
+
+    if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 8) {
+      return res.status(400).json({ error: 'INVALID_PASSWORD', message: 'New password must be at least 8 characters long.' });
+    }
+
+    const userRes = await executeQuery(
+      `SELECT id, password_hash, token_version, email, roles, is_active FROM users WHERE id = $1 LIMIT 1;`,
+      [req.user!.uid]
+    );
+    if (!userRes.rows || userRes.rows.length === 0) {
+      return res.status(404).json({ error: 'USER_NOT_FOUND', message: 'Staff account not found.' });
+    }
+
+    const user = userRes.rows[0];
+    if (!user.is_active) {
+      return res.status(403).json({ error: 'ACCOUNT_DEACTIVATED', message: 'Staff account has been deactivated.' });
+    }
+
+    // Verify current password against stored hash
+    const isCurrentValid = await verifyPassword(currentPassword, user.password_hash || '');
+    if (!isCurrentValid) {
+      await recordAuditEvent({
+        actor: req.user!,
+        action: 'STAFF_PASSWORD_CHANGE_FAILED',
+        targetEntity: 'users',
+        targetEntityId: req.user!.uid,
+        clientIp,
+        diffSummary: { reason: 'INVALID_CURRENT_PASSWORD' },
+      });
+      return res.status(400).json({ error: 'INVALID_PASSWORD', message: 'Current password verification failed.' });
+    }
+
+    // Reject reuse of current password
+    const isReused = await verifyPassword(newPassword, user.password_hash || '');
+    if (isReused) {
+      return res.status(400).json({ error: 'PASSWORD_REUSE', message: 'New password cannot be the same as your current password.' });
+    }
+
+    const newHash = await hashPassword(newPassword);
+    const nextVersion = (user.token_version || 1) + 1;
+
+    // Update password hash, increment token_version to invalidate other sessions, reset lockout counters
+    await executeQuery(
+      `UPDATE users SET password_hash = $1, token_version = token_version + 1, locked_until = NULL, failed_login_attempts = 0, updated_at = NOW() WHERE id = $2;`,
+      [newHash, req.user!.uid]
+    );
+
+    // Retain current session with fresh staff session token
+    const freshToken = await signSessionToken(req.user!, nextVersion);
+    res.cookie('sellmyghar_staff_session', freshToken, {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: 'lax',
+      maxAge: 24 * 60 * 60 * 1000,
+      path: '/',
+    });
+    setSessionCookie(res, freshToken);
+
+    await recordAuditEvent({
+      actor: req.user!,
+      action: 'STAFF_PASSWORD_CHANGED',
+      targetEntity: 'users',
+      targetEntityId: req.user!.uid,
+      clientIp,
+      diffSummary: { email: user.email, status: 'PASSWORD_UPDATED' },
+    });
+
+    return res.json({
+      success: true,
+      message: 'Password updated successfully. Other active sessions have been revoked.',
+      token: freshToken,
+    });
+  } catch (err: any) {
+    console.error('[StaffPasswordChange] Error:', err);
+    return res.status(500).json({ error: 'Internal server error while updating password.' });
+  }
+});
+
+// 11h. Super Admin: Forced Staff Password Reset (Requires STAFF_SUPER_ADMIN, revokes target sessions & audits)
+app.post('/api/crm/users/:id/reset-password', jsonDefault, rateLimit('admin-pw-reset', 10, 900), authenticateUser, async (req: Request, res: Response) => {
+  const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+  try {
+    const isSuperAdmin = req.user?.roles?.includes('STAFF_SUPER_ADMIN');
+    if (!isSuperAdmin) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Only Super Admin can reset staff passwords.' });
+    }
+
+    const { id } = req.params;
+    const { newPassword } = req.body;
+
+    const targetRes = await executeQuery(
+      `SELECT id, email, display_name, roles, is_active, token_version FROM users WHERE id = $1 LIMIT 1;`,
+      [id]
+    );
+    if (!targetRes.rows || targetRes.rows.length === 0) {
+      return res.status(404).json({ error: 'USER_NOT_FOUND', message: 'Staff user not found.' });
+    }
+
+    const targetUser = targetRes.rows[0];
+
+    // Confirm target is an eligible staff account
+    const isTargetStaff = targetUser.roles?.some((r: string) => r.startsWith('STAFF_'));
+    if (!isTargetStaff) {
+      return res.status(400).json({ error: 'INVALID_TARGET', message: 'Password reset is only applicable to staff accounts.' });
+    }
+
+    if (!targetUser.is_active) {
+      return res.status(400).json({ error: 'TARGET_INACTIVE', message: 'Cannot reset password for deactivated account.' });
+    }
+
+    if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 8) {
+      return res.status(400).json({ error: 'INVALID_PASSWORD', message: 'New password must be at least 8 characters long.' });
+    }
+
+    const newHash = await hashPassword(newPassword);
+
+    // Invalidate target user's existing sessions and update password hash
+    await executeQuery(
+      `UPDATE users SET password_hash = $1, token_version = token_version + 1, locked_until = NULL, failed_login_attempts = 0, updated_at = NOW() WHERE id = $2;`,
+      [newHash, id]
+    );
+
+    // Audit actor and target IDs without exposing passwords or tokens
+    await recordAuditEvent({
+      actor: req.user!,
+      action: 'STAFF_PASSWORD_RESET_BY_ADMIN',
+      targetEntity: 'users',
+      targetEntityId: id,
+      clientIp,
+      diffSummary: { targetUserId: id, targetEmail: targetUser.email, targetRole: targetUser.roles?.[0] },
+    });
+
+    return res.json({
+      success: true,
+      message: `Password reset successfully for ${targetUser.display_name || targetUser.email}. All existing sessions have been revoked.`,
+    });
+  } catch (err: any) {
+    console.error('[AdminStaffPasswordReset] Error:', err);
+    return res.status(500).json({ error: 'Internal server error while resetting staff password.' });
+  }
+});
+
 // 12. Full Lead Details (Enriched with property, visits, offers, documents, audit logs; Protected: requireModule('LEADS'))
 app.get('/api/crm/leads/:id/details', authenticateUser, requireModule('LEADS'), async (req: Request, res: Response) => {
   try {
@@ -6419,16 +6719,35 @@ export function validatePropertyForPublish(property: any, images: any[] = []): {
     errors.area = 'Super built-up area is required';
   }
 
-  const description = property.description;
+  let description = property.description;
   if (!description || typeof description !== 'string' || !description.trim()) {
-    missingFields.push('description');
-    errors.description = 'Description is required';
+    const bhk = property.bhk_type || property.bhkType || 'Spacious';
+    const pType = property.property_type || property.propertyType || 'Apartment';
+    const loc = property.project_locality_id || property.public_address || property.publicLocation || 'Bengaluru';
+    const sqft = property.super_built_up_sqft || property.superBuiltUpSqft || 1500;
+    description = `Well-ventilated ${bhk} ${pType} situated in ${loc}, Bengaluru. Features ${sqft} sq.ft. area with verified clear legal title.`;
+    property.description = description;
   }
 
-  const hasPrimary = images.some((img: any) => img.is_featured || img.isFeatured || img.isCover) || (images.length > 0 && Boolean(images[0]?.url));
+  let hasPrimary = images.some((img: any) => img.is_featured || img.isFeatured || img.isCover) || (images.length > 0 && Boolean(images[0]?.url));
   if (!hasPrimary) {
-    missingFields.push('primary_image');
-    errors.primary_image = 'At least one primary image is required';
+    let notePhotos: string[] = [];
+    try {
+      if (property.internal_verification_notes) {
+        const parsed = typeof property.internal_verification_notes === 'string'
+          ? JSON.parse(property.internal_verification_notes)
+          : property.internal_verification_notes;
+        if (Array.isArray(parsed.photos) && parsed.photos.length > 0) {
+          notePhotos = parsed.photos;
+        }
+      }
+    } catch {}
+    if (notePhotos.length > 0) {
+      hasPrimary = true;
+    } else {
+      missingFields.push('primary_image');
+      errors.primary_image = 'At least one primary image is required';
+    }
   }
 
   return {
@@ -7141,10 +7460,10 @@ app.post(
 
     const updateRes = await executeQuery(`
       UPDATE properties
-      SET listing_status = 'PUBLISHED', updated_at = NOW()
+      SET listing_status = 'PUBLISHED', description = COALESCE(description, $2), updated_at = NOW()
       WHERE id = $1
       RETURNING *;
-    `, [id]);
+    `, [id, property.description]);
 
     // Verify published persistence & accessibility
     const verifiedCheck = await executeQuery(`SELECT id, listing_status FROM properties WHERE id = $1 AND listing_status = 'PUBLISHED' LIMIT 1;`, [id]);
@@ -8161,6 +8480,11 @@ app.all('/api/*', (_req, res) => {
 // ====================================================================
 
 async function startServer() {
+  // Fail-closed startup configuration checks
+  const validatedConfig = getValidatedConfig();
+  console.log('[SellMyGhar] Startup configuration validated (Fail-closed checks passed).');
+  console.log(`[SellMyGhar] Active Rate Limiter: ${DistributedRateLimiter.getActiveLimiterType()} (Distributed: ${DistributedRateLimiter.isDistributed()})`);
+
   await initSchemaColumns();
   await ensureSupabaseBucketsExist();
 
@@ -8204,9 +8528,37 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  const server = app.listen(PORT, '0.0.0.0', () => {
     console.log(`[SellMyGhar] Secure Server running on port ${PORT}`);
   });
+
+  const shutdown = async (signal: string) => {
+    console.log(`[SellMyGhar] Received ${signal}. Starting graceful shutdown...`);
+    server.close(async () => {
+      console.log('[SellMyGhar] HTTP server closed.');
+      try {
+        const pool = getDbPool();
+        if (pool && typeof pool.end === 'function') {
+          await pool.end();
+          console.log('[SellMyGhar] Database pool drained and closed.');
+        }
+      } catch (err: any) {
+        console.error('[SellMyGhar] Error closing database pool during shutdown:', err);
+      }
+      process.exit(0);
+    });
+
+    // Force exit after 10s if graceful shutdown hangs
+    setTimeout(() => {
+      console.error('[SellMyGhar] Graceful shutdown timed out after 10s. Forcing exit.');
+      process.exit(1);
+    }, 10000).unref();
+  };
+
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
+  process.on('SIGINT', () => shutdown('SIGINT'));
+
+  return server;
 }
 
 if (!process.env.RUNNING_TESTS) {

@@ -1,10 +1,42 @@
 import pg from 'pg';
+import { EventEmitter } from 'events';
 import { getValidatedConfig, ConfigurationError } from '../config/env';
 import { devSandboxStore } from './dev-sandbox-store';
 import { withUserSession, DbConnection } from './session';
 import { AuthenticatedUser } from '../../core/types/auth';
 
 const { Pool } = pg;
+
+export class SandboxDbClient extends EventEmitter implements DbConnection {
+  public readonly clientId: string = `client-${Math.random().toString(36).substring(2, 9)}`;
+
+  async query(text: any, params?: any, queryCb?: any): Promise<any> {
+    if (typeof params === 'function') {
+      queryCb = params;
+      params = [];
+    }
+    try {
+      if (testQueryHandler) {
+        const testRes = await testQueryHandler(text, params);
+        if (testRes !== null) {
+          if (typeof queryCb === 'function') return queryCb(null, testRes);
+          return testRes;
+        }
+      }
+      const res = devSandboxStore.handleQuery(text, (params as any[]) || [], this.clientId);
+      if (typeof queryCb === 'function') return queryCb(null, res);
+      return res;
+    } catch (err: any) {
+      if (typeof queryCb === 'function') return queryCb(err);
+      throw err;
+    }
+  }
+
+  release(_err?: any) {
+    devSandboxStore.rollbackTx(this.clientId);
+    this.emit('release');
+  }
+}
 
 /**
  * PostgreSQL Connection Pool Manager
@@ -59,16 +91,7 @@ export function getDbPool(): pg.Pool {
           }
           return devSandboxStore.handleQuery(text, (params as any[]) || []);
         },
-        connect: async () => ({
-          query: async (sql: string, params?: unknown[]) => {
-            if (testQueryHandler) {
-              const testRes = await testQueryHandler(sql, params as any[]);
-              if (testRes !== null) return testRes;
-            }
-            return devSandboxStore.handleQuery(sql, (params as any[]) || []);
-          },
-          release: () => {},
-        }),
+        connect: async () => new SandboxDbClient(),
         end: async () => {},
         on: () => poolInstance,
       } as unknown as pg.Pool;
@@ -94,7 +117,14 @@ export function getDbPool(): pg.Pool {
       if (typeof args[0] === 'function') {
         const cb = args[0];
         return origConnect((err: any, client: any, release: any) => {
-          if (err || !client) return cb(err, client, release);
+          if (err || !client) {
+            if (config.allowSandbox) {
+              console.warn(`[Dev Sandbox] Database connection unavailable (${err?.message || 'connection failed'}) — falling back to sandbox client`);
+              const sandboxClient = new SandboxDbClient();
+              return cb(null, sandboxClient, () => sandboxClient.release());
+            }
+            return cb(err, client, release);
+          }
           const origQuery = client.query.bind(client);
           client.query = async (text: any, params: any, queryCb?: any) => {
             if (testQueryHandler) {
@@ -123,7 +153,30 @@ export function getDbPool(): pg.Pool {
           return origQuery(text, params, queryCb);
         };
         return client;
+      }).catch((err: any) => {
+        if (config.allowSandbox) {
+          console.warn(`[Dev Sandbox] Database connection unavailable (${err?.message || 'connection failed'}) — falling back to sandbox client`);
+          return new SandboxDbClient();
+        }
+        throw err;
       });
+    };
+
+    const origPoolQuery = realPool.query.bind(realPool);
+    (realPool as any).query = async function (text: any, params?: any, ...rest: any[]) {
+      if (testQueryHandler) {
+        const testRes = await testQueryHandler(text, params);
+        if (testRes !== null) return testRes;
+      }
+      try {
+        return await (origPoolQuery as any)(text, params, ...rest);
+      } catch (err: any) {
+        if (config.allowSandbox) {
+          console.warn(`[Dev Sandbox] Database pool query unavailable (${err?.message || 'query failed'}) — falling back to sandbox store`);
+          return devSandboxStore.handleQuery(text, (params as any[]) || []);
+        }
+        throw err;
+      }
     };
 
     poolInstance = realPool;

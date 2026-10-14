@@ -10,6 +10,7 @@ import { LocalityDetailPage } from './components/locality/LocalityDetailPage';
 import { AuthPage } from './components/auth/AuthPage';
 import { AuthCallback } from './components/auth/AuthCallback';
 import { SellerDashboard } from './components/seller/SellerDashboard';
+import { PasswordResetPage } from './components/auth/PasswordResetPage';
 import { ArrowLeft, Shield } from 'lucide-react';
 import { UserAuthProfile } from './types/user';
 import { getBrowserSupabase } from './lib/supabase';
@@ -418,12 +419,7 @@ export default function App() {
   // Dedicated Password Reset Route (#/reset-password?token=...)
   if (currentRoute === 'RESET_PASSWORD') {
     return (
-      <StaffLogin
-        initialMode="RESET"
-        onSuccess={(session) => {
-          setStaffSession(session);
-          navigateTo('CRM');
-        }}
+      <PasswordResetPage
         onBackToHome={() => navigateTo('HOME')}
       />
     );
@@ -481,7 +477,18 @@ export default function App() {
     return (
       <SellerFunnel
         onBackToHome={() => navigateTo('HOME')}
-        onViewDashboard={() => navigateTo('DASHBOARD')}
+        onViewDashboard={async () => {
+          try {
+            const res = await fetch('/api/auth/me', { credentials: 'include' });
+            if (res.ok) {
+              const data = await res.json();
+              if (data?.authenticated && data?.user) {
+                setActiveUser(data.user);
+              }
+            }
+          } catch {}
+          navigateTo('DASHBOARD');
+        }}
       />
     );
   }

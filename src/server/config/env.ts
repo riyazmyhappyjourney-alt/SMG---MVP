@@ -7,8 +7,8 @@ dotenv.config({ path: '.env.local' });
  * Fail-Closed Server Configuration & Credential Validator
  * 
  * [Non-Negotiable Architecture Constraint]:
- * System MUST fail closed. Missing or insecure credentials (DATABASE_URL, REDIS_URL,
- * JWT_SECRET, GCS_PRIVATE_BUCKET) must throw clear, fatal configuration errors
+ * System MUST fail closed. Missing or insecure credentials (DATABASE_URL,
+ * JWT_SECRET) must throw clear, fatal configuration errors
  * rather than silently pretending to persist data or defaulting to insecure mocks.
  */
 
@@ -60,27 +60,11 @@ export function getValidatedConfig(overrides?: { allowSandbox?: boolean }): AppC
     }
   }
 
-  // 3. GCS_PRIVATE_BUCKET
+  // 3. GCS_PRIVATE_BUCKET (Optional: Active application uploads use Supabase Storage)
   const gcsPrivateBucket = process.env.GCS_PRIVATE_BUCKET;
-  if (!gcsPrivateBucket) {
-    if (!allowSandbox) {
-      throw new ConfigurationError(
-        'GCS_PRIVATE_BUCKET',
-        'Private storage bucket name is missing. Fail-closed: document uploads cannot proceed.'
-      );
-    }
-  }
 
-  // 4. REDIS_URL
+  // 4. REDIS_URL (Optional: Instance-local in-memory rate limiting used when absent)
   const redisUrl = process.env.REDIS_URL;
-  if (!redisUrl) {
-    if (!allowSandbox) {
-      throw new ConfigurationError(
-        'REDIS_URL',
-        'Shared Redis / Memorystore connection string is missing. Fail-closed: distributed rate limiting and anti-toll fraud cannot proceed.'
-      );
-    }
-  }
 
   // 5. AUTH_JWT_ISSUER & AUTH_JWT_AUDIENCE (Fail-closed domain verification)
   const jwtIssuer = process.env.AUTH_JWT_ISSUER || process.env.JWT_ISSUER;

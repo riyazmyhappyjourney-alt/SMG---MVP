@@ -340,6 +340,24 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
   onBackToHome,
   onLogout,
 }) => {
+  // User profile state synced with session cookie
+  const [currentUser, setCurrentUser] = useState<UserAuthProfile | null>(user || null);
+
+  useEffect(() => {
+    if (user?.phone) {
+      setCurrentUser(user);
+    } else {
+      fetch('/api/auth/me', { credentials: 'include' })
+        .then(res => res.json())
+        .then(data => {
+          if (data?.authenticated && data?.user) {
+            setCurrentUser(data.user);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [user]);
+
   // State
   const [properties, setProperties] = useState<SellerPropertyItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -371,7 +389,11 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const phoneParam = user?.phone ? user.phone.replace(/\D/g, '').slice(-10) : (user?.name?.match(/\d{10}/)?.[0] || '');
+      const storedPhone = (() => {
+        try { return localStorage.getItem('sellmyghar_last_owner_phone') || ''; } catch { return ''; }
+      })();
+      const activePhone = currentUser?.phone || user?.phone || storedPhone;
+      const phoneParam = activePhone ? activePhone.replace(/\D/g, '').slice(-10) : ((currentUser?.name || user?.name)?.match(/\d{10}/)?.[0] || '');
       const url = phoneParam ? `/api/properties?phone=${phoneParam}` : '/api/properties';
       const res = await fetch(url, { credentials: 'include' });
       if (res.status === 401) {
@@ -391,12 +413,16 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [currentUser, user]);
 
   // Silent Revalidation for Real-Time Synchronization (no UI flicker)
   const fetchPropertiesSilently = useCallback(async () => {
     try {
-      const phoneParam = user?.phone ? user.phone.replace(/\D/g, '').slice(-10) : (user?.name?.match(/\d{10}/)?.[0] || '');
+      const storedPhone = (() => {
+        try { return localStorage.getItem('sellmyghar_last_owner_phone') || ''; } catch { return ''; }
+      })();
+      const activePhone = currentUser?.phone || user?.phone || storedPhone;
+      const phoneParam = activePhone ? activePhone.replace(/\D/g, '').slice(-10) : ((currentUser?.name || user?.name)?.match(/\d{10}/)?.[0] || '');
       const url = phoneParam ? `/api/properties?phone=${phoneParam}` : '/api/properties';
       const res = await fetch(url, { credentials: 'include' });
       if (res.ok) {
@@ -408,7 +434,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
     } catch {
       // Keep existing properties on transient network drop
     }
-  }, [user]);
+  }, [currentUser, user]);
 
   // Initial load + Real-time lightweight polling and window focus synchronization
   useEffect(() => {
@@ -587,11 +613,11 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
               {/* User Dropdown / Profile Badge (Truthful Owner Label) */}
               <div className="flex items-center space-x-2 bg-white/10 hover:bg-white/15 px-3 py-1.5 rounded-xl border border-white/20 transition-colors">
                 <div className="w-7 h-7 rounded-full bg-emerald-500 text-white font-black text-xs flex items-center justify-center">
-                  {user?.name ? user.name.charAt(0).toUpperCase() : 'H'}
+                  {(currentUser || user)?.name ? (currentUser || user)!.name.charAt(0).toUpperCase() : 'H'}
                 </div>
                 <div className="hidden sm:block text-left text-xs leading-tight">
                   <p className="font-bold text-white truncate max-w-[120px]">
-                    {user?.name || 'Property Owner'}
+                    {(currentUser || user)?.name || 'Property Owner'}
                   </p>
                   <p className="text-[10px] text-blue-200">Property Owner</p>
                 </div>
@@ -688,11 +714,11 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
               
               <div className="relative pt-4">
                 <div className="w-16 h-16 rounded-full bg-white border-3 border-white shadow-md mx-auto flex items-center justify-center text-xl font-extrabold text-[#244B8F]">
-                  {user?.name ? user.name.slice(0, 2).toUpperCase() : 'PO'}
+                  {(currentUser || user)?.name ? (currentUser || user)!.name.slice(0, 2).toUpperCase() : 'PO'}
                 </div>
                 
                 <h3 className="font-extrabold text-base text-slate-900 mt-2">
-                  {user?.name || 'Property Owner'}
+                  {(currentUser || user)?.name || 'Property Owner'}
                 </h3>
                 <p className="text-xs text-slate-500 font-medium">
                   Property Owner (Resale & Rentals)

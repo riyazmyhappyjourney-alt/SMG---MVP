@@ -40,6 +40,17 @@ export interface DevOtpVerification {
   created_at: string;
 }
 
+export interface DevPasswordResetToken {
+  id: string;
+  user_id: string;
+  email: string;
+  token_hash: string;
+  expires_at: string;
+  is_consumed: boolean;
+  consumed_at: string | null;
+  created_at: string;
+}
+
 export interface DevUserIdentity {
   id: string;
   user_id: string;
@@ -226,6 +237,11 @@ class DevSandboxStore {
   public publicationNotifications = new Map<string, any>();
   public partnerLogos = new Map<string, any>();
   public partnerSectionSettings = new Map<string, any>();
+  public passwordResetTokens = new Map<string, DevPasswordResetToken>();
+  private activeTxSnapshots = new Map<string, {
+    users: Map<string, DevUser>;
+    passwordResetTokens: Map<string, DevPasswordResetToken>;
+  }>();
 
   public currentUserId: string | null = null;
   public currentUserRoles: string[] = [];
@@ -245,6 +261,8 @@ class DevSandboxStore {
     this.auditLogs = [];
     this.otpVerifications.clear();
     this.userIdentities.clear();
+    this.passwordResetTokens.clear();
+    this.activeTxSnapshots.clear();
     this.visits.clear();
     this.offers.clear();
     this.heroSlides.clear();
@@ -254,6 +272,15 @@ class DevSandboxStore {
     this.partnerSectionSettings.clear();
     this.initialized = false;
     this.initInitialSeeds();
+  }
+
+  public rollbackTx(clientId: string): void {
+    const snapshot = this.activeTxSnapshots.get(clientId);
+    if (snapshot) {
+      this.users = snapshot.users;
+      this.passwordResetTokens = snapshot.passwordResetTokens;
+      this.activeTxSnapshots.delete(clientId);
+    }
   }
 
   public purgeUserByEmail(email: string): boolean {
@@ -283,11 +310,10 @@ class DevSandboxStore {
     if (this.initialized) return;
     this.initialized = true;
 
-    // Purge deprecated accounts
+    // Purge deprecated test account
     this.purgeUserByEmail('yashwantkeyan@gmail.com');
-    this.purgeUserByEmail('socialmedia@myhappyjourney.com');
 
-    // Seed default customer owner Harish Babu
+    // Seed default customer owner Vikramaditya Hegde
     const owner: DevUser = {
       id: 'usr-customer-seller-01',
       phone: '+919845012345',
@@ -303,6 +329,23 @@ class DevSandboxStore {
       updated_at: new Date().toISOString(),
     };
     this.users.set(owner.id, owner);
+
+    // Seed customer owner Riyaz Mhj (socialmedia@myhappyjourney.com)
+    const riyazOwner: DevUser = {
+      id: 'usr-owner-riyaz',
+      phone: '+919876543210',
+      email: 'socialmedia@myhappyjourney.com',
+      display_name: 'Riyaz Mhj',
+      password_hash: null,
+      token_version: 1,
+      roles: ['OWNER'],
+      is_active: true,
+      failed_login_attempts: 0,
+      locked_until: null,
+      created_at: new Date(Date.now() - 86400000 * 5).toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    this.users.set(riyazOwner.id, riyazOwner);
 
     // Seed default internal staff accounts (so CRM dev access and role switcher never 404)
     const adminUser: DevUser = {
@@ -637,12 +680,65 @@ class DevSandboxStore {
     };
     this.properties.set(prop4.id, prop4);
 
+    // Seed customer owner Riyaz Mhj property (Prestige Shantiniketan, Whitefield)
+    const riyazProp: DevProperty = {
+      id: 'prop-mv86xj5r-m4v0',
+      owner_id: riyazOwner.id,
+      project_locality_id: 'Prestige Shantiniketan, Whitefield',
+      unit_number: 'Flat 502',
+      wing_tower: 'Tower 5',
+      unit_floor: 5,
+      total_floors: 14,
+      bhk_type: '3BHK',
+      super_built_up_sqft: 1550,
+      carpet_area_sqft: 1209,
+      balconies_count: 2,
+      bathrooms_count: 3,
+      facing: 'EAST',
+      car_parks_count: 1,
+      is_covered_parking: true,
+      khata_type: 'A_KHATA',
+      encumbrance_status: 'CLEAR',
+      loan_bank_name: null,
+      occupancy_status: 'READY_TO_MOVE',
+      monthly_maintenance_inr: 4500,
+      asking_price_inr: 20100000,
+      reserve_minimum_price_inr: 19500000,
+      listing_intent: 'SELL',
+      crm_status: 'APPROVED',
+      listing_status: 'PUBLISHED',
+      title: '3BHK Flat for Resale',
+      property_type: 'Apartment',
+      public_address: 'Prestige Shantiniketan, Whitefield, East Bengaluru',
+      floor_band: 'MID',
+      developer_name: 'Prestige Group',
+      description: 'Spacious and well-ventilated 3BHK resale apartment in Prestige Shantiniketan, Whitefield. Features 1550 sq.ft. area with verified clear legal title, modular kitchen, and covered car parking.',
+      amenities: ['Clubhouse with Indoor Badminton Courts', 'Olympic-Sized Swimming Pool', '24/7 Security & CCTV', 'Power Backup', 'Gymnasium'],
+      verification_tier: 'LEVEL_2_DOCS_REVIEWED',
+      internal_verification_notes: JSON.stringify({
+        verified: true,
+        societyName: 'Prestige Shantiniketan',
+        locality: 'Whitefield',
+        subLocality: 'East Bengaluru',
+        wingTower: 'Tower 5',
+        unitNumber: 'Flat 502',
+        bhkType: '3BHK',
+        photos: ['https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80'],
+        email: 'socialmedia@myhappyjourney.com',
+        phone: '+919876543210'
+      }),
+      created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    this.properties.set(riyazProp.id, riyazProp);
+
     // Seed default media for sample properties
     const mediaSeeds = [
       { id: 'media-seed-01', property_id: 'prop-dev-seed-01', url: 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80', is_featured: true },
       { id: 'media-seed-02', property_id: 'prop-dev-seed-02', url: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80', is_featured: true },
       { id: 'media-seed-03', property_id: 'prop-dev-seed-03', url: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1200&q=80', is_featured: true },
       { id: 'media-seed-04', property_id: 'prop-dev-seed-04', url: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=1200&q=80', is_featured: true },
+      { id: 'media-riyaz-01', property_id: 'prop-mv86xj5r-m4v0', url: 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80', is_featured: true },
     ];
     for (const m of mediaSeeds) {
       this.propertyMedia.set(m.id, {
@@ -654,6 +750,28 @@ class DevSandboxStore {
         created_at: new Date().toISOString()
       });
     }
+
+    const riyazLead: DevSellerLead = {
+      id: 'lead-riyaz-01',
+      owner_name: 'Riyaz Mhj',
+      phone: '+919876543210',
+      apartment_society_name: 'Prestige Shantiniketan',
+      locality_id: 'Whitefield',
+      bhk_type: '3BHK',
+      expected_price_inr: 20100000,
+      listing_intent: 'SELL',
+      lead_status: 'CONTACTED',
+      assigned_staff_id: 'usr-staff-closer-01',
+      consent_record_id: 'cst-seed-riyaz-01',
+      property_id: 'prop-mv86xj5r-m4v0',
+      assigned_at: new Date().toISOString(),
+      next_follow_up_at: null,
+      follow_up_notes: null,
+      notes: 'Owner email: socialmedia@myhappyjourney.com',
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    this.sellerLeads.set(riyazLead.id, riyazLead);
 
     // Seed sample visits
     const visit1: DevVisit = {
@@ -883,12 +1001,39 @@ class DevSandboxStore {
     }
   }
 
-  public handleQuery(sql: string, params: any[] = []): { rows: any[] } {
+  public handleQuery(sql: string, params: any[] = [], clientId?: string): { rows: any[] } {
     this.initInitialSeeds();
     const cleanSql = sql.replace(/\s+/g, ' ').trim();
 
     // 1. Transaction & DDL Control
-    if (cleanSql === 'COMMIT' || cleanSql === 'ROLLBACK') {
+    if (cleanSql === 'BEGIN') {
+      if (clientId) {
+        const usersCopy = new Map<string, DevUser>();
+        for (const [k, v] of this.users.entries()) {
+          usersCopy.set(k, { ...v, roles: [...v.roles], module_permissions: v.module_permissions ? [...v.module_permissions] : undefined });
+        }
+        const tokensCopy = new Map<string, DevPasswordResetToken>();
+        for (const [k, v] of this.passwordResetTokens.entries()) {
+          tokensCopy.set(k, { ...v });
+        }
+        this.activeTxSnapshots.set(clientId, { users: usersCopy, passwordResetTokens: tokensCopy });
+      }
+      return { rows: [] };
+    }
+
+    if (cleanSql === 'COMMIT') {
+      if (clientId) {
+        this.activeTxSnapshots.delete(clientId);
+      }
+      this.currentUserId = null;
+      this.currentUserRoles = [];
+      return { rows: [] };
+    }
+
+    if (cleanSql === 'ROLLBACK') {
+      if (clientId) {
+        this.rollbackTx(clientId);
+      }
       this.currentUserId = null;
       this.currentUserRoles = [];
       return { rows: [] };
@@ -915,8 +1060,7 @@ class DevSandboxStore {
     if (
       cleanSql.startsWith('ALTER TABLE') ||
       cleanSql.startsWith('CREATE TABLE') ||
-      cleanSql.startsWith('CREATE INDEX') ||
-      cleanSql === 'BEGIN'
+      cleanSql.startsWith('CREATE INDEX')
     ) {
       return { rows: [] };
     }
@@ -1171,15 +1315,42 @@ class DevSandboxStore {
       return { rows: [] };
     }
 
-    // 9c-1. USERS: Update roles
-    if (cleanSql.includes('UPDATE users') && cleanSql.includes('roles =')) {
-      const role = params[0];
-      const id = params[1];
+    // 9c-0. USERS: Update phone / email / display_name
+    if (cleanSql.includes('UPDATE users') && cleanSql.includes('phone = COALESCE')) {
+      const phone = params[0];
+      const email = params[1];
+      const name = params[2];
+      const id = params[3];
       const u = this.users.get(id);
       if (u) {
-        u.roles = Array.isArray(role) ? role : [role];
+        if (!u.phone && phone) u.phone = phone;
+        if (!u.email && email) u.email = email;
+        if (name) u.display_name = name;
         u.updated_at = new Date().toISOString();
         return { rows: [{ ...u }] };
+      }
+      return { rows: [] };
+    }
+
+    // 9c-1. USERS: Update roles
+    if (cleanSql.includes('UPDATE users') && cleanSql.includes('roles =')) {
+      if (cleanSql.includes('array_append') && cleanSql.includes("'OWNER'")) {
+        const id = params[0];
+        const u = this.users.get(id);
+        if (u) {
+          if (!u.roles.includes('OWNER')) u.roles.push('OWNER');
+          u.updated_at = new Date().toISOString();
+          return { rows: [{ ...u }] };
+        }
+      } else {
+        const role = params[0];
+        const id = params[1];
+        const u = this.users.get(id);
+        if (u) {
+          u.roles = Array.isArray(role) ? role : [role];
+          u.updated_at = new Date().toISOString();
+          return { rows: [{ ...u }] };
+        }
       }
       return { rows: [] };
     }
@@ -1254,6 +1425,71 @@ class DevSandboxStore {
       if (rec) {
         rec.attempts_count = attempts;
         return { rows: [{ ...rec }] };
+      }
+      return { rows: [] };
+    }
+
+    // 9d-2. PASSWORD_RESET_TOKENS Handlers
+    if (cleanSql.includes('INSERT INTO password_reset_tokens')) {
+      const tokenHash = params[3];
+      const rec: DevPasswordResetToken = {
+        id: params[0],
+        user_id: params[1],
+        email: String(params[2] || '').toLowerCase().trim(),
+        token_hash: tokenHash,
+        expires_at: params[4],
+        is_consumed: false,
+        consumed_at: null,
+        created_at: new Date().toISOString(),
+      };
+      this.passwordResetTokens.set(tokenHash, rec);
+      return { rows: [{ ...rec }] };
+    }
+
+    if (cleanSql.includes('FROM password_reset_tokens') && cleanSql.includes('WHERE token_hash = $1')) {
+      const tokenHash = params[0];
+      const rec = this.passwordResetTokens.get(tokenHash);
+      return rec ? { rows: [{ ...rec }] } : { rows: [] };
+    }
+
+    if (cleanSql.includes('UPDATE password_reset_tokens') && cleanSql.includes('is_consumed = true') && cleanSql.includes('WHERE token_hash = $1')) {
+      const tokenHash = params[0];
+      const targetUserId = params.length > 1 ? params[1] : null;
+      const rec = this.passwordResetTokens.get(tokenHash);
+      if (rec && !rec.is_consumed) {
+        if (targetUserId && rec.user_id !== targetUserId) {
+          return { rows: [] };
+        }
+        const isExpired = new Date() > new Date(rec.expires_at);
+        if (!isExpired) {
+          rec.is_consumed = true;
+          rec.consumed_at = new Date().toISOString();
+          return { rows: [{ id: rec.id, user_id: rec.user_id, email: rec.email }] };
+        }
+      }
+      return { rows: [] };
+    }
+
+    if (cleanSql.includes('UPDATE password_reset_tokens') && cleanSql.includes('is_consumed = true') && cleanSql.includes('WHERE user_id = $1') && cleanSql.includes('token_hash != $2')) {
+      const userId = params[0];
+      const currentTokenHash = params[1];
+      for (const rec of this.passwordResetTokens.values()) {
+        if (rec.user_id === userId && rec.token_hash !== currentTokenHash && !rec.is_consumed) {
+          rec.is_consumed = true;
+          rec.consumed_at = new Date().toISOString();
+        }
+      }
+      return { rows: [] };
+    }
+
+    if (cleanSql.includes('DELETE FROM password_reset_tokens')) {
+      if (cleanSql.includes('expires_at <')) {
+        const now = Date.now();
+        for (const [key, rec] of this.passwordResetTokens.entries()) {
+          if (new Date(rec.expires_at).getTime() < now) {
+            this.passwordResetTokens.delete(key);
+          }
+        }
       }
       return { rows: [] };
     }
@@ -1389,7 +1625,7 @@ class DevSandboxStore {
     }
 
     // 12. SELLER_LEADS: Single lead detail query (by ID or by property_id)
-    if (cleanSql.includes('FROM seller_leads') && (cleanSql.includes('WHERE sl.id = $1') || cleanSql.includes('WHERE id = $1') || cleanSql.includes('WHERE sl.property_id = $1') || cleanSql.includes('WHERE property_id = $1'))) {
+    if (cleanSql.includes('FROM seller_leads') && !cleanSql.includes('FROM properties') && (cleanSql.includes('WHERE sl.id = $1') || cleanSql.includes('WHERE id = $1') || cleanSql.includes('WHERE sl.property_id = $1') || cleanSql.includes('WHERE property_id = $1'))) {
       let lead: DevSellerLead | undefined;
       if (cleanSql.includes('property_id = $1')) {
         const propId = params[0];
@@ -1417,7 +1653,7 @@ class DevSandboxStore {
     }
 
     // 13. SELLER_LEADS: List query (CRM dashboard)
-    if (cleanSql.includes('FROM seller_leads')) {
+    if (cleanSql.includes('FROM seller_leads') && !cleanSql.includes('FROM properties')) {
       let leads = Array.from(this.sellerLeads.values());
 
       // Status filter
@@ -1507,6 +1743,11 @@ class DevSandboxStore {
 
     // 15. SELLER_LEADS: Insert
     if (cleanSql.includes('INSERT INTO seller_leads')) {
+      const propIdParam = cleanSql.includes('property_id')
+        ? (params.find((p: any) => typeof p === 'string' && p.startsWith('prop-')) || null)
+        : null;
+      const consentIdParam = params.find((p: any) => typeof p === 'string' && p.startsWith('cst-')) || params[10] || null;
+
       const lead: DevSellerLead = {
         id: params[0] || `lead-${Date.now()}`,
         owner_name: params[1],
@@ -1515,11 +1756,11 @@ class DevSandboxStore {
         locality_id: params[4],
         bhk_type: params[5],
         expected_price_inr: params[6] || null,
-        listing_intent: params[7] || 'SELL',
-        lead_status: params[8] || 'NEW',
+        listing_intent: (params.find((p: any) => p === 'RENT' || p === 'SELL') as any) || 'SELL',
+        lead_status: 'NEW',
         assigned_staff_id: params[9] || null,
-        consent_record_id: params[10] || null,
-        property_id: null,
+        consent_record_id: consentIdParam,
+        property_id: propIdParam,
         assigned_at: null,
         next_follow_up_at: null,
         follow_up_notes: null,
@@ -1638,8 +1879,11 @@ class DevSandboxStore {
     // 19. PROPERTY MEDIA: Select, Insert, Update, Delete
     if (cleanSql.includes('FROM property_media')) {
       if (cleanSql.includes('WHERE property_id = $1')) {
-        const propId = String(params[0] || '').trim();
-        const media = Array.from(this.propertyMedia.values()).filter(m => m.property_id === propId);
+        const propId = String(params[0] || '').trim().toLowerCase();
+        const media = Array.from(this.propertyMedia.values()).filter(m =>
+          m.property_id.toLowerCase() === propId ||
+          m.property_id.toLowerCase().replace(/[-_]/g, '') === propId.replace(/[-_]/g, '')
+        );
         media.sort((a, b) => {
           if (cleanSql.toLowerCase().includes('is_featured desc') && b.is_featured !== a.is_featured) {
             return (b.is_featured ? 1 : 0) - (a.is_featured ? 1 : 0);
@@ -1762,21 +2006,57 @@ class DevSandboxStore {
         return { rows: candidates.map(p => ({ ...p })) };
       }
 
-      // 3. Properties by owner ID
-      if (cleanSql.includes('WHERE p.owner_id = $1') || cleanSql.includes('WHERE owner_id = $1')) {
+      // 3. Properties by owner ID (Dashboard queries: p.owner_id = $1 or matching phone/lead)
+      if (
+        cleanSql.includes('p.owner_id = $1') ||
+        cleanSql.includes('owner_id = $1') ||
+        cleanSql.includes('p.owner_id = $') ||
+        cleanSql.includes('owner_id = $')
+      ) {
         const ownerId = params[0];
-        const matched = Array.from(this.properties.values()).filter(p => p.owner_id === ownerId);
+        const userPhone = typeof params[1] === 'string' ? params[1].trim() : '';
+        const userEmail = typeof params[2] === 'string' ? params[2].trim().toLowerCase() : (this.users.get(ownerId)?.email?.toLowerCase() || '');
+
+        const matched = Array.from(this.properties.values()).filter(p => {
+          if (p.owner_id === ownerId) return true;
+          if (userPhone) {
+            const propOwner = this.users.get(p.owner_id);
+            if (propOwner && propOwner.phone === userPhone) return true;
+            const linkedLead = Array.from(this.sellerLeads.values()).some(l => l.phone === userPhone && l.property_id === p.id);
+            if (linkedLead) return true;
+          }
+          if (userEmail) {
+            const propOwner = this.users.get(p.owner_id);
+            if (propOwner && propOwner.email && propOwner.email.toLowerCase() === userEmail) return true;
+            const linkedLead = Array.from(this.sellerLeads.values()).some(l => l.notes && l.notes.toLowerCase().includes(userEmail) && l.property_id === p.id);
+            if (linkedLead) return true;
+            if (p.internal_verification_notes && p.internal_verification_notes.toLowerCase().includes(userEmail)) return true;
+          }
+          if (ownerId === 'usr-customer-seller-01') {
+            return p.owner_id === 'usr-customer-seller-01';
+          }
+          const isRiyaz = ownerId === 'usr-owner-riyaz' || userEmail === 'socialmedia@myhappyjourney.com' || (this.users.get(ownerId)?.display_name === 'Riyaz Mhj');
+          if (isRiyaz) {
+            return p.owner_id === 'usr-owner-riyaz' || p.owner_id === ownerId;
+          }
+          return false;
+        });
+
         return {
           rows: matched.map(p => {
-            const lead = Array.from(this.sellerLeads.values()).find(l => l.property_id === p.id || l.phone === '+919845012345');
+            const lead = Array.from(this.sellerLeads.values()).find(l =>
+              l.property_id === p.id ||
+              (userPhone && l.phone === userPhone && l.property_id === p.id) ||
+              (ownerId === 'usr-customer-seller-01' && p.owner_id === 'usr-customer-seller-01' && l.phone === '+919845012345')
+            );
             const staff = lead?.assigned_staff_id ? this.users.get(lead.assigned_staff_id) : null;
             return {
               ...p,
               crm_status: lead?.lead_status || p.crm_status || 'NEW',
               lead_id: lead?.id || null,
-              assigned_staff_id: lead?.assigned_staff_id || null,
-              rm_name: staff?.display_name || null,
-              rm_phone: staff?.phone || null,
+              assigned_staff_id: lead?.assigned_staff_id || 'usr-staff-closer-01',
+              rm_name: staff?.display_name || 'Kavitha Ranganathan',
+              rm_phone: staff?.phone || '+918217873708',
             };
           })
         };
@@ -1796,6 +2076,19 @@ class DevSandboxStore {
       if (cleanSql.includes('p.listing_status = $1') || cleanSql.includes('listing_status = $1')) {
         const targetStatus = params[0];
         all = all.filter(p => p.listing_status === targetStatus);
+      }
+      if (cleanSql.includes('phone LIKE $1') || cleanSql.includes('phone = $1')) {
+        const phoneArg = String(params[0] || '').replace(/[%+]/g, '').slice(-10);
+        if (phoneArg) {
+          all = all.filter(p => {
+            const owner = this.users.get(p.owner_id);
+            if (owner && owner.phone && owner.phone.replace(/\D/g, '').includes(phoneArg)) return true;
+            const lead = Array.from(this.sellerLeads.values()).find(l => l.property_id === p.id);
+            if (lead && lead.phone && lead.phone.replace(/\D/g, '').includes(phoneArg)) return true;
+            if (p.internal_verification_notes && p.internal_verification_notes.includes(phoneArg)) return true;
+            return false;
+          });
+        }
       }
       return {
         rows: all.map(p => {
@@ -1923,9 +2216,22 @@ class DevSandboxStore {
 
     // 22. PROPERTIES: Update (listing_status, crm_status, or full edit)
     if (cleanSql.includes('UPDATE properties')) {
+      const findProp = (targetId: any): DevProperty | undefined => {
+        if (!targetId) return undefined;
+        const clean = String(targetId).trim().toLowerCase();
+        return this.properties.get(targetId) ||
+               this.properties.get(clean) ||
+               Array.from(this.properties.values()).find(x =>
+                 x.id.toLowerCase() === clean ||
+                 x.id.toLowerCase().replace(/[-_]/g, '') === clean.replace(/[-_]/g, '') ||
+                 `sgl-${x.id.slice(0, 8)}`.toLowerCase() === clean ||
+                 `smg-${x.id.slice(5, 11)}`.toLowerCase() === clean
+               );
+      };
+
       if (cleanSql.includes("crm_status = 'approved'") || cleanSql.includes("crm_status = 'APPROVED'")) {
         const propId = String(params[params.length - 1] || '').trim();
-        const p = this.properties.get(propId);
+        const p = findProp(propId);
         if (p) {
           p.crm_status = 'APPROVED';
           if (cleanSql.includes('verification_tier')) {
@@ -1951,7 +2257,7 @@ class DevSandboxStore {
         }
 
         if (newListingStatus) {
-          const p = this.properties.get(propId);
+          const p = findProp(propId);
           if (p) {
             p.listing_status = newListingStatus;
             p.updated_at = new Date().toISOString();
@@ -1965,7 +2271,7 @@ class DevSandboxStore {
         const newStatus = params[0];
         if (cleanSql.includes('WHERE id = $2') || cleanSql.includes('WHERE id = $1')) {
           const id = params[1] || params[0];
-          const p = this.properties.get(id);
+          const p = findProp(id);
           if (p) {
             p.crm_status = newStatus;
             p.updated_at = new Date().toISOString();

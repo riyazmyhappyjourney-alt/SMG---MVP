@@ -215,32 +215,6 @@ export const StaffLogin: React.FC<StaffLoginProps> = ({ onSuccess, onBackToHome,
           {/* VIEW 1: STAFF LOGIN */}
           {mode === 'LOGIN' && (
             <form onSubmit={handleLoginSubmit} className="space-y-5">
-              {/* Quick Fill Credentials Banner for Dev Testing */}
-              <div className="p-3 bg-blue-50/70 border border-blue-200/80 rounded-lg text-xs text-slate-700">
-                <div className="font-semibold text-[#244B8F] mb-1.5 flex items-center justify-between">
-                  <span>Default Portal Credentials</span>
-                  <span className="text-[10px] bg-blue-100 text-[#244B8F] px-1.5 py-0.5 rounded font-mono font-bold">STAFF</span>
-                </div>
-                <div className="space-y-1 font-mono text-[11px] text-slate-600">
-                  <div className="flex justify-between items-center">
-                    <span>Email: <strong className="text-slate-800">admin@sellmyghar.in</strong></span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span>Password: <strong className="text-slate-800">[REDACTED_BOOTSTRAP_PASSWORD]</strong></span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEmail('admin@sellmyghar.in');
-                        setPassword('[REDACTED_BOOTSTRAP_PASSWORD]');
-                      }}
-                      className="text-[#244B8F] hover:underline font-sans text-[11px] font-semibold cursor-pointer"
-                    >
-                      Auto-fill
-                    </button>
-                  </div>
-                </div>
-              </div>
-
               <div>
                 <label htmlFor="staff-email" className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
                   Staff Email
