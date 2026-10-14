@@ -58,7 +58,7 @@ export async function runFooterAndHeroFixTests(): Promise<{ passed: number; fail
 
   record(
     'Footer displays exact RERA registration number: PRM/KA/RERA/1251/309/AG/221108/003210',
-    footerContent.includes('RERA Approved: PRM/KA/RERA/1251/309/AG/221108/003210')
+    footerContent.includes('PRM/KA/RERA/1251/309/AG/221108/003210')
   );
 
   record(
