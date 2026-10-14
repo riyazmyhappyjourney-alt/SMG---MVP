@@ -8151,6 +8151,11 @@ app.get('/api/admin/users', authenticateUser, requireRole('STAFF_SUPER_ADMIN'), 
   }
 });
 
+// 404 Handler for Unmatched API Endpoints
+app.all('/api/*', (_req, res) => {
+  res.status(404).json({ error: 'NOT_FOUND', message: 'API endpoint not found.' });
+});
+
 // ====================================================================
 // 8. SERVER BOOTSTRAP & SPA ROUTING
 // ====================================================================
