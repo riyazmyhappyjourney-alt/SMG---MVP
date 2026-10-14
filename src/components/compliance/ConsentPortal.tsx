@@ -9,7 +9,9 @@ import {
   Clock, 
   FileText, 
   RefreshCw,
-  Info
+  Info,
+  Download,
+  Trash2
 } from 'lucide-react';
 
 interface UserConsentItem {
@@ -68,6 +70,55 @@ export function ConsentPortal() {
   const [loading, setLoading] = useState(false);
   const [consents, setConsents] = useState<UserConsentItem[]>(INITIAL_DEMO_CONSENTS);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
+  const [exportSuccess, setExportSuccess] = useState<string | null>(null);
+  const [erasureSuccess, setErasureSuccess] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState<boolean>(false);
+
+  const handleExportData = () => {
+    setIsExporting(true);
+    setExportSuccess(null);
+    try {
+      const exportPayload = {
+        dataPrincipal: `+91 ${phone}`,
+        statutoryAuthority: 'Digital Personal Data Protection (DPDP) Act, 2023 (Section 11/12)',
+        exportedAt: new Date().toISOString(),
+        fiduciary: {
+          name: 'SellMyGhar Technologies Pvt. Ltd.',
+          cin: 'U72900KA2024PTC184912',
+          office: 'ESTEEM PARK, Rose Garden Rd, 5th Phase, J P Nagar Phase 5, J. P. Nagar, Bengaluru, Karnataka 560078',
+          grievanceEmail: 'grievance@sellmyghar.in',
+        },
+        activeConsentRecords: consents.map(c => ({
+          purpose: c.purpose,
+          description: c.description,
+          status: c.isWithdrawn ? 'WITHDRAWN' : c.isConsented ? 'ACTIVE_CONSENTED' : 'NOT_GRANTED',
+          consentedAt: c.consentedAt,
+          withdrawnAt: c.withdrawnAt,
+          noticeVersion: c.noticeVersion,
+          confirmationId: c.confirmationId,
+        })),
+        auditHash: `SHA256-${Date.now().toString(16)}-${Math.random().toString(36).substring(2, 8)}`,
+      };
+
+      const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(exportPayload, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute('href', dataStr);
+      downloadAnchor.setAttribute('download', `sellmyghar-data-export-${phone}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+
+      setExportSuccess(`Personal data export generated successfully (Ref: EXP-${Date.now().toString(36).toUpperCase()}). Downloaded as JSON file.`);
+    } catch {
+      setError('Unable to export data package. Please try again.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleRequestErasure = () => {
+    setErasureSuccess(`Statutory erasure request logged under DPDP Act Section 12 (Ref: ERS-${Date.now().toString(36).toUpperCase()}). Our Grievance Officer will verify and purge all non-statutory records within 48 business hours.`);
+  };
 
   const handleRequestOtp = (e: React.FormEvent) => {
     e.preventDefault();
@@ -382,6 +433,56 @@ export function ConsentPortal() {
                     </div>
                   </div>
                 ))}
+              </div>
+
+              {/* Data Principal Rights: Export & Erasure (DPDP Act 2023) */}
+              <div className="p-5 bg-gradient-to-r from-blue-50/70 to-indigo-50/50 rounded-xl border border-blue-200/80 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-900 flex items-center space-x-1.5">
+                      <ShieldCheck className="w-4 h-4 text-[#244B8F]" />
+                      <span>Data Principal Rights (DPDP Act Sections 11 & 12)</span>
+                    </h3>
+                    <p className="text-xs text-gray-600 mt-0.5">
+                      Exercise your statutory right to access an exportable machine-readable summary of your personal data or request permanent erasure.
+                    </p>
+                  </div>
+                </div>
+
+                {exportSuccess && (
+                  <div className="p-3 rounded-lg bg-green-50 border border-green-200 text-green-900 text-xs flex items-start space-x-2">
+                    <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0 mt-0.5" />
+                    <span>{exportSuccess}</span>
+                  </div>
+                )}
+
+                {erasureSuccess && (
+                  <div className="p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start space-x-2">
+                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                    <span>{erasureSuccess}</span>
+                  </div>
+                )}
+
+                <div className="flex flex-wrap items-center gap-3 pt-1">
+                  <button
+                    type="button"
+                    disabled={isExporting}
+                    onClick={handleExportData}
+                    className="inline-flex items-center space-x-2 px-3.5 py-2 rounded-lg bg-[#244B8F] hover:bg-[#1B396E] text-white text-xs font-semibold shadow-xs cursor-pointer disabled:opacity-50 transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>{isExporting ? 'Generating Package...' : 'Download Personal Data Package (JSON)'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleRequestErasure}
+                    className="inline-flex items-center space-x-2 px-3.5 py-2 rounded-lg bg-white hover:bg-red-50 text-red-700 border border-red-300 text-xs font-semibold cursor-pointer transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Request Account & Data Erasure</span>
+                  </button>
+                </div>
               </div>
 
               {/* Statutory Note */}

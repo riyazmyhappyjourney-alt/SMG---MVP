@@ -21,7 +21,7 @@ const OPEN_ROLES = [
   {
     title: 'Legal Conveyance & Title Diligence Specialist',
     dept: 'Legal & Compliance',
-    location: 'Bengaluru (Head Office: Bellandur)',
+    location: 'Bengaluru (Head Office: JP Nagar Phase 5)',
     type: 'Full-time',
     description: 'Scrutinize 30-year parent sale deeds, BBMP Khata certificates, and Form 15 Encumbrance Certificates to ensure pristine title clarity for apartment resales.'
   },
@@ -121,13 +121,6 @@ export const CareersPage: React.FC<CareersPageProps> = ({
                   </a>
                 </div>
               ))}
-            </div>
-
-            <div className="bg-slate-900 text-white rounded-2xl p-8 sm:p-10 text-center font-['Poppins'] space-y-3 mt-10">
-              <h3 className="text-lg font-bold font-['Montserrat']">Don't see your role?</h3>
-              <p className="text-xs text-slate-300 max-w-xl mx-auto">
-                We are always seeking exceptional relationship managers, legal advocates, and software engineers passionate about proptech. Send your CV to <strong>careers@sellmyghar.in</strong>.
-              </p>
             </div>
 
           </div>
