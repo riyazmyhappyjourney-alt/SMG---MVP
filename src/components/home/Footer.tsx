@@ -37,45 +37,63 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
   const [feedbackText, setFeedbackText] = useState('');
 
   return (
-    <footer className="relative overflow-hidden bg-gradient-to-b from-[#EBF5FB] via-[#E4F1FA] to-[#DEF0FA] text-[#1E3A8A] font-['Poppins',sans-serif] border-t border-slate-200/80">
+    <footer className="relative overflow-hidden text-[#1E3A8A] font-['Poppins',sans-serif] border-t border-slate-200/80">
       
-      {/* 1. Main Footer Content Container (Positioned Safely in the Upper Sky Zone) */}
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 sm:pt-14 pb-4 sm:pb-6">
+      {/* 1. Main Footer Content Container with Integrated Bengaluru Illustration as Full Background */}
+      <div className="relative overflow-hidden bg-[#EFF6FB]">
         
-        {/* Main 4-Column Layout (4 + 2 + 3 + 3 = 12 columns) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-8 lg:gap-8 items-start">
-          
-          {/* Column 1: Brand Info & Unified RERA Block (lg:col-span-4) */}
-          <div className="lg:col-span-4 space-y-4">
-            <div className="inline-block">
-              <Logo height={56} className="mb-1" />
-            </div>
-            <p className="text-xs text-[#1E3A8A] font-medium leading-relaxed max-w-sm">
-              SellMyGhar is Bengaluru’s dedicated apartment resale platform. We eliminate broker spam, provide certified title due diligence, and connect verified sellers directly with serious home buyers.
-            </p>
+        {/* Absolutely positioned background illustration covering entire footer content area */}
+        <div 
+          className="absolute inset-0 w-full h-full pointer-events-none select-none z-0"
+          aria-hidden="true"
+        >
+          <img
+            id="footer-skyline-backdrop"
+            src="/images/bengaluru-skyline-footer.png"
+            alt="Bengaluru Vidhana Soudha, Metro and Resale Infrastructure Panorama"
+            className="w-full h-full object-cover object-bottom"
+            loading="lazy"
+            decoding="async"
+          />
+          {/* Subtle translucent light overlay over the illustration for text contrast & readability without hiding illustration */}
+          <div className="absolute inset-0 bg-[#EBF5FB]/82 md:bg-[#EBF5FB]/80 backdrop-blur-[0.5px]" />
+        </div>
+
+        {/* 4-Column Layout Layered Above Background */}
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 sm:pt-14 pb-12 sm:pb-16">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-8 lg:gap-8 items-start">
             
-            {/* Unified Karnataka RERA Approved Block with Registration Number & Lighting Sweep */}
-            <div className="pt-1">
-              <div 
-                className="relative overflow-hidden inline-flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2 text-xs bg-emerald-50/95 backdrop-blur-xs px-3.5 py-2 rounded-xl border border-emerald-400 font-['Montserrat'] shadow-2xs max-w-full"
-                title="Karnataka Real Estate Regulatory Authority Approved Platform"
-              >
-                <div className="flex items-center space-x-2 shrink-0 font-bold text-emerald-800">
-                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span className="text-[11px] sm:text-xs whitespace-nowrap">
-                    Karnataka RERA Approved Real Estate Resale Platform
+            {/* Column 1: Brand Info & Unified RERA Block (lg:col-span-4) */}
+            <div className="lg:col-span-4 space-y-4">
+              <div className="inline-block">
+                <Logo height={64} className="mb-2" />
+              </div>
+              <p className="text-xs text-[#1E3A8A] font-medium leading-relaxed max-w-sm">
+                SellMyGhar is Bengaluru’s dedicated apartment resale platform. We eliminate broker spam, provide certified title due diligence, and connect verified sellers directly with serious home buyers.
+              </p>
+              
+              {/* Unified Karnataka RERA Approved Block with Registration Number & Lighting Sweep */}
+              <div className="pt-1">
+                <div 
+                  className="relative overflow-hidden inline-flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2 text-xs bg-emerald-50/95 backdrop-blur-xs px-3.5 py-2 rounded-xl border border-emerald-400 font-['Montserrat'] shadow-2xs max-w-full"
+                  title="Karnataka Real Estate Regulatory Authority Approved Platform"
+                >
+                  <div className="flex items-center space-x-2 shrink-0 font-bold text-emerald-800">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span className="text-[11px] sm:text-xs whitespace-nowrap">
+                      Karnataka RERA Approved Real Estate Resale Platform
+                    </span>
+                  </div>
+                  <span className="hidden sm:inline text-emerald-300">|</span>
+                  <span className="font-mono text-[10px] sm:text-[11px] font-bold text-[#1E3A8A] tracking-wider whitespace-nowrap select-all">
+                    PRM/KA/RERA/1251/309/AG/221108/003210
                   </span>
+                  {/* Subtle Lighting Sweep Animation Across the Card */}
+                  <span className="animate-rera-sweep" aria-hidden="true" />
+                  <span className="animate-rera-underline" aria-hidden="true" />
                 </div>
-                <span className="hidden sm:inline text-emerald-300">|</span>
-                <span className="font-mono text-[10px] sm:text-[11px] font-bold text-[#1E3A8A] tracking-wider whitespace-nowrap select-all">
-                  PRM/KA/RERA/1251/309/AG/221108/003210
-                </span>
-                {/* Subtle Lighting Sweep Animation Across the Card */}
-                <span className="animate-rera-sweep" aria-hidden="true" />
-                <span className="animate-rera-underline" aria-hidden="true" />
               </div>
             </div>
-          </div>
 
           {/* Column 2: Company (lg:col-span-2, subtle divider on desktop) */}
           <div className="lg:col-span-2 lg:border-l lg:border-sky-300/40 lg:pl-6 space-y-2.5">
@@ -248,21 +266,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
 
         </div>
       </div>
-
-      {/* 2. Panoramic Bengaluru Illustration (Vidhana Soudha, Metro, Trees, Street) */}
-      <div 
-        className="w-full relative overflow-hidden select-none pointer-events-none mt-2 sm:mt-4"
-        aria-hidden="true"
-      >
-        <img
-          id="footer-skyline-backdrop"
-          src="/images/bengaluru-skyline-footer.png"
-          alt="Bengaluru Vidhana Soudha, Metro and Resale Infrastructure Panorama"
-          className="w-full h-auto max-h-[220px] sm:max-h-[280px] md:max-h-[340px] lg:max-h-[400px] object-cover object-bottom"
-          loading="lazy"
-          decoding="async"
-        />
-      </div>
+    </div>
 
       {/* Bottom Bar: Copyright & Compliance */}
       <div className="relative z-20 pt-4 pb-6 bg-[#172033] text-slate-300 font-['Poppins'] border-t border-slate-700/60 shadow-lg">

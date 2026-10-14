@@ -1548,12 +1548,14 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
           {/* Brand Header */}
           <div className="h-16 px-5 border-b border-slate-200/80 flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <div className="w-9 h-9 rounded-xl bg-[#244B8F] flex items-center justify-center text-white font-bold text-sm shadow-xs">
-                SG
-              </div>
-              <div>
-                <h1 className="font-extrabold text-sm tracking-tight text-[#172033]">SellMyGhar</h1>
-                <p className="text-[10px] text-slate-400 font-medium tracking-wide uppercase">Operations CRM</p>
+              <img
+                src="/logo.png"
+                alt="SellMyGhar"
+                className="h-9 w-auto object-contain"
+              />
+              <div className="border-l border-slate-200/90 pl-2.5">
+                <h1 className="font-extrabold text-xs tracking-tight text-[#172033] uppercase">CRM Portal</h1>
+                <p className="text-[10px] text-slate-400 font-medium tracking-wide">Operations</p>
               </div>
             </div>
             <div className="flex items-center space-x-1.5">
