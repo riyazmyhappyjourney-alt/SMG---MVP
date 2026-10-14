@@ -14,7 +14,10 @@ export const Logo: React.FC<LogoProps> = ({
   return (
     <div className={`inline-flex items-center select-none ${className}`}>
       <img
-        src="/logo.png"
+        src="/logo.svg"
+        onError={(e) => {
+          (e.currentTarget as HTMLImageElement).src = '/logo.png';
+        }}
         alt={alt}
         style={{ height: typeof height === 'number' ? `${height}px` : height, width: 'auto' }}
         className="object-contain max-h-full"
