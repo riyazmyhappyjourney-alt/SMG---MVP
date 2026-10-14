@@ -13,6 +13,7 @@ import { runHomepageCmsSeoTests } from './run-homepage-cms-seo-tests';
 import { runEmailAutomationTests } from './run-email-automation-tests';
 import { runPropertyBrochureTests } from './run-property-brochure-tests';
 import { runApprovalAndImageFixTests } from './run-approval-image-fix-tests';
+import { runFooterAndHeroFixTests } from './test-footer-and-hero-fix';
 
 async function runAll() {
   console.log('====================================================');
@@ -157,6 +158,15 @@ async function runAll() {
   totalFailed += approvalImgRes.failed;
   suiteResults.push({ name: 'Property Approval Email & Image Upload Reliability', passed: approvalImgRes.passed, failed: approvalImgRes.failed, tests: approvalImgRes.results });
   console.log(`Subtotal: ${approvalImgRes.passed} passed, ${approvalImgRes.failed} failed\n`);
+
+  // Suite 16: Footer Redesign & Hero Image Flash Fix Suite
+  console.log('--- 16. Footer Redesign & Hero Image Flash Fix Suite ---');
+  const footerHeroRes = await runFooterAndHeroFixTests();
+  footerHeroRes.results.forEach(r => console.log(' ', r));
+  totalPassed += footerHeroRes.passed;
+  totalFailed += footerHeroRes.failed;
+  suiteResults.push({ name: 'Footer Redesign & Hero Image Flash Fix', passed: footerHeroRes.passed, failed: footerHeroRes.failed, tests: footerHeroRes.results });
+  console.log(`Subtotal: ${footerHeroRes.passed} passed, ${footerHeroRes.failed} failed\n`);
 
   console.log('====================================================');
   console.log(`FINAL RESULTS: ${totalPassed} PASSED, ${totalFailed} FAILED (TOTAL: ${totalPassed + totalFailed}/${totalPassed + totalFailed})`);
