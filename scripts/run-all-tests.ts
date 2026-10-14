@@ -18,6 +18,7 @@ import { runGroup4FeatureTests } from './test-group4-features';
 import { runGroup1SecurityHardeningTests } from './test-group1-security-hardening';
 import { runGroup2RlsAndStorageTests } from './test-group2-rls-storage-hardening';
 import { runGroup3PrivacyAnalyticsTests } from './test-group3-privacy-analytics';
+import { runGroup4SeoMetadataTests } from './test-group4-seo-metadata';
 
 async function runAll() {
   console.log('====================================================');
@@ -203,6 +204,14 @@ async function runAll() {
   totalFailed += group3Res.failed;
   suiteResults.push({ name: 'Group 3: Privacy-Preserving Web Analytics', passed: group3Res.passed, failed: group3Res.failed, tests: group3Res.results });
   console.log(`Subtotal: ${group3Res.passed} passed, ${group3Res.failed} failed\n`);
+
+  // Suite 21: Group 4 Technical SEO, Structured Data & Metadata
+  const group4SeoRes = await runGroup4SeoMetadataTests();
+  group4SeoRes.results.forEach(r => console.log(' ', r));
+  totalPassed += group4SeoRes.passed;
+  totalFailed += group4SeoRes.failed;
+  suiteResults.push({ name: 'Group 4: Technical SEO, Structured Data & Metadata', passed: group4SeoRes.passed, failed: group4SeoRes.failed, tests: group4SeoRes.results });
+  console.log(`Subtotal: ${group4SeoRes.passed} passed, ${group4SeoRes.failed} failed\n`);
 
   console.log('====================================================');
   console.log(`FINAL RESULTS: ${totalPassed} PASSED, ${totalFailed} FAILED (TOTAL: ${totalPassed + totalFailed}/${totalPassed + totalFailed})`);
