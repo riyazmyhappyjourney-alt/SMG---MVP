@@ -1066,6 +1066,9 @@ class DevSandboxStore {
       const u = this.users.get(params[1]);
       if (u) {
         u.password_hash = params[0];
+        if (cleanSql.includes('token_version = token_version + 1')) {
+          u.token_version = (u.token_version || 1) + 1;
+        }
         u.failed_login_attempts = 0;
         u.locked_until = null;
         u.updated_at = new Date().toISOString();

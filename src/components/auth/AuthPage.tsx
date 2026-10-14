@@ -423,9 +423,19 @@ export const AuthPage: React.FC<AuthPageProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Password
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Password
+                  </label>
+                  {mode === 'SIGNIN' && (
+                    <a
+                      href="#/reset-password"
+                      className="text-xs font-semibold text-[#244B8F] hover:underline cursor-pointer"
+                    >
+                      Forgot password?
+                    </a>
+                  )}
+                </div>
                 <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}

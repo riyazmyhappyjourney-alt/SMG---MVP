@@ -61,6 +61,7 @@ import { TasksKanbanModule } from './TasksKanbanModule';
 import { HeroCmsManager } from './HeroCmsManager';
 import { PartnerLogosManager } from './PartnerLogosManager';
 import { PublicationEmailManager } from './PublicationEmailManager';
+import { PropertySuggestionsManager } from './PropertySuggestionsManager';
 import { DateTimePicker } from '../common/DateTimePicker';
 import {
   formatIndianCurrency,
@@ -250,7 +251,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
   // Navigation State
   const [activeSection, setActiveSection] = useState<NavSection>('OVERVIEW');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<'SECURITY' | 'HERO_CMS' | 'PARTNER_CMS' | 'EMAIL_TEMPLATE'>('SECURITY');
+  const [settingsTab, setSettingsTab] = useState<'SECURITY' | 'HERO_CMS' | 'PARTNER_CMS' | 'EMAIL_TEMPLATE' | 'SUGGESTIONS_CSV'>('SECURITY');
 
   const handleSelectSection = useCallback((section: NavSection) => {
     setActiveSection(section);
@@ -4168,6 +4169,17 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 >
                   Publication Email & SMTP
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setSettingsTab('SUGGESTIONS_CSV')}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    settingsTab === 'SUGGESTIONS_CSV'
+                      ? 'bg-[#244B8F] text-white shadow-xs'
+                      : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                  }`}
+                >
+                  Property Suggestions (CSV)
+                </button>
               </div>
 
               {settingsTab === 'HERO_CMS' && (
@@ -4180,6 +4192,10 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
 
               {settingsTab === 'EMAIL_TEMPLATE' && (
                 <PublicationEmailManager />
+              )}
+
+              {settingsTab === 'SUGGESTIONS_CSV' && (
+                <PropertySuggestionsManager />
               )}
 
               {settingsTab === 'SECURITY' && (
