@@ -42,7 +42,8 @@ import {
   BUCKET_PROPERTY_MEDIA, 
   BUCKET_PROPERTY_DOCUMENTS, 
   ensureSupabaseBucketsExist,
-  getSupabaseClient
+  getSupabaseClient,
+  getDocumentSignedUrl
 } from './src/server/storage/supabase-client';
 import { DistributedRateLimiter } from './src/server/ratelimit/limiter';
 import { recordAuditEvent, AuditableAction } from './src/server/audit/logger';
@@ -3021,6 +3022,101 @@ app.post('/api/properties/:id/documents', jsonUpload, rateLimit('doc-upload', 20
   } catch (err: any) {
     console.error('[DocumentVault] Error uploading document:', err);
     return res.status(500).json({ error: err.message || 'Failed to process document upload' });
+  }
+});
+
+// API: List Statutory Documents for a Property (Generates Fresh 1-Hour Signed URLs)
+// Enforces IDOR & Ownership: Only property owner or authorized verification staff can view documents
+app.get('/api/properties/:id/documents', authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    // 1. Confirm property exists and verify caller has access
+    const propRes = await executeQuery(`SELECT * FROM properties WHERE id = $1 LIMIT 1;`, [id]);
+    if (!propRes.rows || propRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Property not found.' });
+    }
+    const property = propRes.rows[0];
+
+    try {
+      assertCanAccessProperty(req.user!, property, 'READ');
+    } catch (authErr: any) {
+      await recordAuditEvent({
+        actor: req.user!,
+        action: 'DOCUMENT_UPLOAD_IDOR_VIOLATION',
+        targetEntity: 'properties',
+        targetEntityId: id,
+        clientIp: req.ip || '127.0.0.1',
+        diffSummary: { reason: authErr.message },
+      });
+      return res.status(403).json({ error: 'ACCESS_DENIED', message: 'You do not have permission to view documents for this property.' });
+    }
+
+    // 2. Query documents
+    const docRes = await executeQuery(`SELECT * FROM documents WHERE property_id = $1 ORDER BY created_at DESC;`, [id]);
+    const docs = docRes.rows || [];
+
+    // 3. Generate fresh 1-hour signed URLs for each private document
+    const refreshedDocs = await Promise.all(
+      docs.map(async (doc: any) => {
+        let signedUrl = '';
+        if (doc.storage_path) {
+          try {
+            const signRes = await getDocumentSignedUrl(doc.storage_path, 3600);
+            signedUrl = signRes.signedUrl;
+          } catch (e: any) {
+            console.warn(`[DocumentVault] Could not generate signed URL for doc ${doc.id}: ${e.message}`);
+          }
+        }
+        return {
+          id: doc.id,
+          propertyId: doc.property_id,
+          type: doc.document_type,
+          fileName: doc.file_name,
+          fileSize: doc.file_size_bytes,
+          storagePath: doc.storage_path,
+          signedUrl,
+          checksum: doc.sha256_checksum,
+          verificationStatus: doc.verification_status,
+          uploadedAt: doc.created_at,
+        };
+      })
+    );
+
+    return res.json({ success: true, documents: refreshedDocs });
+  } catch (err: any) {
+    console.error('[DocumentVault] Error fetching property documents:', err);
+    return res.status(500).json({ error: 'Failed to retrieve property documents' });
+  }
+});
+
+// API: Get Fresh Signed URL for Single Statutory Document
+app.get('/api/documents/:id/signed-url', authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const docRes = await executeQuery(`SELECT * FROM documents WHERE id = $1 LIMIT 1;`, [id]);
+    if (!docRes.rows || docRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Document not found.' });
+    }
+    const doc = docRes.rows[0];
+
+    // Assert document access: caller must be owner or verification staff
+    try {
+      assertCanAccessDocument(req.user!, {
+        id: doc.id,
+        property_id: doc.property_id,
+        uploader_user_id: doc.uploader_user_id || doc.owner_id,
+        owner_id: doc.uploader_user_id || doc.owner_id,
+        document_type: doc.document_type,
+      } as any);
+    } catch (authErr: any) {
+      return res.status(403).json({ error: 'ACCESS_DENIED', message: 'You do not have permission to access this statutory document.' });
+    }
+
+    const { signedUrl, expiresAt } = await getDocumentSignedUrl(doc.storage_path, 3600);
+    return res.json({ success: true, signedUrl, expiresAt: expiresAt.toISOString() });
+  } catch (err: any) {
+    return res.status(500).json({ error: 'Failed to generate signed URL' });
   }
 });
 

@@ -1,6 +1,8 @@
 import pg from 'pg';
 import { getValidatedConfig, ConfigurationError } from '../config/env';
 import { devSandboxStore } from './dev-sandbox-store';
+import { withUserSession, DbConnection } from './session';
+import { AuthenticatedUser } from '../../core/types/auth';
 
 const { Pool } = pg;
 
@@ -171,4 +173,16 @@ export async function executeQuery<T = any>(text: string, params?: unknown[]): P
     }
     throw err;
   }
+}
+
+/**
+ * Execute a transaction-scoped query with PostgreSQL Row-Level Security (RLS)
+ * variables (app.current_user_id and app.current_user_roles) bound to the authenticated user.
+ */
+export async function executeUserQuery<T = any>(
+  user: AuthenticatedUser,
+  callback: (client: DbConnection) => Promise<T>
+): Promise<T> {
+  const pool = getDbPool();
+  return withUserSession(pool, user, callback);
 }

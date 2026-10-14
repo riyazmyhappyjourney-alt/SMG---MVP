@@ -227,9 +227,14 @@ class DevSandboxStore {
   public partnerLogos = new Map<string, any>();
   public partnerSectionSettings = new Map<string, any>();
 
+  public currentUserId: string | null = null;
+  public currentUserRoles: string[] = [];
+
   private initialized = false;
 
   public reset() {
+    this.currentUserId = null;
+    this.currentUserRoles = [];
     this.users.clear();
     this.sellerLeads.clear();
     this.buyerEnquiries.clear();
@@ -883,13 +888,35 @@ class DevSandboxStore {
     const cleanSql = sql.replace(/\s+/g, ' ').trim();
 
     // 1. Transaction & DDL Control
+    if (cleanSql === 'COMMIT' || cleanSql === 'ROLLBACK') {
+      this.currentUserId = null;
+      this.currentUserRoles = [];
+      return { rows: [] };
+    }
+
+    if (cleanSql.includes("set_config('app.current_user_id'")) {
+      this.currentUserId = params[0] || null;
+      return { rows: [{ set_config: params[0] }] };
+    }
+
+    if (cleanSql.includes("set_config('app.current_user_roles'")) {
+      this.currentUserRoles = params[0] ? String(params[0]).split(',') : [];
+      return { rows: [{ set_config: params[0] }] };
+    }
+
+    if (cleanSql.includes("current_setting('app.current_user_id'")) {
+      return { rows: [{ current_user_id: this.currentUserId }] };
+    }
+
+    if (cleanSql.includes("current_setting('app.current_user_roles'")) {
+      return { rows: [{ current_user_roles: this.currentUserRoles.join(',') }] };
+    }
+
     if (
       cleanSql.startsWith('ALTER TABLE') ||
       cleanSql.startsWith('CREATE TABLE') ||
       cleanSql.startsWith('CREATE INDEX') ||
-      cleanSql === 'BEGIN' ||
-      cleanSql === 'COMMIT' ||
-      cleanSql === 'ROLLBACK'
+      cleanSql === 'BEGIN'
     ) {
       return { rows: [] };
     }

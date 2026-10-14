@@ -16,6 +16,7 @@ import { runApprovalAndImageFixTests } from './run-approval-image-fix-tests';
 import { runFooterAndHeroFixTests } from './test-footer-and-hero-fix';
 import { runGroup4FeatureTests } from './test-group4-features';
 import { runGroup1SecurityHardeningTests } from './test-group1-security-hardening';
+import { runGroup2RlsAndStorageTests } from './test-group2-rls-storage-hardening';
 
 async function runAll() {
   console.log('====================================================');
@@ -185,6 +186,14 @@ async function runAll() {
   totalFailed += group1Res.failed;
   suiteResults.push({ name: 'Group 1: Security Hardening (Clickjacking, CORS & Anti-CSRF)', passed: group1Res.passed, failed: group1Res.failed, tests: group1Res.results });
   console.log(`Subtotal: ${group1Res.passed} passed, ${group1Res.failed} failed\n`);
+
+  // Suite 19: Group 2 Database RLS & Storage Hardening
+  const group2Res = await runGroup2RlsAndStorageTests();
+  group2Res.results.forEach(r => console.log(' ', r));
+  totalPassed += group2Res.passed;
+  totalFailed += group2Res.failed;
+  suiteResults.push({ name: 'Group 2: Database RLS & Storage Hardening', passed: group2Res.passed, failed: group2Res.failed, tests: group2Res.results });
+  console.log(`Subtotal: ${group2Res.passed} passed, ${group2Res.failed} failed\n`);
 
   console.log('====================================================');
   console.log(`FINAL RESULTS: ${totalPassed} PASSED, ${totalFailed} FAILED (TOTAL: ${totalPassed + totalFailed}/${totalPassed + totalFailed})`);
