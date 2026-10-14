@@ -66,15 +66,38 @@ const PORT = parseInt(process.env.PORT || '3000', 10);
 const isProd = process.env.NODE_ENV === 'production';
 
 // ====================================================================
-// 1. SECURITY HEADERS & COOKIE PARSER
+// 1. SECURITY HEADERS, CORS, COOKIE PARSER & ANTI-CSRF DEFENSE
 // ====================================================================
+
+const TRUSTED_ORIGINS = new Set([
+  'https://sellmyghar.in',
+  'https://www.sellmyghar.in',
+  ...(process.env.ADDITIONAL_ALLOWED_ORIGINS
+    ? process.env.ADDITIONAL_ALLOWED_ORIGINS.split(',').map((s) => s.trim())
+    : []),
+]);
+
+export function isOriginAllowed(origin?: string): boolean {
+  if (!origin) return true;
+  if (TRUSTED_ORIGINS.has(origin)) return true;
+  if (!isProd || process.env.ALLOW_DEV_FALLBACKS === 'true' || process.env.RUNNING_TESTS === 'true') {
+    try {
+      const url = new URL(origin);
+      if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
+        return true;
+      }
+    } catch {}
+  }
+  return false;
+}
 
 app.use((_req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader(
     'Content-Security-Policy',
-    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: blob:; connect-src 'self' https:;"
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: blob:; connect-src 'self' https:; frame-ancestors 'none';"
   );
   res.setHeader(
     'Permissions-Policy',
@@ -82,6 +105,27 @@ app.use((_req, res, next) => {
   );
   if (isProd) {
     res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  next();
+});
+
+// CORS Policy Middleware
+app.use((req, res, next) => {
+  const origin = req.headers.origin as string | undefined;
+  if (origin) {
+    if (isOriginAllowed(origin)) {
+      res.setHeader('Access-Control-Allow-Origin', origin);
+      res.setHeader('Access-Control-Allow-Credentials', 'true');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-CSRF-Token');
+    } else {
+      if (req.method === 'OPTIONS') {
+        return res.status(403).json({ error: 'CORS_FORBIDDEN', message: 'Cross-origin request forbidden.' });
+      }
+    }
+  }
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(204);
   }
   next();
 });
@@ -102,6 +146,55 @@ function parseCookies(cookieHeader?: string): Record<string, string> {
 
 app.use((req, _res, next) => {
   (req as any).cookies = parseCookies(req.headers.cookie);
+  next();
+});
+
+// Anti-CSRF Defense for Mutating Endpoints
+const MUTATING_METHODS = new Set(['POST', 'PUT', 'DELETE', 'PATCH']);
+
+app.use('/api', (req, res, next) => {
+  if (!MUTATING_METHODS.has(req.method.toUpperCase())) {
+    return next();
+  }
+
+  // 1. Defend against Sec-Fetch-Site cross-site abuse
+  const secFetchSite = req.headers['sec-fetch-site'] as string | undefined;
+  if (secFetchSite === 'cross-site') {
+    return res.status(403).json({
+      error: 'CSRF_REJECTED',
+      message: 'Cross-site mutating requests are blocked by CSRF protection.',
+    });
+  }
+
+  // 2. Origin check: If present, must be in trusted origins
+  const origin = req.headers.origin as string | undefined;
+  if (origin && !isOriginAllowed(origin)) {
+    return res.status(403).json({
+      error: 'CSRF_REJECTED',
+      message: `Origin ${origin} is not authorized for mutating API requests.`,
+    });
+  }
+
+  // 3. Referer fallback: If origin is omitted, verify referer host if present
+  const referer = req.headers.referer as string | undefined;
+  if (!origin && referer) {
+    try {
+      const refUrl = new URL(referer);
+      const refOrigin = `${refUrl.protocol}//${refUrl.host}`;
+      if (!isOriginAllowed(refOrigin)) {
+        return res.status(403).json({
+          error: 'CSRF_REJECTED',
+          message: `Referer ${refOrigin} is not authorized for mutating API requests.`,
+        });
+      }
+    } catch {
+      return res.status(403).json({
+        error: 'CSRF_REJECTED',
+        message: 'Malformed Referer header on mutating request.',
+      });
+    }
+  }
+
   next();
 });
 
