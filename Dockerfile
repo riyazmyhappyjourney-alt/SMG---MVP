@@ -10,7 +10,7 @@ WORKDIR /app
 
 # Install build dependencies
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm install
 
 # Copy project source
 COPY . .
@@ -28,7 +28,7 @@ ENV PORT=8080
 
 # Install production dependencies & pinned tsx runtime engine
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev && npm install tsx@4.21.0 --no-save
+RUN npm install --omit=dev && npm install tsx@4.21.0 --no-save
 
 # Copy built frontend from builder stage
 COPY --from=builder /app/dist ./dist
