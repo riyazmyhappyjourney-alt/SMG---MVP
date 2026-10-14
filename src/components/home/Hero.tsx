@@ -174,8 +174,8 @@ export const Hero: React.FC<HeroProps> = ({
 
   const handleSocietyInput = (text: string) => {
     setSocietyQuery(text);
-    if (text.trim().length >= 2) {
-      const results = searchSocieties(text).slice(0, 6);
+    if (text.trim().length >= 1) {
+      const results = searchSocieties(text).slice(0, 8);
       setSuggestions(results);
       setShowSuggestions(true);
     } else {
@@ -357,62 +357,31 @@ export const Hero: React.FC<HeroProps> = ({
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200/90 overflow-hidden max-w-4xl">
             
             {/* Top Marketplace Tab Bar */}
+            {/* Top Marketplace Tab Bar (Focused on Seller Listing) */}
             <div className="px-5 sm:px-6 pt-3.5 pb-2 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center space-x-5 text-xs font-semibold">
+              <div className="flex items-center space-x-3 text-xs font-semibold">
                 
                 {/* Sell Flat Tab (Active) */}
-                <button
-                  type="button"
-                  onClick={() => handleTabChange('SELL')}
-                  className={`pb-2 relative font-bold transition-colors cursor-pointer ${
-                    activeTab === 'SELL' ? 'text-[#244B8F]' : 'text-slate-500 hover:text-slate-900'
-                  }`}
-                >
-                  <span>Sell Flat</span>
-                  {activeTab === 'SELL' && (
-                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#244B8F] rounded-full" />
-                  )}
-                </button>
-
-                {/* Buy Resale Tab */}
-                <button
-                  type="button"
-                  onClick={() => handleTabChange('BUY')}
-                  className={`pb-2 relative transition-colors cursor-pointer ${
-                    activeTab === 'BUY' ? 'text-[#244B8F] font-bold' : 'text-slate-500 hover:text-slate-900'
-                  }`}
-                >
-                  <span>Buy Resale</span>
-                  {activeTab === 'BUY' && (
-                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#244B8F] rounded-full" />
-                  )}
-                </button>
-
-                {/* Rent Tab */}
-                <button
-                  type="button"
-                  onClick={() => handleTabChange('RENT')}
-                  className={`pb-2 relative transition-colors cursor-pointer ${
-                    activeTab === 'RENT' ? 'text-[#244B8F] font-bold' : 'text-slate-500 hover:text-slate-900'
-                  }`}
-                >
-                  <span>Rent</span>
-                </button>
+                <div className="flex items-center space-x-2 text-[#244B8F] font-bold pb-2 relative">
+                  <Building2 className="w-4 h-4 text-[#244B8F]" />
+                  <span>Sell / Resale Flat</span>
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#244B8F] rounded-full" />
+                </div>
 
                 {/* Vertical Divider */}
                 <span className="h-3.5 w-px bg-slate-200 self-center hidden sm:block" />
 
                 {/* Post Property FREE badge */}
-                <div className="flex items-center space-x-1.5 hidden sm:flex">
+                <div className="flex items-center space-x-1.5 pb-2">
                   <span className="text-slate-700 text-xs font-bold">Post Property</span>
-                  <span className="px-1.5 py-0.5 text-[9px] font-black uppercase bg-emerald-600 text-white rounded">
+                  <span className="px-1.5 py-0.5 text-[9px] font-black uppercase bg-emerald-600 text-white rounded shadow-2xs">
                     FREE
                   </span>
                 </div>
               </div>
 
               <div className="text-[11px] text-slate-400 font-medium hidden md:block">
-                Assisted Bengaluru Residential Resale
+                Assisted Bengaluru Residential Resale & Direct Title Diligence
               </div>
             </div>
 
@@ -472,19 +441,13 @@ export const Hero: React.FC<HeroProps> = ({
                   )}
                 </div>
 
-                {/* 3. Primary Action Button (3 cols) */}
+                {/* 3. Primary Action Button (3 cols) with attention glow */}
                 <div className="md:col-span-3">
                   <button
                     type="submit"
-                    className="w-full py-2.5 px-4 bg-[#244B8F] hover:bg-[#1B396E] text-white text-xs font-bold rounded-xl shadow-md hover:shadow-lg transition-all cursor-pointer flex items-center justify-center space-x-1.5 group"
+                    className="w-full py-2.5 px-4 bg-[#244B8F] hover:bg-[#1B396E] text-white text-xs font-bold rounded-xl shadow-md hover:shadow-lg transition-all cursor-pointer flex items-center justify-center space-x-1.5 group animate-sell-cta relative"
                   >
-                    <span>
-                      {activeTab === 'BUY'
-                        ? 'Search Verified Flats'
-                        : activeTab === 'RENT'
-                        ? 'Explore Rental Flats'
-                        : 'Sell Your Flat Now'}
-                    </span>
+                    <span>Sell Your Flat Now</span>
                     <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                   </button>
                 </div>

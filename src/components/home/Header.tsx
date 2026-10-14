@@ -288,11 +288,11 @@ export const Header: React.FC<HeaderProps> = ({
                 )}
               </button>
 
-              {/* Post property FREE button with Home icon (Crisp white pill matching reference) */}
+              {/* Post property FREE button with Home icon (Crisp white pill with subtle attention pulse) */}
               <button
                 type="button"
                 onClick={onPostPropertyClick}
-                className="inline-flex items-center px-4 py-2 rounded-xl text-xs font-bold text-slate-900 bg-white hover:bg-slate-100 shadow-sm transition-all cursor-pointer group"
+                className="inline-flex items-center px-4 py-2 rounded-xl text-xs font-bold text-slate-900 bg-white hover:bg-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer group animate-post-property-attention relative"
               >
                 <Home className="w-3.5 h-3.5 mr-1.5 text-[#244B8F] group-hover:scale-110 transition-transform" />
                 <span>Post property</span>
@@ -834,7 +834,7 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   type="button"
                   onClick={onPostPropertyClick}
-                  className="inline-flex items-center px-3.5 py-1.5 rounded-lg text-xs font-bold text-slate-900 bg-white hover:bg-slate-100 shadow-md transition-all cursor-pointer"
+                  className="inline-flex items-center px-3.5 py-1.5 rounded-lg text-xs font-bold text-slate-900 bg-white hover:bg-slate-100 shadow-md transition-all cursor-pointer animate-post-property-attention"
                 >
                   <Home className="w-3.5 h-3.5 mr-1 text-[#244B8F]" />
                   <span>Post property</span>

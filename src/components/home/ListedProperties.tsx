@@ -15,6 +15,7 @@ import {
 import { motion } from 'motion/react';
 import { getFavoritePropertyIds, toggleFavoriteProperty } from '../../utils/favoritesStore';
 import { getDistinctCommunityPhoto } from '../../utils/propertyImages';
+import { PropertyCardSkeleton } from '../common/PropertyCardSkeleton';
 
 interface PropertyItem {
   id: string;
@@ -167,9 +168,7 @@ export const ListedProperties: React.FC<ListedPropertiesProps> = ({ onSelectProp
         {/* Listings Grid */}
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
-            {[1, 2, 3].map((n) => (
-              <div key={n} className="bg-white rounded-2xl h-96 animate-pulse border border-slate-200" />
-            ))}
+            <PropertyCardSkeleton count={6} />
           </div>
         ) : filteredProperties.length === 0 ? (
           <div className="text-center py-16 bg-white rounded-2xl border border-slate-200 p-8">

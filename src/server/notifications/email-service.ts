@@ -20,7 +20,7 @@ export interface PublicationNotificationRecord {
   html_body: string;
   status: 'DELIVERED' | 'FAILED' | 'PENDING_CONFIGURATION' | 'SIMULATED';
   idempotency_key: string;
-  event_type?: 'PROPERTY_LISTED' | 'MEETING_SCHEDULED' | 'PROPERTY_APPROVED' | 'PROPERTY_PUBLISHED' | 'USER_WELCOME' | 'TEST';
+  event_type?: 'PROPERTY_LISTED' | 'MEETING_SCHEDULED' | 'PROPERTY_APPROVED' | 'PROPERTY_PUBLISHED' | 'USER_WELCOME' | 'INTERNAL_PROPERTY_INTAKE' | 'TEST';
   provider_message_id?: string | null;
   provider_response?: string | null;
   error_message?: string | null;
@@ -951,7 +951,7 @@ export class EmailNotificationService {
     recipient: string;
     subject: string;
     html: string;
-    eventType: 'PROPERTY_LISTED' | 'MEETING_SCHEDULED' | 'PROPERTY_APPROVED' | 'PROPERTY_PUBLISHED' | 'USER_WELCOME' | 'TEST';
+    eventType: 'PROPERTY_LISTED' | 'MEETING_SCHEDULED' | 'PROPERTY_APPROVED' | 'PROPERTY_PUBLISHED' | 'USER_WELCOME' | 'INTERNAL_PROPERTY_INTAKE' | 'TEST';
     idempotencyKey: string;
     propertyId?: string | null;
     attachments?: EmailAttachment[];
@@ -1627,6 +1627,144 @@ export class EmailNotificationService {
       idempotencyKey,
       propertyId: propId,
       actor,
+    });
+  }
+
+  // ====================================================================
+  // 7b. INTERNAL STAFF PROPERTY INTAKE NOTIFICATION
+  // ====================================================================
+
+  static async handleInternalStaffPropertyIntakeNotification(data: {
+    id: string;
+    referenceId: string;
+    ownerName: string;
+    ownerPhone: string;
+    ownerEmail?: string | null;
+    societyName: string;
+    locality: string;
+    bhkType: string;
+    propertyType: string;
+    priceOrRent: number;
+    intent: string;
+    facing?: string;
+    areaSqft?: number;
+    propertyAge?: string;
+    expectedPossessionDate?: string | null;
+    createdAt?: string;
+  }): Promise<{ dispatched: boolean; status: string; error?: string }> {
+    const recipient = process.env.INTERNAL_ALERT_EMAIL || 'sellmyghar1@gmail.com';
+    const idempotencyKey = `internal-intake-${data.id}`;
+
+    const baseUrl = process.env.APP_BASE_URL || process.env.APP_URL || 'http://localhost:3000';
+    const crmUrl = `${baseUrl}/#/crm?section=PROPERTIES&id=${data.id}`;
+
+    const formattedPrice = data.priceOrRent >= 10000000
+      ? `₹${(data.priceOrRent / 10000000).toFixed(2)} Crore`
+      : data.priceOrRent >= 100000
+      ? `₹${(data.priceOrRent / 100000).toFixed(2)} Lakhs`
+      : `₹${data.priceOrRent.toLocaleString('en-IN')}`;
+
+    const subject = `[SellMyGhar Internal Alert] New Property Listed: ${data.referenceId} - ${data.societyName}, ${data.locality}`;
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>New Property Submission Alert</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F4F6F9; margin: 0; padding: 24px; color: #172033; }
+    .card { background-color: #ffffff; max-width: 600px; margin: 0 auto; border-radius: 16px; border: 1px solid #E2E8F0; padding: 32px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+    .header { border-bottom: 2px solid #244B8F; padding-bottom: 16px; margin-bottom: 24px; }
+    .title { color: #244B8F; font-size: 20px; font-weight: 800; margin: 0; }
+    .ref-badge { display: inline-block; background-color: #EFF6FF; color: #244B8F; font-family: monospace; font-size: 14px; font-weight: 700; padding: 4px 12px; border-radius: 6px; margin-top: 8px; }
+    .grid { margin-top: 20px; width: 100%; border-collapse: collapse; }
+    .grid td { padding: 10px 12px; border-bottom: 1px solid #F1F5F9; font-size: 14px; }
+    .label { font-weight: 600; color: #64748B; width: 38%; }
+    .value { font-weight: 700; color: #172033; }
+    .btn { display: inline-block; background-color: #244B8F; color: #ffffff !important; text-decoration: none; font-weight: 700; font-size: 14px; padding: 12px 24px; border-radius: 8px; margin-top: 24px; }
+    .footer { margin-top: 24px; font-size: 12px; color: #94A3B8; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <h2 class="title">New Property Intake Alert</h2>
+      <div class="ref-badge">Tracking ID: ${data.referenceId}</div>
+    </div>
+    <p style="font-size: 14px; color: #475569; margin: 0 0 16px 0;">
+      A new residential property has just been submitted via the owner onboarding wizard and registered in the operations database.
+    </p>
+    <table class="grid">
+      <tr>
+        <td class="label">Apartment / Society</td>
+        <td class="value">${data.societyName}</td>
+      </tr>
+      <tr>
+        <td class="label">Bengaluru Locality</td>
+        <td class="value">${data.locality}</td>
+      </tr>
+      <tr>
+        <td class="label">Configuration</td>
+        <td class="value">${data.bhkType} (${data.propertyType})</td>
+      </tr>
+      <tr>
+        <td class="label">Built-up Area</td>
+        <td class="value">${data.areaSqft ? `${data.areaSqft} sq.ft` : 'Declared'}</td>
+      </tr>
+      <tr>
+        <td class="label">Facing Direction</td>
+        <td class="value">${data.facing || 'East'}</td>
+      </tr>
+      <tr>
+        <td class="label">Expected Price / Rent</td>
+        <td class="value" style="color: #244B8F; font-size: 16px;">${formattedPrice} (${data.intent})</td>
+      </tr>
+      <tr>
+        <td class="label">Property Age</td>
+        <td class="value">${data.propertyAge || 'Declared'}</td>
+      </tr>
+      ${data.expectedPossessionDate ? `
+      <tr>
+        <td class="label">Expected Possession</td>
+        <td class="value" style="color: #D97706;">${data.expectedPossessionDate}</td>
+      </tr>` : ''}
+      <tr>
+        <td class="label">Owner Name</td>
+        <td class="value">${data.ownerName}</td>
+      </tr>
+      <tr>
+        <td class="label">Owner Phone</td>
+        <td class="value">${data.ownerPhone}</td>
+      </tr>
+      <tr>
+        <td class="label">Owner Email</td>
+        <td class="value">${data.ownerEmail || 'Not provided'}</td>
+      </tr>
+      <tr>
+        <td class="label">Submission Time</td>
+        <td class="value">${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} (IST)</td>
+      </tr>
+    </table>
+    <div style="text-align: center;">
+      <a href="${crmUrl}" class="btn" target="_blank" rel="noopener">Open in CRM Operations Desk &rarr;</a>
+    </div>
+    <div class="footer">
+      Automated internal dispatch for SellMyGhar Operations & Title Diligence Desk.
+    </div>
+  </div>
+</body>
+</html>
+    `.trim();
+
+    return this.dispatchEmail({
+      recipient,
+      subject,
+      html,
+      eventType: 'INTERNAL_PROPERTY_INTAKE',
+      idempotencyKey,
+      propertyId: data.id,
+      fromAddress: process.env.RESEND_FROM_EMAIL || 'SellMyGhar System <notifications@sellmyghar.in>',
     });
   }
 

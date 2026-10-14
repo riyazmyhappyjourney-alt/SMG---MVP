@@ -48,6 +48,7 @@ import {
   UserPlus,
   FileText,
   Printer,
+  Bell,
   Menu
 } from 'lucide-react';
 import { StaffRole, CrmModule, ALL_CRM_MODULES, resolveLegacyModulePermissions } from '../../core/types/auth';
@@ -375,6 +376,104 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [lastSyncTime, setLastSyncTime] = useState<string>('Just now');
   const [toastMessage, setToastMessage] = useState<{ text: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  // CRM Notification Centre State
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState<boolean>(false);
+  const [readNotificationIds, setReadNotificationIds] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem('smg_crm_read_notifications');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const getRelativeTimeString = useCallback((dateStr?: string | null): string => {
+    if (!dateStr) return 'Recently';
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    if (isNaN(diffMs) || diffMs < 0) return 'Just now';
+    const diffSec = Math.floor(diffMs / 1000);
+    if (diffSec < 60) return 'Just now';
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHours = Math.floor(diffMin / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
+  }, []);
+
+  const crmNotifications = useMemo(() => {
+    const list: Array<{
+      id: string;
+      type: 'PROPERTY' | 'LEAD' | 'VISIT';
+      title: string;
+      description: string;
+      timestamp: string;
+      targetSection: 'PROPERTIES' | 'LEADS' | 'VISITS';
+      targetId?: string;
+    }> = [];
+
+    (properties || []).slice(0, 10).forEach(p => {
+      list.push({
+        id: `notif-prop-${p.id}`,
+        type: 'PROPERTY',
+        title: `Property Intake: ${p.bhkType || ''} in ${p.projectName || p.localityName || p.title || 'Apartment'}`,
+        description: `Status: ${p.status || 'DRAFT'} • ₹${(p.askingPriceInr || 0).toLocaleString('en-IN')}`,
+        timestamp: p.updatedAt || p.createdAt || new Date().toISOString(),
+        targetSection: 'PROPERTIES',
+        targetId: p.id
+      });
+    });
+
+    (leads || []).slice(0, 10).forEach(l => {
+      list.push({
+        id: `notif-lead-${l.id}`,
+        type: 'LEAD',
+        title: `Lead Inquiry: ${l.name}`,
+        description: `${l.listingIntent || 'Buyer'} • ${l.locality || 'Bengaluru'} • ${l.stage || l.status || 'NEW'}`,
+        timestamp: l.createdAt || new Date().toISOString(),
+        targetSection: 'LEADS',
+        targetId: l.id
+      });
+    });
+
+    (visits || []).slice(0, 5).forEach(v => {
+      list.push({
+        id: `notif-visit-${v.id}`,
+        type: 'VISIT',
+        title: `Site Visit: ${v.client_name}`,
+        description: `${v.visit_date} at ${v.visit_time} • ${v.property_title || 'Property'}`,
+        timestamp: v.created_at || new Date().toISOString(),
+        targetSection: 'VISITS',
+        targetId: v.property_id
+      });
+    });
+
+    return list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 15);
+  }, [properties, leads, visits]);
+
+  const unreadNotificationCount = useMemo(() => {
+    return crmNotifications.filter(n => !readNotificationIds.includes(n.id)).length;
+  }, [crmNotifications, readNotificationIds]);
+
+  const markNotificationAsRead = useCallback((id: string) => {
+    setReadNotificationIds(prev => {
+      if (prev.includes(id)) return prev;
+      const updated = [...prev, id];
+      try { localStorage.setItem('smg_crm_read_notifications', JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+  }, []);
+
+  const markAllNotificationsAsRead = useCallback(() => {
+    const allIds = crmNotifications.map(n => n.id);
+    setReadNotificationIds(allIds);
+    try { localStorage.setItem('smg_crm_read_notifications', JSON.stringify(allIds)); } catch {}
+  }, [crmNotifications]);
 
   // Filters & Search
   const [globalSearch, setGlobalSearch] = useState<string>('');
@@ -1841,6 +1940,108 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${isRefreshing ? 'animate-spin' : ''}`} />
               <span className="text-[11px] text-slate-500 font-normal hidden lg:inline">{lastSyncTime}</span>
             </button>
+
+            {/* Notification Centre Bell */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsNotificationsOpen(prev => !prev)}
+                title="Operational Notifications"
+                aria-label={`Notifications (${unreadNotificationCount} unread)`}
+                className="relative p-1.5 sm:p-2 rounded-xl border border-slate-200/80 hover:bg-slate-50 text-slate-600 hover:text-slate-900 transition-colors cursor-pointer"
+              >
+                <Bell className="w-4 h-4 text-slate-600" />
+                {unreadNotificationCount > 0 && (
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-[#244B8F] text-white text-[10px] font-extrabold rounded-full flex items-center justify-center border-2 border-white animate-pulse">
+                    {unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Notification Dropdown Panel */}
+              {isNotificationsOpen && (
+                <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-xl border border-slate-200 z-50 overflow-hidden">
+                  <div className="p-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs font-bold text-[#172033] uppercase tracking-wider">
+                        Notifications
+                      </span>
+                      {unreadNotificationCount > 0 && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-[#244B8F]">
+                          {unreadNotificationCount} new
+                        </span>
+                      )}
+                    </div>
+                    {unreadNotificationCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={markAllNotificationsAsRead}
+                        className="text-[11px] font-semibold text-[#244B8F] hover:text-[#1B396E] hover:underline cursor-pointer"
+                      >
+                        Mark all as read
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
+                    {crmNotifications.length === 0 ? (
+                      <div className="p-6 text-center text-xs text-slate-500">
+                        No recent operational notifications.
+                      </div>
+                    ) : (
+                      crmNotifications.map(item => {
+                        const isRead = readNotificationIds.includes(item.id);
+                        return (
+                          <div
+                            key={item.id}
+                            onClick={() => {
+                              markNotificationAsRead(item.id);
+                              setActiveSection(item.targetSection);
+                              if (item.targetSection === 'PROPERTIES' && item.targetId) {
+                                setSelectedPropertyId(item.targetId);
+                              } else if (item.targetSection === 'LEADS' && item.targetId) {
+                                setSelectedLeadId(item.targetId);
+                              }
+                              setIsNotificationsOpen(false);
+                            }}
+                            className={`p-3.5 flex items-start space-x-3 cursor-pointer transition-colors ${
+                              isRead ? 'bg-white hover:bg-slate-50' : 'bg-blue-50/30 hover:bg-blue-50/60'
+                            }`}
+                          >
+                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                              item.type === 'PROPERTY' ? 'bg-amber-100 text-amber-700' :
+                              item.type === 'LEAD' ? 'bg-blue-100 text-[#244B8F]' :
+                              'bg-emerald-100 text-emerald-700'
+                            }`}>
+                              {item.type === 'PROPERTY' && <Building2 className="w-4 h-4" />}
+                              {item.type === 'LEAD' && <Users className="w-4 h-4" />}
+                              {item.type === 'VISIT' && <CalendarCheck className="w-4 h-4" />}
+                            </div>
+
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between mb-0.5">
+                                <div className={`text-xs truncate ${isRead ? 'font-medium text-slate-700' : 'font-bold text-[#172033]'}`}>
+                                  {item.title}
+                                </div>
+                                {!isRead && (
+                                  <span className="w-2 h-2 rounded-full bg-[#244B8F] shrink-0 ml-1.5" />
+                                )}
+                              </div>
+                              <div className="text-[11px] text-slate-500 truncate mb-1">
+                                {item.description}
+                              </div>
+                              <div className="text-[10px] text-slate-400">
+                                {getRelativeTimeString(item.timestamp)}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Quick Action: Schedule Visit */}
             <button
