@@ -39,23 +39,23 @@ export async function runGroup4FeatureTests() {
     const testEmail = 'staff.test@sellmyghar.in';
     const testUid = 'usr-test-staff-pw-01';
 
-    const { token, expiresAt } = generatePasswordResetToken(testUid, testEmail);
+    const { token, expiresAt } = await generatePasswordResetToken(testUid, testEmail);
     assert('Reset token is generated with at least 64 hex characters (32 bytes entropy)', token.length >= 64);
     assert('Reset token has future expiration timestamp (~15 min)', expiresAt.getTime() > Date.now());
 
     // Validation
-    const checkValid = validatePasswordResetToken(token);
+    const checkValid = await validatePasswordResetToken(token);
     assert('Freshly issued token passes validation', checkValid.valid === true && checkValid.email === testEmail);
 
     // Tampered / Random token rejected
-    const checkTampered = validatePasswordResetToken('invalid-tampered-token-123456789012345678901234567890');
+    const checkTampered = await validatePasswordResetToken('invalid-tampered-token-123456789012345678901234567890');
     assert('Tampered/unregistered token is strictly rejected', checkTampered.valid === false);
 
     // Single-Use Consumption
-    const consumed = consumePasswordResetToken(token);
+    const consumed = await consumePasswordResetToken(token);
     assert('Token is successfully consumed upon password update', consumed === true);
 
-    const checkReused = validatePasswordResetToken(token);
+    const checkReused = await validatePasswordResetToken(token);
     assert('Consumed token cannot be reused (Single-Use Enforcement)', checkReused.valid === false);
   } catch (err: any) {
     assert('Password reset token tests execute cleanly', false, err.message);

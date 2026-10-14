@@ -24,32 +24,70 @@ function extractToken(req: Request): string | null {
     if (bearer) return bearer;
   }
 
-  // 2. Staff-specific cookie check (prevents customer sessions from colliding with staff desk)
   const cookies = (req as any).cookies;
-  if (cookies && cookies.sellmyghar_staff_session) {
-    return cookies.sellmyghar_staff_session;
-  }
-  if (cookies && cookies.sellmyghar_session) {
-    return cookies.sellmyghar_session;
-  }
-
-  // 3. Fallback direct parse from raw Cookie header
   const rawCookie = req.headers.cookie;
-  if (rawCookie) {
-    const staffMatch = rawCookie.match(/(?:^|;\s*)sellmyghar_staff_session=([^;]+)/);
-    if (staffMatch && staffMatch[1]) {
-      try {
-        return decodeURIComponent(staffMatch[1]);
-      } catch {
-        return staffMatch[1];
+
+  // Determine route context
+  const urlPath = req.originalUrl || req.baseUrl || req.path || '';
+  const isCrmRoute = urlPath.startsWith('/api/crm') || urlPath.startsWith('/api/admin');
+
+  if (isCrmRoute) {
+    // 2a. For CRM / admin routes, prioritize staff-specific cookie
+    if (cookies && cookies.sellmyghar_staff_session) {
+      return cookies.sellmyghar_staff_session;
+    }
+    if (rawCookie) {
+      const staffMatch = rawCookie.match(/(?:^|;\s*)sellmyghar_staff_session=([^;]+)/);
+      if (staffMatch && staffMatch[1]) {
+        try {
+          return decodeURIComponent(staffMatch[1]);
+        } catch {
+          return staffMatch[1];
+        }
       }
     }
-    const match = rawCookie.match(/(?:^|;\s*)sellmyghar_session=([^;]+)/);
-    if (match && match[1]) {
-      try {
-        return decodeURIComponent(match[1]);
-      } catch {
-        return match[1];
+    // Fallback to customer session cookie if staff cookie is not present
+    if (cookies && cookies.sellmyghar_session) {
+      return cookies.sellmyghar_session;
+    }
+    if (rawCookie) {
+      const match = rawCookie.match(/(?:^|;\s*)sellmyghar_session=([^;]+)/);
+      if (match && match[1]) {
+        try {
+          return decodeURIComponent(match[1]);
+        } catch {
+          return match[1];
+        }
+      }
+    }
+  } else {
+    // 2b. For public, seller, and customer routes, prioritize customer session cookie
+    // Prevents an existing staff session cookie from shadowing customer ownership/listings
+    if (cookies && cookies.sellmyghar_session) {
+      return cookies.sellmyghar_session;
+    }
+    if (rawCookie) {
+      const match = rawCookie.match(/(?:^|;\s*)sellmyghar_session=([^;]+)/);
+      if (match && match[1]) {
+        try {
+          return decodeURIComponent(match[1]);
+        } catch {
+          return match[1];
+        }
+      }
+    }
+    // Fallback to staff cookie if customer cookie is not present
+    if (cookies && cookies.sellmyghar_staff_session) {
+      return cookies.sellmyghar_staff_session;
+    }
+    if (rawCookie) {
+      const staffMatch = rawCookie.match(/(?:^|;\s*)sellmyghar_staff_session=([^;]+)/);
+      if (staffMatch && staffMatch[1]) {
+        try {
+          return decodeURIComponent(staffMatch[1]);
+        } catch {
+          return staffMatch[1];
+        }
       }
     }
   }

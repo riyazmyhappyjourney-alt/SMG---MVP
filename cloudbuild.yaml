@@ -1,0 +1,54 @@
+# ==============================================================================
+# Google Cloud Build Pipeline for SellMyGhar.in
+# Builds container and deploys to Google Cloud Run in asia-south1
+# ==============================================================================
+
+steps:
+  # 1. Build container image using Dockerfile
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'asia-south1-docker.pkg.dev/$PROJECT_ID/sellmyghar/app:$COMMIT_SHA'
+      - '-t'
+      - 'asia-south1-docker.pkg.dev/$PROJECT_ID/sellmyghar/app:latest'
+      - '.'
+
+  # 2. Push image to Google Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '--all-tags'
+      - 'asia-south1-docker.pkg.dev/$PROJECT_ID/sellmyghar/app'
+
+  # 3. Deploy to Cloud Run with zero-downtime revision rollout
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'sellmyghar-prod'
+      - '--image'
+      - 'asia-south1-docker.pkg.dev/$PROJECT_ID/sellmyghar/app:$COMMIT_SHA'
+      - '--region'
+      - 'asia-south1'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--port'
+      - '8080'
+      - '--memory'
+      - '1Gi'
+      - '--cpu'
+      - '1'
+      - '--min-instances'
+      - '1'
+      - '--max-instances'
+      - '10'
+
+images:
+  - 'asia-south1-docker.pkg.dev/$PROJECT_ID/sellmyghar/app:$COMMIT_SHA'
+  - 'asia-south1-docker.pkg.dev/$PROJECT_ID/sellmyghar/app:latest'
+
+options:
+  logging: CLOUD_LOGGING_ONLY

@@ -67,34 +67,23 @@ export function runConfigTests(): { passed: number; failed: number; results: str
     process.env.JWT_SECRET = 'this-is-a-valid-32-character-secret-key';
     process.env.NODE_ENV = 'production';
 
-    // TEST 4A: Missing GCS_PRIVATE_BUCKET in production fails closed with exact key
+    // TEST 4A: Missing GCS_PRIVATE_BUCKET does not block startup (Supabase Storage active)
     delete process.env.GCS_PRIVATE_BUCKET;
-    process.env.REDIS_URL = 'redis://localhost:6379';
-    try {
-      getValidatedConfig({ allowSandbox: false });
-      assert(false, 'TEST 4A: Should have thrown on missing GCS_PRIVATE_BUCKET');
-    } catch (err: any) {
-      assert(
-        err instanceof ConfigurationError && err.missingKey === 'GCS_PRIVATE_BUCKET',
-        'TEST 4A: Missing GCS_PRIVATE_BUCKET throws fatal ConfigurationError with exact key'
-      );
-    }
-
-    // TEST 4B: Missing REDIS_URL in production fails closed with exact key
-    process.env.GCS_PRIVATE_BUCKET = 'sellmyghar-vault-asia-south1';
     delete process.env.REDIS_URL;
-    try {
-      getValidatedConfig({ allowSandbox: false });
-      assert(false, 'TEST 4B: Should have thrown on missing REDIS_URL');
-    } catch (err: any) {
-      assert(
-        err instanceof ConfigurationError && err.missingKey === 'REDIS_URL',
-        'TEST 4B: Missing REDIS_URL throws fatal ConfigurationError with exact key'
-      );
-    }
+    process.env.AUTH_JWT_ISSUER = 'https://sellmyghar.in';
+    process.env.AUTH_JWT_AUDIENCE = 'https://sellmyghar.in';
+    const configWithoutGcs = getValidatedConfig({ allowSandbox: false });
+    assert(
+      configWithoutGcs.gcsPrivateBucket === 'sellmyghar-vault-asia-south1',
+      'TEST 4A: Missing GCS_PRIVATE_BUCKET does not block startup and uses fallback'
+    );
 
-    // Prepare valid REDIS_URL for auth domain verification tests
-    process.env.REDIS_URL = 'redis://localhost:6379';
+    // TEST 4B: Missing REDIS_URL does not block startup (instance-local rate limiting)
+    const configWithoutRedis = getValidatedConfig({ allowSandbox: false });
+    assert(
+      configWithoutRedis.redisUrl === '',
+      'TEST 4B: Missing REDIS_URL does not block startup and safely defaults to empty'
+    );
 
     // TEST 4C: Missing AUTH_JWT_ISSUER in production fails closed
     delete process.env.AUTH_JWT_ISSUER;

@@ -194,12 +194,37 @@ export function PropertyEditor({
     }
   }, [property, isOpen]);
 
+  // Staff Authorization and Session Helper
+  const getCrmHeaders = (extraHeaders: Record<string, string> = {}): Record<string, string> => {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json', ...extraHeaders };
+    try {
+      const stored = sessionStorage.getItem('sellmyghar_staff_session');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        const token = parsed?.token || parsed?.user?.token;
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
+      }
+    } catch {}
+    return headers;
+  };
+
+  const crmFetch = async (url: string, init?: RequestInit): Promise<Response> => {
+    const headers = getCrmHeaders(init?.headers as Record<string, string> || {});
+    return fetch(url, {
+      ...init,
+      headers,
+      credentials: 'include',
+    });
+  };
+
   // Fetch real property activity logs
   const fetchActivity = async () => {
     if (!property?.id) return;
     setLoadingActivity(true);
     try {
-      const res = await fetch(`/api/crm/properties/${property.id}/activity`);
+      const res = await crmFetch(`/api/crm/properties/${property.id}/activity`);
       if (res.ok) {
         const data = await res.json();
         if (data.activity && Array.isArray(data.activity)) {
@@ -266,15 +291,13 @@ export function PropertyEditor({
 
       let res: Response;
       if (isCreate) {
-        res = await fetch('/api/crm/properties', {
+        res = await crmFetch('/api/crm/properties', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         });
       } else {
-        res = await fetch(`/api/crm/properties/${property.id}`, {
+        res = await crmFetch(`/api/crm/properties/${property.id}`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         });
       }
@@ -302,9 +325,8 @@ export function PropertyEditor({
     if (!property?.id) return;
     setApproving(true);
     try {
-      const res = await fetch(`/api/crm/properties/${property.id}/approve`, {
+      const res = await crmFetch(`/api/crm/properties/${property.id}/approve`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
       });
       const data = await res.json();
       if (!res.ok) {
@@ -321,6 +343,51 @@ export function PropertyEditor({
     }
   };
 
+  // Combined Status Transition: Approve & List (1-Click legal approval + live publication)
+  const handleApproveAndPublish = async () => {
+    if (!property?.id) return;
+    setApproving(true);
+    setTransitioning(true);
+    setValidationErrors(null);
+    try {
+      // 1. Approve
+      const approveRes = await crmFetch(`/api/crm/properties/${property.id}/approve`, {
+        method: 'POST',
+      });
+      const approveData = await approveRes.json().catch(() => ({}));
+      if (!approveRes.ok) {
+        throw new Error(approveData.message || approveData.error || 'Failed to approve property');
+      }
+
+      // 2. Publish
+      const publishRes = await crmFetch(`/api/crm/properties/${property.id}/publish`, {
+        method: 'POST',
+      });
+      const publishData = await publishRes.json().catch(() => ({}));
+      if (publishRes.status === 422) {
+        setValidationErrors({
+          missingFields: publishData.missingFields || [],
+          message: publishData.message || 'Cannot publish property. Minimum public data required.',
+        });
+        showToast('Approved! But publication requires missing fields');
+        return;
+      }
+      if (!publishRes.ok) {
+        throw new Error(publishData.message || publishData.error || 'Property was approved, but failed to publish live.');
+      }
+
+      setListingStatus('PUBLISHED');
+      showToast('Property verified, approved & published live on market!');
+      if (onUpdate) onUpdate();
+      else onSaved();
+    } catch (err: any) {
+      alert(err.message || 'Failed to approve and list property');
+    } finally {
+      setApproving(false);
+      setTransitioning(false);
+    }
+  };
+
   // Status Transition: Publish
   const handlePublish = async () => {
     if (!property?.id) {
@@ -330,9 +397,8 @@ export function PropertyEditor({
     setTransitioning(true);
     setValidationErrors(null);
     try {
-      const res = await fetch(`/api/crm/properties/${property.id}/publish`, {
+      const res = await crmFetch(`/api/crm/properties/${property.id}/publish`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
       });
       const data = await res.json();
 
@@ -365,9 +431,8 @@ export function PropertyEditor({
     if (!property?.id) return;
     setTransitioning(true);
     try {
-      const res = await fetch(`/api/crm/properties/${property.id}/pause`, {
+      const res = await crmFetch(`/api/crm/properties/${property.id}/pause`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
       });
       const data = await res.json();
       if (!res.ok) {
@@ -392,9 +457,8 @@ export function PropertyEditor({
 
     setTransitioning(true);
     try {
-      const res = await fetch(`/api/crm/properties/${property.id}/sold`, {
+      const res = await crmFetch(`/api/crm/properties/${property.id}/sold`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
       });
       const data = await res.json();
       if (!res.ok) {
@@ -419,9 +483,8 @@ export function PropertyEditor({
 
     setTransitioning(true);
     try {
-      const res = await fetch(`/api/crm/properties/${property.id}/archive`, {
+      const res = await crmFetch(`/api/crm/properties/${property.id}/archive`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
       });
       const data = await res.json();
       if (!res.ok) {
@@ -454,9 +517,8 @@ export function PropertyEditor({
       reader.onload = async () => {
         try {
           const base64 = reader.result as string;
-          const res = await fetch(`/api/crm/properties/${property.id}/images`, {
+          const res = await crmFetch(`/api/crm/properties/${property.id}/images`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               fileName: file.name,
               fileBase64: base64,
@@ -496,9 +558,8 @@ export function PropertyEditor({
     setImages(updated);
 
     try {
-      const res = await fetch(`/api/crm/properties/${property.id}/images/reorder`, {
+      const res = await crmFetch(`/api/crm/properties/${property.id}/images/reorder`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ imageIds: updated.map(img => img.id) }),
       });
       if (res.ok) {
@@ -522,9 +583,8 @@ export function PropertyEditor({
     }
     setUploadingImage(true);
     try {
-      const res = await fetch(`/api/crm/properties/${property.id}/images`, {
+      const res = await crmFetch(`/api/crm/properties/${property.id}/images`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           url: newImageUrl.trim(),
           isFeatured: images.length === 0,
@@ -550,9 +610,8 @@ export function PropertyEditor({
   const handleSetPrimary = async (imageId: string) => {
     if (!property?.id) return;
     try {
-      const res = await fetch(`/api/crm/properties/${property.id}/images/${imageId}/primary`, {
+      const res = await crmFetch(`/api/crm/properties/${property.id}/images/${imageId}/primary`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
       });
       if (res.ok) {
         setImages(prev => prev.map(img => ({
@@ -571,7 +630,7 @@ export function PropertyEditor({
   const handleDeleteImage = async (imageId: string) => {
     if (!property?.id) return;
     try {
-      const res = await fetch(`/api/crm/properties/${property.id}/images/${imageId}`, {
+      const res = await crmFetch(`/api/crm/properties/${property.id}/images/${imageId}`, {
         method: 'DELETE',
       });
       if (res.ok) {
@@ -1428,13 +1487,27 @@ export function PropertyEditor({
                   <span>{approving ? 'Approving...' : 'Approve & Notify Owner'}</span>
                 </button>
 
+                {/* 1-Click Approve & List live on public portal */}
+                {(listingStatus === 'DRAFT' || listingStatus === 'PAUSED' || !listingStatus) && (
+                  <button
+                    type="button"
+                    disabled={approving || transitioning}
+                    onClick={handleApproveAndPublish}
+                    className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center space-x-1.5 shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                    title="Verify title diligence and list live on public portal in one step"
+                  >
+                    <PlayCircle className="w-3.5 h-3.5" />
+                    <span>{(approving || transitioning) ? 'Publishing...' : 'Approve & List'}</span>
+                  </button>
+                )}
+
                 {/* DRAFT or PAUSED -> PUBLISH */}
                 {(listingStatus === 'DRAFT' || listingStatus === 'PAUSED') && (
                   <button
                     type="button"
                     disabled={transitioning}
                     onClick={handlePublish}
-                    className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center space-x-1.5 shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                    className="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs flex items-center space-x-1.5 shadow-xs transition-colors cursor-pointer disabled:opacity-50"
                   >
                     <PlayCircle className="w-3.5 h-3.5" />
                     <span>Publish Listing</span>

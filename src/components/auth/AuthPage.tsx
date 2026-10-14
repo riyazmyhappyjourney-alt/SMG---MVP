@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Phone, Mail, Lock, Eye, EyeOff, Loader2, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, Phone, Mail, Lock, Eye, EyeOff, Loader2, CheckCircle2, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { UserAuthProfile } from '../../types/user';
 import { safeFetchJson } from '../../utils/safeApi';
 import { getBrowserSupabase } from '../../lib/supabase';
@@ -171,26 +171,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     }
   };
 
-  // Handle Apple Sign-in
-  const handleAppleAuth = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await safeFetchJson('/api/auth/apple', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idToken: '' }),
-      });
-      if (!response.ok) {
-        throw new Error(response.error || 'Apple Sign-In is currently not configured.');
-      }
-    } catch (err: any) {
-      setError(err.message || 'Apple Sign-In is not configured in this environment. Please authenticate via Mobile OTP.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-[#F0F4F8] flex items-center justify-center p-4 sm:p-6 lg:p-8 font-['Montserrat']">
       
@@ -296,6 +276,16 @@ export const AuthPage: React.FC<AuthPageProps> = ({
           {authMethod === 'OTP' ? (
             !otpSent ? (
               <form onSubmit={handleSendOtp} className="space-y-4">
+                {/* Temporary Technical Issue Notice */}
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 space-y-1">
+                  <div className="font-bold flex items-center space-x-1.5 text-amber-900">
+                    <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    <span>SMS OTP Delivery Notice</span>
+                  </div>
+                  <p className="leading-relaxed">
+                    We are currently facing technical issues. Please use Google Sign in.
+                  </p>
+                </div>
                 {mode === 'SIGNUP' && (
                   <>
                     <div>
@@ -423,19 +413,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({
               </div>
 
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                    Password
-                  </label>
-                  {mode === 'SIGNIN' && (
-                    <a
-                      href="#/reset-password"
-                      className="text-xs font-semibold text-[#244B8F] hover:underline cursor-pointer"
-                    >
-                      Forgot password?
-                    </a>
-                  )}
-                </div>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Password
+                </label>
                 <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
@@ -536,18 +516,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                     fill="#EA4335"
                     d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.57l4.03 3.14c.95-2.83 3.6-4.96 6.72-4.96z"
                   />
-                </svg>
-              </button>
-
-              {/* Apple Option */}
-              <button
-                type="button"
-                onClick={handleAppleAuth}
-                className="w-10 h-10 rounded-full border border-slate-200 bg-white hover:bg-slate-50 shadow-xs flex items-center justify-center transition-all cursor-pointer hover:scale-105"
-                title="Continue with Apple"
-              >
-                <svg className="w-5 h-5 fill-slate-800" viewBox="0 0 24 24">
-                  <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.62-.75 1.04-1.8 0.92-2.85-.9.04-2 .6-2.65 1.35-.58.67-1.09 1.74-.95 2.77.99.08 2.03-.51 2.68-1.27z"/>
                 </svg>
               </button>
             </div>

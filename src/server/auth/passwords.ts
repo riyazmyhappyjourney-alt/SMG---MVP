@@ -44,92 +44,209 @@ export async function verifyPassword(password: string, storedHash: string): Prom
 }
 
 // ====================================================================
-// SECURE IN-MEMORY PASSWORD RESET TOKEN REGISTRY (DPDP & ZERO-SCHEMA MIGRATION)
+// POSTGRESQL-BACKED DURABLE SINGLE-USE PASSWORD RESET ENGINE
 // Stores only SHA-256 token hashes, enforcing single-use and 15-minute expiration
 // ====================================================================
 
 import { createHash } from 'crypto';
-
-interface PasswordResetRecord {
-  tokenHash: string;
-  email: string;
-  userId: string;
-  expiresAt: number;
-  isConsumed: boolean;
-  createdAt: number;
-}
-
-const passwordResetStore = new Map<string, PasswordResetRecord>();
+import { getDbPool, executeQuery } from '../db/pool';
 
 /**
  * Generates a cryptographically secure single-use password reset token.
- * Stores only the SHA-256 hash of the token.
+ * Persists only the SHA-256 hash to PostgreSQL.
  * Token expires after 15 minutes (900,000 ms).
  */
-export function generatePasswordResetToken(userId: string, email: string): { token: string; expiresAt: Date } {
-  const now = Date.now();
-  // Purge expired tokens
-  for (const [hash, record] of Array.from(passwordResetStore.entries())) {
-    if (record.expiresAt < now || record.isConsumed) {
-      passwordResetStore.delete(hash);
-    }
-  }
-
+export async function generatePasswordResetToken(userId: string, email: string): Promise<{ token: string; expiresAt: Date }> {
   // Generate 32 bytes (256-bit) cryptographically random token
   const rawToken = randomBytes(32).toString('hex');
   const tokenHash = createHash('sha256').update(rawToken).digest('hex');
   const ttlMs = 15 * 60 * 1000; // 15 minutes
-  const expiresAt = new Date(now + ttlMs);
+  const expiresAt = new Date(Date.now() + ttlMs);
+  const tokenId = `rst-${Date.now().toString(36)}-${randomBytes(4).toString('hex')}`;
 
-  passwordResetStore.set(tokenHash, {
-    tokenHash,
-    email: email.toLowerCase().trim(),
-    userId,
-    expiresAt: expiresAt.getTime(),
-    isConsumed: false,
-    createdAt: now,
-  });
+  // Persist token hash to PostgreSQL
+  await executeQuery(
+    `INSERT INTO password_reset_tokens (id, user_id, email, token_hash, expires_at, is_consumed, created_at)
+     VALUES ($1, $2, $3, $4, $5, false, NOW());`,
+    [tokenId, userId, email.toLowerCase().trim(), tokenHash, expiresAt.toISOString()]
+  );
+
+  // Opportunistic background cleanup of expired tokens (> 24 hours)
+  executeQuery(`DELETE FROM password_reset_tokens WHERE expires_at < NOW() - INTERVAL '1 day';`).catch(() => {});
 
   return { token: rawToken, expiresAt };
 }
 
 /**
- * Validates a password reset token by comparing its SHA-256 hash.
- * Checks for expiration and single-use status.
+ * Non-mutating pre-validation of a password reset token by comparing its SHA-256 hash.
+ * Checks for existence, expiration, and single-use status without taking locks or consuming.
  */
-export function validatePasswordResetToken(rawToken: string): { valid: boolean; email?: string; userId?: string; reason?: string } {
+export async function validatePasswordResetToken(rawToken: string): Promise<{ valid: boolean; email?: string; userId?: string; reason?: string }> {
   if (!rawToken || typeof rawToken !== 'string' || rawToken.length < 32) {
     return { valid: false, reason: 'INVALID_TOKEN_FORMAT' };
   }
 
   const tokenHash = createHash('sha256').update(rawToken).digest('hex');
-  const record = passwordResetStore.get(tokenHash);
 
-  if (!record) {
+  const res = await executeQuery<{ user_id: string; email: string; expires_at: string; is_consumed: boolean }>(
+    `SELECT user_id, email, expires_at, is_consumed
+     FROM password_reset_tokens
+     WHERE token_hash = $1
+     LIMIT 1;`,
+    [tokenHash]
+  );
+
+  if (!res.rows || res.rows.length === 0) {
     return { valid: false, reason: 'TOKEN_NOT_FOUND' };
   }
 
-  if (record.isConsumed) {
+  const record = res.rows[0];
+
+  if (record.is_consumed) {
     return { valid: false, reason: 'TOKEN_ALREADY_USED' };
   }
 
-  if (Date.now() > record.expiresAt) {
-    passwordResetStore.delete(tokenHash);
+  if (new Date() > new Date(record.expires_at)) {
     return { valid: false, reason: 'TOKEN_EXPIRED' };
   }
 
-  return { valid: true, email: record.email, userId: record.userId };
+  return { valid: true, email: record.email, userId: record.user_id };
 }
 
 /**
- * Consumes a password reset token upon successful password update, preventing reuse.
+ * Atomically completes password reset within a single PostgreSQL transaction:
+ * 1. Computes scrypt hash in memory first (0 database locks held).
+ * 2. Checks token validity and obtains user_id.
+ * 3. Locks the user row (FOR UPDATE) to strictly serialize all resets for this specific user.
+ * 4. Atomically revalidates and consumes the token under the user lock.
+ * 5. Updates user password, increments token_version (invalidating active sessions), resets lockouts.
+ * 6. Invalidates all sibling reset tokens for this user.
+ * 7. On any error, completely rolls back all mutations.
  */
-export function consumePasswordResetToken(rawToken: string): boolean {
+export async function executePasswordResetCompletion(
+  rawToken: string,
+  newPassword: string
+): Promise<{ success: boolean; userId?: string; email?: string; error?: string }> {
+  if (!rawToken || typeof rawToken !== 'string' || rawToken.length < 32) {
+    return { success: false, error: 'Invalid or missing reset token.' };
+  }
+
+  if (!newPassword || typeof newPassword !== 'string' || newPassword.length < 8) {
+    return { success: false, error: 'New password must be at least 8 characters long.' };
+  }
+
+  // Pre-compute scrypt password hash before opening database transaction
+  const newHash = await hashPassword(newPassword);
+
+  // 1. Hash the submitted raw reset token
+  const tokenHash = createHash('sha256').update(rawToken).digest('hex');
+
+  // 2. Perform a non-locking lookup to determine the token's associated user
+  const initialLookup = await executeQuery<{ user_id: string; email: string; expires_at: string; is_consumed: boolean }>(
+    `SELECT user_id, email, expires_at, is_consumed
+     FROM password_reset_tokens
+     WHERE token_hash = $1
+     LIMIT 1;`,
+    [tokenHash]
+  );
+
+  if (!initialLookup.rows || initialLookup.rows.length === 0) {
+    return { success: false, error: 'Password reset link is invalid or expired. Please request a new link.' };
+  }
+
+  const record = initialLookup.rows[0];
+  if (record.is_consumed || new Date() > new Date(record.expires_at)) {
+    return { success: false, error: 'Password reset link is invalid, expired, or already used. Please request a new link.' };
+  }
+
+  const userId = record.user_id;
+
+  // 3. Begin transaction
+  const pool = getDbPool();
+  const client = await pool.connect();
+
+  try {
+    await client.query('BEGIN');
+
+    // 4. Lock the corresponding user row using SELECT ... FOR UPDATE (serializes concurrent resets for this user)
+    const userLock = await client.query<{ id: string; is_active: boolean }>(
+      `SELECT id, is_active FROM users WHERE id = $1 FOR UPDATE;`,
+      [userId]
+    );
+
+    // 7. Verify that the user exists and remains active
+    if (!userLock.rows || userLock.rows.length === 0 || !userLock.rows[0].is_active) {
+      await client.query('ROLLBACK');
+      return { success: false, error: 'Account is deactivated or not found.' };
+    }
+
+    // 5 & 6. Revalidate token ownership, expiry, and unused status after obtaining user lock, and atomically consume
+    const consumeRes = await client.query<{ id: string }>(
+      `UPDATE password_reset_tokens
+       SET is_consumed = true, consumed_at = NOW()
+       WHERE token_hash = $1 AND user_id = $2 AND is_consumed = false AND expires_at > NOW()
+       RETURNING id;`,
+      [tokenHash, userId]
+    );
+
+    if (!consumeRes.rows || consumeRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return { success: false, error: 'Password reset link is invalid, expired, or already used. Please request a new link.' };
+    }
+
+    // 4. Update password hash, increment token_version to invalidate active sessions, reset failed attempts & lockout
+    await client.query(
+      `UPDATE users
+       SET password_hash = $1,
+           token_version = token_version + 1,
+           locked_until = NULL,
+           failed_login_attempts = 0,
+           updated_at = NOW()
+       WHERE id = $2;`,
+      [newHash, userId]
+    );
+
+    // 5. Invalidate ALL other pending reset tokens for this user account (sibling invalidation)
+    await client.query(
+      `UPDATE password_reset_tokens
+       SET is_consumed = true, consumed_at = NOW()
+       WHERE user_id = $1 AND token_hash != $2 AND is_consumed = false;`,
+      [userId, tokenHash]
+    );
+
+    await client.query('COMMIT');
+    return { success: true, userId, email: record.email };
+  } catch (txErr: any) {
+    try {
+      await client.query('ROLLBACK');
+    } catch (rbErr: any) {
+      console.error('[ResetPassword] Rollback failed:', rbErr);
+    }
+    throw txErr;
+  } finally {
+    client.release();
+  }
+}
+
+/**
+ * Backward compatibility helpers
+ */
+export async function consumePasswordResetToken(rawToken: string): Promise<boolean> {
   if (!rawToken) return false;
   const tokenHash = createHash('sha256').update(rawToken).digest('hex');
-  const record = passwordResetStore.get(tokenHash);
-  if (!record) return false;
-  record.isConsumed = true;
-  passwordResetStore.delete(tokenHash);
+  const res = await executeQuery(
+    `UPDATE password_reset_tokens SET is_consumed = true, consumed_at = NOW() WHERE token_hash = $1 AND is_consumed = false RETURNING id;`,
+    [tokenHash]
+  );
+  return Boolean(res.rows && res.rows.length > 0);
+}
+
+export async function claimPasswordResetToken(rawToken: string): Promise<{ success: boolean; email?: string; userId?: string; reason?: string }> {
+  const check = await validatePasswordResetToken(rawToken);
+  if (!check.valid) return { success: false, reason: check.reason };
+  return { success: true, email: check.email, userId: check.userId };
+}
+
+export function releasePasswordResetTokenClaim(_rawToken: string): boolean {
   return true;
 }

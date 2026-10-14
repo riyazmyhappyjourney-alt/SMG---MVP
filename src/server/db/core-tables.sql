@@ -268,3 +268,17 @@ CREATE TABLE IF NOT EXISTS user_identities (
 CREATE INDEX IF NOT EXISTS idx_user_identities_user_id ON user_identities (user_id);
 CREATE INDEX IF NOT EXISTS idx_user_identities_lookup ON user_identities (provider, provider_user_id);
 
+-- 15. Password Reset Tokens Table (Durable Single-Use Cryptographic Reset Tokens)
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+  id VARCHAR(64) PRIMARY KEY,
+  user_id VARCHAR(64) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  email VARCHAR(255) NOT NULL,
+  token_hash VARCHAR(64) NOT NULL UNIQUE,
+  expires_at TIMESTAMPTZ NOT NULL,
+  is_consumed BOOLEAN NOT NULL DEFAULT false,
+  consumed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_pwd_reset_user_active ON password_reset_tokens (user_id, is_consumed, expires_at);
+CREATE INDEX IF NOT EXISTS idx_pwd_reset_expiry ON password_reset_tokens (expires_at) WHERE is_consumed = false;

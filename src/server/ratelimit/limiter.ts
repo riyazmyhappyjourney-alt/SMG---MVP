@@ -1,12 +1,12 @@
-import { getValidatedConfig, ConfigurationError } from '../config/env';
+import { getValidatedConfig } from '../config/env';
 
 /**
- * Distributed Rate Limiting & Abuse Prevention Engine
+ * Rate Limiting & Abuse Prevention Engine
  * 
- * [Fail-Closed Enforcement]:
- * Cloud Run containers scale horizontally and terminate on idle.
- * In production, REDIS_URL is strictly required for shared rate limiting.
- * If unset in non-sandbox mode, operations throw ConfigurationError.
+ * [Rate Limiting Architecture]:
+ * Operates with instance-local in-memory storage for MVP launch.
+ * When REDIS_URL is configured in production, a shared cache can be attached;
+ * otherwise, a clear production warning is logged that limits are instance-local.
  */
 
 export interface DistributedCacheClient {
@@ -73,15 +73,32 @@ class InMemoryFallbackStore implements DistributedCacheClient {
 
 export class DistributedRateLimiter {
   private static client: DistributedCacheClient | null = null;
+  private static warnedInstanceLocal = false;
+
+  public static getActiveLimiterType(): 'IN_MEMORY_INSTANCE_LOCAL' | 'CUSTOM_ATTACHED_STORE' {
+    return this.client instanceof InMemoryFallbackStore || !this.client
+      ? 'IN_MEMORY_INSTANCE_LOCAL'
+      : 'CUSTOM_ATTACHED_STORE';
+  }
+
+  public static isDistributed(): boolean {
+    return this.getActiveLimiterType() === 'CUSTOM_ATTACHED_STORE';
+  }
 
   private static getClient(): DistributedCacheClient {
     if (!this.client) {
       const config = getValidatedConfig();
-      if (!config.redisUrl && !config.allowSandbox) {
-        throw new ConfigurationError(
-          'REDIS_URL',
-          'Distributed rate limiter requires REDIS_URL. Fail-closed: abuse protection cannot proceed.'
-        );
+      if (config.isProduction && !this.warnedInstanceLocal) {
+        if (config.redisUrl) {
+          console.warn(
+            '[RATE_LIMIT] Notice: REDIS_URL is defined, but no distributed Redis client driver is attached. Active store is InMemoryFallbackStore. Rate limits remain instance-local to this container.'
+          );
+        } else {
+          console.warn(
+            '[RATE_LIMIT] Warning: REDIS_URL is not configured in production. Active store is InMemoryFallbackStore. Rate limits are instance-local to this container.'
+          );
+        }
+        this.warnedInstanceLocal = true;
       }
       this.client = new InMemoryFallbackStore();
     }
