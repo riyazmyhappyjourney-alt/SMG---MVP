@@ -133,34 +133,39 @@ export function PropertyEditor({
   // Sync form when property changes or opens
   useEffect(() => {
     if (property) {
-      setTitle(property.title || `${property.projectName} - ${property.bhkType}`);
-      setProjectName(property.projectName || '');
-      setLocalityName(property.localityName || '');
-      setPropertyType(property.propertyType || 'Apartment');
-      setBhkType(property.bhkType || '2BHK');
-      setSuperBuiltUpSqft(property.superBuiltUpSqft || 1200);
-      setCarpetAreaSqft(property.carpetAreaSqft || Math.round((property.superBuiltUpSqft || 1200) * 0.78));
-      setFloorBand(property.floorBand || 'Floor 5 of 14');
+      const derivedProject = property.projectName || (property as any).project_locality_id || '';
+      const derivedLocality = property.localityName || (property as any).locality_name || (property as any).project_locality_id || '';
+      const derivedBhk = property.bhkType || (property as any).bhk_type || '2BHK';
+      const derivedTitle = property.title || (derivedProject ? `${derivedProject} - ${derivedBhk}` : (property.publicAddress || 'Residential Property'));
+      setTitle(derivedTitle);
+      setProjectName(derivedProject);
+      setLocalityName(derivedLocality);
+      setPropertyType(property.propertyType || (property as any).property_type || 'Apartment');
+      setBhkType(derivedBhk);
+      setSuperBuiltUpSqft(property.superBuiltUpSqft || (property as any).super_built_up_sqft || 1200);
+      const sft = property.superBuiltUpSqft || (property as any).super_built_up_sqft || 1200;
+      setCarpetAreaSqft(property.carpetAreaSqft || (property as any).carpet_area_sqft || Math.round(sft * 0.78));
+      setFloorBand(property.floorBand || (property as any).floor_band || 'Floor 5 of 14');
       setFacing(property.facing || 'EAST');
-      setPublicAddress(property.publicAddress || `${property.projectName}, ${property.localityName}`);
+      setPublicAddress(property.publicAddress || (property as any).public_address || `${derivedProject}, ${derivedLocality}`.replace(/^,\s*|,\s*$/g, ''));
 
-      setAskingPriceInr(property.askingPriceInr || 10000000);
-      setMonthlyMaintenanceInr(property.monthlyMaintenanceInr || 0);
-      setReserveMinimumPriceInr(property.reserveMinimumPriceInr);
+      setAskingPriceInr(property.askingPriceInr || (property as any).asking_price_inr || 10000000);
+      setMonthlyMaintenanceInr(property.monthlyMaintenanceInr || (property as any).monthly_maintenance_inr || 0);
+      setReserveMinimumPriceInr(property.reserveMinimumPriceInr || (property as any).reserve_minimum_price_inr);
 
       setDescription(property.description || '');
       setAmenities(property.amenities || []);
-      setDeveloperName(property.developerName || property.projectName?.split(' ')[0] || '');
+      setDeveloperName(property.developerName || (property as any).developer_name || derivedProject.split(' ')[0] || '');
       setDeveloperLogoUrl((property as any).developerLogoUrl || (property as any).developer_logo_url || '');
       setDeveloperReraId((property as any).developerReraId || (property as any).developer_rera_id || '');
       setDeveloperLaunchYear((property as any).developerLaunchYear || (property as any).developer_launch_year || undefined);
       setLandmarks(property.landmarks || []);
       setHighlights(property.highlights || []);
 
-      setListingStatus(property.status || 'DRAFT');
+      setListingStatus(property.status || (property as any).listing_status || 'DRAFT');
       setImages(property.images || (property.image ? [{ id: 'img-main', url: property.image, is_featured: true }] : []));
       setFloorPlanUrl((property as any).floorPlanUrl || (property as any).floor_plan_url || '');
-      setFloorPlanTitle(`${property.bhkType || '3BHK'} Architectural Layout Plan`);
+      setFloorPlanTitle(`${derivedBhk} Architectural Layout Plan`);
       setValidationErrors(null);
     } else {
       // Defaults for Create Property
@@ -247,67 +252,75 @@ export function PropertyEditor({
   if (!isOpen) return null;
 
   // Save / Update Property
+  const getPayload = () => {
+    const finalTitle = title.trim() || (projectName.trim() ? `${projectName.trim()} - ${bhkType}` : (publicAddress.trim() || 'Residential Property'));
+    const payload: any = {
+      title: finalTitle,
+      projectName: projectName.trim(),
+      locality: localityName.trim(),
+      propertyType,
+      bhkType,
+      superBuiltUpSqft: Number(superBuiltUpSqft) || 1200,
+      carpetAreaSqft: Number(carpetAreaSqft) || 936,
+      floorBand,
+      facing,
+      publicAddress: publicAddress.trim() || `${projectName.trim()}, ${localityName.trim()}`.replace(/^,\s*|,\s*$/g, ''),
+      askingPriceInr: Number(askingPriceInr) || 0,
+      monthlyMaintenanceInr: Number(monthlyMaintenanceInr) || 0,
+      description: description.trim(),
+      amenities,
+      developerName: developerName.trim(),
+      developerLogoUrl: developerLogoUrl.trim() || undefined,
+      developerReraId: developerReraId.trim() || undefined,
+      developerLaunchYear: developerLaunchYear ? Number(developerLaunchYear) : undefined,
+      landmarks,
+      highlights,
+      floorPlanUrl: floorPlanUrl.trim() || undefined,
+      floorPlans: floorPlanUrl.trim() ? [
+        {
+          id: 'fp-1',
+          title: floorPlanTitle.trim() || `${bhkType} Architectural Layout Plan`,
+          carpetAreaSqft: Number(carpetAreaSqft),
+          superBuiltUpSqft: Number(superBuiltUpSqft),
+          imageUrl: floorPlanUrl.trim(),
+          tag: 'Verified Layout'
+        }
+      ] : undefined,
+    };
+
+    if (reserveMinimumPriceInr !== undefined && !isNaN(Number(reserveMinimumPriceInr))) {
+      payload.reserveMinimumPriceInr = Number(reserveMinimumPriceInr);
+    }
+    return payload;
+  };
+
+  const handleSaveInternal = async () => {
+    const payload = getPayload();
+    let res: Response;
+    if (isCreate) {
+      res = await crmFetch('/api/crm/properties', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      });
+    } else {
+      res = await crmFetch(`/api/crm/properties/${property.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      });
+    }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.message || data.error || 'Failed to save property changes');
+    }
+    return data;
+  };
+
+  // Save / Update Property
   const handleSave = async () => {
     setSaving(true);
     setValidationErrors(null);
     try {
-      const payload: any = {
-        title: title.trim(),
-        projectName: projectName.trim(),
-        locality: localityName.trim(),
-        propertyType,
-        bhkType,
-        superBuiltUpSqft: Number(superBuiltUpSqft),
-        carpetAreaSqft: Number(carpetAreaSqft),
-        floorBand,
-        facing,
-        publicAddress: publicAddress.trim(),
-        askingPriceInr: Number(askingPriceInr),
-        monthlyMaintenanceInr: Number(monthlyMaintenanceInr),
-        description: description.trim(),
-        amenities,
-        developerName: developerName.trim(),
-        developerLogoUrl: developerLogoUrl.trim() || undefined,
-        developerReraId: developerReraId.trim() || undefined,
-        developerLaunchYear: developerLaunchYear ? Number(developerLaunchYear) : undefined,
-        landmarks,
-        highlights,
-        floorPlanUrl: floorPlanUrl.trim() || undefined,
-        floorPlans: floorPlanUrl.trim() ? [
-          {
-            id: 'fp-1',
-            title: floorPlanTitle.trim() || `${bhkType} Architectural Layout Plan`,
-            carpetAreaSqft: Number(carpetAreaSqft),
-            superBuiltUpSqft: Number(superBuiltUpSqft),
-            imageUrl: floorPlanUrl.trim(),
-            tag: 'Verified Layout'
-          }
-        ] : undefined,
-      };
-
-      if (reserveMinimumPriceInr !== undefined && !isNaN(Number(reserveMinimumPriceInr))) {
-        payload.reserveMinimumPriceInr = Number(reserveMinimumPriceInr);
-      }
-
-      let res: Response;
-      if (isCreate) {
-        res = await crmFetch('/api/crm/properties', {
-          method: 'POST',
-          body: JSON.stringify(payload),
-        });
-      } else {
-        res = await crmFetch(`/api/crm/properties/${property.id}`, {
-          method: 'PUT',
-          body: JSON.stringify(payload),
-        });
-      }
-
-      const data = await res.json();
-      if (!res.ok) {
-        alert(data.message || data.error || 'Failed to save property');
-        return;
-      }
-
+      await handleSaveInternal();
       showToast(isCreate ? 'Property created as DRAFT in PostgreSQL' : 'Property changes saved successfully');
       onSaved();
       if (isCreate) {
@@ -325,6 +338,7 @@ export function PropertyEditor({
     if (!property?.id) return;
     setApproving(true);
     try {
+      await handleSaveInternal();
       const res = await crmFetch(`/api/crm/properties/${property.id}/approve`, {
         method: 'POST',
       });
@@ -350,6 +364,9 @@ export function PropertyEditor({
     setTransitioning(true);
     setValidationErrors(null);
     try {
+      // 0. Auto-save current form values before publishing
+      await handleSaveInternal();
+
       // 1. Approve
       const approveRes = await crmFetch(`/api/crm/properties/${property.id}/approve`, {
         method: 'POST',
@@ -359,9 +376,11 @@ export function PropertyEditor({
         throw new Error(approveData.message || approveData.error || 'Failed to approve property');
       }
 
-      // 2. Publish
+      // 2. Publish with payload
+      const payload = getPayload();
       const publishRes = await crmFetch(`/api/crm/properties/${property.id}/publish`, {
         method: 'POST',
+        body: JSON.stringify(payload),
       });
       const publishData = await publishRes.json().catch(() => ({}));
       if (publishRes.status === 422) {
@@ -397,10 +416,15 @@ export function PropertyEditor({
     setTransitioning(true);
     setValidationErrors(null);
     try {
+      // 0. Auto-save current form values before publishing
+      await handleSaveInternal();
+
+      const payload = getPayload();
       const res = await crmFetch(`/api/crm/properties/${property.id}/publish`, {
         method: 'POST',
+        body: JSON.stringify(payload),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
 
       if (res.status === 422) {
         setValidationErrors({
@@ -418,7 +442,8 @@ export function PropertyEditor({
 
       setListingStatus('PUBLISHED');
       showToast('Property published successfully to public website');
-      onSaved();
+      if (onUpdate) onUpdate();
+      else onSaved();
     } catch (err: any) {
       alert(err.message || 'Failed to publish property');
     } finally {
