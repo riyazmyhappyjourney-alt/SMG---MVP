@@ -78,7 +78,7 @@ export function resolveRoute(path: string, hash: string, host: string): AppRoute
 
   // 3. Legal and Company routes
   if (hash === '#/terms' || path === '/terms') return 'TERMS';
-  if (hash === '#/privacy-policy' || path === '/privacy-policy') return 'PRIVACY_POLICY';
+  if (hash === '#/privacy-policy' || path === '/privacy-policy' || hash === '#/privacy' || path === '/privacy') return 'PRIVACY_POLICY';
   if (hash === '#/cookie-policy' || path === '/cookie-policy') return 'COOKIE_POLICY';
   if (hash === '#/careers' || path === '/careers') return 'CAREERS';
 

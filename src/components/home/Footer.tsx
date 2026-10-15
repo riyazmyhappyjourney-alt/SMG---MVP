@@ -149,13 +149,12 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                 </button>
               </li>
               <li>
-                <button
-                  type="button"
-                  onClick={() => setModalType('PRIVACY')}
+                <a
+                  href="#/privacy-policy"
                   className="whitespace-nowrap hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left py-0.5 block"
                 >
                   Privacy Policy
-                </button>
+                </a>
               </li>
               <li>
                 <button
