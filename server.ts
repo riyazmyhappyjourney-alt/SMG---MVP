@@ -2517,6 +2517,11 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
         source: 'WIZARD_V2'
       });
 
+      const initialTitle = `${societyName.trim()} - ${bhkLabel}`;
+      const initialPublicAddress = `${societyName.trim()}, ${locality.trim()}`;
+      const initialPropType = propertyType || 'Apartment';
+      const initialDesc = description || `Well-maintained ${bhkLabel} ${initialPropType} in ${societyName.trim()}, ${locality.trim()}. Verified legal documentation and ready to move.`;
+
       propResult = await client.query(
         `INSERT INTO properties (
           id, owner_id, project_locality_id, unit_number, wing_tower,
@@ -2525,10 +2530,13 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
           car_parks_count, is_covered_parking, khata_type, encumbrance_status,
           loan_bank_name, occupancy_status, monthly_maintenance_inr,
           asking_price_inr, reserve_minimum_price_inr, listing_intent, crm_status, verification_tier,
-          internal_verification_notes, created_at, updated_at
+          internal_verification_notes, title, property_type, public_address, description,
+          created_at, updated_at
         ) VALUES (
           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
-          $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, 'NEW', $24, $25, NOW(), NOW()
+          $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, 'NEW', $24,
+          $25, $26, $27, $28, $29,
+          NOW(), NOW()
         )
         RETURNING *;`,
         [
@@ -2556,7 +2564,11 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
           reservePrice,
           listingIntent,
           'LEVEL_1_OWNER_DECLARED',
-          notesJson
+          notesJson,
+          initialTitle,
+          initialPropType,
+          initialPublicAddress,
+          initialDesc,
         ]
       );
 
@@ -6740,7 +6752,27 @@ export function validatePropertyForPublish(property: any, images: any[] = []): {
   const missingFields: string[] = [];
   const errors: Record<string, string> = {};
 
-  const title = property.title || property.projectName;
+  let title = property.title || property.projectName;
+  if (!title || typeof title !== 'string' || !title.trim()) {
+    if (property.internal_verification_notes) {
+      try {
+        const parsedNotes = typeof property.internal_verification_notes === 'string'
+          ? JSON.parse(property.internal_verification_notes)
+          : property.internal_verification_notes;
+        const socName = parsedNotes.societyName || parsedNotes.apartment_society_name;
+        if (socName) {
+          title = `${socName} - ${property.bhk_type || property.bhkType || 'Apartment'}`;
+          property.title = title;
+        }
+      } catch {}
+    }
+  }
+  if (!title || typeof title !== 'string' || !title.trim()) {
+    if (property.public_address || property.project_locality_id) {
+      title = `${property.bhk_type || property.bhkType || 'Spacious'} Apartment in ${property.project_locality_id || property.public_address}`;
+      property.title = title;
+    }
+  }
   if (!title || typeof title !== 'string' || !title.trim()) {
     missingFields.push('title');
     errors.title = 'Title is required';
@@ -7493,6 +7525,50 @@ app.post(
       const { id } = req.params;
     const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
 
+    // Optional incoming body payload to auto-save edits before publishing
+    if (req.body && typeof req.body === 'object') {
+      const {
+        title,
+        description,
+        propertyType,
+        bhkType,
+        publicAddress,
+        askingPriceInr,
+        monthlyMaintenanceInr,
+        superBuiltUpSqft,
+        carpetAreaSqft,
+      } = req.body;
+
+      if (title || askingPriceInr || publicAddress || description || superBuiltUpSqft) {
+        await executeQuery(`
+          UPDATE properties
+          SET
+            title = COALESCE($1, title),
+            description = COALESCE($2, description),
+            property_type = COALESCE($3, property_type),
+            bhk_type = COALESCE($4, bhk_type),
+            public_address = COALESCE($5, public_address),
+            asking_price_inr = COALESCE($6, asking_price_inr),
+            monthly_maintenance_inr = COALESCE($7, monthly_maintenance_inr),
+            super_built_up_sqft = COALESCE($8, super_built_up_sqft),
+            carpet_area_sqft = COALESCE($9, carpet_area_sqft),
+            updated_at = NOW()
+          WHERE id = $10;
+        `, [
+          title ? String(title).trim() : null,
+          description ? String(description).trim() : null,
+          propertyType ? String(propertyType).trim() : null,
+          bhkType ? String(bhkType).trim() : null,
+          publicAddress ? String(publicAddress).trim() : null,
+          askingPriceInr ? Number(askingPriceInr) : null,
+          monthlyMaintenanceInr ? Number(monthlyMaintenanceInr) : null,
+          superBuiltUpSqft ? Number(superBuiltUpSqft) : null,
+          carpetAreaSqft ? Number(carpetAreaSqft) : null,
+          id
+        ]);
+      }
+    }
+
     const propRes = await executeQuery(`SELECT * FROM properties WHERE id = $1 LIMIT 1;`, [id]);
     if (!propRes.rows || propRes.rows.length === 0) {
       return res.status(404).json({ error: 'NOT_FOUND', message: 'Property not found.' });
@@ -7524,10 +7600,13 @@ app.post(
 
     const updateRes = await executeQuery(`
       UPDATE properties
-      SET listing_status = 'PUBLISHED', description = COALESCE(description, $2), updated_at = NOW()
+      SET listing_status = 'PUBLISHED', 
+          title = COALESCE(title, $2),
+          description = COALESCE(description, $3), 
+          updated_at = NOW()
       WHERE id = $1
       RETURNING *;
-    `, [id, property.description]);
+    `, [id, property.title || null, property.description]);
 
     // Verify published persistence & accessibility
     const verifiedCheck = await executeQuery(`SELECT id, listing_status FROM properties WHERE id = $1 AND listing_status = 'PUBLISHED' LIMIT 1;`, [id]);
