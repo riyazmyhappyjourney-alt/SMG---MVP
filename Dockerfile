@@ -4,13 +4,13 @@
 # ==============================================================================
 
 # Stage 1: Build Frontend Assets
-FROM node:22-alpine AS builder
+FROM node:22-slim AS builder
 
 WORKDIR /app
 
-# Install build dependencies
-COPY package.json package-lock.json ./
-RUN npm install
+# Install build dependencies for Linux x64
+COPY package.json ./
+RUN npm install --legacy-peer-deps
 
 # Copy project source
 COPY . .
@@ -19,16 +19,16 @@ COPY . .
 RUN npm run build
 
 # Stage 2: Production Runtime
-FROM node:22-alpine AS runner
+FROM node:22-slim AS runner
 
 WORKDIR /app
 
 ENV NODE_ENV=production
 ENV PORT=8080
 
-# Install production dependencies & pinned tsx runtime engine
-COPY package.json package-lock.json ./
-RUN npm install --omit=dev && npm install tsx@4.21.0 --no-save
+# Install production dependencies & global tsx runtime engine
+COPY package.json ./
+RUN npm install --legacy-peer-deps --omit=dev && npm install -g tsx
 
 # Copy built frontend from builder stage
 COPY --from=builder /app/dist ./dist
