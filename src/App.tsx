@@ -58,7 +58,11 @@ export function resolveRoute(path: string, hash: string, host: string): AppRoute
   const localitySlug = parseLocalitySlug(path, hash);
 
   // 1. Explicit application hash routes take highest precedence over stale callback or subpath paths
-  if (host.startsWith('crm.') || hash === '#/crm' || path === '/crm') return 'CRM';
+  // CRM is strictly isolated to the crm.* subdomain (e.g. crm.sellmyghar.in).
+  // On main domain (sellmyghar.in / www.sellmyghar.in), #/crm and /crm are completely disabled.
+  const isCrmSubdomain = host.startsWith('crm.') || host.startsWith('crm-');
+  const isLocalhostCrm = host.includes('localhost') && (hash === '#/crm' || path === '/crm');
+  if (isCrmSubdomain || isLocalhostCrm) return 'CRM';
   if (hash === '#/dashboard' || hash === '#/seller-dashboard' || path === '/dashboard' || path === '/seller-dashboard') return 'DASHBOARD';
   if (hash === '#/login' || hash === '#/register' || path === '/login' || path === '/register') return 'LOGIN';
   if (hash.startsWith('#/reset-password') || path === '/reset-password') return 'RESET_PASSWORD';
@@ -196,7 +200,11 @@ export default function App() {
     }
     setCurrentRoute(route);
     if (route === 'CRM') {
-      window.location.hash = '/crm';
+      if (window.location.hostname.startsWith('crm.') || window.location.hostname.includes('localhost')) {
+        window.location.hash = '/crm';
+      } else {
+        window.location.href = `https://crm.${window.location.hostname.replace(/^www\./, '')}`;
+      }
     } else if (route === 'DASHBOARD') {
       window.location.hash = '/dashboard';
     } else if (route === 'LOGIN') {
