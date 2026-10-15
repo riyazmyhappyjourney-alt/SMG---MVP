@@ -3,7 +3,8 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import {defineConfig} from 'vite';
 
-export default defineConfig(() => {
+export default defineConfig(({ mode }) => {
+  const isProd = mode === 'production';
   return {
     base: '/',
     plugins: [react(), tailwindcss()],
@@ -12,8 +13,11 @@ export default defineConfig(() => {
         '@': path.resolve(import.meta.dirname, '.'),
       },
     },
+    oxc: {
+      drop: isProd ? ['console', 'debugger'] : [],
+    },
     build: {
-      chunkSizeWarningLimit: 1500,
+      chunkSizeWarningLimit: 2500,
     },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.

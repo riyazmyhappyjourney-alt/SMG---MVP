@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Logo } from '../brand/Logo';
-import { ShieldCheck, Mail, MapPin, Phone, Scale, Lock, X, HelpCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { ShieldCheck, Mail, MapPin, Scale, Lock, X, HelpCircle, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface FooterProps {
   onNavClick: (tab: 'BUY' | 'SELL' | 'ABOUT' | 'CONTACT') => void;
@@ -81,7 +81,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                   <div className="flex items-center space-x-2 shrink-0 font-bold text-emerald-800">
                     <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
                     <span className="text-[11px] sm:text-xs whitespace-nowrap">
-                      Karnataka RERA Approved Real Estate Resale Platform
+                      Karnataka RERA Registered Real Estate Platform
                     </span>
                   </div>
                   <span className="hidden sm:inline text-emerald-300">|</span>
@@ -104,7 +104,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                 <button
                   type="button"
                   onClick={() => onNavClick('ABOUT')}
-                  className="whitespace-nowrap hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left py-0.5 block"
+                  className="hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left py-0.5 block"
                 >
                   About us
                 </button>
@@ -113,7 +113,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                 <button
                   type="button"
                   onClick={() => onNavClick('CONTACT')}
-                  className="whitespace-nowrap hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left py-0.5 block"
+                  className="hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left py-0.5 block"
                 >
                   Contact us
                 </button>
@@ -121,7 +121,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
               <li>
                 <a
                   href="#/careers"
-                  className="whitespace-nowrap hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left block py-0.5"
+                  className="hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left block py-0.5"
                 >
                   Careers with us
                 </a>
@@ -130,7 +130,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                 <button
                   type="button"
                   onClick={() => setModalType('TERMS')}
-                  className="whitespace-nowrap hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left py-0.5 block"
+                  className="hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left py-0.5 block"
                 >
                   Terms & Conditions
                 </button>
@@ -143,24 +143,25 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                     setFeedbackText('');
                     setModalType('FEEDBACK');
                   }}
-                  className="whitespace-nowrap hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left py-0.5 block"
+                  className="hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left py-0.5 block"
                 >
                   Feedback
                 </button>
               </li>
               <li>
-                <a
-                  href="#/privacy-policy"
-                  className="whitespace-nowrap hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left py-0.5 block"
+                <button
+                  type="button"
+                  onClick={() => setModalType('PRIVACY')}
+                  className="hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left py-0.5 block"
                 >
                   Privacy Policy
-                </a>
+                </button>
               </li>
               <li>
                 <button
                   type="button"
                   onClick={() => setModalType('GRIEVANCE')}
-                  className="whitespace-nowrap hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left py-0.5 block"
+                  className="hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left py-0.5 block"
                 >
                   Grievances
                 </button>
@@ -169,7 +170,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                 <button
                   type="button"
                   onClick={() => setModalType('COOKIE')}
-                  className="whitespace-nowrap hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left py-0.5 block"
+                  className="hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left py-0.5 block"
                 >
                   Cookie Policy
                 </button>
@@ -187,7 +188,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                 <button
                   type="button"
                   onClick={() => onNavClick('BUY')}
-                  className="whitespace-nowrap hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left py-0.5 block"
+                  className="hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left py-0.5 block"
                 >
                   Buy Resale Homes
                 </button>
@@ -196,7 +197,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                 <button
                   type="button"
                   onClick={() => onNavClick('SELL')}
-                  className="whitespace-nowrap hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left py-0.5 block"
+                  className="hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left py-0.5 block"
                 >
                   Sell Your Flat (Verified)
                 </button>
@@ -204,7 +205,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
               <li>
                 <a
                   href="#/holding-calculator"
-                  className="whitespace-nowrap hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left block py-0.5"
+                  className="hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left block py-0.5"
                 >
                   Holding Cost Calculator
                 </a>
@@ -216,7 +217,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                     setOpenModalFaqIndex(0);
                     setModalType('FAQ');
                   }}
-                  className="whitespace-nowrap hover:text-[#B85418] text-[#D96B27] font-semibold transition-colors cursor-pointer text-left flex items-center py-0.5"
+                  className="hover:text-[#B85418] text-[#D96B27] font-semibold transition-colors cursor-pointer text-left flex items-center py-0.5"
                 >
                   <HelpCircle className="w-3.5 h-3.5 mr-1.5 text-[#D96B27] shrink-0" />
                   <span>Frequently Asked Questions</span>
@@ -227,7 +228,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                   <button
                     type="button"
                     onClick={onConsentPortalOpen}
-                    className="whitespace-nowrap hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left flex items-center py-0.5"
+                    className="hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left flex items-center py-0.5"
                   >
                     <Lock className="w-3.5 h-3.5 mr-1.5 shrink-0 text-[#1E3A8A]" />
                     <span>Manage Consent</span>
@@ -248,14 +249,8 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                 <span>ESTEEM PARK, Rose Garden Rd, 5th Phase, J P Nagar Phase 5, J. P. Nagar, Bengaluru, Karnataka 560078</span>
               </p>
               <p className="flex items-center font-medium">
-                <Phone className="w-3.5 h-3.5 mr-2 text-[#244B8F] shrink-0" />
-                <a href="tel:+918047193200" className="whitespace-nowrap hover:text-[#0F2860] transition-colors">
-                  +91 80 4719 3200
-                </a>
-              </p>
-              <p className="flex items-center font-medium">
                 <Mail className="w-3.5 h-3.5 mr-2 text-[#244B8F] shrink-0" />
-                <a href="mailto:support@sellmyghar.in" className="whitespace-nowrap hover:text-[#0F2860] transition-colors">
+                <a href="mailto:support@sellmyghar.in" className="hover:text-[#0F2860] transition-colors">
                   support@sellmyghar.in
                 </a>
               </p>
@@ -269,9 +264,9 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
       {/* Bottom Bar: Copyright & Compliance */}
       <div className="relative z-20 pt-4 pb-6 bg-[#172033] text-slate-300 font-['Poppins'] border-t border-slate-700/60 shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between text-[11px] gap-2">
-          <p>© {new Date().getFullYear()} SellMyGhar Technologies Private Limited. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} SellMyGhar. All rights reserved.</p>
           <p className="text-center sm:text-right text-slate-400">
-            Karnataka RERA Approved Real Estate Resale Facilitator. Transparent legal due diligence & certified document verification.
+            Assisted residential resale platform. Transparent legal due diligence & verified document facilitation.
           </p>
         </div>
       </div>

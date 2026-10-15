@@ -135,7 +135,7 @@ export const TermsPage: React.FC<TermsPageProps> = ({
             </section>
 
             <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <span className="text-xs text-slate-400">Questions about our Terms? Contact legal@sellmyghar.in</span>
+              <span className="text-xs text-slate-400">Questions about our Terms? Contact support@sellmyghar.in</span>
               <a
                 href="#/"
                 onClick={(e) => {

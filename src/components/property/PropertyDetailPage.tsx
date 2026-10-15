@@ -54,6 +54,8 @@ export interface PublicPropertyDetail {
   localityName: string;
   propertyType: string;
   bhkType: string;
+  crmStatus?: string;
+  isVerified?: boolean;
   superBuiltUpSqft: number;
   carpetAreaSqft: number;
   floorBand: string;
@@ -403,6 +405,22 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
   }
 
   const activePhoto = property.photos[activePhotoIndex] || property.photos[0];
+  const hasCustomFloorPlan = Boolean(
+    (property.floorPlans && property.floorPlans.length > 0 && property.floorPlans[0]?.imageUrl && !property.floorPlans[0].imageUrl.includes('sample-architectural-floor-plan.svg')) ||
+    (property.floorPlanUrl && !property.floorPlanUrl.includes('sample-architectural-floor-plan.svg'))
+  );
+
+  const isAuthoritativelyVerified = Boolean(
+    property.isVerified ||
+    property.crmStatus === 'APPROVED' ||
+    (property.verification && (
+      property.verification.tier === 'LEVEL_3_PHYSICALLY_INSPECTED' ||
+      property.verification.tier === 'LEVEL_2_DOCS_REVIEWED' ||
+      property.verification.badge === 'INSPECTED' ||
+      property.verification.badge === 'DOCS CHECKED'
+    ))
+  );
+
   const floorPlanList = (property.floorPlans && property.floorPlans.length > 0)
     ? property.floorPlans
     : [
@@ -412,7 +430,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
           carpetAreaSqft: property.carpetAreaSqft,
           superBuiltUpSqft: property.superBuiltUpSqft,
           imageUrl: property.floorPlanUrl || '/images/sample-architectural-floor-plan.svg',
-          tag: 'Verified Layout'
+          tag: hasCustomFloorPlan ? 'Verified Layout' : 'No Floor Plan Available'
         }
       ];
 
@@ -547,6 +565,12 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
               <span className="px-3 py-1 rounded-full bg-[#244B8F] text-white text-[11px] font-bold shadow-xs">
                 For Resale
               </span>
+              {isAuthoritativelyVerified && (
+                <span className="px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200/80 text-[11px] font-bold flex items-center space-x-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>SellMyGhar Verified Property</span>
+                </span>
+              )}
               <span className="px-2.5 py-1 rounded-md bg-slate-100 text-slate-800 text-[11px] font-bold">
                 {property.bhkType}
               </span>
@@ -808,23 +832,37 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
               )}
 
               <div className="relative bg-slate-50 rounded-xl border border-slate-200 p-4 flex flex-col items-center group">
-                <div className="w-full max-h-[380px] flex items-center justify-center overflow-hidden">
+                <div className="w-full max-h-[380px] flex items-center justify-center overflow-hidden relative">
                   <img
                     src={currentFloorPlan.imageUrl}
                     alt={currentFloorPlan.title || 'Floor Plan'}
-                    className="max-h-[360px] w-auto object-contain cursor-zoom-in transition-transform duration-300 group-hover:scale-101"
-                    onClick={() => setIsFloorPlanZoomOpen(true)}
+                    className={`max-h-[360px] w-auto object-contain transition-transform duration-300 ${hasCustomFloorPlan ? 'cursor-zoom-in group-hover:scale-101' : 'filter blur-xs opacity-60'}`}
+                    onClick={() => hasCustomFloorPlan && setIsFloorPlanZoomOpen(true)}
                   />
+                  {!hasCustomFloorPlan && (
+                    <div className="absolute inset-0 bg-slate-900/15 backdrop-blur-2xs flex flex-col items-center justify-center p-6 text-center rounded-lg">
+                      <div className="bg-white/95 rounded-xl p-4 shadow-lg border border-slate-200 max-w-sm space-y-2">
+                        <span className="inline-block px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold font-['Montserrat']">
+                          No Floor Plan Available
+                        </span>
+                        <p className="text-xs text-slate-600 font-medium font-['Poppins'] leading-relaxed">
+                          No floor plan available for this listing. Contact our relationship desk to request society layout dimensions.
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => setIsFloorPlanZoomOpen(true)}
-                  className="mt-3 inline-flex items-center space-x-1.5 px-3.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer font-['Montserrat']"
-                >
-                  <ZoomIn className="w-3.5 h-3.5 text-[#244B8F]" />
-                  <span>Click to Zoom Floor Plan</span>
-                </button>
+                {hasCustomFloorPlan && (
+                  <button
+                    type="button"
+                    onClick={() => setIsFloorPlanZoomOpen(true)}
+                    className="mt-3 inline-flex items-center space-x-1.5 px-3.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer font-['Montserrat']"
+                  >
+                    <ZoomIn className="w-3.5 h-3.5 text-[#244B8F]" />
+                    <span>Click to Zoom Floor Plan</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -892,7 +930,16 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                 Township & Society Amenities
               </h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 font-['Poppins']">
-                {property.amenities.map((amenity, idx) => (
+                {((property.amenities && property.amenities.length > 0) ? property.amenities : [
+                  'Clubhouse & Gymnasium',
+                  '24/7 Security & CCTV',
+                  'Power Backup (100%)',
+                  'Covered Car Parking',
+                  'Children\'s Play Area',
+                  'Rooftop Swimming Pool',
+                  'Landscaped Gardens',
+                  'Intercom & High-Speed Elevators'
+                ]).map((amenity, idx) => (
                   <div key={idx} className="flex items-center space-x-2.5 p-3 bg-slate-50 rounded-xl border border-slate-200/80 text-xs font-medium text-slate-800">
                     {getAmenityIcon(amenity)}
                     <span className="truncate">{amenity}</span>

@@ -25,7 +25,8 @@ import {
   Truck,
   AlertTriangle,
   Activity,
-  AlertCircle
+  AlertCircle,
+  ExternalLink
 } from 'lucide-react';
 import { UserAuthProfile } from '../../types/user';
 import {
@@ -1161,11 +1162,17 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                           <div className="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-12 gap-5 items-start">
                             
                             {/* Left: Thumbnail Image + Badges */}
-                            <div className="md:col-span-4 relative rounded-xl overflow-hidden bg-slate-100 aspect-4/3 sm:aspect-16/10">
+                            <a 
+                              href={`/property/${property.id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="md:col-span-4 relative rounded-xl overflow-hidden bg-slate-100 aspect-4/3 sm:aspect-16/10 block group/thumb cursor-pointer"
+                              title="View live property listing"
+                            >
                               <img
                                 src={property.photos[0] || getDistinctCommunityPhoto(property.id || property.societyName, 800)}
                                 alt={property.societyName}
-                                className="w-full h-full object-cover"
+                                className="w-full h-full object-cover group-hover/thumb:scale-105 transition-transform duration-300"
                                 onError={(e) => {
                                   const target = e.target as HTMLImageElement;
                                   if (!target.dataset.hasFallback) {
@@ -1187,14 +1194,22 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                                 <ShieldCheck className="w-3 h-3 text-emerald-400" />
                                 <span>{isRent ? 'TENANCY ASSISTED' : 'TITLE CHECKED'}</span>
                               </div>
-                            </div>
+                            </a>
 
                             {/* Middle: Title, Pricing, Specs */}
                             <div className="md:col-span-5 space-y-2.5">
                               <div>
-                                <h3 className="text-base sm:text-lg font-extrabold text-slate-900 leading-tight">
-                                  {property.bhkType} Flat {isRent ? 'for Rent' : 'for Resale'}
-                                </h3>
+                                <a
+                                  href={`/property/${property.id}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="group/title block hover:underline"
+                                >
+                                  <h3 className="text-base sm:text-lg font-extrabold text-slate-900 group-hover/title:text-[#244B8F] transition-colors leading-tight flex items-center space-x-1.5">
+                                    <span>{property.bhkType} Flat {isRent ? 'for Rent' : 'for Resale'}</span>
+                                    <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover/title:text-[#244B8F]" />
+                                  </h3>
+                                </a>
                                 <p className="text-xs font-bold text-[#244B8F] mt-0.5">
                                   {property.societyName}
                                 </p>
@@ -1335,14 +1350,29 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                             <span className="text-[11px] text-slate-400">
                               Unit Reference: <strong className="font-mono text-slate-700">{property.referenceId}</strong>
                             </span>
-                            <button
-                              type="button"
-                              onClick={() => showToast(`Shareable direct link copied for ${property.referenceId}`)}
-                              className="text-slate-500 hover:text-[#244B8F] flex items-center space-x-1 text-xs font-semibold cursor-pointer"
-                            >
-                              <Share2 className="w-3.5 h-3.5" />
-                              <span>Share Listing</span>
-                            </button>
+                            <div className="flex items-center space-x-3">
+                              <a
+                                href={`/property/${property.id}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[#244B8F] hover:text-[#1B396E] flex items-center space-x-1 text-xs font-bold"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5" />
+                                <span>View Live Listing</span>
+                              </a>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const url = `${window.location.origin}/property/${property.id}`;
+                                  navigator.clipboard?.writeText(url);
+                                  showToast(`Shareable direct link copied for ${property.referenceId}`);
+                                }}
+                                className="text-slate-500 hover:text-[#244B8F] flex items-center space-x-1 text-xs font-semibold cursor-pointer"
+                              >
+                                <Share2 className="w-3.5 h-3.5" />
+                                <span>Share Listing</span>
+                              </button>
+                            </div>
                           </div>
 
                         </div>

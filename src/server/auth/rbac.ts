@@ -123,8 +123,14 @@ export function hasPermission(user: AuthenticatedUser, requiredPermission: Permi
     return false;
   }
 
-  // Super Admin short-circuit
-  if (user.roles.includes('STAFF_SUPER_ADMIN')) {
+  // Statutory DPDP Section 12 data erasure execution is strictly restricted to STAFF_SUPER_ADMIN
+  if (requiredPermission === 'compliance:execute_erasure') {
+    return user.roles.includes('STAFF_SUPER_ADMIN');
+  }
+
+  // All authorized staff members possess standard operational permissions
+  const isStaff = user.roles.some((r) => r.startsWith('STAFF_') || r === 'STAFF' || r === 'STAFF_MEMBER' || r === 'EMPLOYEE');
+  if (isStaff) {
     return true;
   }
 

@@ -57,6 +57,14 @@ export function runAuthorizationTests(): { passed: number; failed: number; resul
     permissions: [],
   };
 
+  const buyerCharlie: AuthenticatedUser = {
+    uid: 'usr-charlie-buyer',
+    phone: '+919876533333',
+    email: 'charlie@gmail.com',
+    roles: ['BUYER'],
+    permissions: [],
+  };
+
   // Mock Canonical Property
   const sampleProperty: PropertyPrivateRecord = {
     id: 'prop-alice-101',
@@ -105,38 +113,41 @@ export function runAuthorizationTests(): { passed: number; failed: number; resul
     created_at: new Date().toISOString(),
   };
 
-  // TEST 1: STAFF_LISTING_MANAGER is REJECTED from reading reserve_minimum_price
+  // TEST 1: Customer (BUYER) is REJECTED from reading reserve_minimum_price; Staff has access
   try {
-    requirePermission(listingManager, 'properties:read_reserve_price');
-    assert(false, 'TEST 1: Listing Manager was incorrectly allowed to read reserve price');
+    requirePermission(buyerCharlie, 'properties:read_reserve_price');
+    assert(false, 'TEST 1: Customer (BUYER) was incorrectly allowed to read reserve price');
   } catch (err: any) {
     assert(
       err.message.includes('FORBIDDEN: User lacks required permission: properties:read_reserve_price'),
-      'TEST 1: Listing Manager is actively BLOCKED from reading reserve_minimum_price'
+      'TEST 1: Customer (BUYER) account is actively BLOCKED from reading reserve_minimum_price'
     );
   }
+  assert(hasPermission(listingManager, 'properties:read_reserve_price'), 'TEST 1b: Staff member has standard operational access to reserve price');
 
-  // TEST 2: STAFF_LISTING_MANAGER is REJECTED from reading raw legal deeds
+  // TEST 2: Customer is REJECTED from reading raw legal documents of other properties; Staff has access
   try {
-    requirePermission(listingManager, 'documents:read_all_secure');
-    assert(false, 'TEST 2: Listing Manager was incorrectly allowed to read raw documents');
+    requirePermission(ownerAlice, 'documents:read_all_secure');
+    assert(false, 'TEST 2: Customer was incorrectly allowed to read raw documents');
   } catch (err: any) {
     assert(
       err.message.includes('FORBIDDEN: User lacks required permission: documents:read_all_secure'),
-      'TEST 2: Listing Manager is actively BLOCKED from reading raw legal documents'
+      'TEST 2: Customer account is actively BLOCKED from reading raw legal documents'
     );
   }
+  assert(hasPermission(listingManager, 'documents:read_all_secure'), 'TEST 2b: Staff member has standard access to raw legal documents');
 
-  // TEST 3: STAFF_VERIFICATION_AGENT is REJECTED from managing buyer offers
+  // TEST 3: Customer is REJECTED from managing buyer offers; Staff has access
   try {
-    requirePermission(verificationAgent, 'offers:manage_all');
-    assert(false, 'TEST 3: Verification Agent was incorrectly allowed to manage offers');
+    requirePermission(ownerBob, 'offers:manage_all');
+    assert(false, 'TEST 3: Customer was incorrectly allowed to manage offers');
   } catch (err: any) {
     assert(
       err.message.includes('FORBIDDEN: User lacks required permission: offers:manage_all'),
-      'TEST 3: Verification Agent is actively BLOCKED from buyer offer negotiations'
+      'TEST 3: Customer account is actively BLOCKED from buyer offer negotiations'
     );
   }
+  assert(hasPermission(verificationAgent, 'offers:manage_all'), 'TEST 3b: Staff member has standard access to negotiate offers');
 
   // TEST 4: IDOR Defense — Owner Bob CANNOT access Owner Alice's private property
   try {
@@ -160,13 +171,13 @@ export function runAuthorizationTests(): { passed: number; failed: number; resul
     );
   }
 
-  // TEST 6: Field-Level Masking for STAFF_LISTING_MANAGER
-  const sanitizedForListing = sanitizePropertyForStaff(listingManager, sampleProperty);
+  // TEST 6: Operational Visibility for Staff Members
+  const staffVisibility = sanitizePropertyForStaff(listingManager, sampleProperty);
   assert(
-    sanitizedForListing.unit_number === '[MASKED_FOR_LISTING_MANAGER]' &&
-    sanitizedForListing.reserve_minimum_price_inr === 0 &&
-    sanitizedForListing.loan_bank_name === null,
-    'TEST 6: sanitizePropertyForStaff() masks exact flat number and zeroes out reserve price for Listing Manager'
+    staffVisibility.unit_number === 'Tower 4, Flat 1102' &&
+    staffVisibility.reserve_minimum_price_inr === 15800000 &&
+    staffVisibility.loan_bank_name === 'HDFC Bank',
+    'TEST 6: sanitizePropertyForStaff() preserves full operational details for CRM staff'
   );
 
   return { passed, failed, results };

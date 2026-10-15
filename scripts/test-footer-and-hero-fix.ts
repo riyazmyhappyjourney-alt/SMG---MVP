@@ -62,7 +62,8 @@ export async function runFooterAndHeroFixTests(): Promise<{ passed: number; fail
   );
 
   record(
-    'Footer includes Karnataka RERA Approved Real Estate Resale Platform pill',
+    'Footer includes Karnataka RERA Registered Real Estate Platform pill',
+    footerContent.includes('Karnataka RERA Registered Real Estate Platform') ||
     footerContent.includes('Karnataka RERA Approved Real Estate Resale Platform')
   );
 
@@ -74,7 +75,6 @@ export async function runFooterAndHeroFixTests(): Promise<{ passed: number; fail
   record(
     'Footer includes verified Bengaluru office address and contacts',
     (footerContent.includes('ESTEEM PARK, Rose Garden Rd') || footerContent.includes('100 Feet Road, Indiranagar')) &&
-    footerContent.includes('+91 80 4719 3200') &&
     footerContent.includes('support@sellmyghar.in')
   );
 

@@ -36,14 +36,26 @@ interface PropertyItem {
 
 interface ListedPropertiesProps {
   onSelectProperty: (projectName: string, locality: string, bhkType: any) => void;
+  searchQuery?: string;
+  externalLocality?: string;
 }
 
-export const ListedProperties: React.FC<ListedPropertiesProps> = ({ onSelectProperty }) => {
+export const ListedProperties: React.FC<ListedPropertiesProps> = ({ 
+  onSelectProperty,
+  searchQuery,
+  externalLocality,
+}) => {
   const [properties, setProperties] = useState<PropertyItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [bhkFilter, setBhkFilter] = useState<string>('ALL');
   const [localityFilter, setLocalityFilter] = useState<string>('ALL');
   const [favorites, setFavorites] = useState<Set<string>>(new Set(getFavoritePropertyIds()));
+
+  useEffect(() => {
+    if (externalLocality) {
+      setLocalityFilter(externalLocality);
+    }
+  }, [externalLocality]);
 
   useEffect(() => {
     async function fetchListings() {
@@ -84,7 +96,16 @@ export const ListedProperties: React.FC<ListedPropertiesProps> = ({ onSelectProp
 
   const filteredProperties = properties.filter((p) => {
     if (bhkFilter !== 'ALL' && p.bhkType !== bhkFilter) return false;
-    if (localityFilter !== 'ALL' && !p.localityName.toLowerCase().includes(localityFilter.toLowerCase())) return false;
+    if (localityFilter !== 'ALL' && 
+        !p.localityName.toLowerCase().includes(localityFilter.toLowerCase()) &&
+        !p.projectName.toLowerCase().includes(localityFilter.toLowerCase())) return false;
+    if (searchQuery && searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      const match = p.projectName.toLowerCase().includes(q) ||
+                    p.localityName.toLowerCase().includes(q) ||
+                    p.bhkType.toLowerCase().includes(q);
+      if (!match) return false;
+    }
     return true;
   });
 

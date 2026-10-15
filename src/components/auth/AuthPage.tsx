@@ -30,6 +30,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
+  // Forgot password state
+  const [isForgotView, setIsForgotView] = useState(false);
+  const [forgotSuccess, setForgotSuccess] = useState<string | null>(null);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -171,11 +175,37 @@ export const AuthPage: React.FC<AuthPageProps> = ({
     }
   };
 
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setForgotSuccess(null);
+    if (!email || !email.includes('@')) {
+      setError('Please enter a valid registered email address.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const response = await safeFetchJson<{ success: boolean; message?: string; error?: string }>('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+      });
+      if (!response.ok || !response.data?.success) {
+        throw new Error(response.error || 'Failed to submit password reset request.');
+      }
+      setForgotSuccess(response.data.message || 'If an account exists with this email, password reset instructions have been sent.');
+    } catch (err: any) {
+      setError(err.message || 'Password reset request failed.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#F0F4F8] flex items-center justify-center p-4 sm:p-6 lg:p-8 font-['Montserrat']">
       
       {/* Container: Replicating Reference Design (Left Image with Bold Overlay Text + Right Clean Form) */}
-      <div className="max-w-4xl w-full bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200/80 grid grid-cols-1 md:grid-cols-2 relative">
+      <div className="max-w-4xl w-full bg-white rounded-3xl shadow-2xl overflow-hidden border border-slate-200/80 grid grid-cols-1 md:grid-cols-2 relative min-h-[580px]">
         
         {/* Back to Home Button */}
         <button
@@ -219,52 +249,128 @@ export const AuthPage: React.FC<AuthPageProps> = ({
         </div>
 
         {/* RIGHT COLUMN: Clean, Modern Sign Up / Sign In Form */}
-        <div className="p-6 sm:p-10 md:p-12 flex flex-col justify-center bg-white">
+        <div className="p-6 sm:p-10 md:p-12 flex flex-col justify-center bg-white min-h-[540px]">
           
-          <div className="mb-6">
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-              {mode === 'SIGNUP' ? 'Sign up' : 'Sign in'}
-            </h1>
-            <p className="text-xs text-slate-500 mt-1">
-              {mode === 'SIGNUP' 
-                ? 'Create your SellMyGhar account to list flats or connect with verified buyers.' 
-                : 'Welcome back! Sign in to manage your property listings.'}
-            </p>
-          </div>
+          {isForgotView ? (
+            <div className="space-y-4">
+              <div className="mb-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsForgotView(false);
+                    setError(null);
+                    setForgotSuccess(null);
+                  }}
+                  className="inline-flex items-center text-xs font-semibold text-slate-500 hover:text-[#244B8F] transition-colors cursor-pointer mb-3"
+                >
+                  <ArrowLeft className="w-3.5 h-3.5 mr-1" />
+                  <span>Back to Sign in</span>
+                </button>
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                  Reset password
+                </h1>
+                <p className="text-xs text-slate-500 mt-1">
+                  Enter your registered email address to receive password reset instructions.
+                </p>
+              </div>
 
-          {/* Auth Method Selector: Simple Phone OTP (Default) or Email */}
-          <div className="flex rounded-xl bg-slate-100 p-1 mb-5">
-            <button
-              type="button"
-              onClick={() => {
-                setAuthMethod('OTP');
-                setError(null);
-              }}
-              className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center space-x-1.5 ${
-                authMethod === 'OTP'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              <Phone className="w-3.5 h-3.5" />
-              <span>Mobile OTP</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setAuthMethod('PASSWORD');
-                setError(null);
-              }}
-              className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center space-x-1.5 ${
-                authMethod === 'PASSWORD'
-                  ? 'bg-white text-slate-900 shadow-xs'
-                  : 'text-slate-500 hover:text-slate-800'
-              }`}
-            >
-              <Mail className="w-3.5 h-3.5" />
-              <span>Email & Password</span>
-            </button>
-          </div>
+              {error && (
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs font-medium text-rose-700">
+                  {error}
+                </div>
+              )}
+
+              {forgotSuccess ? (
+                <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 space-y-3">
+                  <div className="flex items-center space-x-2 font-bold text-emerald-900">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>Instructions Dispatched</span>
+                  </div>
+                  <p>{forgotSuccess}</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsForgotView(false);
+                      setError(null);
+                      setForgotSuccess(null);
+                    }}
+                    className="w-full py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                  >
+                    Return to Sign in
+                  </button>
+                </div>
+              ) : (
+                <form onSubmit={handleForgotPassword} className="space-y-3.5">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
+                      Registered Email
+                    </label>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="Enter your email"
+                      className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#244B8F] focus:bg-white"
+                      required
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading || !email}
+                    className="w-full mt-2 py-3.5 px-4 bg-[#FF5A5F] hover:bg-[#E04B50] disabled:bg-slate-300 text-white text-sm font-bold rounded-xl shadow-md hover:shadow-lg transition-all cursor-pointer flex items-center justify-center space-x-2"
+                  >
+                    {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>Send Reset Instructions</span>}
+                  </button>
+                </form>
+              )}
+            </div>
+          ) : (
+            <>
+              <div className="mb-6">
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
+                  {mode === 'SIGNUP' ? 'Sign up' : 'Sign in'}
+                </h1>
+                <p className="text-xs text-slate-500 mt-1">
+                  {mode === 'SIGNUP' 
+                    ? 'Create your SellMyGhar account to list flats or connect with verified buyers.' 
+                    : 'Welcome back! Sign in to manage your property listings.'}
+                </p>
+              </div>
+
+              {/* Auth Method Selector: Simple Phone OTP (Default) or Email */}
+              <div className="flex rounded-xl bg-slate-100 p-1 mb-5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMethod('OTP');
+                    setError(null);
+                  }}
+                  className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center space-x-1.5 ${
+                    authMethod === 'OTP'
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  <Phone className="w-3.5 h-3.5" />
+                  <span>Mobile OTP</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAuthMethod('PASSWORD');
+                    setError(null);
+                  }}
+                  className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center justify-center space-x-1.5 ${
+                    authMethod === 'PASSWORD'
+                      ? 'bg-white text-slate-900 shadow-xs'
+                      : 'text-slate-500 hover:text-slate-800'
+                  }`}
+                >
+                  <Mail className="w-3.5 h-3.5" />
+                  <span>Email & Password</span>
+                </button>
+              </div>
 
           {error && (
             <div className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs font-medium text-rose-700">
@@ -413,9 +519,24 @@ export const AuthPage: React.FC<AuthPageProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Password
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Password
+                  </label>
+                  {mode === 'SIGNIN' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsForgotView(true);
+                        setError(null);
+                        setForgotSuccess(null);
+                      }}
+                      className="text-xs text-[#244B8F] hover:underline font-semibold cursor-pointer"
+                    >
+                      Forgot password?
+                    </button>
+                  )}
+                </div>
                 <div className="relative">
                   <input
                     type={showPassword ? 'text' : 'password'}
@@ -520,6 +641,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({
               </button>
             </div>
           </div>
+            </>
+          )}
 
         </div>
 

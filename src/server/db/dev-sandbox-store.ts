@@ -1090,9 +1090,13 @@ class DevSandboxStore {
       return { rows: [{ ...u }] };
     }
 
-    // 5. USERS: Select Staff List
+    // 5. USERS: Select Staff List or Count
     if (cleanSql.includes('FROM users') && cleanSql.includes('STAFF_')) {
       const staff = Array.from(this.users.values()).filter(x => x.roles.some(r => r.startsWith('STAFF_')));
+      if (cleanSql.includes('COUNT(*)')) {
+        const activeOnly = cleanSql.includes('is_active = true') ? staff.filter(s => s.is_active) : staff;
+        return { rows: [{ count: activeOnly.length }] };
+      }
       return { rows: staff.map(s => ({ ...s })) };
     }
 
@@ -1248,6 +1252,25 @@ class DevSandboxStore {
       return { rows: [], rowCount: 0 } as any;
     }
 
+    // 8h. USERS: Full CRM Staff User Update (from PATCH /api/crm/users/:id)
+    if (cleanSql.includes('UPDATE users') && cleanSql.includes('module_permissions =') && cleanSql.includes('is_active =')) {
+      const id = params[params.length - 1];
+      const u = this.users.get(id);
+      if (u) {
+        if (params[0]) u.roles = Array.isArray(params[0]) ? params[0] : [params[0]];
+        if (params[1]) u.module_permissions = Array.isArray(params[1]) ? params[1] : [params[1]];
+        if (typeof params[2] === 'boolean') u.is_active = params[2];
+        if (cleanSql.includes('token_version = token_version + 1')) {
+          u.token_version = (u.token_version || 1) + 1;
+        }
+        if (params[3]) u.display_name = params[3];
+        if (params[4]) u.phone = params[4];
+        u.updated_at = new Date().toISOString();
+        return { rows: [{ ...u }] };
+      }
+      return { rows: [] };
+    }
+
     // 9. USERS: Update token_version (Logout)
     if (cleanSql.includes('UPDATE users') && cleanSql.includes('token_version = token_version + 1')) {
       const id = params[0];
@@ -1368,7 +1391,15 @@ class DevSandboxStore {
       return { rows: [] };
     }
 
-    // 9c-3. USERS: Count active admins
+    // 9c-3. USERS: Count active staff members
+    if (cleanSql.includes('COUNT(*)') && cleanSql.includes('FROM users') && cleanSql.includes('STAFF_INTAKE_AGENT')) {
+      const activeStaff = Array.from(this.users.values()).filter(x => 
+        x.is_active && x.roles.some(r => r.startsWith('STAFF_') || r === 'STAFF' || r === 'STAFF_MEMBER')
+      );
+      return { rows: [{ count: activeStaff.length }] };
+    }
+
+    // 9c-4. USERS: Count active admins
     if (cleanSql.includes('COUNT(*)') && cleanSql.includes('FROM users') && cleanSql.includes('STAFF_SUPER_ADMIN')) {
       const activeAdmins = Array.from(this.users.values()).filter(x => x.roles.includes('STAFF_SUPER_ADMIN') && x.is_active);
       return { rows: [{ count: activeAdmins.length }] };

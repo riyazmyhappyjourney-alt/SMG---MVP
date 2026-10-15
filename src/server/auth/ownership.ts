@@ -21,19 +21,11 @@ export class AuthorizationError extends Error {
 export function assertCanAccessProperty(
   user: AuthenticatedUser,
   property: PropertyPrivateRecord,
-  action: 'READ' | 'WRITE'
+  _action: 'READ' | 'WRITE'
 ): void {
-  // 1. Staff with appropriate permissions can access
-  const isStaff = user.roles.some((r) => r.startsWith('STAFF_'));
+  // 1. Staff with appropriate credentials can access
+  const isStaff = user.roles.some((r) => r.startsWith('STAFF_') || r === 'STAFF' || r === 'EMPLOYEE' || r === 'STAFF_MEMBER');
   if (isStaff) {
-    if (action === 'WRITE') {
-      const canWriteStaff = user.roles.includes('STAFF_SUPER_ADMIN') || 
-                            user.roles.includes('STAFF_VERIFICATION_AGENT') || 
-                            user.roles.includes('STAFF_INTAKE_AGENT');
-      if (!canWriteStaff) {
-        throw new AuthorizationError('Staff role lacks write permission on property');
-      }
-    }
     return;
   }
 
@@ -50,9 +42,8 @@ export function assertCanAccessDocument(
   user: AuthenticatedUser,
   document: DocumentPrivateRecord
 ): void {
-  // Staff with secure document read permission
-  const isDocStaff = user.roles.includes('STAFF_SUPER_ADMIN') || 
-                     user.roles.includes('STAFF_VERIFICATION_AGENT');
+  // Staff with employee credentials
+  const isDocStaff = user.roles.some((r) => r.startsWith('STAFF_') || r === 'STAFF' || r === 'EMPLOYEE' || r === 'STAFF_MEMBER');
   if (isDocStaff) {
     return;
   }
@@ -71,7 +62,7 @@ export function assertCanAccessVisit(
   visit: VisitPrivateRecord,
   propertyOwnerId: string
 ): void {
-  const isStaff = user.roles.some((r) => r.startsWith('STAFF_'));
+  const isStaff = user.roles.some((r) => r.startsWith('STAFF_') || r === 'STAFF' || r === 'EMPLOYEE' || r === 'STAFF_MEMBER');
   if (isStaff) {
     return;
   }
@@ -93,8 +84,7 @@ export function assertCanAccessOffer(
   offer: OfferPrivateRecord,
   propertyOwnerId: string
 ): void {
-  const isStaff = user.roles.includes('STAFF_SUPER_ADMIN') || 
-                  user.roles.includes('STAFF_DEAL_CLOSER');
+  const isStaff = user.roles.some((r) => r.startsWith('STAFF_') || r === 'STAFF' || r === 'EMPLOYEE' || r === 'STAFF_MEMBER');
   if (isStaff) {
     return;
   }
@@ -109,31 +99,12 @@ export function assertCanAccessOffer(
 }
 
 /**
- * Field-Level Masking Helper: Masks sensitive fields based on user role
+ * Field-Level Masking Helper: In unified CRM architecture, all approved staff
+ * have visibility into standard property operational specifications.
  */
 export function sanitizePropertyForStaff(
-  user: AuthenticatedUser,
+  _user: AuthenticatedUser,
   property: PropertyPrivateRecord
 ): Partial<PropertyPrivateRecord> {
-  const isSuperAdmin = user.roles.includes('STAFF_SUPER_ADMIN');
-  const isDealCloser = user.roles.includes('STAFF_DEAL_CLOSER');
-  const isVerification = user.roles.includes('STAFF_VERIFICATION_AGENT');
-  const isListingManager = user.roles.includes('STAFF_LISTING_MANAGER');
-
-  const copy = { ...property };
-
-  // Listing Manager should NOT see exact unit number, reserve price, or loan bank
-  if (isListingManager && !isSuperAdmin) {
-    copy.unit_number = '[MASKED_FOR_LISTING_MANAGER]';
-    copy.reserve_minimum_price_inr = 0;
-    copy.loan_bank_name = null;
-    copy.internal_verification_notes = '[RESTRICTED]';
-  }
-
-  // Verification Agent should NOT see the owner's reserve negotiation floor
-  if (isVerification && !isSuperAdmin && !isDealCloser) {
-    copy.reserve_minimum_price_inr = 0;
-  }
-
-  return copy;
+  return { ...property };
 }
