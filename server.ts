@@ -84,14 +84,27 @@ const TRUSTED_ORIGINS = new Set([
 export function isOriginAllowed(origin?: string): boolean {
   if (!origin) return true;
   if (TRUSTED_ORIGINS.has(origin)) return true;
-  if (!isProd || process.env.ALLOW_DEV_FALLBACKS === 'true' || process.env.RUNNING_TESTS === 'true') {
-    try {
-      const url = new URL(origin);
-      if (url.hostname === 'localhost' || url.hostname === '127.0.0.1') {
+  try {
+    const url = new URL(origin);
+    const host = url.hostname.toLowerCase();
+    
+    // Allow primary domain and all subdomains (e.g. crm.sellmyghar.in, www.sellmyghar.in)
+    if (host === 'sellmyghar.in' || host.endsWith('.sellmyghar.in')) {
+      return true;
+    }
+
+    // Allow Google Cloud Run domains (*.a.run.app, *.run.app)
+    if (host.endsWith('.a.run.app') || host.endsWith('.run.app')) {
+      return true;
+    }
+
+    // Allow local development and test origins
+    if (!isProd || process.env.ALLOW_DEV_FALLBACKS === 'true' || process.env.RUNNING_TESTS === 'true') {
+      if (host === 'localhost' || host === '127.0.0.1') {
         return true;
       }
-    } catch {}
-  }
+    }
+  } catch {}
   return false;
 }
 
