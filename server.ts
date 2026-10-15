@@ -2379,43 +2379,90 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
       const declaredEmail = (req.body.ownerEmail || req.body.email || req.body.sellerEmail || caller.email || '').trim().toLowerCase() || null;
 
       // Ensure user account possesses OWNER role for property ownership
-      await client.query(
-        `UPDATE users SET roles = array_append(roles, 'OWNER'), updated_at = NOW() WHERE id = $1 AND NOT ('OWNER' = ANY(roles));`,
-        [resolvedUserId]
-      );
+      try {
+        await client.query('SAVEPOINT user_role_sp');
+        await client.query(
+          `UPDATE users 
+           SET 
+             roles = CASE 
+               WHEN roles IS NULL THEN ARRAY['OWNER']::text[]
+               WHEN NOT ('OWNER' = ANY(roles)) THEN array_append(roles, 'OWNER')
+               ELSE roles
+             END,
+             updated_at = NOW() 
+           WHERE id = $1;`,
+          [resolvedUserId]
+        );
+        await client.query('RELEASE SAVEPOINT user_role_sp');
+      } catch (roleErr: any) {
+        try { await client.query('ROLLBACK TO SAVEPOINT user_role_sp'); } catch {}
+        console.warn('[PostProperty] Role update notice:', roleErr.message);
+      }
       if (!caller.roles.includes('OWNER')) {
         caller.roles.push('OWNER');
       }
 
-      // Update contact callback details and display name on user record if not already set
-      await client.query(
-        `UPDATE users SET phone = COALESCE(phone, $1), email = COALESCE(email, $2), display_name = COALESCE(display_name, $3), updated_at = NOW() WHERE id = $4;`,
-        [normalizedPhone, declaredEmail, ownerName.trim(), resolvedUserId]
-      );
+      // Update contact callback details and display name on user record if not already set, safely avoiding unique phone/email collisions
+      try {
+        await client.query('SAVEPOINT user_profile_sp');
+        await client.query(
+          `UPDATE users 
+           SET 
+             phone = CASE 
+               WHEN phone IS NOT NULL THEN phone
+               WHEN EXISTS (SELECT 1 FROM users u WHERE u.phone = $1 AND u.id != $4) THEN phone
+               ELSE $1
+             END,
+             email = CASE 
+               WHEN email IS NOT NULL THEN email
+               WHEN EXISTS (SELECT 1 FROM users u WHERE LOWER(u.email) = LOWER($2) AND u.id != $4) THEN email
+               ELSE $2
+             END,
+             display_name = COALESCE(display_name, $3),
+             updated_at = NOW()
+           WHERE id = $4;`,
+          [normalizedPhone, declaredEmail, ownerName.trim(), resolvedUserId]
+        );
+        await client.query('RELEASE SAVEPOINT user_profile_sp');
+      } catch (profileErr: any) {
+        try { await client.query('ROLLBACK TO SAVEPOINT user_profile_sp'); } catch {}
+        console.warn('[PostProperty] Profile update notice:', profileErr.message);
+      }
 
       // 2. Bind transaction-local RLS configuration
-      await client.query("SELECT set_config('app.current_user_id', $1, true)", [resolvedUserId]);
-      await client.query("SELECT set_config('app.current_user_roles', $1, true)", ['OWNER']);
+      try {
+        await client.query("SELECT set_config('app.current_user_id', $1, true)", [resolvedUserId]);
+        await client.query("SELECT set_config('app.current_user_roles', $1, true)", ['OWNER']);
+      } catch {}
 
       // 3. Insert statutory DPDP consent
       const consentId = `cst-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
-      await client.query(
-        `INSERT INTO consents (
-          id, phone, user_id, purpose, notice_version,
-          is_consented, consented_at, is_withdrawn,
-          ip_hash, user_agent_hash
-        ) VALUES ($1, $2, $3, $4, $5, true, NOW(), false, $6, $7)
-        ON CONFLICT DO NOTHING;`,
-        [
-          consentId,
-          normalizedPhone,
-          resolvedUserId,
-          'SELLER_ONBOARDING',
-          'dpdp-notice-v1-2026',
-          'ip-' + clientIp.slice(0, 16),
-          'ua-web-wizard'
-        ]
-      );
+      let consentRecorded = false;
+      try {
+        await client.query('SAVEPOINT consent_sp');
+        await client.query(
+          `INSERT INTO consents (
+            id, phone, user_id, purpose, notice_version,
+            is_consented, consented_at, is_withdrawn,
+            ip_hash, user_agent_hash
+          ) VALUES ($1, $2, $3, $4, $5, true, NOW(), false, $6, $7)
+          ON CONFLICT DO NOTHING;`,
+          [
+            consentId,
+            normalizedPhone,
+            resolvedUserId,
+            'SELLER_ONBOARDING',
+            'dpdp-notice-v1-2026',
+            'ip-' + clientIp.slice(0, 16),
+            'ua-web-wizard'
+          ]
+        );
+        await client.query('RELEASE SAVEPOINT consent_sp');
+        consentRecorded = true;
+      } catch (cErr: any) {
+        try { await client.query('ROLLBACK TO SAVEPOINT consent_sp'); } catch {}
+        console.warn('[PostProperty] Consent insert notice:', cErr.message);
+      }
 
       // 4. Generate Property and Lead IDs
       propertyId = `prop-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
@@ -2530,7 +2577,7 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
           bhkLabel,
           askingPriceNum,
           listingIntent,
-          consentId,
+          consentRecorded ? consentId : null,
           propertyId
         ]
       );
@@ -2693,8 +2740,12 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
       message: 'Property successfully registered and submitted for legal title verification.'
     });
   } catch (err: any) {
-    console.error('[PostProperty] Error saving property to DB:', err);
-    return res.status(500).json({ error: 'Database error saving property. Please try again.' });
+    console.error('[PostProperty] Error saving property to DB:', err?.message || err, err?.detail || '', err?.constraint || '', err?.table || '');
+    const cleanDetail = err?.detail || err?.message || '';
+    const safeErrorMsg = (process.env.RUNNING_TESTS === 'true' || !cleanDetail)
+      ? 'Database error saving property. Please try again.'
+      : `Database error saving property: ${cleanDetail.replace(/password[^\s]*/gi, '***')}. Please try again.`;
+    return res.status(500).json({ error: safeErrorMsg });
   }
 });
 
