@@ -46,6 +46,8 @@ import {
   Info,
   Download,
   UserPlus,
+  Trash2,
+  UserX,
   FileText,
   Printer,
   Bell,
@@ -318,17 +320,26 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
     syncStaffSession();
   }, [currentRole]);
 
-  // User Explicit Module Permissions RBAC
+  // All approved employees have access to all standard CRM operational modules
   const userModules = useMemo<CrmModule[]>(() => {
-    if (staffUser?.module_permissions && staffUser.module_permissions.length > 0) {
-      return staffUser.module_permissions;
-    }
-    return resolveLegacyModulePermissions([currentRole]);
-  }, [staffUser, currentRole]);
+    return [
+      'OVERVIEW',
+      'LEADS',
+      'PROPERTIES',
+      'VISITS',
+      'OFFERS',
+      'TASKS',
+      'CALENDAR',
+      'REPORTS',
+      'TEAM',
+      'AUDIT_LOGS',
+      'SETTINGS'
+    ];
+  }, []);
 
-  const hasAccess = useCallback((mod: CrmModule): boolean => {
-    return userModules.includes(mod);
-  }, [userModules]);
+  const hasAccess = useCallback((_mod: CrmModule): boolean => {
+    return true; // All approved employees have full access to standard CRM workflows
+  }, []);
 
   // Auto-fallback if the current section is restricted for this user
   useEffect(() => {
@@ -510,34 +521,40 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
   const [propertyDetailError, setPropertyDetailError] = useState<string | null>(null);
   const [isBrochureModalOpen, setIsBrochureModalOpen] = useState<boolean>(false);
 
-  // Super Admin: Add User Modal State
+  // Employee Administration: Add Employee Modal State
   const [isAddUserOpen, setIsAddUserOpen] = useState<boolean>(false);
   const [addUserForm, setAddUserForm] = useState({
     fullName: '',
     email: '',
     phone: '',
-    role: 'STAFF_INTAKE_AGENT' as StaffRole,
     initialPassword: '',
-    modules: resolveLegacyModulePermissions(['STAFF_INTAKE_AGENT']) as CrmModule[]
   });
   const [isCreatingUser, setIsCreatingUser] = useState<boolean>(false);
 
-  // Super Admin: Edit Staff Permissions Modal State
+  // Employee Administration: Edit Employee Modal State
   const [editingStaffUser, setEditingStaffUser] = useState<CrmStaff | null>(null);
   const [editUserForm, setEditUserForm] = useState<{
     displayName: string;
     phone: string;
-    role: StaffRole;
-    modules: CrmModule[];
     isActive: boolean;
   }>({
     displayName: '',
     phone: '',
-    role: 'STAFF_INTAKE_AGENT',
-    modules: [],
     isActive: true
   });
   const [isUpdatingUser, setIsUpdatingUser] = useState<boolean>(false);
+
+  // Employee Administration: Confirmation Dialog State (Deactivate / Remove Employee)
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean;
+    type: 'DEACTIVATE' | 'ACTIVATE' | 'REMOVE';
+    targetStaff: CrmStaff | null;
+  }>({
+    isOpen: false,
+    type: 'DEACTIVATE',
+    targetStaff: null
+  });
+  const [isProcessingAction, setIsProcessingAction] = useState<boolean>(false);
 
   // Modals
   const [isPropertyEditorOpen, setIsPropertyEditorOpen] = useState<boolean>(false);
@@ -869,7 +886,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
   // 1. Update Lead Status
   const handleUpdateLeadStatus = async (leadId: string, newStatus: LeadStatus) => {
     try {
-      const res = await fetch(`/api/crm/leads/${leadId}/status`, {
+      const res = await crmFetch(`/api/crm/leads/${leadId}/status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus })
@@ -893,7 +910,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
   // 2. Assign Lead to Staff
   const handleAssignLead = async (leadId: string, staffId: string) => {
     try {
-      const res = await fetch(`/api/crm/leads/${leadId}/assign`, {
+      const res = await crmFetch(`/api/crm/leads/${leadId}/assign`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ assignedStaffId: staffId || null })
@@ -921,7 +938,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
       return;
     }
     try {
-      const res = await fetch(`/api/crm/leads/${leadId}/follow-up`, {
+      const res = await crmFetch(`/api/crm/leads/${leadId}/follow-up`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -962,7 +979,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
       const [y, m, d] = dateStr.split('-').map(Number);
       const targetDate = new Date(y, m - 1, d, hours, minutes, 0);
 
-      const res = await fetch(`/api/crm/leads/${leadId}/follow-up`, {
+      const res = await crmFetch(`/api/crm/leads/${leadId}/follow-up`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -995,7 +1012,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
       return;
     }
     try {
-      const res = await fetch(`/api/crm/leads/${leadId}/notes`, {
+      const res = await crmFetch(`/api/crm/leads/${leadId}/notes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ note: newCallNote.trim() })
@@ -1025,7 +1042,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
       return;
     }
     try {
-      const res = await fetch('/api/crm/visits', {
+      const res = await crmFetch('/api/crm/visits', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(scheduleVisitForm)
@@ -1056,7 +1073,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
   // 6. Update Visit Status
   const handleUpdateVisitStatus = async (visitId: string, status: string) => {
     try {
-      const res = await fetch(`/api/crm/visits/${visitId}/status`, {
+      const res = await crmFetch(`/api/crm/visits/${visitId}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status })
@@ -1076,7 +1093,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
   // 7. Send WhatsApp Reminder (Truthful Backend Dispatcher)
   const handleSendWhatsAppReminder = async (visitId: string) => {
     try {
-      const res = await fetch(`/api/crm/visits/${visitId}/whatsapp-reminder`, {
+      const res = await crmFetch(`/api/crm/visits/${visitId}/whatsapp-reminder`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
@@ -1104,7 +1121,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
       return;
     }
     try {
-      const res = await fetch('/api/crm/offers', {
+      const res = await crmFetch('/api/crm/offers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1136,7 +1153,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
   // 9. Update Offer Status
   const handleUpdateOfferStatus = async (offerId: string, status: string, counterAmount?: number) => {
     try {
-      const res = await fetch(`/api/crm/offers/${offerId}/status`, {
+      const res = await crmFetch(`/api/crm/offers/${offerId}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1163,7 +1180,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
   // 10. Verify or Reject Document (Persists to PostgreSQL and updates Seller Dashboard)
   const handleVerifyDocument = async (docId: string, action: 'VERIFIED' | 'REJECTED', note?: string) => {
     try {
-      const res = await fetch(`/api/crm/documents/${docId}/status`, {
+      const res = await crmFetch(`/api/crm/documents/${docId}/status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1196,7 +1213,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
   // 11. Property Status Toggle
   const handleUpdatePropertyListingStatus = async (propertyId: string, newStatus: PropertyListingStatus) => {
     try {
-      const res = await fetch(`/api/crm/properties/${propertyId}/status`, {
+      const res = await crmFetch(`/api/crm/properties/${propertyId}/status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status: newStatus })
@@ -1213,7 +1230,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
     }
   };
 
-  // 12. Super Admin: Provision Staff User
+  // 12. Employee Administration: Provision Staff User
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!addUserForm.fullName || !addUserForm.email || !addUserForm.phone || !addUserForm.initialPassword) {
@@ -1231,26 +1248,29 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
 
     setIsCreatingUser(true);
     try {
-      const res = await fetch('/api/crm/users', {
+      const res = await crmFetch('/api/crm/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(addUserForm)
+        body: JSON.stringify({
+          fullName: addUserForm.fullName.trim(),
+          email: addUserForm.email.trim().toLowerCase(),
+          phone: addUserForm.phone.trim(),
+          initialPassword: addUserForm.initialPassword,
+        })
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        showToast(`Staff account created for ${data.user.displayName}`, 'success');
+        showToast(`Staff account created for ${data.user?.displayName || addUserForm.fullName}`, 'success');
         setIsAddUserOpen(false);
         setAddUserForm({
           fullName: '',
           email: '',
           phone: '',
-          role: 'STAFF_INTAKE_AGENT',
           initialPassword: '',
-          modules: resolveLegacyModulePermissions(['STAFF_INTAKE_AGENT']) as CrmModule[]
         });
         refreshAll();
       } else {
-        showToast(data.message || 'Failed to create staff account', 'error');
+        showToast(data.message || data.error || 'Failed to create staff account', 'error');
       }
     } catch {
       showToast('Network error creating user', 'error');
@@ -1259,17 +1279,12 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
     }
   };
 
-  // 13. Super Admin: Edit Staff Permissions & Role
+  // 13. Employee Administration: Edit Staff Details
   const handleOpenEditUser = (staff: CrmStaff) => {
     setEditingStaffUser(staff);
-    const assignedModules = staff.modules && staff.modules.length > 0
-      ? staff.modules
-      : resolveLegacyModulePermissions(staff.roles || []);
     setEditUserForm({
       displayName: staff.displayName || staff.name || '',
       phone: staff.phone || '',
-      role: (staff.roles?.[0] as StaffRole) || 'STAFF_INTAKE_AGENT',
-      modules: assignedModules,
       isActive: staff.isActive !== false
     });
   };
@@ -1279,36 +1294,73 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
     if (!editingStaffUser) return;
     setIsUpdatingUser(true);
     try {
-      const res = await fetch(`/api/crm/users/${editingStaffUser.id}`, {
+      const res = await crmFetch(`/api/crm/users/${editingStaffUser.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           displayName: editUserForm.displayName,
           phone: editUserForm.phone,
-          role: editUserForm.role,
-          modules: editUserForm.modules,
           isActive: editUserForm.isActive
         })
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        showToast(`Updated permissions for ${editUserForm.displayName}`, 'success');
+        showToast(`Updated details for ${editUserForm.displayName}`, 'success');
         setEditingStaffUser(null);
         refreshAll();
       } else {
-        showToast(data.message || 'Failed to update user permissions', 'error');
+        showToast(data.message || data.error || 'Failed to update employee details', 'error');
       }
     } catch {
-      showToast('Network error updating user permissions', 'error');
+      showToast('Network error updating employee details', 'error');
     } finally {
       setIsUpdatingUser(false);
+    }
+  };
+
+  // 13b. Employee Administration: Execute Confirmed Action (Deactivate / Reactivate / Remove)
+  const handleExecuteConfirmAction = async () => {
+    if (!confirmDialog.targetStaff) return;
+    const { type, targetStaff } = confirmDialog;
+    setIsProcessingAction(true);
+    try {
+      if (type === 'REMOVE') {
+        const res = await crmFetch(`/api/crm/users/${targetStaff.id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          showToast(data.message || `Employee ${targetStaff.displayName} removed`, 'success');
+          setConfirmDialog({ isOpen: false, type: 'DEACTIVATE', targetStaff: null });
+          refreshAll();
+        } else {
+          showToast(data.message || data.error || 'Failed to remove employee', 'error');
+        }
+      } else {
+        const willBeActive = type === 'ACTIVATE';
+        const res = await crmFetch(`/api/crm/users/${targetStaff.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ isActive: willBeActive })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          showToast(`Employee ${targetStaff.displayName} ${willBeActive ? 'activated' : 'deactivated (active sessions terminated)'}`, 'success');
+          setConfirmDialog({ isOpen: false, type: 'DEACTIVATE', targetStaff: null });
+          refreshAll();
+        } else {
+          showToast(data.message || data.error || 'Failed to update employee status', 'error');
+        }
+      }
+    } catch {
+      showToast('Network error processing employee action', 'error');
+    } finally {
+      setIsProcessingAction(false);
     }
   };
 
   // Legacy role update alias
   const handleUpdateUserRole = async (userId: string, newRole: StaffRole) => {
     try {
-      const res = await fetch(`/api/crm/users/${userId}/role`, {
+      const res = await crmFetch(`/api/crm/users/${userId}/role`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ role: newRole })
@@ -1498,10 +1550,10 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
     return combined;
   }, [tasks, taskFilter, taskSearch, globalSearch]);
 
-  // Permission Checks
-  const canSeeTeam = hasAccess('TEAM');
-  const canSeeAudit = hasAccess('AUDIT_LOGS');
-  const canSeeReservePrice = currentRole === 'STAFF_SUPER_ADMIN' || currentRole === 'STAFF_DEAL_CLOSER';
+  // Operational Permissions (Standard Full Access for all approved employees)
+  const canSeeTeam = true;
+  const canSeeAudit = true;
+  const canSeeReservePrice = true;
 
 
   return (
@@ -1813,46 +1865,8 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
           </nav>
         </div>
 
-        {/* Sidebar Footer: Operator Profile & Role Switcher */}
-        <div className="p-3 border-t border-slate-200/80 bg-slate-50/50 space-y-2.5">
-          {/* Dev RBAC Selector */}
-          <div className="p-2.5 bg-white rounded-xl border border-slate-200/80 shadow-2xs">
-            <div className="flex items-center justify-between text-[10px] text-slate-500 mb-1">
-              <span className="font-bold uppercase tracking-wider">Role Preview</span>
-              <span className="font-mono text-slate-400">Dev RBAC</span>
-            </div>
-            <select
-              value={currentRole}
-              onChange={async (e) => {
-                const newRole = e.target.value as StaffRole;
-                setCurrentRole(newRole);
-                try {
-                  const res = await fetch('/api/dev/switch-role', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ role: newRole }),
-                  });
-                  const data = await res.json();
-                  if (data.success && data.user) {
-                    sessionStorage.setItem('sellmyghar_staff_session', JSON.stringify({ user: data.user }));
-                    showToast(`Active session switched to ${data.user.displayName}`, 'success');
-                    setTimeout(() => window.location.reload(), 300);
-                    return;
-                  }
-                } catch {
-                  // Fallback to client-only role preview
-                }
-                showToast(`Role preview switched to ${newRole}`, 'info');
-              }}
-              className="w-full text-xs font-medium text-slate-800 bg-slate-50 border border-slate-200 rounded-lg px-2 py-1 outline-hidden cursor-pointer"
-            >
-              <option value="STAFF_SUPER_ADMIN">Compliance Super Admin</option>
-              <option value="STAFF_DEAL_CLOSER">Senior Deal Closer</option>
-              <option value="STAFF_VERIFICATION_AGENT">Title Verification Agent</option>
-              <option value="STAFF_INTAKE_AGENT">Lead Intake Agent</option>
-              <option value="STAFF_LISTING_MANAGER">Listing Manager</option>
-            </select>
-          </div>
+        {/* Sidebar Footer: Employee Profile & Logout */}
+        <div className="p-3 border-t border-slate-200/80 bg-slate-50/50 space-y-2">
 
           {/* User Profile */}
           <div className="flex items-center justify-between px-1">
@@ -3759,75 +3773,70 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
           )}
 
           {/* ============================================================== */}
-          {/* VIEW 8: TEAM DIRECTORY                                         */}
+          {/* VIEW 8: EMPLOYEE DIRECTORY & ADMINISTRATION                    */}
           {/* ============================================================== */}
           {activeSection === 'TEAM' && canSeeTeam && (
             <div className="space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-xl font-bold tracking-tight text-[#172033]">Staff & Role Governance</h2>
+                  <h2 className="text-xl font-bold tracking-tight text-[#172033]">Employee Directory & Administration</h2>
+                  <p className="text-xs text-slate-500 mt-0.5">Strict employee-only access. All authorized staff have standard operational permissions.</p>
                 </div>
-                {currentRole === 'STAFF_SUPER_ADMIN' && (
-                  <button
-                    type="button"
-                    onClick={() => setIsAddUserOpen(true)}
-                    className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-[#244B8F] text-white text-xs font-bold shadow-xs hover:bg-[#1B396E] cursor-pointer"
-                  >
-                    <UserPlus className="w-3.5 h-3.5" />
-                    <span>Add Staff Member</span>
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => setIsAddUserOpen(true)}
+                  className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-[#244B8F] text-white text-xs font-bold shadow-xs hover:bg-[#1B396E] cursor-pointer"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>Add Employee</span>
+                </button>
               </div>
 
               {/* Operational KPI Summary Strip */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div className="p-3.5 rounded-xl border bg-white border-slate-200/80 shadow-2xs">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Total Staff</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Total Employees</span>
                   <div className="text-2xl font-bold text-slate-900 mt-0.5">{staffList.length}</div>
-                  <span className="text-[10px] text-slate-500 font-medium mt-0.5 block">Active team members</span>
+                  <span className="text-[10px] text-slate-500 font-medium mt-0.5 block">Registered staff</span>
                 </div>
                 <div className="p-3.5 rounded-xl border bg-white border-slate-200/80 shadow-2xs">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Super Admins</span>
-                  <div className="text-2xl font-bold text-[#244B8F] mt-0.5">
-                    {staffList.filter(s => s.roles.includes('STAFF_SUPER_ADMIN')).length}
-                  </div>
-                  <span className="text-[10px] text-blue-700 font-semibold mt-0.5 block">Full privilege</span>
-                </div>
-                <div className="p-3.5 rounded-xl border bg-white border-slate-200/80 shadow-2xs">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Deal Closers</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Active Employees</span>
                   <div className="text-2xl font-bold text-emerald-800 mt-0.5">
-                    {staffList.filter(s => s.roles.includes('STAFF_DEAL_CLOSER')).length}
+                    {staffList.filter(s => s.isActive !== false).length}
                   </div>
-                  <span className="text-[10px] text-emerald-700 font-semibold mt-0.5 block">Floor price access</span>
+                  <span className="text-[10px] text-emerald-700 font-semibold mt-0.5 block">Authorized for CRM</span>
                 </div>
                 <div className="p-3.5 rounded-xl border bg-white border-slate-200/80 shadow-2xs">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Active Inquiries</span>
-                  <div className="text-2xl font-bold text-slate-800 mt-0.5">{leads.length}</div>
-                  <span className="text-[10px] text-slate-500 font-medium mt-0.5 block">Managed leads</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Managed Leads</span>
+                  <div className="text-2xl font-bold text-[#244B8F] mt-0.5">{leads.length}</div>
+                  <span className="text-[10px] text-slate-500 font-medium mt-0.5 block">Total pipeline leads</span>
+                </div>
+                <div className="p-3.5 rounded-xl border bg-white border-slate-200/80 shadow-2xs">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Scheduled Visits</span>
+                  <div className="text-2xl font-bold text-slate-800 mt-0.5">{visits.length}</div>
+                  <span className="text-[10px] text-slate-500 font-medium mt-0.5 block">Site inspections</span>
                 </div>
               </div>
 
-              {/* High-density Staff Roster Table */}
+              {/* High-density Employee Table */}
               <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-x-auto">
                 <table className="w-full min-w-[700px] text-left text-xs divide-y divide-slate-100">
                   <thead className="bg-slate-50/70 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
                     <tr>
-                      <th className="py-3.5 px-4">Staff Member</th>
-                      <th className="py-3.5 px-4">Email Address</th>
+                      <th className="py-3.5 px-4">Employee</th>
+                      <th className="py-3.5 px-4">Corporate Email</th>
                       <th className="py-3.5 px-4">Phone</th>
-                      <th className="py-3.5 px-4">Operational Role</th>
-                      <th className="py-3.5 px-4">Module Permissions</th>
+                      <th className="py-3.5 px-4">Account Status</th>
                       <th className="py-3.5 px-4">Active Leads</th>
-                      {currentRole === 'STAFF_SUPER_ADMIN' && (
-                        <th className="py-3.5 px-4 text-right">Governance</th>
-                      )}
+                      <th className="py-3.5 px-4 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {staffList.map((staff) => {
-                      const assignedModules = staff.modules && staff.modules.length > 0
-                        ? staff.modules
-                        : resolveLegacyModulePermissions(staff.roles || []);
+                      const currentUserId = staffUser?.id || staffUser?.uid;
+                      const isSelf = staff.id === currentUserId;
+                      const activeStaffCount = staffList.filter(s => s.isActive !== false).length;
+                      const isLastActive = activeStaffCount <= 1 && staff.isActive !== false;
 
                       return (
                         <tr key={staff.id} className="hover:bg-slate-50/70 transition-colors">
@@ -3838,9 +3847,9 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                               </div>
                               <div>
                                 <span className="font-bold text-slate-900 block">{staff.displayName}</span>
-                                {staff.isActive === false && (
-                                  <span className="text-[10px] text-rose-600 font-bold bg-rose-50 px-1.5 py-0.2 rounded">
-                                    Deactivated
+                                {isSelf && (
+                                  <span className="text-[10px] text-[#244B8F] font-bold">
+                                    (You)
                                   </span>
                                 )}
                               </div>
@@ -3853,39 +3862,64 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                             {staff.phone || '—'}
                           </td>
                           <td className="py-3.5 px-4">
-                            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200/80">
-                              {(staff.roles[0] || 'STAFF_INTAKE_AGENT').replace('STAFF_', '')}
-                            </span>
-                          </td>
-                          <td className="py-3.5 px-4">
-                            <div className="flex flex-wrap gap-1 max-w-xs">
-                              {assignedModules.length === 11 ? (
-                                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-[#244B8F] border border-blue-200">
-                                  All 11 Modules
-                                </span>
-                              ) : (
-                                assignedModules.map(m => (
-                                  <span key={m} className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
-                                    {m}
-                                  </span>
-                                ))
-                              )}
-                            </div>
+                            {staff.isActive !== false ? (
+                              <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                <span>Active</span>
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+                                <span>Deactivated</span>
+                              </span>
+                            )}
                           </td>
                           <td className="py-3.5 px-4 font-bold text-slate-900">
                             {leads.filter(l => l.assignedStaffId === staff.id).length}
                           </td>
-                          {currentRole === 'STAFF_SUPER_ADMIN' && (
-                            <td className="py-3.5 px-4 text-right">
+                          <td className="py-3.5 px-4 text-right">
+                            <div className="flex items-center justify-end space-x-1.5">
                               <button
                                 type="button"
                                 onClick={() => handleOpenEditUser(staff)}
-                                className="px-2.5 py-1.5 text-xs font-bold bg-slate-100 hover:bg-[#244B8F] hover:text-white text-slate-700 rounded-xl transition-colors cursor-pointer border border-slate-200 shadow-2xs"
+                                className="px-2.5 py-1 text-[11px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors cursor-pointer border border-slate-200"
+                                title="Edit employee details"
                               >
-                                Edit Permissions
+                                Edit
                               </button>
-                            </td>
-                          )}
+
+                              {staff.isActive !== false ? (
+                                <button
+                                  type="button"
+                                  disabled={isSelf || isLastActive}
+                                  onClick={() => setConfirmDialog({ isOpen: true, type: 'DEACTIVATE', targetStaff: staff })}
+                                  className="px-2.5 py-1 text-[11px] font-bold bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-lg transition-colors cursor-pointer border border-amber-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                                  title={isSelf ? 'Cannot deactivate yourself' : isLastActive ? 'Cannot deactivate the last active employee' : 'Deactivate employee account'}
+                                >
+                                  Deactivate
+                                </button>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => setConfirmDialog({ isOpen: true, type: 'ACTIVATE', targetStaff: staff })}
+                                  className="px-2.5 py-1 text-[11px] font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg transition-colors cursor-pointer border border-emerald-200"
+                                  title="Reactivate employee account"
+                                >
+                                  Activate
+                                </button>
+                              )}
+
+                              <button
+                                type="button"
+                                disabled={isSelf || isLastActive}
+                                onClick={() => setConfirmDialog({ isOpen: true, type: 'REMOVE', targetStaff: staff })}
+                                className="px-2.5 py-1 text-[11px] font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg transition-colors cursor-pointer border border-rose-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                                title={isSelf ? 'Cannot remove yourself' : isLastActive ? 'Cannot remove the last active employee' : 'Permanently remove employee'}
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </td>
                         </tr>
                       );
                     })}
@@ -4111,16 +4145,14 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   <h2 className="text-xl font-bold tracking-tight text-[#172033]">Settings & Content Operations</h2>
                   <p className="text-xs text-slate-500 mt-0.5">Configure system security, hero banners, and notification email templates.</p>
                 </div>
-                {currentRole === 'STAFF_SUPER_ADMIN' && (
-                  <button
-                    type="button"
-                    onClick={() => setIsAddUserOpen(true)}
-                    className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-[#244B8F] text-white text-xs font-bold shadow-xs hover:bg-[#1B396E] cursor-pointer"
-                  >
-                    <UserPlus className="w-3.5 h-3.5" />
-                    <span>Provision Staff User</span>
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => setIsAddUserOpen(true)}
+                  className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-[#244B8F] text-white text-xs font-bold shadow-xs hover:bg-[#1B396E] cursor-pointer"
+                >
+                  <UserPlus className="w-3.5 h-3.5" />
+                  <span>Add Employee Account</span>
+                </button>
               </div>
 
               {/* Sub-Tab Navigation Switcher */}
@@ -5528,7 +5560,8 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
       )}
 
       {/* ============================================================== */}
-      {/* MODAL: PROVISION STAFF MEMBER                                  */}
+      {/* ============================================================== */}
+      {/* MODAL: PROVISION EMPLOYEE ACCOUNT                              */}
       {/* ============================================================== */}
       {isAddUserOpen && (
         <div className="fixed inset-0 z-50 overflow-hidden flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
@@ -5536,7 +5569,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
             <div className="px-6 py-4 border-b border-slate-200/80 bg-slate-50/50 flex items-center justify-between">
               <h3 className="font-bold text-sm text-slate-900 flex items-center space-x-2">
                 <UserPlus className="w-4 h-4 text-[#244B8F]" />
-                <span>Provision Staff Member</span>
+                <span>Add Employee Account</span>
               </h3>
               <button
                 type="button"
@@ -5548,6 +5581,11 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
             </div>
 
             <form onSubmit={handleCreateUser} className="p-6 space-y-4 text-xs">
+              <div className="p-3 bg-blue-50/60 border border-blue-200/80 rounded-xl text-blue-900 text-[11px] leading-relaxed">
+                <span className="font-bold block mb-0.5">Strict Employee Access Policy</span>
+                Every authorized employee receives equal, standard operational access to all CRM functions (leads, properties, reserve prices, visits, offers, tasks, reports, team directory, and audit logs).
+              </div>
+
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                   Full Name *
@@ -5558,7 +5596,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   placeholder="e.g. Ramesh Kumar"
                   value={addUserForm.fullName}
                   onChange={(e) => setAddUserForm({ ...addUserForm, fullName: e.target.value })}
-                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900"
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#244B8F]/20 focus:border-[#244B8F]"
                 />
               </div>
 
@@ -5572,7 +5610,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   placeholder="name@sellmyghar.in"
                   value={addUserForm.email}
                   onChange={(e) => setAddUserForm({ ...addUserForm, email: e.target.value })}
-                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900"
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#244B8F]/20 focus:border-[#244B8F]"
                 />
                 <p className="text-[10px] text-slate-400 mt-1">Must strictly belong to @sellmyghar.in domain</p>
               </div>
@@ -5587,33 +5625,8 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   placeholder="+91 98450 12345"
                   value={addUserForm.phone}
                   onChange={(e) => setAddUserForm({ ...addUserForm, phone: e.target.value })}
-                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900"
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#244B8F]/20 focus:border-[#244B8F]"
                 />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Assigned Staff Role *
-                </label>
-                <select
-                  required
-                  value={addUserForm.role}
-                  onChange={(e) => {
-                    const newRole = e.target.value as StaffRole;
-                    setAddUserForm({
-                      ...addUserForm,
-                      role: newRole,
-                      modules: resolveLegacyModulePermissions([newRole])
-                    });
-                  }}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-medium text-slate-900 text-xs cursor-pointer"
-                >
-                  <option value="STAFF_INTAKE_AGENT">Intake Agent (Inquiries & Lead Onboarding)</option>
-                  <option value="STAFF_VERIFICATION_AGENT">Verification Agent (Document & Physical Verification)</option>
-                  <option value="STAFF_LISTING_MANAGER">Listing Manager (Catalog & Publishing)</option>
-                  <option value="STAFF_DEAL_CLOSER">Deal Closer (Negotiations & Reserve Price Access)</option>
-                  <option value="STAFF_SUPER_ADMIN">Super Admin (System Governance & Staff Provisioning)</option>
-                </select>
               </div>
 
               <div>
@@ -5627,73 +5640,8 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   placeholder="••••••••••••"
                   value={addUserForm.initialPassword}
                   onChange={(e) => setAddUserForm({ ...addUserForm, initialPassword: e.target.value })}
-                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900"
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#244B8F]/20 focus:border-[#244B8F]"
                 />
-              </div>
-
-              {/* 11 Module Checkboxes for New Account */}
-              <div className="pt-2 border-t border-slate-100 space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">
-                    Assigned Module Permissions (11 Modules)
-                  </label>
-                  <div className="flex items-center space-x-2 text-[10px]">
-                    <button
-                      type="button"
-                      onClick={() => setAddUserForm({ ...addUserForm, modules: ALL_CRM_MODULES.map(m => m.key) })}
-                      className="text-[#244B8F] font-bold hover:underline cursor-pointer"
-                    >
-                      Select All
-                    </button>
-                    <span className="text-slate-300">|</span>
-                    <button
-                      type="button"
-                      onClick={() => setAddUserForm({ ...addUserForm, modules: resolveLegacyModulePermissions([addUserForm.role]) })}
-                      className="text-slate-600 font-semibold hover:underline cursor-pointer"
-                    >
-                      Reset Defaults
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-48 overflow-y-auto pr-1">
-                  {ALL_CRM_MODULES.map((mod) => {
-                    const isChecked = addUserForm.modules.includes(mod.key);
-                    return (
-                      <label
-                        key={mod.key}
-                        className={`flex items-start space-x-2 p-2 rounded-xl border transition-all cursor-pointer ${
-                          isChecked
-                            ? 'bg-blue-50/50 border-[#244B8F]/40 text-slate-900'
-                            : 'bg-slate-50/50 border-slate-200 text-slate-600 hover:bg-slate-50'
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setAddUserForm({
-                                ...addUserForm,
-                                modules: [...addUserForm.modules, mod.key]
-                              });
-                            } else {
-                              setAddUserForm({
-                                ...addUserForm,
-                                modules: addUserForm.modules.filter(m => m !== mod.key)
-                              });
-                            }
-                          }}
-                          className="mt-0.5 rounded border-slate-300 text-[#244B8F] focus:ring-[#244B8F]"
-                        />
-                        <div className="min-w-0">
-                          <p className="font-bold text-xs">{mod.label}</p>
-                          <p className="text-[10px] text-slate-500 leading-tight">{mod.description}</p>
-                        </div>
-                      </label>
-                    );
-                  })}
-                </div>
               </div>
 
               <div className="pt-2 flex justify-end space-x-2">
@@ -5709,7 +5657,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   disabled={isCreatingUser}
                   className="px-5 py-2 rounded-xl bg-[#244B8F] text-white font-bold hover:bg-[#1B396E] disabled:opacity-50 cursor-pointer shadow-xs"
                 >
-                  {isCreatingUser ? 'Creating Account...' : 'Provision Staff'}
+                  {isCreatingUser ? 'Creating Account...' : 'Provision Employee'}
                 </button>
               </div>
             </form>
@@ -5718,15 +5666,15 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
       )}
 
       {/* ============================================================== */}
-      {/* MODAL: EDIT STAFF PERMISSIONS & ROLES                          */}
+      {/* MODAL: EDIT EMPLOYEE DETAILS                                   */}
       {/* ============================================================== */}
       {editingStaffUser && (
         <div className="fixed inset-0 z-50 overflow-hidden flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-          <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200/80 overflow-hidden">
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200/80 overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-200/80 bg-slate-50/50 flex items-center justify-between">
               <h3 className="font-bold text-sm text-slate-900 flex items-center space-x-2">
-                <ShieldCheck className="w-4 h-4 text-[#244B8F]" />
-                <span>Edit Permissions: {editingStaffUser.displayName}</span>
+                <Edit className="w-4 h-4 text-[#244B8F]" />
+                <span>Edit Employee: {editingStaffUser.displayName || editingStaffUser.email}</span>
               </h3>
               <button
                 type="button"
@@ -5737,127 +5685,51 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               </button>
             </div>
 
-            <form onSubmit={handleSaveUserPermissions} className="p-6 space-y-4 text-xs max-h-[85vh] overflow-y-auto">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Display Name
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={editUserForm.displayName}
-                    onChange={(e) => setEditUserForm({ ...editUserForm, displayName: e.target.value })}
-                    className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                    Phone Number
-                  </label>
-                  <input
-                    type="tel"
-                    value={editUserForm.phone}
-                    onChange={(e) => setEditUserForm({ ...editUserForm, phone: e.target.value })}
-                    className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900"
-                  />
-                </div>
+            <form onSubmit={handleSaveUserPermissions} className="p-6 space-y-4 text-xs">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Corporate Email
+                </label>
+                <input
+                  type="email"
+                  disabled
+                  value={editingStaffUser.email}
+                  className="w-full p-2.5 bg-slate-100 border border-slate-200 rounded-xl text-xs text-slate-500 font-mono cursor-not-allowed"
+                />
               </div>
 
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  Assigned Operational Role
+                  Display Name *
                 </label>
-                <select
-                  value={editUserForm.role}
-                  onChange={(e) => {
-                    const newRole = e.target.value as StaffRole;
-                    setEditUserForm({
-                      ...editUserForm,
-                      role: newRole,
-                      modules: resolveLegacyModulePermissions([newRole])
-                    });
-                  }}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-medium text-slate-900 text-xs cursor-pointer"
-                >
-                  <option value="STAFF_INTAKE_AGENT">Intake Agent (Inquiries & Lead Onboarding)</option>
-                  <option value="STAFF_VERIFICATION_AGENT">Verification Agent (Document & Physical Verification)</option>
-                  <option value="STAFF_LISTING_MANAGER">Listing Manager (Catalog & Publishing)</option>
-                  <option value="STAFF_DEAL_CLOSER">Deal Closer (Negotiations & Reserve Price Access)</option>
-                  <option value="STAFF_SUPER_ADMIN">Super Admin (Full Governance & Security)</option>
-                </select>
+                <input
+                  type="text"
+                  required
+                  value={editUserForm.displayName}
+                  onChange={(e) => setEditUserForm({ ...editUserForm, displayName: e.target.value })}
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#244B8F]/20 focus:border-[#244B8F]"
+                />
               </div>
 
-              {/* 11 Module Checkboxes */}
-              <div className="pt-2 border-t border-slate-100 space-y-2">
-                <div className="flex items-center justify-between">
-                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">
-                    Module Access Permissions (11 Modules)
-                  </label>
-                  <div className="flex items-center space-x-2 text-[10px]">
-                    <button
-                      type="button"
-                      onClick={() => setEditUserForm({ ...editUserForm, modules: ALL_CRM_MODULES.map(m => m.key) })}
-                      className="text-[#244B8F] font-bold hover:underline cursor-pointer"
-                    >
-                      Select All
-                    </button>
-                    <span className="text-slate-300">|</span>
-                    <button
-                      type="button"
-                      onClick={() => setEditUserForm({ ...editUserForm, modules: resolveLegacyModulePermissions([editUserForm.role]) })}
-                      className="text-slate-600 font-semibold hover:underline cursor-pointer"
-                    >
-                      Reset Defaults
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1">
-                  {ALL_CRM_MODULES.map((mod) => {
-                    const isChecked = editUserForm.modules.includes(mod.key);
-                    return (
-                      <label
-                        key={mod.key}
-                        className={`flex items-start space-x-2.5 p-2 rounded-xl border transition-all cursor-pointer ${
-                          isChecked
-                            ? 'bg-blue-50/50 border-[#244B8F]/40 text-slate-900'
-                            : 'bg-slate-50/50 border-slate-200 text-slate-600 hover:bg-slate-50'
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={isChecked}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setEditUserForm({
-                                ...editUserForm,
-                                modules: [...editUserForm.modules, mod.key]
-                              });
-                            } else {
-                              setEditUserForm({
-                                ...editUserForm,
-                                modules: editUserForm.modules.filter(m => m !== mod.key)
-                              });
-                            }
-                          }}
-                          className="mt-0.5 rounded border-slate-300 text-[#244B8F] focus:ring-[#244B8F]"
-                        />
-                        <div className="min-w-0">
-                          <p className="font-bold text-xs">{mod.label}</p>
-                          <p className="text-[10px] text-slate-500 leading-tight">{mod.description}</p>
-                        </div>
-                      </label>
-                    );
-                  })}
-                </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Phone Number
+                </label>
+                <input
+                  type="tel"
+                  value={editUserForm.phone}
+                  onChange={(e) => setEditUserForm({ ...editUserForm, phone: e.target.value })}
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#244B8F]/20 focus:border-[#244B8F]"
+                />
               </div>
 
               {/* Active Account Status Switch */}
-              <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
                 <div>
                   <span className="font-bold text-xs text-slate-900 block">Account Status</span>
-                  <span className="text-[10px] text-slate-500">Enable or disable staff access to the CRM</span>
+                  <span className="text-[10px] text-slate-500">
+                    {editUserForm.isActive ? 'Active — Full CRM access enabled' : 'Deactivated — Login and active sessions revoked'}
+                  </span>
                 </div>
                 <label className="relative inline-flex items-center cursor-pointer">
                   <input
@@ -5883,10 +5755,100 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   disabled={isUpdatingUser}
                   className="px-5 py-2 rounded-xl bg-[#244B8F] text-white font-bold hover:bg-[#1B396E] disabled:opacity-50 cursor-pointer shadow-xs"
                 >
-                  {isUpdatingUser ? 'Saving Changes...' : 'Save Permissions'}
+                  {isUpdatingUser ? 'Saving Changes...' : 'Save Details'}
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================== */}
+      {/* MODAL: CONFIRM EMPLOYEE ACTION (DEACTIVATE / ACTIVATE / REMOVE)*/}
+      {/* ============================================================== */}
+      {confirmDialog.isOpen && confirmDialog.targetStaff && (
+        <div className="fixed inset-0 z-50 overflow-hidden flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
+          <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200/80 overflow-hidden p-6 space-y-4">
+            <div className="flex items-start space-x-3">
+              <div className={`p-2.5 rounded-xl shrink-0 ${
+                confirmDialog.type === 'REMOVE' 
+                  ? 'bg-rose-50 text-rose-600 border border-rose-200' 
+                  : confirmDialog.type === 'DEACTIVATE'
+                  ? 'bg-amber-50 text-amber-600 border border-amber-200'
+                  : 'bg-emerald-50 text-emerald-600 border border-emerald-200'
+              }`}>
+                {confirmDialog.type === 'REMOVE' ? (
+                  <Trash2 className="w-5 h-5" />
+                ) : confirmDialog.type === 'DEACTIVATE' ? (
+                  <UserX className="w-5 h-5" />
+                ) : (
+                  <CheckCircle2 className="w-5 h-5" />
+                )}
+              </div>
+              <div className="space-y-1">
+                <h3 className="font-bold text-sm text-slate-900">
+                  {confirmDialog.type === 'REMOVE'
+                    ? 'Remove Employee from CRM?'
+                    : confirmDialog.type === 'DEACTIVATE'
+                    ? 'Deactivate Employee Account?'
+                    : 'Activate Employee Account?'}
+                </h3>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  {confirmDialog.type === 'REMOVE' ? (
+                    <>
+                      Are you sure you want to remove <strong className="text-slate-900">{confirmDialog.targetStaff.displayName || confirmDialog.targetStaff.email}</strong>?
+                      Their CRM login credentials and active sessions will be terminated immediately.
+                    </>
+                  ) : confirmDialog.type === 'DEACTIVATE' ? (
+                    <>
+                      Are you sure you want to deactivate <strong className="text-slate-900">{confirmDialog.targetStaff.displayName || confirmDialog.targetStaff.email}</strong>?
+                      Their active sessions will be terminated immediately and CRM sign-in will be blocked.
+                    </>
+                  ) : (
+                    <>
+                      Reactivate CRM access for <strong className="text-slate-900">{confirmDialog.targetStaff.displayName || confirmDialog.targetStaff.email}</strong>?
+                      They will immediately regain standard access to all operational CRM workflows.
+                    </>
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-[11px] text-slate-600 space-y-1">
+              <span className="font-bold text-slate-800 block">Operational Continuity Guarantee</span>
+              <p>All past leads, properties, offers, visits, and audit trail records associated with this employee will remain permanently preserved.</p>
+            </div>
+
+            <div className="pt-2 flex justify-end space-x-2">
+              <button
+                type="button"
+                disabled={isProcessingAction}
+                onClick={() => setConfirmDialog({ isOpen: false, type: 'DEACTIVATE', targetStaff: null })}
+                className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold hover:bg-slate-50 cursor-pointer disabled:opacity-50 text-xs"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={isProcessingAction}
+                onClick={handleExecuteConfirmAction}
+                className={`px-5 py-2 rounded-xl text-white font-bold cursor-pointer shadow-xs disabled:opacity-50 text-xs ${
+                  confirmDialog.type === 'REMOVE'
+                    ? 'bg-rose-600 hover:bg-rose-700'
+                    : confirmDialog.type === 'DEACTIVATE'
+                    ? 'bg-amber-600 hover:bg-amber-700'
+                    : 'bg-[#244B8F] hover:bg-[#1B396E]'
+                }`}
+              >
+                {isProcessingAction
+                  ? 'Processing...'
+                  : confirmDialog.type === 'REMOVE'
+                  ? 'Confirm Removal'
+                  : confirmDialog.type === 'DEACTIVATE'
+                  ? 'Confirm Deactivation'
+                  : 'Confirm Activation'}
+              </button>
+            </div>
           </div>
         </div>
       )}

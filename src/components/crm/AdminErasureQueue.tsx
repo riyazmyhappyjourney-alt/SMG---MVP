@@ -178,7 +178,7 @@ export function AdminErasureQueue() {
           </p>
         </div>
         <span className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-50 text-red-700 border border-red-200 shrink-0">
-          STAFF_SUPER_ADMIN Required
+          Authorized Employees Only
         </span>
       </div>
 

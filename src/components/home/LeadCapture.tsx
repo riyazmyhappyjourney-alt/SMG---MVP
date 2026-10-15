@@ -346,7 +346,7 @@ export const LeadCapture: React.FC<LeadCaptureProps> = ({
                 {/* Action Buttons */}
                 <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
                   <a
-                    href={`https://wa.me/918047193200?text=Hi%20SellMyGhar,%20I%20have%20submitted%20my%20details%20with%20Reference%20ID:%20${confirmationData.referenceId}`}
+                    href={`https://wa.me/918217873708?text=Hi%20SellMyGhar,%20I%20have%20submitted%20my%20details%20with%20Reference%20ID:%20${confirmationData.referenceId}`}
                     target="_blank"
                     rel="noreferrer"
                     className="w-full sm:flex-1 py-3 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition-colors flex items-center justify-center space-x-2 shadow-xs cursor-pointer font-['Montserrat']"
@@ -592,7 +592,7 @@ export const LeadCapture: React.FC<LeadCaptureProps> = ({
                 Prefer speaking with an advisor right now?
               </p>
               <p className="text-sm font-bold font-['Montserrat'] text-white mt-1">
-                Direct Desk: +91 80 4719 3200 (Mon–Sat, 10 AM – 7 PM)
+                Direct Desk: +91 8217873708 (Mon–Sat, 10 AM – 7 PM)
               </p>
             </div>
 

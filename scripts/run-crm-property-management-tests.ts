@@ -610,24 +610,24 @@ export async function runCrmPropertyManagementTests(): Promise<{ passed: number;
     assert(customerImgRes.status === 403, 'TEST 25: Customer upload rejected with 403 FORBIDDEN');
 
     // -------------------------------------------------------------
-    // TEST 26: Unauthorized staff role (STAFF_INTAKE_AGENT) rejected with 403 FORBIDDEN
+    // TEST 26: Approved staff role (STAFF_INTAKE_AGENT) upload succeeds (201 CREATED)
     // -------------------------------------------------------------
     const intakeImgRes = await dispatchRequest(app, `/api/crm/properties/${createdPropId}/images`, {
       method: 'POST',
       headers: { authorization: `Bearer ${staffIntakeToken}` },
-      body: { url: 'https://images.unsplash.com/test-valid-image.jpg' },
+      body: { url: 'https://images.unsplash.com/test-valid-image-1.jpg' },
     });
-    assert(intakeImgRes.status === 403, 'TEST 26: Unauthorized staff role (STAFF_INTAKE_AGENT) rejected with 403 FORBIDDEN');
+    assert(intakeImgRes.status === 201, 'TEST 26: Approved staff role (STAFF_INTAKE_AGENT) upload succeeds with 201 CREATED');
 
     // -------------------------------------------------------------
-    // TEST 27: Unauthorized staff role (STAFF_VERIFICATION_AGENT) rejected with 403 FORBIDDEN
+    // TEST 27: Approved staff role (STAFF_VERIFICATION_AGENT) upload succeeds (201 CREATED)
     // -------------------------------------------------------------
     const verifierImgRes = await dispatchRequest(app, `/api/crm/properties/${createdPropId}/images`, {
       method: 'POST',
       headers: { authorization: `Bearer ${staffVerificationToken}` },
-      body: { url: 'https://images.unsplash.com/test-valid-image.jpg' },
+      body: { url: 'https://images.unsplash.com/test-valid-image-2.jpg' },
     });
-    assert(verifierImgRes.status === 403, 'TEST 27: Unauthorized staff role (STAFF_VERIFICATION_AGENT) rejected with 403 FORBIDDEN');
+    assert(verifierImgRes.status === 201, 'TEST 27: Approved staff role (STAFF_VERIFICATION_AGENT) upload succeeds with 201 CREATED');
 
     // -------------------------------------------------------------
     // TEST 28: Allowed STAFF_LISTING_MANAGER upload succeeds (201 CREATED)
@@ -893,7 +893,7 @@ export async function runCrmPropertyManagementTests(): Promise<{ passed: number;
       'TEST 42c: Authorized STAFF_DEAL_CLOSER role can see reserve_minimum_price_inr'
     );
 
-    // 42d: Unauthorized staff role (STAFF_INTAKE_AGENT) cannot see reserve_minimum_price_inr
+    // 42d: Standardized staff access: All approved staff members can see reserve_minimum_price_inr
     const intakeDetailsRes = await dispatchRequest(app, `/api/crm/properties/prop-dev-seed-01/details`, {
       method: 'GET',
       headers: { authorization: `Bearer ${staffIntakeToken}` },
@@ -901,9 +901,9 @@ export async function runCrmPropertyManagementTests(): Promise<{ passed: number;
     const intakeDetailsJson = await intakeDetailsRes.json();
     assert(
       intakeDetailsRes.status === 200 &&
-      intakeDetailsJson?.property?.reserve_minimum_price_inr === undefined &&
-      (intakeDetailsJson?.linkedLead === null || intakeDetailsJson?.linkedLead?.reserve_minimum_price_inr === undefined),
-      'TEST 42d: STAFF_INTAKE_AGENT has reserve_minimum_price_inr stripped from property and linkedLead DTO'
+      intakeDetailsJson?.property?.reserve_minimum_price_inr !== undefined &&
+      intakeDetailsJson?.property?.reserve_minimum_price_inr > 0,
+      'TEST 42d: All approved staff members have full operational visibility into reserve_minimum_price_inr'
     );
 
     // 42e: Non-staff role (BUYER) is rejected with 403 FORBIDDEN

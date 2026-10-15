@@ -14,6 +14,7 @@ import { decodeJwt, jwtVerify } from 'jose';
 import { 
   authenticateUser, 
   optionalAuthenticateUser, 
+  requireStaffMember,
   requireRole, 
   requirePermissionMiddleware,
   requireModule,
@@ -418,6 +419,7 @@ async function initSchemaColumns() {
       ALTER TABLE buyer_enquiries ADD COLUMN IF NOT EXISTS assigned_at TIMESTAMPTZ;
       ALTER TABLE buyer_enquiries ADD COLUMN IF NOT EXISTS next_follow_up_at TIMESTAMPTZ;
       ALTER TABLE buyer_enquiries ADD COLUMN IF NOT EXISTS follow_up_notes TEXT;
+      ALTER TABLE buyer_enquiries ADD COLUMN IF NOT EXISTS notes TEXT;
       ALTER TABLE buyer_enquiries ADD COLUMN IF NOT EXISTS property_id VARCHAR(64);
       CREATE INDEX IF NOT EXISTS idx_buyer_enquiries_phone ON buyer_enquiries (phone);
       CREATE INDEX IF NOT EXISTS idx_buyer_enquiries_status ON buyer_enquiries (lead_status);
@@ -760,7 +762,7 @@ app.post('/api/auth/login', jsonDefault, rateLimit('auth-login', 10, 900), async
       diffSummary: { email: cleanEmail, role: roles[0] },
     });
 
-    const isTestMode = process.env.RUNNING_TESTS === 'true';
+    const isTestMode = Boolean(process.env.RUNNING_TESTS);
     return res.json({
       success: true,
       ...(isTestMode ? {} : { token }),
@@ -2220,6 +2222,8 @@ app.get('/api/listings/:id', rateLimit('listing-detail', 60, 60), async (req, re
       localityName,
       propertyType: row.property_type || (row.bhk_type?.includes('PENTHOUSE') ? 'Penthouse' : 'Premium High-Rise Apartment'),
       bhkType: row.bhk_type || '3BHK',
+      crmStatus: row.crm_status || 'PUBLISHED',
+      isVerified: Boolean(row.crm_status === 'APPROVED' || row.verification_tier === 'LEVEL_3_PHYSICALLY_INSPECTED' || row.verification_tier === 'LEVEL_2_DOCS_REVIEWED'),
       superBuiltUpSqft: sqft,
       carpetAreaSqft: carpet,
       floorBand: row.unit_floor ? `Floor ${row.unit_floor} of ${row.total_floors || 14}` : (row.floor_band || 'Floor 5 of 14'),
@@ -2754,7 +2758,7 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
   } catch (err: any) {
     console.error('[PostProperty] Error saving property to DB:', err?.message || err, err?.detail || '', err?.constraint || '', err?.table || '');
     const cleanDetail = err?.detail || err?.message || '';
-    const safeErrorMsg = (process.env.RUNNING_TESTS === 'true' || !cleanDetail)
+    const safeErrorMsg = (Boolean(process.env.RUNNING_TESTS) || !cleanDetail)
       ? 'Database error saving property. Please try again.'
       : `Database error saving property: ${cleanDetail.replace(/password[^\s]*/gi, '***')}. Please try again.`;
     return res.status(500).json({ error: safeErrorMsg });
@@ -3901,18 +3905,8 @@ app.post('/api/compliance/withdraw-consent', jsonDefault, rateLimit('consent-wit
 // ====================================================================
 
 // API: List CRM Leads (Protected: requireModule('LEADS'))
-app.get('/api/crm/leads', authenticateUser, requireModule('LEADS'), async (req: Request, res: Response) => {
+app.get('/api/crm/leads', authenticateUser, requireStaffMember, async (req: Request, res: Response) => {
   try {
-    const canReadAll = hasPermission(req.user!, 'leads:read_all' as any);
-    const canReadAssigned = hasPermission(req.user!, 'leads:read_assigned' as any);
-
-    if (!canReadAll && !canReadAssigned && !req.user!.roles.includes('STAFF_SUPER_ADMIN')) {
-      return res.status(403).json({
-        error: 'FORBIDDEN',
-        message: 'Access denied: CRM leads require authorized staff permissions.'
-      });
-    }
-
     const { type, status, assigned } = req.query;
     const filterType = String(type || 'all').toLowerCase();
     const filterStatus = status ? String(status).toUpperCase() : null;
@@ -3977,13 +3971,8 @@ app.get('/api/crm/leads', authenticateUser, requireModule('LEADS'), async (req: 
     `;
     const buyerParams: any[] = [];
 
-    // Least-privilege: if caller only has leads:read_assigned, restrict strictly to assigned leads
-    if (!canReadAll && canReadAssigned) {
-      sellerParams.push(req.user!.uid);
-      sellerQuery += ` AND sl.assigned_staff_id = $${sellerParams.length}`;
-      buyerParams.push(req.user!.uid);
-      buyerQuery += ` AND be.assigned_staff_id = $${buyerParams.length}`;
-    } else if (filterAssigned) {
+    // All approved staff members have access to the complete leads pipeline
+    if (filterAssigned) {
       if (filterAssigned === 'me') {
         sellerParams.push(req.user!.uid);
         sellerQuery += ` AND sl.assigned_staff_id = $${sellerParams.length}`;
@@ -4071,16 +4060,10 @@ app.get('/api/crm/leads', authenticateUser, requireModule('LEADS'), async (req: 
   }
 });
 
-// API: Get Single CRM Lead Detail (Protected: requireModule('LEADS'))
-app.get('/api/crm/leads/:id', authenticateUser, requireModule('LEADS'), async (req: Request, res: Response) => {
+// API: Get Single CRM Lead Detail (Protected: requireStaffMember)
+app.get('/api/crm/leads/:id', authenticateUser, requireStaffMember, async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const canReadAll = hasPermission(req.user!, 'leads:read_all' as any);
-    const canReadAssigned = hasPermission(req.user!, 'leads:read_assigned' as any);
-
-    if (!canReadAll && !canReadAssigned && !req.user!.roles.includes('STAFF_SUPER_ADMIN')) {
-      return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required for CRM lead.' });
-    }
 
     // Check seller leads first
     let leadResult = await executeQuery(`
@@ -4119,16 +4102,6 @@ app.get('/api/crm/leads/:id', authenticateUser, requireModule('LEADS'), async (r
     }
 
     const leadRow = leadResult.rows[0];
-
-    // Read assigned restriction
-    if (!canReadAll && canReadAssigned && leadRow.assigned_staff_id !== req.user!.uid) {
-      return res.status(403).json({ error: 'FORBIDDEN', message: 'Access restricted to assigned leads.' });
-    }
-
-    // Confidentiality protection on reserve price
-    if (!req.user!.roles.includes('STAFF_SUPER_ADMIN') && !req.user!.roles.includes('STAFF_DEAL_CLOSER')) {
-      delete leadRow.reserve_minimum_price_inr;
-    }
 
     // Fetch related audit trail
     const auditRes = await executeQuery(`
@@ -4229,36 +4202,42 @@ const updateLeadStatusHandler = async (req: Request, res: Response) => {
         WHERE id = $3
         RETURNING *;
       `, [targetStatus, note || null, id]);
-      updatedLead = updateResult.rows[0];
+      updatedLead = updateResult.rows?.[0];
 
-      // Synchronously update linked property crm_status
-      let targetPropRes: any = null;
-      if (updatedLead.property_id) {
-        targetPropRes = await executeQuery(`
-          UPDATE properties 
-          SET crm_status = $1, 
-              verification_tier = CASE WHEN $1 IN ('APPROVED', 'VERIFIED') THEN 'LEVEL_2_DOCS_REVIEWED' ELSE verification_tier END,
-              updated_at = NOW() 
-          WHERE id = $2
-          RETURNING *;
-        `, [targetStatus, updatedLead.property_id]);
-      } else {
-        // Fallback: update property owned by matching phone
-        targetPropRes = await executeQuery(`
-          UPDATE properties
-          SET crm_status = $1, 
-              verification_tier = CASE WHEN $1 IN ('APPROVED', 'VERIFIED') THEN 'LEVEL_2_DOCS_REVIEWED' ELSE verification_tier END,
-              updated_at = NOW()
-          WHERE owner_id = (SELECT id FROM users WHERE phone = $2 LIMIT 1)
-          RETURNING *;
-        `, [targetStatus, updatedLead.phone]);
-      }
-
-      if ((targetStatus === 'APPROVED' || targetStatus === 'VERIFIED') && targetPropRes?.rows?.[0]) {
+      // Synchronously update linked property crm_status if seller lead
+      if (updatedLead) {
+        let targetPropRes: any = null;
         try {
-          await EmailNotificationService.handlePropertyApproved(targetPropRes.rows[0], req.user);
-        } catch (leadApprErr: any) {
-          console.warn('[LeadStatusPropertyApproved] Dispatch note:', leadApprErr.message);
+          if (updatedLead.property_id) {
+            targetPropRes = await executeQuery(`
+              UPDATE properties 
+              SET crm_status = $1, 
+                  verification_tier = CASE WHEN $1 IN ('APPROVED', 'VERIFIED') THEN 'LEVEL_2_DOCS_REVIEWED' ELSE verification_tier END,
+                  updated_at = NOW() 
+              WHERE id = $2
+              RETURNING *;
+            `, [targetStatus, updatedLead.property_id]);
+          } else if (updatedLead.phone) {
+            // Fallback: update property owned by matching phone
+            targetPropRes = await executeQuery(`
+              UPDATE properties
+              SET crm_status = $1, 
+                  verification_tier = CASE WHEN $1 IN ('APPROVED', 'VERIFIED') THEN 'LEVEL_2_DOCS_REVIEWED' ELSE verification_tier END,
+                  updated_at = NOW()
+              WHERE owner_id = (SELECT id FROM users WHERE phone = $2 LIMIT 1)
+              RETURNING *;
+            `, [targetStatus, updatedLead.phone]);
+          }
+
+          if ((targetStatus === 'APPROVED' || targetStatus === 'VERIFIED') && targetPropRes?.rows?.[0]) {
+            try {
+              await EmailNotificationService.handlePropertyApproved(targetPropRes.rows[0], req.user);
+            } catch (leadApprErr: any) {
+              console.warn('[LeadStatusPropertyApproved] Dispatch note:', leadApprErr.message);
+            }
+          }
+        } catch (propSyncErr: any) {
+          console.warn('[LeadStatusPropertySync] Warning:', propSyncErr.message);
         }
       }
     } else {
@@ -4272,7 +4251,7 @@ const updateLeadStatusHandler = async (req: Request, res: Response) => {
         WHERE id = $3
         RETURNING *;
       `, [targetStatus, note || null, id]);
-      updatedLead = updateResult.rows[0];
+      updatedLead = updateResult.rows?.[0];
     }
 
     // Determine audit action
@@ -4292,7 +4271,7 @@ const updateLeadStatusHandler = async (req: Request, res: Response) => {
         previousStatus: prevStatus,
         newStatus: targetStatus,
         note: note || null,
-        propertyId: updatedLead.property_id || null
+        propertyId: updatedLead?.property_id || null
       }
     });
 
@@ -4300,11 +4279,11 @@ const updateLeadStatusHandler = async (req: Request, res: Response) => {
       success: true,
       message: `Lead status updated to ${targetStatus}`,
       lead: {
-        id: updatedLead.id,
-        stage: updatedLead.lead_status,
-        status: updatedLead.lead_status,
-        propertyId: updatedLead.property_id || null,
-        updatedAt: updatedLead.updated_at
+        id: updatedLead?.id || id,
+        stage: updatedLead?.lead_status || targetStatus,
+        status: updatedLead?.lead_status || targetStatus,
+        propertyId: updatedLead?.property_id || null,
+        updatedAt: updatedLead?.updated_at || new Date().toISOString()
       }
     });
   } catch (err: any) {
@@ -4588,13 +4567,8 @@ app.post('/api/crm/leads/:id/notes', jsonDefault, authenticateUser, async (req: 
 });
 
 // API: List Available Staff for Assignment (Protected: requireModule('TEAM'))
-app.get('/api/crm/staff', authenticateUser, requireModule('TEAM'), async (req: Request, res: Response) => {
+app.get(['/api/crm/staff', '/api/crm/users'], authenticateUser, requireStaffMember, async (req: Request, res: Response) => {
   try {
-    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_')) || (req.user!.module_permissions && req.user!.module_permissions.length > 0);
-    if (!isStaff) {
-      return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
-    }
-
     const staffRes = await executeQuery(`
       SELECT id, display_name, email, phone, roles, module_permissions, is_active, created_at
       FROM users
@@ -4605,6 +4579,7 @@ app.get('/api/crm/staff', authenticateUser, requireModule('TEAM'), async (req: R
           'STAFF_LISTING_MANAGER' = ANY(roles) OR
           'STAFF_DEAL_CLOSER' = ANY(roles) OR
           'STAFF_USER' = ANY(roles) OR
+          'STAFF_MEMBER' = ANY(roles) OR
           cardinality(module_permissions) > 0
         )
       ORDER BY display_name ASC;
@@ -4630,7 +4605,8 @@ app.get('/api/crm/staff', authenticateUser, requireModule('TEAM'), async (req: R
     return res.json({
       success: true,
       count: staff.length,
-      staff
+      staff,
+      users: staff
     });
   } catch (err: any) {
     console.error('[CrmStaffList] Error:', err);
@@ -5216,7 +5192,7 @@ app.get('/api/crm/offers', authenticateUser, requireModule('OFFERS'), async (req
 
     const result = await executeQuery(query, params);
 
-    const canSeeReserve = req.user!.roles.includes('STAFF_SUPER_ADMIN') || req.user!.roles.includes('STAFF_DEAL_CLOSER');
+    const canSeeReserve = isStaff || req.user!.roles.includes('STAFF_SUPER_ADMIN') || req.user!.roles.includes('STAFF_DEAL_CLOSER');
     const sanitized = result.rows.map((r: any) => {
       const copy = { ...r };
       if (!canSeeReserve) {
@@ -5298,9 +5274,9 @@ app.patch('/api/crm/offers/:id/status', jsonDefault, authenticateUser, requireMo
     const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_')) || (req.user!.module_permissions && req.user!.module_permissions.length > 0);
     if (!isStaff) return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
 
-    const canNegotiate = req.user!.roles.includes('STAFF_SUPER_ADMIN') || req.user!.roles.includes('STAFF_DEAL_CLOSER') || hasPermission(req.user!, 'deals:negotiate' as any);
+    const canNegotiate = isStaff || req.user!.roles.includes('STAFF_SUPER_ADMIN') || req.user!.roles.includes('STAFF_DEAL_CLOSER') || hasPermission(req.user!, 'deals:negotiate' as any);
     if (!canNegotiate) {
-      return res.status(403).json({ error: 'FORBIDDEN', message: 'Closer or Super Admin privilege required to decide on offers.' });
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff privilege required to decide on offers.' });
     }
 
     const { id } = req.params;
@@ -5718,12 +5694,7 @@ app.get('/api/crm/reports/export-csv', authenticateUser, requireModule('REPORTS'
 // ====================================================================
 
 // 1. Download Sample CSV Template
-app.get('/api/crm/property-suggestions/template', authenticateUser, (req: Request, res: Response) => {
-  const isAuthorized = req.user!.roles.includes('STAFF_SUPER_ADMIN') || req.user!.roles.includes('STAFF_LISTING_MANAGER');
-  if (!isAuthorized) {
-    return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff listing or admin authorization required.' });
-  }
-
+app.get('/api/crm/property-suggestions/template', authenticateUser, requireStaffMember, (req: Request, res: Response) => {
   const templateCsv = PropertySuggestionsService.generateTemplate();
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');
   res.setHeader('Content-Disposition', 'attachment; filename="sellmyghar_external_suggestions_template.csv"');
@@ -5731,13 +5702,8 @@ app.get('/api/crm/property-suggestions/template', authenticateUser, (req: Reques
 });
 
 // 2. Validate & Preview CSV Rows Before Import
-app.post('/api/crm/property-suggestions/preview', jsonDefault, authenticateUser, (req: Request, res: Response) => {
+app.post('/api/crm/property-suggestions/preview', jsonDefault, authenticateUser, requireStaffMember, (req: Request, res: Response) => {
   try {
-    const isAuthorized = req.user!.roles.includes('STAFF_SUPER_ADMIN') || req.user!.roles.includes('STAFF_LISTING_MANAGER');
-    if (!isAuthorized) {
-      return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff listing or admin authorization required.' });
-    }
-
     const { csvText } = req.body;
     if (!csvText || typeof csvText !== 'string') {
       return res.status(400).json({ error: 'INVALID_PAYLOAD', message: 'csvText content is required.' });
@@ -5755,13 +5721,8 @@ app.post('/api/crm/property-suggestions/preview', jsonDefault, authenticateUser,
 });
 
 // 3. Execute Import with Selected Duplicate Policy
-app.post('/api/crm/property-suggestions/import', jsonDefault, authenticateUser, (req: Request, res: Response) => {
+app.post('/api/crm/property-suggestions/import', jsonDefault, authenticateUser, requireStaffMember, (req: Request, res: Response) => {
   try {
-    const isAuthorized = req.user!.roles.includes('STAFF_SUPER_ADMIN') || req.user!.roles.includes('STAFF_LISTING_MANAGER');
-    if (!isAuthorized) {
-      return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff listing or admin authorization required.' });
-    }
-
     const { csvText, policy = 'SKIP_DUPLICATES' } = req.body;
     if (!csvText || typeof csvText !== 'string') {
       return res.status(400).json({ error: 'INVALID_PAYLOAD', message: 'csvText content is required.' });
@@ -5775,13 +5736,8 @@ app.post('/api/crm/property-suggestions/import', jsonDefault, authenticateUser, 
 });
 
 // 4. List / Filter / Search Imported Suggestions
-app.get('/api/crm/property-suggestions', authenticateUser, (req: Request, res: Response) => {
+app.get('/api/crm/property-suggestions', authenticateUser, requireStaffMember, (req: Request, res: Response) => {
   try {
-    const isAuthorized = req.user!.roles.some(r => r.startsWith('STAFF_'));
-    if (!isAuthorized) {
-      return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff authorization required.' });
-    }
-
     const { search, locality, status } = req.query;
     const items = PropertySuggestionsService.listSuggestions({
       search: typeof search === 'string' ? search : undefined,
@@ -5796,13 +5752,8 @@ app.get('/api/crm/property-suggestions', authenticateUser, (req: Request, res: R
 });
 
 // 5. Update Status (Active / Inactive)
-app.patch('/api/crm/property-suggestions/:id/status', jsonDefault, authenticateUser, (req: Request, res: Response) => {
+app.patch('/api/crm/property-suggestions/:id/status', jsonDefault, authenticateUser, requireStaffMember, (req: Request, res: Response) => {
   try {
-    const isAuthorized = req.user!.roles.includes('STAFF_SUPER_ADMIN') || req.user!.roles.includes('STAFF_LISTING_MANAGER');
-    if (!isAuthorized) {
-      return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff listing or admin authorization required.' });
-    }
-
     const { id } = req.params;
     const { status } = req.body;
     if (!status || !['ACTIVE', 'INACTIVE', 'ARCHIVED'].includes(status)) {
@@ -5821,13 +5772,8 @@ app.patch('/api/crm/property-suggestions/:id/status', jsonDefault, authenticateU
 });
 
 // 6. Delete Suggestion
-app.delete('/api/crm/property-suggestions/:id', jsonDefault, authenticateUser, (req: Request, res: Response) => {
+app.delete('/api/crm/property-suggestions/:id', jsonDefault, authenticateUser, requireStaffMember, (req: Request, res: Response) => {
   try {
-    const isAuthorized = req.user!.roles.includes('STAFF_SUPER_ADMIN') || req.user!.roles.includes('STAFF_LISTING_MANAGER');
-    if (!isAuthorized) {
-      return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff listing or admin authorization required.' });
-    }
-
     const { id } = req.params;
     const deleted = PropertySuggestionsService.deleteSuggestion(id, req.user!);
     if (!deleted) {
@@ -5840,14 +5786,9 @@ app.delete('/api/crm/property-suggestions/:id', jsonDefault, authenticateUser, (
   }
 });
 
-// 11c. Super Admin: Create Staff User (Strict @sellmyghar.in domain enforcement, scrypt hash, module permissions & audit log)
-app.post('/api/crm/users', jsonDefault, authenticateUser, async (req: Request, res: Response) => {
+// 11c. Employee Administration: Create Staff User (Strict @sellmyghar.in domain enforcement, scrypt hash & audit log)
+app.post('/api/crm/users', jsonDefault, authenticateUser, requireStaffMember, async (req: Request, res: Response) => {
   try {
-    const isSuperAdmin = req.user!.roles.includes('STAFF_SUPER_ADMIN');
-    if (!isSuperAdmin) {
-      return res.status(403).json({ error: 'FORBIDDEN', message: 'Only Super Admin can provision staff accounts.' });
-    }
-
     const { fullName, email, phone, role, modules, initialPassword } = req.body;
     if (!fullName || !email || !phone || !initialPassword) {
       return res.status(400).json({
@@ -5866,32 +5807,25 @@ app.post('/api/crm/users', jsonDefault, authenticateUser, async (req: Request, r
       });
     }
 
-    // 2. Validate Allowed Role & Modules
+    // 2. Operational Role & All Modules Access
     const validRoles = [
       'STAFF_SUPER_ADMIN',
       'STAFF_INTAKE_AGENT',
       'STAFF_VERIFICATION_AGENT',
       'STAFF_LISTING_MANAGER',
       'STAFF_DEAL_CLOSER',
-      'STAFF_USER'
+      'STAFF_USER',
+      'STAFF_MEMBER'
     ];
-    const userRole = role && validRoles.includes(role) ? role : 'STAFF_USER';
+    const userRole = role && validRoles.includes(role) ? role : 'STAFF_INTAKE_AGENT';
 
     const ALL_CRM_MODULES: CrmModule[] = [
       'OVERVIEW', 'LEADS', 'PROPERTIES', 'VISITS', 'OFFERS',
       'TASKS', 'CALENDAR', 'REPORTS', 'TEAM', 'AUDIT_LOGS', 'SETTINGS'
     ];
+    const assignedModules: string[] = [...ALL_CRM_MODULES];
 
-    let assignedModules: string[] = [];
-    if (userRole === 'STAFF_SUPER_ADMIN') {
-      assignedModules = [...ALL_CRM_MODULES];
-    } else if (Array.isArray(modules) && modules.length > 0) {
-      assignedModules = modules.filter(m => ALL_CRM_MODULES.includes(m as CrmModule));
-    } else {
-      assignedModules = resolveLegacyModulePermissions([userRole]);
-    }
-
-    // 3. Password Complexity (Minimum 8 chars, mixed chars)
+    // 3. Password Complexity (Minimum 8 chars)
     if (typeof initialPassword !== 'string' || initialPassword.length < 8) {
       return res.status(400).json({
         error: 'WEAK_PASSWORD',
@@ -5916,8 +5850,8 @@ app.post('/api/crm/users', jsonDefault, authenticateUser, async (req: Request, r
     const passHash = await hashPassword(initialPassword);
 
     await executeQuery(`
-      INSERT INTO users (id, phone, email, display_name, password_hash, roles, module_permissions, is_active, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, ARRAY[$6]::varchar[], $7::text[], true, NOW(), NOW());
+      INSERT INTO users (id, phone, email, display_name, password_hash, roles, module_permissions, is_active, token_version, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, ARRAY[$6]::varchar[], $7::text[], true, 1, NOW(), NOW());
     `, [newUserId, cleanPhone, normalizedEmail, fullName.trim(), passHash, userRole, assignedModules]);
 
     const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
@@ -5956,14 +5890,9 @@ app.post('/api/crm/users', jsonDefault, authenticateUser, async (req: Request, r
   }
 });
 
-// 11d. Super Admin: Update Staff User (Roles, Explicit Module Permissions, Active State, Details)
-app.patch('/api/crm/users/:id', jsonDefault, authenticateUser, async (req: Request, res: Response) => {
+// 11d. Employee Administration: Update Staff User (Details, Active State, Revoke Session on Deactivation)
+app.patch('/api/crm/users/:id', jsonDefault, authenticateUser, requireStaffMember, async (req: Request, res: Response) => {
   try {
-    const isSuperAdmin = req.user!.roles.includes('STAFF_SUPER_ADMIN');
-    if (!isSuperAdmin) {
-      return res.status(403).json({ error: 'FORBIDDEN', message: 'Only Super Admin can modify staff accounts.' });
-    }
-
     const { id } = req.params;
     const { role, modules, isActive, displayName, phone } = req.body;
 
@@ -5977,18 +5906,35 @@ app.patch('/api/crm/users/:id', jsonDefault, authenticateUser, async (req: Reque
       return res.status(404).json({ error: 'USER_NOT_FOUND', message: 'Staff user not found.' });
     }
     const targetUser = targetUserRes.rows[0];
-    const isTargetAdmin = targetUser.roles?.includes('STAFF_SUPER_ADMIN');
 
-    // Protect last active Super Admin from demotion or deactivation
-    if (isTargetAdmin && (isActive === false || (role && role !== 'STAFF_SUPER_ADMIN'))) {
-      const adminCountRes = await executeQuery(`
-        SELECT COUNT(*)::int as count FROM users WHERE 'STAFF_SUPER_ADMIN' = ANY(roles) AND is_active = true;
+    // Lockout Protection 1: Prevent self-deactivation
+    if (req.user!.uid === id && isActive === false) {
+      return res.status(400).json({
+        error: 'CANNOT_DEACTIVATE_SELF',
+        message: 'You cannot deactivate your own employee account.'
+      });
+    }
+
+    // Lockout Protection 2: Prevent deactivating the last active staff member
+    if (isActive === false) {
+      const activeStaffRes = await executeQuery(`
+        SELECT COUNT(*)::int as count FROM users 
+        WHERE (
+          'STAFF_SUPER_ADMIN' = ANY(roles) OR
+          'STAFF_INTAKE_AGENT' = ANY(roles) OR
+          'STAFF_VERIFICATION_AGENT' = ANY(roles) OR
+          'STAFF_LISTING_MANAGER' = ANY(roles) OR
+          'STAFF_DEAL_CLOSER' = ANY(roles) OR
+          'STAFF_USER' = ANY(roles) OR
+          'STAFF_MEMBER' = ANY(roles) OR
+          'STAFF' = ANY(roles)
+        ) AND is_active = true;
       `);
-      const adminCount = adminCountRes.rows?.[0]?.count || 0;
-      if (adminCount <= 1) {
+      const activeCount = Number(activeStaffRes.rows?.[0]?.count ?? activeStaffRes.rows?.length ?? 0);
+      if (activeCount <= 1) {
         return res.status(400).json({
-          error: 'CANNOT_DEMOTE_LAST_ADMIN',
-          message: 'Cannot demote or deactivate the last active Compliance Super Admin.'
+          error: 'CANNOT_DEACTIVATE_LAST_STAFF',
+          message: 'Cannot deactivate the last active employee account.'
         });
       }
     }
@@ -6002,26 +5948,39 @@ app.patch('/api/crm/users/:id', jsonDefault, authenticateUser, async (req: Reque
     let newModules = targetUser.module_permissions || [];
     if (Array.isArray(modules)) {
       newModules = modules.filter(m => ALL_CRM_MODULES.includes(m as CrmModule));
-    } else if (role && role === 'STAFF_SUPER_ADMIN') {
+    } else {
       newModules = [...ALL_CRM_MODULES];
-    } else if (role && (!targetUser.module_permissions || targetUser.module_permissions.length === 0)) {
-      newModules = resolveLegacyModulePermissions([role]);
     }
 
     const newIsActive = typeof isActive === 'boolean' ? isActive : targetUser.is_active;
     const newDisplayName = displayName && typeof displayName === 'string' ? displayName.trim() : targetUser.display_name;
     const newPhone = phone && typeof phone === 'string' ? phone.trim() : targetUser.phone;
 
-    await executeQuery(`
-      UPDATE users 
-      SET roles = $1::varchar[],
-          module_permissions = $2::text[],
-          is_active = $3,
-          display_name = $4,
-          phone = $5,
-          updated_at = NOW()
-      WHERE id = $6;
-    `, [newRoles, newModules, newIsActive, newDisplayName, newPhone, id]);
+    // Session Revocation: When deactivated, increment token_version to terminate active sessions immediately
+    if (newIsActive === false) {
+      await executeQuery(`
+        UPDATE users 
+        SET roles = $1::varchar[],
+            module_permissions = $2::text[],
+            is_active = $3,
+            token_version = token_version + 1,
+            display_name = $4,
+            phone = $5,
+            updated_at = NOW()
+        WHERE id = $6;
+      `, [newRoles, newModules, newIsActive, newDisplayName, newPhone, id]);
+    } else {
+      await executeQuery(`
+        UPDATE users 
+        SET roles = $1::varchar[],
+            module_permissions = $2::text[],
+            is_active = $3,
+            display_name = $4,
+            phone = $5,
+            updated_at = NOW()
+        WHERE id = $6;
+      `, [newRoles, newModules, newIsActive, newDisplayName, newPhone, id]);
+    }
 
     const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
     await recordAuditEvent({
@@ -6059,36 +6018,54 @@ app.patch('/api/crm/users/:id', jsonDefault, authenticateUser, async (req: Reque
   }
 });
 
-// 11e. Super Admin: Delete / Purge User Account
-app.delete('/api/crm/users/:id', jsonDefault, authenticateUser, async (req: Request, res: Response) => {
+// 11e. Employee Administration: Remove Employee Account (Lockout protection, session revocation & record preservation)
+app.delete('/api/crm/users/:id', jsonDefault, authenticateUser, requireStaffMember, async (req: Request, res: Response) => {
   try {
-    const isSuperAdmin = req.user!.roles.includes('STAFF_SUPER_ADMIN');
-    if (!isSuperAdmin) {
-      return res.status(403).json({ error: 'FORBIDDEN', message: 'Only Super Admin can delete user accounts.' });
+    const { id } = req.params;
+
+    // Lockout Protection 1: Prevent self-removal
+    if (req.user!.uid === id) {
+      return res.status(400).json({
+        error: 'CANNOT_REMOVE_SELF',
+        message: 'You cannot remove your own employee account.'
+      });
     }
 
-    const { id } = req.params;
     const targetUserRes = await executeQuery(`SELECT * FROM users WHERE id = $1 LIMIT 1;`, [id]);
     if (!targetUserRes.rows || targetUserRes.rows.length === 0) {
       return res.status(404).json({ error: 'USER_NOT_FOUND', message: 'User not found.' });
     }
     const targetUser = targetUserRes.rows[0];
 
-    // Protect last active Super Admin
-    if (targetUser.roles?.includes('STAFF_SUPER_ADMIN')) {
-      const adminCountRes = await executeQuery(`
-        SELECT COUNT(*)::int as count FROM users WHERE 'STAFF_SUPER_ADMIN' = ANY(roles) AND is_active = true;
-      `);
-      const adminCount = adminCountRes.rows?.[0]?.count || 0;
-      if (adminCount <= 1) {
-        return res.status(400).json({
-          error: 'CANNOT_DELETE_LAST_ADMIN',
-          message: 'Cannot delete the last active Compliance Super Admin.'
-        });
-      }
+    // Lockout Protection 2: Prevent removing the last active staff member
+    const activeStaffRes = await executeQuery(`
+      SELECT COUNT(*)::int as count FROM users 
+      WHERE (
+        'STAFF_SUPER_ADMIN' = ANY(roles) OR
+        'STAFF_INTAKE_AGENT' = ANY(roles) OR
+        'STAFF_VERIFICATION_AGENT' = ANY(roles) OR
+        'STAFF_LISTING_MANAGER' = ANY(roles) OR
+        'STAFF_DEAL_CLOSER' = ANY(roles) OR
+        'STAFF_USER' = ANY(roles) OR
+        'STAFF_MEMBER' = ANY(roles) OR
+        'STAFF' = ANY(roles)
+      ) AND is_active = true;
+    `);
+    const activeCount = Number(activeStaffRes.rows?.[0]?.count ?? activeStaffRes.rows?.length ?? 0);
+    if (activeCount <= 1) {
+      return res.status(400).json({
+        error: 'CANNOT_REMOVE_LAST_STAFF',
+        message: 'Cannot remove the last active employee account.'
+      });
     }
 
-    // Cascade deletions
+    // Operational Continuity: Retain all operational records safely (do NOT delete leads, properties, visits, or audit history)
+    await executeQuery(`UPDATE seller_leads SET assigned_staff_id = NULL WHERE assigned_staff_id = $1;`, [id]).catch(() => {});
+    await executeQuery(`UPDATE buyer_enquiries SET assigned_staff_id = NULL WHERE assigned_staff_id = $1;`, [id]).catch(() => {});
+    await executeQuery(`UPDATE visits SET assigned_staff_id = NULL WHERE assigned_staff_id = $1;`, [id]).catch(() => {});
+
+    // Session Revocation & safe removal
+    await executeQuery(`UPDATE users SET token_version = token_version + 1, is_active = false WHERE id = $1;`, [id]).catch(() => {});
     if (targetUser.email) {
       await executeQuery(`DELETE FROM user_identities WHERE user_id = $1 OR LOWER(email) = $2;`, [id, targetUser.email.toLowerCase()]).catch(() => {});
       await executeQuery(`DELETE FROM publication_notifications WHERE LOWER(recipient_email) = $1;`, [targetUser.email.toLowerCase()]).catch(() => {});
@@ -6111,7 +6088,7 @@ app.delete('/api/crm/users/:id', jsonDefault, authenticateUser, async (req: Requ
 
     return res.json({
       success: true,
-      message: `User ${targetUser.display_name || id} permanently removed from database.`
+      message: `Employee ${targetUser.display_name || id} successfully removed. Operational records and audit history preserved.`
     });
   } catch (err: any) {
     console.error('[CrmUserDelete] Error:', err);
@@ -6340,15 +6317,10 @@ app.post('/api/crm/users/:id/reset-password', jsonDefault, rateLimit('admin-pw-r
   }
 });
 
-// 12. Full Lead Details (Enriched with property, visits, offers, documents, audit logs; Protected: requireModule('LEADS'))
-app.get('/api/crm/leads/:id/details', authenticateUser, requireModule('LEADS'), async (req: Request, res: Response) => {
+// 12. Full Lead Details (Enriched with property, visits, offers, documents, audit logs; Protected: requireStaffMember)
+app.get('/api/crm/leads/:id/details', authenticateUser, requireStaffMember, async (req: Request, res: Response) => {
   try {
-    const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_')) || (req.user!.module_permissions && req.user!.module_permissions.length > 0);
-    if (!isStaff) return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
-
     const { id } = req.params;
-    const canReadAll = hasPermission(req.user!, 'leads:read_all' as any);
-    const canReadAssigned = hasPermission(req.user!, 'leads:read_assigned' as any);
 
     let leadRes = await executeQuery(`
       SELECT sl.*, staff.display_name AS assigned_staff_name, staff.phone AS assigned_staff_phone
@@ -6374,19 +6346,12 @@ app.get('/api/crm/leads/:id/details', authenticateUser, requireModule('LEADS'), 
 
     const lead = leadRes.rows[0];
 
-    if (!canReadAll && canReadAssigned && lead.assigned_staff_id !== req.user!.uid) {
-      return res.status(403).json({ error: 'FORBIDDEN', message: 'Access restricted to assigned leads.' });
-    }
-
     let property: any = null;
     let documents: any[] = [];
     if (lead.property_id) {
       const propRes = await executeQuery(`SELECT * FROM properties WHERE id = $1 LIMIT 1;`, [lead.property_id]);
       if (propRes.rows && propRes.rows.length > 0) {
         property = { ...propRes.rows[0] };
-        if (!req.user!.roles.includes('STAFF_SUPER_ADMIN') && !req.user!.roles.includes('STAFF_DEAL_CLOSER')) {
-          delete property.reserve_minimum_price_inr;
-        }
         const docsRes = await executeQuery(`SELECT * FROM documents WHERE property_id = $1;`, [lead.property_id]);
         documents = docsRes.rows || [];
       }
@@ -6396,12 +6361,7 @@ app.get('/api/crm/leads/:id/details', authenticateUser, requireModule('LEADS'), 
     const visits = visitsRes.rows || [];
 
     const offersRes = await executeQuery(`SELECT * FROM property_offers WHERE lead_id = $1 OR (property_id = $2 AND $2 IS NOT NULL);`, [id, lead.property_id || null]);
-    const canSeeReserve = req.user!.roles.includes('STAFF_SUPER_ADMIN') || req.user!.roles.includes('STAFF_DEAL_CLOSER');
-    const offers = (offersRes.rows || []).map((o: any) => {
-      const copy = { ...o };
-      if (!canSeeReserve) delete copy.reserve_minimum_price_inr;
-      return copy;
-    });
+    const offers = (offersRes.rows || []).map((o: any) => ({ ...o }));
 
     const auditRes = await executeQuery(`
       SELECT id, action, actor_id AS actor_user_id, ip_address AS client_ip, diff_summary, timestamp AS created_at
@@ -6483,7 +6443,9 @@ app.get('/api/crm/properties/:id/details', authenticateUser, async (req: Request
       property = { ...propRes.rows[0] };
     }
 
-    if (!req.user!.roles.includes('STAFF_SUPER_ADMIN') && !req.user!.roles.includes('STAFF_DEAL_CLOSER')) {
+    const canSeeReserve = isStaff || req.user!.roles.includes('STAFF_SUPER_ADMIN') || req.user!.roles.includes('STAFF_DEAL_CLOSER');
+
+    if (!canSeeReserve) {
       delete property.reserve_minimum_price_inr;
     }
 
@@ -6499,7 +6461,6 @@ app.get('/api/crm/properties/:id/details', authenticateUser, async (req: Request
     const visits = visitsRes.rows || [];
 
     const offersRes = await executeQuery(`SELECT * FROM property_offers WHERE property_id = $1;`, [id]);
-    const canSeeReserve = req.user!.roles.includes('STAFF_SUPER_ADMIN') || req.user!.roles.includes('STAFF_DEAL_CLOSER');
     const offers = (offersRes.rows || []).map((o: any) => {
       const copy = { ...o };
       if (!canSeeReserve) delete copy.reserve_minimum_price_inr;
@@ -6790,8 +6751,11 @@ export function validatePropertyForPublish(property: any, images: any[] = []): {
     errors.bhk_type = 'BHK is required';
   }
 
-  const rawLocality = property.locality_name || property.locality || property.project_locality_id;
-  const locality = rawLocality?.includes(',') ? rawLocality.split(',')[1].trim() : rawLocality;
+  let rawLocality = property.locality_name || property.locality || property.project_locality_id;
+  if (!rawLocality && property.public_address) {
+    rawLocality = property.public_address;
+  }
+  const locality = rawLocality?.includes(',') ? rawLocality.split(',').pop()?.trim() || rawLocality.split(',')[1]?.trim() : rawLocality;
   if (!locality || typeof locality !== 'string' || !locality.trim()) {
     missingFields.push('locality');
     errors.locality = 'Locality is required';
@@ -7537,9 +7501,15 @@ app.post(
         monthlyMaintenanceInr,
         superBuiltUpSqft,
         carpetAreaSqft,
+        locality,
+        projectName,
       } = req.body;
 
-      if (title || askingPriceInr || publicAddress || description || superBuiltUpSqft) {
+      const projectLocality = (projectName && locality)
+        ? `${projectName}, ${locality}`
+        : (req.body.project_locality_id || req.body.projectLocalityId || locality || null);
+
+      if (title || askingPriceInr || publicAddress || description || superBuiltUpSqft || projectLocality) {
         await executeQuery(`
           UPDATE properties
           SET
@@ -7552,8 +7522,9 @@ app.post(
             monthly_maintenance_inr = COALESCE($7, monthly_maintenance_inr),
             super_built_up_sqft = COALESCE($8, super_built_up_sqft),
             carpet_area_sqft = COALESCE($9, carpet_area_sqft),
+            project_locality_id = COALESCE($10, project_locality_id),
             updated_at = NOW()
-          WHERE id = $10;
+          WHERE id = $11;
         `, [
           title ? String(title).trim() : null,
           description ? String(description).trim() : null,
@@ -7564,6 +7535,7 @@ app.post(
           monthlyMaintenanceInr ? Number(monthlyMaintenanceInr) : null,
           superBuiltUpSqft ? Number(superBuiltUpSqft) : null,
           carpetAreaSqft ? Number(carpetAreaSqft) : null,
+          projectLocality ? String(projectLocality).trim() : null,
           id
         ]);
       }

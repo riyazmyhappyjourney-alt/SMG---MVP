@@ -110,10 +110,12 @@ export function resolveUserPermissions(roles: AppRole[]): Permission[] {
 }
 
 /**
- * Resolves default module access for backward compatibility with legacy staff roles.
+ * Resolves standard module access for all staff members.
+ * In the unified CRM architecture, all approved employees have equal access to standard CRM modules.
  */
 export function resolveLegacyModulePermissions(roles: AppRole[]): CrmModule[] {
-  if (roles.includes('STAFF_SUPER_ADMIN')) {
+  const isStaff = roles.some(r => r.startsWith('STAFF_') || r === 'STAFF' || r === 'EMPLOYEE' || r === 'STAFF_MEMBER');
+  if (isStaff) {
     return [
       'OVERVIEW',
       'LEADS',
@@ -128,31 +130,16 @@ export function resolveLegacyModulePermissions(roles: AppRole[]): CrmModule[] {
       'SETTINGS'
     ];
   }
-  const perms = new Set<CrmModule>();
-  for (const r of roles) {
-    if (r === 'STAFF_INTAKE_AGENT') {
-      (['OVERVIEW', 'LEADS', 'TASKS', 'CALENDAR'] as CrmModule[]).forEach(m => perms.add(m));
-    } else if (r === 'STAFF_VERIFICATION_AGENT') {
-      (['OVERVIEW', 'LEADS', 'PROPERTIES', 'TASKS', 'CALENDAR'] as CrmModule[]).forEach(m => perms.add(m));
-    } else if (r === 'STAFF_LISTING_MANAGER') {
-      (['OVERVIEW', 'PROPERTIES', 'REPORTS'] as CrmModule[]).forEach(m => perms.add(m));
-    } else if (r === 'STAFF_DEAL_CLOSER') {
-      (['OVERVIEW', 'LEADS', 'PROPERTIES', 'VISITS', 'OFFERS', 'TASKS', 'CALENDAR'] as CrmModule[]).forEach(m => perms.add(m));
-    }
-  }
-  return Array.from(perms);
+  return [];
 }
 
 /**
- * Checks whether an authenticated user has access to a specific CRM module
+ * Checks whether an authenticated user has access to a specific CRM module.
+ * Every approved employee has full access to standard CRM modules.
  */
-export function hasModulePermission(user: AuthenticatedUser, module: CrmModule): boolean {
-  if (user.roles.includes('STAFF_SUPER_ADMIN')) return true;
-  if (!user.module_permissions || !Array.isArray(user.module_permissions)) {
-    const fallback = resolveLegacyModulePermissions(user.roles);
-    return fallback.includes(module);
-  }
-  return user.module_permissions.includes(module);
+export function hasModulePermission(user: AuthenticatedUser, _module: CrmModule): boolean {
+  if (!user || !user.roles) return false;
+  return user.roles.some(r => r.startsWith('STAFF_') || r === 'STAFF' || r === 'EMPLOYEE' || r === 'STAFF_MEMBER');
 }
 
 /**
@@ -328,12 +315,48 @@ export async function optionalAuthenticateUser(req: Request, _res: Response, nex
 }
 
 /**
+ * Strict Employee-Only Authorization Middleware.
+ * Enforces that the caller is an authenticated, active, approved SellMyGhar employee.
+ * Unauthenticated requests are rejected with 401 UNAUTHORIZED.
+ * Customer accounts (OWNER, BUYER) and unauthorized callers are rejected with 403 FORBIDDEN.
+ */
+export function requireStaffMember(req: Request, res: Response, next: NextFunction) {
+  if (!req.user) {
+    return res.status(401).json({
+      error: 'UNAUTHORIZED',
+      message: 'Authentication session required to access CRM.',
+    });
+  }
+
+  const roles = Array.isArray(req.user.roles) ? req.user.roles : [];
+  const isStaff = roles.some(r => r.startsWith('STAFF_') || r === 'STAFF' || r === 'EMPLOYEE' || r === 'STAFF_MEMBER');
+
+  if (!isStaff) {
+    return res.status(403).json({
+      error: 'FORBIDDEN',
+      message: 'Access denied: CRM is restricted to authorized SellMyGhar employees only.',
+    });
+  }
+
+  next();
+}
+
+/**
  * Role-Based Access Control middleware. Requires at least one of the specified roles.
  */
 export function requireRole(...allowedRoles: AppRole[]) {
   return (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Authentication required.' });
+    }
+
+    const roles = Array.isArray(req.user.roles) ? req.user.roles : [];
+    const isStaff = roles.some(r => r.startsWith('STAFF_') || r === 'STAFF' || r === 'EMPLOYEE' || r === 'STAFF_MEMBER');
+    const isStaffRoute = allowedRoles.some(r => r.startsWith('STAFF_'));
+
+    // If this route is intended for CRM staff and caller is an approved employee, grant standard operational access
+    if (isStaff && isStaffRoute) {
+      return next();
     }
 
     if (req.user.roles.includes('STAFF_SUPER_ADMIN')) {
@@ -354,11 +377,18 @@ export function requireRole(...allowedRoles: AppRole[]) {
 
 /**
  * Granular Permission-Based Access Control middleware.
+ * All approved employees possess standard operational permissions.
  */
 export function requirePermissionMiddleware(permission: Permission) {
   return (req: Request, res: Response, next: NextFunction) => {
     if (!req.user) {
       return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Authentication required.' });
+    }
+
+    const roles = Array.isArray(req.user.roles) ? req.user.roles : [];
+    const isStaff = roles.some(r => r.startsWith('STAFF_') || r === 'STAFF' || r === 'EMPLOYEE' || r === 'STAFF_MEMBER');
+    if (isStaff) {
+      return next();
     }
 
     if (!hasPermission(req.user, permission)) {
@@ -374,7 +404,7 @@ export function requirePermissionMiddleware(permission: Permission) {
 
 /**
  * Module-Based Access Control middleware.
- * Verifies that the authenticated user has explicit permission for the given CRM module.
+ * Verifies that the caller is an authorized employee with access to the CRM module.
  */
 export function requireModule(module: CrmModule) {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -385,7 +415,7 @@ export function requireModule(module: CrmModule) {
     if (!hasModulePermission(req.user, module)) {
       return res.status(403).json({
         error: 'FORBIDDEN',
-        message: `Forbidden: module permission required (${module}).`,
+        message: 'Access denied: CRM is restricted to authorized SellMyGhar employees only.',
       });
     }
 

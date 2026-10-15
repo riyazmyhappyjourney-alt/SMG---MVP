@@ -201,8 +201,9 @@ export const PropertyBrochureModal: React.FC<PropertyBrochureModalProps> = ({
 
   // Public Property URL
   const publicListingUrl = useMemo(() => {
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://sellmyghar.in';
-    return `${origin}/#/property/${property.id}`;
+    const rawOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://sellmyghar.in';
+    const origin = rawOrigin.replace('://crm.', '://').replace('://crm-', '://');
+    return `${origin}/property/${property.id}`;
   }, [property.id]);
 
   // Print Handler

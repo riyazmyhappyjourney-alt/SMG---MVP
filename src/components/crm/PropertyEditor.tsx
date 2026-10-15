@@ -740,19 +740,29 @@ export function PropertyEditor({
           </div>
 
           <div className="flex items-center space-x-2">
-            {!isCreate && listingStatus === 'PUBLISHED' && (
-              <a
-                href={`/property/${property.id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors"
-                title="View public live listing in new tab"
-              >
-                <Eye className="w-3.5 h-3.5" />
-                <span>View Public</span>
-                <ExternalLink className="w-3 h-3 text-slate-400" />
-              </a>
-            )}
+            {!isCreate && listingStatus === 'PUBLISHED' && (() => {
+              const host = typeof window !== 'undefined' ? window.location.hostname : '';
+              const protocol = typeof window !== 'undefined' ? window.location.protocol : 'https:';
+              const publicOrigin = host.startsWith('crm.')
+                ? `${protocol}//${host.replace(/^crm\./, '')}`
+                : host.startsWith('crm-')
+                ? `${protocol}//${host.replace(/^crm-/, '')}`
+                : '';
+              const publicUrl = `${publicOrigin}/property/${property.id}`;
+              return (
+                <a
+                  href={publicUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors"
+                  title="View public live listing in new tab"
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  <span>View Public</span>
+                  <ExternalLink className="w-3 h-3 text-slate-400" />
+                </a>
+              );
+            })()}
             <button
               type="button"
               onClick={onClose}
@@ -991,30 +1001,28 @@ export function PropertyEditor({
                   <span className="text-[10px] text-slate-400 mt-0.5 block">Estimated society maintenance per month.</span>
                 </div>
 
-                {/* Confidential Reserve Price: Only visible to Super Admin or Deal Closer */}
-                {(staffRole === 'STAFF_SUPER_ADMIN' || staffRole === 'STAFF_DEAL_CLOSER') && (
-                  <div className="p-4 rounded-xl bg-purple-50/70 border border-purple-200 md:col-span-2">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-bold text-purple-900 flex items-center space-x-1.5">
-                        <ShieldCheck className="w-4 h-4 text-purple-700" />
-                        <span>Confidential Owner Reserve Minimum Price (INR)</span>
-                      </span>
-                      <span className="text-[10px] font-mono bg-purple-200/80 text-purple-900 px-2 py-0.5 rounded font-bold">
-                        RESTRICTED ACCESS
-                      </span>
-                    </div>
-                    <input
-                      type="number"
-                      value={reserveMinimumPriceInr || ''}
-                      onChange={(e) => setReserveMinimumPriceInr(e.target.value ? Number(e.target.value) : undefined)}
-                      placeholder="e.g. 9500000"
-                      className="w-full p-2.5 rounded-lg border border-purple-300 bg-white font-bold text-purple-950 focus:ring-2 focus:ring-purple-600 focus:outline-hidden"
-                    />
-                    <span className="text-[10px] text-purple-700 mt-1 block">
-                      Protected floor price for deal negotiation. Never exposed to buyers or public endpoints.
+                {/* Confidential Reserve Price: Available to all authorized staff */}
+                <div className="p-4 rounded-xl bg-purple-50/70 border border-purple-200 md:col-span-2">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-purple-900 flex items-center space-x-1.5">
+                      <ShieldCheck className="w-4 h-4 text-purple-700" />
+                      <span>Confidential Owner Reserve Minimum Price (INR)</span>
+                    </span>
+                    <span className="text-[10px] font-mono bg-purple-200/80 text-purple-900 px-2 py-0.5 rounded font-bold">
+                      INTERNAL CRM ONLY
                     </span>
                   </div>
-                )}
+                  <input
+                    type="number"
+                    value={reserveMinimumPriceInr || ''}
+                    onChange={(e) => setReserveMinimumPriceInr(e.target.value ? Number(e.target.value) : undefined)}
+                    placeholder="e.g. 9500000"
+                    className="w-full p-2.5 rounded-lg border border-purple-300 bg-white font-bold text-purple-950 focus:ring-2 focus:ring-purple-600 focus:outline-hidden"
+                  />
+                  <span className="text-[10px] text-purple-700 mt-1 block">
+                    Protected floor price for deal negotiation. Never exposed to buyers or public endpoints.
+                  </span>
+                </div>
               </div>
             </div>
           )}

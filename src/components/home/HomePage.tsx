@@ -94,6 +94,9 @@ export const HomePage: React.FC<HomePageProps> = ({
     }
   };
 
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [selectedLocality, setSelectedLocality] = useState<string>('ALL');
+
   return (
     <div className="min-h-screen flex flex-col bg-[#F4F6F9] selection:bg-[#244B8F] selection:text-white font-['Montserrat'] text-[#172033]">
       
@@ -109,6 +112,14 @@ export const HomePage: React.FC<HomePageProps> = ({
         }}
         onTabClick={handleTabClick}
         onFavoritesClick={() => setIsFavoritesModalOpen(true)}
+        onSearchQuery={(q) => {
+          setSearchQuery(q);
+          scrollToListings();
+        }}
+        onSelectLocality={(loc) => {
+          setSelectedLocality(loc);
+          scrollToListings();
+        }}
       />
 
       <main className="flex-1">
@@ -132,6 +143,8 @@ export const HomePage: React.FC<HomePageProps> = ({
             onSelectProperty={(_proj, _loc, _bhk) => {
               if (onNavigateToContact) onNavigateToContact();
             }}
+            searchQuery={searchQuery}
+            externalLocality={selectedLocality}
           />
         </div>
 

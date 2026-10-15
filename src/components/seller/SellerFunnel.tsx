@@ -2406,10 +2406,7 @@ export function SellerFunnel({
                       </div>
                       <div>
                         <div className="text-xs font-bold text-emerald-950 flex items-center space-x-2">
-                          <span>Verified Seller: {authSession.user?.name || 'Google User'}</span>
-                          <span className="text-[10px] bg-emerald-200/90 text-emerald-900 px-2 py-0.5 rounded-full font-semibold">
-                            Google Authenticated
-                          </span>
+                          <span>Verified Seller: {authSession.user?.name || authSession.user?.email || 'Seller'}</span>
                         </div>
                         <div className="text-[11px] text-emerald-800 font-mono mt-0.5">{authSession.user?.email}</div>
                       </div>

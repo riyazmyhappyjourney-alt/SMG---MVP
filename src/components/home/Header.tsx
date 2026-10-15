@@ -92,13 +92,23 @@ export const Header: React.FC<HeaderProps> = ({
     setActiveTab(tab);
     setMobileMenuOpen(false);
     setOpenMegaMenu(null);
+    if (tab === 'BUY') {
+      const el = document.getElementById('listings') || document.getElementById('inventory-catalog');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth' });
+      } else {
+        window.location.hash = '#listings';
+      }
+      return;
+    }
     onTabClick(tab);
   };
 
   const handleBrandHomeClick = (e: React.MouseEvent) => {
     e.preventDefault();
     setActiveTab('BUY');
-    onTabClick('BUY');
+    setMobileMenuOpen(false);
+    setOpenMegaMenu(null);
     if (window.location.hash) {
       window.location.hash = '';
     }
@@ -175,7 +185,6 @@ export const Header: React.FC<HeaderProps> = ({
                   type="button"
                   onClick={() => {
                     setOpenMegaMenu(openMegaMenu === 'BUY' ? null : 'BUY');
-                    onTabClick('BUY');
                   }}
                   className={`relative py-2.5 px-1.5 transition-colors cursor-pointer flex items-center space-x-1 ${
                     openMegaMenu === 'BUY' || activeTab === 'BUY' ? 'text-white font-bold' : 'text-white/85 hover:text-white'
@@ -204,7 +213,6 @@ export const Header: React.FC<HeaderProps> = ({
                   type="button"
                   onClick={() => {
                     setOpenMegaMenu(openMegaMenu === 'SELL' ? null : 'SELL');
-                    onTabClick('SELL');
                   }}
                   className={`relative py-2.5 px-1.5 transition-colors cursor-pointer flex items-center space-x-1.5 ${
                     openMegaMenu === 'SELL' || activeTab === 'SELL' ? 'text-white font-bold' : 'text-white/85 hover:text-white'
@@ -428,7 +436,12 @@ export const Header: React.FC<HeaderProps> = ({
                                 type="button"
                                 onClick={() => {
                                   setOpenMegaMenu(null);
-                                  onTabClick('BUY');
+                                  const el = document.getElementById('listings') || document.getElementById('inventory-catalog');
+                                  if (el) {
+                                    el.scrollIntoView({ behavior: 'smooth' });
+                                  } else {
+                                    window.location.hash = '#listings';
+                                  }
                                 }}
                                 className="w-full text-left p-2.5 rounded-xl hover:bg-slate-50 transition-colors flex items-start space-x-3 group cursor-pointer"
                               >

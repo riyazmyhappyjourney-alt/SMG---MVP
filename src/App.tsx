@@ -57,33 +57,48 @@ export const parseLocalitySlug = (path: string, hash: string): string | null => 
 export function resolveRoute(path: string, hash: string, host: string): AppRoute {
   const localitySlug = parseLocalitySlug(path, hash);
 
-  // 1. Explicit application hash routes take highest precedence over stale callback or subpath paths
-  // CRM is strictly isolated to the crm.* subdomain (e.g. crm.sellmyghar.in).
+  // 1. Explicit application hash routes take highest precedence (user clicks / navigation)
+  if (hash === '#/terms') return 'TERMS';
+  if (hash === '#/privacy-policy' || hash === '#/privacy') return 'PRIVACY_POLICY';
+  if (hash === '#/cookie-policy') return 'COOKIE_POLICY';
+  if (hash === '#/careers') return 'CAREERS';
+  if (hash === '#/contact') return 'CONTACT';
+  if (hash === '#/login' || hash === '#/register') return 'LOGIN';
+  if (hash.startsWith('#/reset-password')) return 'RESET_PASSWORD';
+  if (hash === '#/consent') return 'CONSENT';
+  if (hash === '#/dashboard' || hash === '#/seller-dashboard') return 'DASHBOARD';
+  if (hash === '#/seller-assisted' || hash === '#/post-property') return 'SELLER_ASSISTED';
+
+  // 2. Property detail view (direct URL or hash) takes precedence so CRM users can view listings
+  if (hash.startsWith('#/property/') || path.startsWith('/property/')) {
+    return 'PROPERTY_DETAIL';
+  }
+
+  // 3. CRM is strictly isolated to the crm.* subdomain (e.g. crm.sellmyghar.in).
   // On main domain (sellmyghar.in / www.sellmyghar.in), #/crm and /crm are completely disabled.
   const isCrmSubdomain = host.startsWith('crm.') || host.startsWith('crm-');
   const isLocalhostCrm = host.includes('localhost') && (hash === '#/crm' || path === '/crm');
   if (isCrmSubdomain || isLocalhostCrm) return 'CRM';
-  if (hash === '#/dashboard' || hash === '#/seller-dashboard' || path === '/dashboard' || path === '/seller-dashboard') return 'DASHBOARD';
-  if (hash === '#/login' || hash === '#/register' || path === '/login' || path === '/register') return 'LOGIN';
-  if (hash.startsWith('#/reset-password') || path === '/reset-password') return 'RESET_PASSWORD';
-  if (hash === '#/consent' || path === '/consent') return 'CONSENT';
-  if (hash === '#/seller-assisted' || path === '/seller-assisted' || hash === '#/post-property' || path === '/post-property') return 'SELLER_ASSISTED';
-  if (hash.startsWith('#/property/')) return 'PROPERTY_DETAIL';
-  if (path.startsWith('/property/')) return 'PROPERTY_DETAIL';
 
-  // 2. OAuth Callback route: ONLY when not overridden by an explicit application route
+  if (path === '/dashboard' || path === '/seller-dashboard') return 'DASHBOARD';
+  if (path === '/login' || path === '/register') return 'LOGIN';
+  if (path === '/reset-password') return 'RESET_PASSWORD';
+  if (path === '/consent') return 'CONSENT';
+  if (path === '/seller-assisted' || path === '/post-property') return 'SELLER_ASSISTED';
+
+  // 4. OAuth Callback route: ONLY when not overridden by an explicit application route
   if (path === '/auth/callback' || path.startsWith('/auth/callback') || hash === '#/auth/callback' || hash.startsWith('#/auth/callback')) {
     return 'AUTH_CALLBACK';
   }
 
-  // 3. Legal and Company routes
-  if (hash === '#/terms' || path === '/terms') return 'TERMS';
-  if (hash === '#/privacy-policy' || path === '/privacy-policy' || hash === '#/privacy' || path === '/privacy') return 'PRIVACY_POLICY';
-  if (hash === '#/cookie-policy' || path === '/cookie-policy') return 'COOKIE_POLICY';
-  if (hash === '#/careers' || path === '/careers') return 'CAREERS';
+  // 5. Legal and Company path routes
+  if (path === '/terms') return 'TERMS';
+  if (path === '/privacy-policy' || path === '/privacy') return 'PRIVACY_POLICY';
+  if (path === '/cookie-policy') return 'COOKIE_POLICY';
+  if (path === '/careers') return 'CAREERS';
 
-  // 4. SEO Locality and Contact pages
-  if (hash === '#/contact' || path === '/contact') return 'CONTACT';
+  // 6. SEO Locality and Contact pages
+  if (path === '/contact') return 'CONTACT';
   if (localitySlug) return 'LOCALITY_DETAIL';
 
   return 'HOME';
