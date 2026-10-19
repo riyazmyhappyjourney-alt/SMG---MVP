@@ -46,7 +46,7 @@ export const LocalityDetailPage: React.FC<LocalityDetailPageProps> = ({
     .slice(0, 4);
 
   return (
-    <div className="min-h-screen bg-[#F4F6F9] font-['Montserrat'] text-[#172033] flex flex-col selection:bg-[#244B8F] selection:text-white">
+    <div className="min-h-screen bg-[#F4F6F9] font-['Montserrat'] text-[#172033] flex flex-col selection:bg-[#0073E6] selection:text-white">
       
       {/* 1. Header / Breadcrumbs */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-2xs">
@@ -56,7 +56,7 @@ export const LocalityDetailPage: React.FC<LocalityDetailPageProps> = ({
             <button
               type="button"
               onClick={onBackToHome}
-              className="inline-flex items-center hover:text-[#244B8F] font-medium transition-colors cursor-pointer shrink-0"
+              className="inline-flex items-center hover:text-[#0073E6] font-medium transition-colors cursor-pointer shrink-0"
             >
               <Home className="w-3.5 h-3.5 mr-1" />
               <span>Home</span>
@@ -70,7 +70,7 @@ export const LocalityDetailPage: React.FC<LocalityDetailPageProps> = ({
           <button
             type="button"
             onClick={() => onStartSelling(profile.name)}
-            className="px-3.5 py-1.5 rounded-lg bg-[#244B8F] text-white text-xs font-bold hover:bg-[#1B396E] transition-colors cursor-pointer shrink-0 hidden sm:inline-flex items-center space-x-1.5"
+            className="px-3.5 py-1.5 rounded-lg bg-[#0073E6] text-white text-xs font-bold hover:bg-[#005BB5] transition-colors cursor-pointer shrink-0 hidden sm:inline-flex items-center space-x-1.5"
           >
             <span>List My Flat</span>
             <ArrowRight className="w-3.5 h-3.5" />
@@ -79,7 +79,7 @@ export const LocalityDetailPage: React.FC<LocalityDetailPageProps> = ({
       </header>
 
       {/* 2. Hero Section for Locality */}
-      <section className="bg-gradient-to-b from-[#172033] via-[#1E2E4B] to-[#244B8F] text-white py-14 sm:py-20 relative overflow-hidden">
+      <section className="bg-gradient-to-b from-[#172033] via-[#1E2E4B] to-[#0073E6] text-white py-14 sm:py-20 relative overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
           
           <div className="max-w-3xl space-y-4">
@@ -116,7 +116,7 @@ export const LocalityDetailPage: React.FC<LocalityDetailPageProps> = ({
                 className="px-6 py-3.5 rounded-xl bg-white hover:bg-slate-100 text-[#172033] font-bold text-sm shadow-md transition-all cursor-pointer inline-flex items-center justify-center space-x-2 group"
               >
                 <span>Start Selling My Flat in {profile.name}</span>
-                <ArrowRight className="w-4 h-4 text-[#244B8F] group-hover:translate-x-1 transition-transform" />
+                <ArrowRight className="w-4 h-4 text-[#0073E6] group-hover:translate-x-1 transition-transform" />
               </button>
 
               {onContactDesk && (
@@ -175,7 +175,7 @@ export const LocalityDetailPage: React.FC<LocalityDetailPageProps> = ({
             <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
               Corridor Benchmark Rate
             </span>
-            <div className="text-lg font-extrabold text-[#244B8F]">
+            <div className="text-lg font-extrabold text-[#0073E6]">
               {profile.indicativeRatePerSqft}
             </div>
             <p className="text-[11px] text-slate-500 mt-1">
@@ -234,7 +234,7 @@ export const LocalityDetailPage: React.FC<LocalityDetailPageProps> = ({
                 <ul className="space-y-2 text-xs sm:text-sm text-slate-700">
                   {profile.buyerDemandDrivers.map((driver, idx) => (
                     <li key={idx} className="flex items-start space-x-2">
-                      <CheckCircle2 className="w-4 h-4 text-[#244B8F] shrink-0 mt-0.5" />
+                      <CheckCircle2 className="w-4 h-4 text-[#0073E6] shrink-0 mt-0.5" />
                       <span>{driver}</span>
                     </li>
                   ))}
@@ -279,7 +279,7 @@ export const LocalityDetailPage: React.FC<LocalityDetailPageProps> = ({
                     <button
                       type="button"
                       onClick={() => onStartSelling(profile.name)}
-                      className="text-[11px] font-bold text-[#244B8F] hover:underline cursor-pointer shrink-0 ml-2"
+                      className="text-[11px] font-bold text-[#0073E6] hover:underline cursor-pointer shrink-0 ml-2"
                     >
                       Have a flat?
                     </button>
@@ -294,8 +294,8 @@ export const LocalityDetailPage: React.FC<LocalityDetailPageProps> = ({
           <div className="lg:col-span-5 space-y-6">
             
             <div className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-5">
-              <div className="flex items-center space-x-2 text-[#244B8F]">
-                <FileText className="w-5 h-5 text-[#244B8F]" />
+              <div className="flex items-center space-x-2 text-[#0073E6]">
+                <FileText className="w-5 h-5 text-[#0073E6]" />
                 <h3 className="text-base font-extrabold text-[#172033] tracking-tight">
                   Seller Documentation Checklist
                 </h3>
@@ -309,7 +309,7 @@ export const LocalityDetailPage: React.FC<LocalityDetailPageProps> = ({
                 
                 <div className="p-3 rounded-xl bg-blue-50/50 border border-blue-100 space-y-1">
                   <div className="font-bold text-slate-900 flex items-center space-x-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-[#244B8F]" />
+                    <CheckCircle2 className="w-3.5 h-3.5 text-[#0073E6]" />
                     <span>Form 15 Encumbrance Certificate (EC)</span>
                   </div>
                   <p className="text-[11px] text-slate-600 pl-5">
@@ -319,7 +319,7 @@ export const LocalityDetailPage: React.FC<LocalityDetailPageProps> = ({
 
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
                   <div className="font-bold text-slate-900 flex items-center space-x-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-[#244B8F]" />
+                    <CheckCircle2 className="w-3.5 h-3.5 text-[#0073E6]" />
                     <span>BBMP / BDA A-Khata Certificate & Extract</span>
                   </div>
                   <p className="text-[11px] text-slate-600 pl-5">
@@ -329,7 +329,7 @@ export const LocalityDetailPage: React.FC<LocalityDetailPageProps> = ({
 
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
                   <div className="font-bold text-slate-900 flex items-center space-x-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-[#244B8F]" />
+                    <CheckCircle2 className="w-3.5 h-3.5 text-[#0073E6]" />
                     <span>Registered Parent Title Deeds</span>
                   </div>
                   <p className="text-[11px] text-slate-600 pl-5">
@@ -339,7 +339,7 @@ export const LocalityDetailPage: React.FC<LocalityDetailPageProps> = ({
 
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
                   <div className="font-bold text-slate-900 flex items-center space-x-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-[#244B8F]" />
+                    <CheckCircle2 className="w-3.5 h-3.5 text-[#0073E6]" />
                     <span>Society NOC & Occupancy Certificate</span>
                   </div>
                   <p className="text-[11px] text-slate-600 pl-5">
@@ -349,7 +349,7 @@ export const LocalityDetailPage: React.FC<LocalityDetailPageProps> = ({
 
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
                   <div className="font-bold text-slate-900 flex items-center space-x-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-[#244B8F]" />
+                    <CheckCircle2 className="w-3.5 h-3.5 text-[#0073E6]" />
                     <span>Bank Loan Closure / Outstanding Letter</span>
                   </div>
                   <p className="text-[11px] text-slate-600 pl-5">
@@ -363,7 +363,7 @@ export const LocalityDetailPage: React.FC<LocalityDetailPageProps> = ({
                 <button
                   type="button"
                   onClick={() => onStartSelling(profile.name)}
-                  className="w-full py-3 px-4 rounded-xl bg-[#244B8F] hover:bg-[#1B396E] text-white text-xs font-bold transition-all cursor-pointer text-center block"
+                  className="w-full py-3 px-4 rounded-xl bg-[#0073E6] hover:bg-[#005BB5] text-white text-xs font-bold transition-all cursor-pointer text-center block"
                 >
                   Need Document Diligence? Onboard Your Flat
                 </button>
@@ -377,8 +377,8 @@ export const LocalityDetailPage: React.FC<LocalityDetailPageProps> = ({
 
         {/* 5. Frequently Asked Questions Accordion */}
         <div className="bg-white rounded-2xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-5">
-          <div className="flex items-center space-x-2 text-[#244B8F]">
-            <HelpCircle className="w-5 h-5 text-[#244B8F]" />
+          <div className="flex items-center space-x-2 text-[#0073E6]">
+            <HelpCircle className="w-5 h-5 text-[#0073E6]" />
             <h2 className="text-xl font-extrabold text-[#172033] tracking-tight">
               Selling Your Flat in {profile.name}: Frequently Asked Questions
             </h2>
@@ -392,11 +392,11 @@ export const LocalityDetailPage: React.FC<LocalityDetailPageProps> = ({
                   <button
                     type="button"
                     onClick={() => setOpenFaqIndex(isOpen ? null : idx)}
-                    className="w-full flex items-center justify-between text-left text-xs sm:text-sm font-bold text-slate-900 hover:text-[#244B8F] transition-colors cursor-pointer"
+                    className="w-full flex items-center justify-between text-left text-xs sm:text-sm font-bold text-slate-900 hover:text-[#0073E6] transition-colors cursor-pointer"
                   >
                     <span>{faq.question}</span>
                     {isOpen ? (
-                      <ChevronUp className="w-4 h-4 text-[#244B8F] shrink-0 ml-2" />
+                      <ChevronUp className="w-4 h-4 text-[#0073E6] shrink-0 ml-2" />
                     ) : (
                       <ChevronDown className="w-4 h-4 text-slate-400 shrink-0 ml-2" />
                     )}
@@ -427,10 +427,10 @@ export const LocalityDetailPage: React.FC<LocalityDetailPageProps> = ({
                 className="bg-white p-4 rounded-xl border border-slate-200 hover:border-blue-300 hover:shadow-xs transition-all text-left group cursor-pointer"
               >
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-xs font-bold text-[#172033] group-hover:text-[#244B8F] transition-colors">
+                  <span className="text-xs font-bold text-[#172033] group-hover:text-[#0073E6] transition-colors">
                     {rel.name}
                   </span>
-                  <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#244B8F]" />
+                  <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#0073E6]" />
                 </div>
                 <span className="text-[10px] text-slate-400 block mb-1">
                   {rel.zone}
@@ -444,7 +444,7 @@ export const LocalityDetailPage: React.FC<LocalityDetailPageProps> = ({
         </div>
 
         {/* 7. Bottom Seller Conversion Card for Locality */}
-        <div className="bg-gradient-to-r from-[#172033] via-[#1E2E4B] to-[#244B8F] rounded-2xl p-6 sm:p-10 text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-6">
+        <div className="bg-gradient-to-r from-[#172033] via-[#1E2E4B] to-[#0073E6] rounded-2xl p-6 sm:p-10 text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="space-y-2 max-w-xl text-left">
             <span className="text-xs font-bold uppercase tracking-wider text-amber-200">
               DEDICATED RESALE DESK

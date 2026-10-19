@@ -57,8 +57,13 @@ export const AuthCallback: React.FC<AuthCallbackProps> = ({ onSuccess, onError }
         if (lastProcessedKey === attemptKey && lastProcessedUser) {
           if (!isCancelled) {
             setStatus('SUCCESS');
+            let targetHash = '/#/dashboard';
+            try {
+              const stored = sessionStorage.getItem('sellmyghar_auth_redirect');
+              if (stored === 'SELLER_ASSISTED') targetHash = '/#/seller-assisted';
+            } catch {}
             if (window.history.replaceState) {
-              window.history.replaceState({}, document.title, '/#/dashboard');
+              window.history.replaceState({}, document.title, targetHash);
             }
             onSuccessRef.current(lastProcessedUser);
           }
@@ -147,8 +152,13 @@ export const AuthCallback: React.FC<AuthCallbackProps> = ({ onSuccess, onError }
         setStatus('SUCCESS');
 
         // Clean up URL parameters and leave /auth/callback completely
+        let targetHash = '/#/dashboard';
+        try {
+          const stored = sessionStorage.getItem('sellmyghar_auth_redirect');
+          if (stored === 'SELLER_ASSISTED') targetHash = '/#/seller-assisted';
+        } catch {}
         if (window.history.replaceState) {
-          window.history.replaceState({}, document.title, '/#/dashboard');
+          window.history.replaceState({}, document.title, targetHash);
         }
 
         // Hand off to application router
@@ -173,7 +183,7 @@ export const AuthCallback: React.FC<AuthCallbackProps> = ({ onSuccess, onError }
       <div className="max-w-md w-full bg-white rounded-3xl shadow-xl border border-slate-200/80 p-8 text-center">
         {status === 'LOADING' && (
           <div className="py-6 space-y-4">
-            <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-blue-50 text-[#244B8F] mb-2">
+            <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-blue-50 text-[#0073E6] mb-2">
               <Loader2 className="w-7 h-7 animate-spin" />
             </div>
             <h2 className="text-xl font-bold text-slate-900">Completing Sign-In</h2>
@@ -211,7 +221,7 @@ export const AuthCallback: React.FC<AuthCallbackProps> = ({ onSuccess, onError }
                   }
                   onErrorRef.current();
                 }}
-                className="w-full inline-flex items-center justify-center space-x-2 py-3 px-4 bg-[#244B8F] hover:bg-[#1C3B70] text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer"
+                className="w-full inline-flex items-center justify-center space-x-2 py-3 px-4 bg-[#0073E6] hover:bg-[#1C3B70] text-white text-xs font-bold rounded-xl shadow-md transition-all cursor-pointer"
               >
                 <ArrowLeft className="w-4 h-4" />
                 <span>Return to Sign-In</span>

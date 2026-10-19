@@ -144,7 +144,7 @@ export const GuideModal: React.FC<GuideModalProps> = ({ guideId, isOpen, onClose
               <button
                 type="button"
                 onClick={onClose}
-                className="px-5 py-2 rounded-xl bg-[#244B8F] text-white text-xs font-bold hover:bg-[#1B396E] transition-colors cursor-pointer"
+                className="px-5 py-2 rounded-xl bg-[#0073E6] text-white text-xs font-bold hover:bg-[#005BB5] transition-colors cursor-pointer"
               >
                 Close Guide
               </button>

@@ -105,6 +105,7 @@ export const BENGALURU_SOCIETIES: SocietyItem[] = [
   { id: 'soc-9f', name: 'Prestige Tech Vista', locality: 'Kadubeesanahalli', zone: 'East', builder: 'Prestige Group' },
   
   { id: 'soc-10', name: 'Sobha Dream Acres', locality: 'Panathur', zone: 'East', builder: 'Sobha Limited' },
+  { id: 'soc-10b', name: 'Sobha Dream Heights', locality: 'Balagere / Panathur', zone: 'East', builder: 'Sobha Limited' },
   { id: 'soc-11', name: 'Sobha City', locality: 'Thanisandra Main Road', zone: 'North', builder: 'Sobha Limited' },
   { id: 'soc-12', name: 'Sobha Silicon Oasis', locality: 'Electronic City Phase 1', zone: 'South', builder: 'Sobha Limited' },
   { id: 'soc-13', name: 'Sobha Royal Pavilion', locality: 'Sarjapur Road', zone: 'East', builder: 'Sobha Limited' },
@@ -186,8 +187,35 @@ export const BENGALURU_SOCIETIES: SocietyItem[] = [
   { id: 'soc-50', name: 'Goyal Orchid Whitefield', locality: 'Whitefield', zone: 'East', builder: 'Goyal & Co' },
   { id: 'soc-51', name: 'Shriram Chirping Woods', locality: 'Harlur Road', zone: 'South', builder: 'Shriram Properties' },
   { id: 'soc-52', name: 'Shriram Greenfield', locality: 'Budigere Cross', zone: 'East', builder: 'Shriram Properties' },
-  { id: 'soc-53', name: 'Mahaveer Ranches', locality: 'Hosa Road', zone: 'South', builder: 'Mahaveer Group' }
+  { id: 'soc-53', name: 'Mahaveer Ranches', locality: 'Hosa Road', zone: 'South', builder: 'Mahaveer Group' },
+  { id: 'soc-54', name: 'Sobha Dream Heights', locality: 'Balagere / Panathur', zone: 'East', builder: 'Sobha Limited' },
+  { id: 'soc-55', name: 'Purva Palm Beach', locality: 'Hennur Road', zone: 'North', builder: 'Puravankara' },
+  { id: 'soc-56', name: 'Embassy Springs', locality: 'Devanahalli', zone: 'North', builder: 'Embassy Group' },
+  { id: 'soc-57', name: 'Adarsh Palm Retreat', locality: 'Bellandur / Outer Ring Road', zone: 'East', builder: 'Adarsh Group' },
+  { id: 'soc-58', name: 'Bhartiya City Nikoo Homes', locality: 'Thanisandra Main Road', zone: 'North', builder: 'Bhartiya Urban' },
+  { id: 'soc-58b', name: 'Bhartiya City', locality: 'Thanisandra Main Road', zone: 'North', builder: 'Bhartiya Urban' }
 ];
+
+/**
+ * Returns the mapped zone for a given Bengaluru locality name
+ */
+export function getZoneForLocality(localityName: string): 'East' | 'South' | 'North' | 'West' | 'Central' | null {
+  if (!localityName || !localityName.trim()) return null;
+  const clean = localityName.toLowerCase().trim();
+  const found = BENGALURU_LOCALITIES.find(l => 
+    l.name.toLowerCase() === clean || 
+    clean.includes(l.name.toLowerCase()) || 
+    l.name.toLowerCase().includes(clean)
+  );
+  if (found) return found.zone;
+  // Fallback checks
+  if (clean.includes('whitefield') || clean.includes('sarjapur') || clean.includes('bellandur') || clean.includes('varthur') || clean.includes('marathahalli') || clean.includes('kr puram')) return 'East';
+  if (clean.includes('hebbal') || clean.includes('thanisandra') || clean.includes('yelahanka') || clean.includes('jakkur') || clean.includes('hennur') || clean.includes('devanahalli')) return 'North';
+  if (clean.includes('hsr') || clean.includes('koramangala') || clean.includes('jp nagar') || clean.includes('jayanagar') || clean.includes('electronic city') || clean.includes('kanakapura') || clean.includes('bannerghatta')) return 'South';
+  if (clean.includes('rajajinagar') || clean.includes('malleshwaram') || clean.includes('yeshwanthpur') || clean.includes('vijayanagar') || clean.includes('kengeri')) return 'West';
+  if (clean.includes('indiranagar') || clean.includes('mg road') || clean.includes('cbd') || clean.includes('frazer town') || clean.includes('central')) return 'Central';
+  return null;
+}
 
 /**
  * Ranked Bengaluru locality search:
@@ -293,7 +321,7 @@ export function searchSocieties(query: string, localityFilter?: string): Society
     ...tier3WordBoundary,
     ...tier4NameSubstring,
     ...tier5Other
-  ].slice(0, 16);
+  ].slice(0, 25);
 }
 
 /**

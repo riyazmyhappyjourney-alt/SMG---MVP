@@ -238,7 +238,7 @@ export const PropertySuggestionsManager: React.FC<PropertySuggestionsManagerProp
       <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <div className="flex items-center space-x-2.5">
-            <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-[#244B8F]">
+            <div className="w-9 h-9 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-[#0073E6]">
               <FileSpreadsheet className="w-5 h-5" />
             </div>
             <div>
@@ -265,7 +265,7 @@ export const PropertySuggestionsManager: React.FC<PropertySuggestionsManagerProp
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-[#244B8F] hover:bg-[#1B396E] text-white text-xs font-bold cursor-pointer shadow-xs transition-colors"
+            className="inline-flex items-center space-x-2 px-4 py-2 rounded-xl bg-[#0073E6] hover:bg-[#005BB5] text-white text-xs font-bold cursor-pointer shadow-xs transition-colors"
           >
             <Upload className="w-3.5 h-3.5" />
             <span>Import Suggestions CSV</span>
@@ -336,7 +336,7 @@ export const PropertySuggestionsManager: React.FC<PropertySuggestionsManagerProp
             <div>
               <h3 className="text-base font-bold text-slate-900 flex items-center space-x-2">
                 <span>CSV File Validation Preview:</span>
-                <span className="font-mono text-xs text-[#244B8F] font-normal">{csvFile?.name}</span>
+                <span className="font-mono text-xs text-[#0073E6] font-normal">{csvFile?.name}</span>
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
                 Review parsed rows and validation errors before committing to the suggestions database.
@@ -388,7 +388,7 @@ export const PropertySuggestionsManager: React.FC<PropertySuggestionsManagerProp
                   name="dupPolicy"
                   checked={duplicatePolicy === 'SKIP_DUPLICATES'}
                   onChange={() => setDuplicatePolicy('SKIP_DUPLICATES')}
-                  className="text-[#244B8F]"
+                  className="text-[#0073E6]"
                 />
                 <span className="font-medium text-slate-800">Skip Duplicates (Keep Existing)</span>
               </label>
@@ -398,7 +398,7 @@ export const PropertySuggestionsManager: React.FC<PropertySuggestionsManagerProp
                   name="dupPolicy"
                   checked={duplicatePolicy === 'UPDATE_DUPLICATES'}
                   onChange={() => setDuplicatePolicy('UPDATE_DUPLICATES')}
-                  className="text-[#244B8F]"
+                  className="text-[#0073E6]"
                 />
                 <span className="font-medium text-slate-800">Update Existing Records</span>
               </label>
@@ -480,7 +480,7 @@ export const PropertySuggestionsManager: React.FC<PropertySuggestionsManagerProp
               type="button"
               disabled={importing || (previewStats?.valid === 0 && previewStats?.duplicates === 0)}
               onClick={handleExecuteImport}
-              className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-xl bg-[#244B8F] hover:bg-[#1B396E] disabled:bg-slate-300 text-white text-xs font-bold shadow-xs cursor-pointer transition-colors"
+              className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-xl bg-[#0073E6] hover:bg-[#005BB5] disabled:bg-slate-300 text-white text-xs font-bold shadow-xs cursor-pointer transition-colors"
             >
               {importing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
               <span>Commit & Import ({previewStats?.valid || 0} valid rows)</span>
@@ -498,7 +498,7 @@ export const PropertySuggestionsManager: React.FC<PropertySuggestionsManagerProp
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search by society, locality, ref ID..."
-            className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:ring-1 focus:ring-[#244B8F]"
+            className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:ring-1 focus:ring-[#0073E6]"
           />
         </div>
 

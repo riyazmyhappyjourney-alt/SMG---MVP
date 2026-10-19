@@ -37,18 +37,19 @@ const INITIAL_LISTINGS: PublicListingProjection[] = [
     photos: [
       {
         id: 'p1',
-        cdn_url: 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80',
+        cdn_url: 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=1200&q=80',
         caption: 'Well-lit living hall with balcony',
         is_cover: true,
         order: 1
       },
       {
         id: 'p2',
-        cdn_url: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80',
+        cdn_url: 'https://images.unsplash.com/photo-1567496898669-ee935f5f647a?auto=format&fit=crop&w=1200&q=80',
         caption: 'Master bedroom with wooden flooring',
         is_cover: false,
         order: 2
       }
+
     ],
     amenities: ['Clubhouse', 'Swimming Pool', 'EV Charging', 'Metro Walkable (500m)'],
     public_verification_badge: 'DOCS_CHECKED',
@@ -235,7 +236,7 @@ export function BuyerDiscovery() {
         <div className="mb-8">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-6 border-b border-gray-200">
             <div>
-              <span className="text-xs font-semibold uppercase tracking-wider text-[#244B8F] block mb-1">
+              <span className="text-xs font-semibold uppercase tracking-wider text-[#0073E6] block mb-1">
                 Bengaluru Resale Marketplace
               </span>
               <h1 className="text-2xl sm:text-3xl font-bold font-['Montserrat'] text-[#172033]">
@@ -246,7 +247,7 @@ export function BuyerDiscovery() {
               </p>
             </div>
             <div className="flex items-center space-x-2 text-xs font-medium text-gray-700 bg-white px-3.5 py-2 rounded-lg border border-gray-200 shadow-xs shrink-0 self-start">
-              <ShieldCheck className="w-4 h-4 text-[#244B8F]" />
+              <ShieldCheck className="w-4 h-4 text-[#0073E6]" />
               <span>{filteredListings.length} Verified Apartments Available</span>
             </div>
           </div>
@@ -271,7 +272,7 @@ export function BuyerDiscovery() {
                     onClick={() => setSelectedBhk(bhk)}
                     className={`px-3 py-1.5 rounded text-xs font-medium transition-colors cursor-pointer ${
                       selectedBhk === bhk
-                        ? 'bg-[#244B8F] text-white font-semibold'
+                        ? 'bg-[#0073E6] text-white font-semibold'
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
                   >
@@ -287,7 +288,7 @@ export function BuyerDiscovery() {
               <select
                 value={selectedLocality}
                 onChange={(e) => setSelectedLocality(e.target.value)}
-                className="w-full px-3 py-1.5 rounded border border-gray-300 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#244B8F]"
+                className="w-full px-3 py-1.5 rounded border border-gray-300 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#0073E6]"
               >
                 <option value="ALL">All Bengaluru Zones</option>
                 <option value="Kanakapura">South Bengaluru (Kanakapura Rd)</option>
@@ -302,7 +303,7 @@ export function BuyerDiscovery() {
               <select
                 value={selectedBadge}
                 onChange={(e) => setSelectedBadge(e.target.value)}
-                className="w-full px-3 py-1.5 rounded border border-gray-300 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#244B8F]"
+                className="w-full px-3 py-1.5 rounded border border-gray-300 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#0073E6]"
               >
                 <option value="ALL">All Verification Badges</option>
                 <option value="DOCS_CHECKED">Docs Checked (Title & EC)</option>
@@ -315,7 +316,7 @@ export function BuyerDiscovery() {
             <div>
               <div className="flex items-center justify-between text-xs font-semibold text-gray-700 mb-1.5">
                 <span>Max Budget:</span>
-                <span className="text-[#244B8F]">₹{(maxBudgetLakhs / 100).toFixed(2)} Cr</span>
+                <span className="text-[#0073E6]">₹{(maxBudgetLakhs / 100).toFixed(2)} Cr</span>
               </div>
               <input
                 type="range"
@@ -324,7 +325,7 @@ export function BuyerDiscovery() {
                 step="10"
                 value={maxBudgetLakhs}
                 onChange={(e) => setMaxBudgetLakhs(parseInt(e.target.value))}
-                className="w-full accent-[#244B8F] cursor-pointer"
+                className="w-full accent-[#0073E6] cursor-pointer"
               />
             </div>
           </div>
@@ -345,7 +346,7 @@ export function BuyerDiscovery() {
                   className="w-full h-full object-cover"
                 />
                 {/* Verification Badge with Legal Disclaimers Flag */}
-                <div className="absolute top-3 left-3 flex items-center space-x-1.5 bg-[#244B8F] text-white text-xs font-semibold px-2.5 py-1 rounded shadow-xs">
+                <div className="absolute top-3 left-3 flex items-center space-x-1.5 bg-[#0073E6] text-white text-xs font-semibold px-2.5 py-1 rounded shadow-xs">
                   <ShieldCheck className="w-3.5 h-3.5" />
                   <span>{listing.public_verification_badge.replace('_', ' ')}</span>
                 </div>
@@ -368,7 +369,7 @@ export function BuyerDiscovery() {
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <div className="text-lg font-bold font-['Montserrat'] text-[#244B8F]">
+                      <div className="text-lg font-bold font-['Montserrat'] text-[#0073E6]">
                         ₹{(listing.asking_price_inr / 10000000).toFixed(2)} Cr
                       </div>
                       <div className="text-[11px] text-gray-500">
@@ -420,7 +421,7 @@ export function BuyerDiscovery() {
                         setActiveListing(listing);
                         setIsBookingModalOpen(true);
                       }}
-                      className="px-3.5 py-2 rounded-lg bg-[#244B8F] hover:bg-[#1B396E] text-white text-xs font-semibold transition-colors flex items-center space-x-1.5 cursor-pointer"
+                      className="px-3.5 py-2 rounded-lg bg-[#0073E6] hover:bg-[#005BB5] text-white text-xs font-semibold transition-colors flex items-center space-x-1.5 cursor-pointer"
                     >
                       <Calendar className="w-3.5 h-3.5" />
                       <span>Book Physical Visit</span>
@@ -435,7 +436,7 @@ export function BuyerDiscovery() {
         {/* Verification Badges Statutory Definition & Transparency Footer */}
         <div className="p-6 bg-white rounded-xl border border-gray-200 text-xs text-gray-600 space-y-3">
           <div className="flex items-center space-x-2 text-sm font-bold text-[#172033] font-['Montserrat']">
-            <Info className="w-4 h-4 text-[#244B8F]" />
+            <Info className="w-4 h-4 text-[#0073E6]" />
             <span>SellMyGhar Verification Standards & Buyer Transparency Notice</span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
@@ -476,7 +477,7 @@ export function BuyerDiscovery() {
               {/* Modal Header */}
               <div className="p-5 bg-gray-50 border-b border-gray-200 flex items-start justify-between">
                 <div>
-                  <span className="text-[10px] font-semibold uppercase tracking-wider text-[#244B8F] block">
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-[#0073E6] block">
                     Property Visit Coordination
                   </span>
                   <h3 className="text-base font-bold font-['Montserrat'] text-[#172033] mt-0.5">
@@ -507,7 +508,7 @@ export function BuyerDiscovery() {
                         Visit Request Submitted
                       </h4>
                       <p className="text-xs text-gray-600 mt-1">
-                        Booking Reference: <strong className="font-mono text-[#244B8F]">{bookingSuccessRef}</strong>
+                        Booking Reference: <strong className="font-mono text-[#0073E6]">{bookingSuccessRef}</strong>
                       </p>
                     </div>
                     <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg text-xs text-blue-900 text-left">
@@ -516,7 +517,7 @@ export function BuyerDiscovery() {
                     <button
                       type="button"
                       onClick={closeBookingModal}
-                      className="w-full py-2.5 rounded-lg bg-[#244B8F] text-white text-xs font-semibold hover:bg-[#1B396E] cursor-pointer"
+                      className="w-full py-2.5 rounded-lg bg-[#0073E6] text-white text-xs font-semibold hover:bg-[#005BB5] cursor-pointer"
                     >
                       Close Window
                     </button>
@@ -540,7 +541,7 @@ export function BuyerDiscovery() {
                         placeholder="e.g., Ananya Sharma"
                         value={bookingData.buyerName}
                         onChange={(e) => setBookingData({ ...bookingData, buyerName: e.target.value })}
-                        className="w-full px-3 py-2 rounded border border-gray-300 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#244B8F]"
+                        className="w-full px-3 py-2 rounded border border-gray-300 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#0073E6]"
                       />
                     </div>
 
@@ -557,7 +558,7 @@ export function BuyerDiscovery() {
                           placeholder="9876543210"
                           value={bookingData.buyerPhone}
                           onChange={(e) => setBookingData({ ...bookingData, buyerPhone: e.target.value })}
-                          className="w-full pl-11 pr-3 py-2 rounded border border-gray-300 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#244B8F]"
+                          className="w-full pl-11 pr-3 py-2 rounded border border-gray-300 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#0073E6]"
                         />
                       </div>
                       <span className="text-[10px] text-gray-400 mt-0.5 block">
@@ -607,11 +608,11 @@ export function BuyerDiscovery() {
                           type="checkbox"
                           checked={bookingData.consentDpdp}
                           onChange={(e) => setBookingData({ ...bookingData, consentDpdp: e.target.checked })}
-                          className="mt-0.5 h-3.5 w-3.5 rounded border-gray-300 text-[#244B8F] focus:ring-[#244B8F]"
+                          className="mt-0.5 h-3.5 w-3.5 rounded border-gray-300 text-[#0073E6] focus:ring-[#0073E6]"
                         />
                         <span className="text-[11px] text-gray-600 leading-tight">
                           I consent to SellMyGhar coordinating this property visit with the verified owner under our{' '}
-                          <a href="/privacy-policy" target="_blank" className="text-[#244B8F] underline">
+                          <a href="/privacy-policy" target="_blank" className="text-[#0073E6] underline">
                             DPDP Privacy Notice
                           </a>. <span className="text-red-600">*</span>
                         </span>
@@ -622,7 +623,7 @@ export function BuyerDiscovery() {
                       <button
                         type="submit"
                         disabled={isSubmitting}
-                        className="w-full py-2.5 rounded-lg bg-[#244B8F] hover:bg-[#1B396E] text-white text-xs font-semibold transition-colors cursor-pointer flex items-center justify-center space-x-2 disabled:opacity-50"
+                        className="w-full py-2.5 rounded-lg bg-[#0073E6] hover:bg-[#005BB5] text-white text-xs font-semibold transition-colors cursor-pointer flex items-center justify-center space-x-2 disabled:opacity-50"
                       >
                         <span>{isSubmitting ? 'Sending OTP...' : 'Continue to Phone OTP Verification'}</span>
                         <ArrowRight className="w-3.5 h-3.5" />
@@ -631,7 +632,7 @@ export function BuyerDiscovery() {
                   </form>
                 ) : (
                   <form onSubmit={handleOtpConfirm} className="space-y-4 text-center">
-                    <div className="w-10 h-10 rounded-full bg-blue-50 text-[#244B8F] flex items-center justify-center mx-auto mb-2">
+                    <div className="w-10 h-10 rounded-full bg-blue-50 text-[#0073E6] flex items-center justify-center mx-auto mb-2">
                       <ShieldCheck className="w-5 h-5" />
                     </div>
                     <div>
@@ -660,7 +661,7 @@ export function BuyerDiscovery() {
                       placeholder="123456"
                       value={buyerOtp}
                       onChange={(e) => setBuyerOtp(e.target.value.replace(/\D/g, ''))}
-                      className="w-48 mx-auto text-center tracking-widest text-xl font-mono py-2 px-3 rounded border border-gray-300 focus:outline-none focus:ring-1 focus:ring-[#244B8F]"
+                      className="w-48 mx-auto text-center tracking-widest text-xl font-mono py-2 px-3 rounded border border-gray-300 focus:outline-none focus:ring-1 focus:ring-[#0073E6]"
                     />
 
                     <div className="flex items-center space-x-2 pt-2">
@@ -674,7 +675,7 @@ export function BuyerDiscovery() {
                       <button
                         type="submit"
                         disabled={isSubmitting || buyerOtp.length !== 6}
-                        className="w-2/3 py-2 rounded bg-[#244B8F] hover:bg-[#1B396E] text-white text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                        className="w-2/3 py-2 rounded bg-[#0073E6] hover:bg-[#005BB5] text-white text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
                       >
                         {isSubmitting ? 'Confirming...' : 'Verify OTP & Book Visit'}
                       </button>

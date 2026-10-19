@@ -94,14 +94,14 @@ export const DEFAULT_PUBLISHED_EMAIL_HTML = `<!DOCTYPE html>
   <style>
     body { font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #F4F6F9; margin: 0; padding: 24px 12px; color: #172033; }
     .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #E2E8F0; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.05); }
-    .header { background: #172033; padding: 24px 32px; text-align: left; border-bottom: 3px solid #244B8F; }
+    .header { background: #172033; padding: 24px 32px; text-align: left; border-bottom: 3px solid #0073E6; }
     .brand { font-size: 22px; font-weight: 800; color: #ffffff; letter-spacing: -0.5px; }
     .brand span { color: #38BDF8; }
     .sub-brand { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #94A3B8; margin-top: 4px; }
     .cover-wrap { width: 100%; height: 260px; background-color: #0F172A; position: relative; overflow: hidden; }
     .cover-img { width: 100%; height: 100%; object-fit: cover; }
     .body { padding: 32px; }
-    .badge-pill { display: inline-block; padding: 4px 12px; background: #EFF6FF; border: 1px solid #BFDBFE; color: #244B8F; font-size: 11px; font-weight: 700; border-radius: 20px; text-transform: uppercase; margin-bottom: 12px; }
+    .badge-pill { display: inline-block; padding: 4px 12px; background: #EFF6FF; border: 1px solid #BFDBFE; color: #0073E6; font-size: 11px; font-weight: 700; border-radius: 20px; text-transform: uppercase; margin-bottom: 12px; }
     h1 { font-size: 22px; font-weight: 800; color: #172033; margin: 0 0 16px 0; line-height: 1.3; }
     .spec-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 20px 0; padding: 16px; background: #F8FAFC; border-radius: 12px; border: 1px solid #EDF2F7; }
     .spec-item { font-size: 13px; color: #64748B; }
@@ -111,9 +111,9 @@ export const DEFAULT_PUBLISHED_EMAIL_HTML = `<!DOCTYPE html>
     .price-value { font-size: 24px; font-weight: 800; color: #15803D; }
     .desc { font-size: 14px; line-height: 1.6; color: #475569; margin-bottom: 28px; }
     .btn-wrap { text-align: center; margin: 30px 0 10px 0; }
-    .btn { display: inline-block; background: #244B8F; color: #ffffff !important; text-decoration: none; font-size: 14px; font-weight: 700; padding: 14px 36px; border-radius: 10px; box-shadow: 0 4px 12px rgba(36,75,143,0.3); }
+    .btn { display: inline-block; background: #0073E6; /* legacy: #244B8F */ color: #ffffff !important; text-decoration: none; font-size: 14px; font-weight: 700; padding: 14px 36px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,115,230,0.3); }
     .footer { background: #F8FAFC; padding: 24px 32px; border-top: 1px solid #E2E8F0; text-align: center; font-size: 12px; color: #94A3B8; line-height: 1.5; }
-    .footer a { color: #244B8F; text-decoration: underline; }
+    .footer a { color: #0073E6; text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -1898,12 +1898,59 @@ export class EmailNotificationService {
     };
   }
 
-  static async listNotifications(limit: number = 50): Promise<PublicationNotificationRecord[]> {
-    await this.initTables();
-    const res = await executeQuery<PublicationNotificationRecord>(
-      `SELECT * FROM publication_notifications ORDER BY created_at DESC LIMIT $1;`,
-      [limit]
-    );
-    return res.rows || [];
+  static async sendJobApplicationNotification(data: {
+    applicantName: string;
+    positionTitle: string;
+    email: string;
+    phone: string;
+    experienceYears?: string;
+    coverNote?: string;
+    resumeUrl?: string;
+  }): Promise<void> {
+    const subject = `Job Application: ${data.applicantName} for ${data.positionTitle}`;
+    const html = `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family: sans-serif; background-color: #f4f6f9; padding: 20px;">
+  <div style="max-width: 600px; margin: 0 auto; background: #fff; padding: 24px; border-radius: 12px; border: 1px solid #e2e8f0;">
+    <h2 style="color: #1e3a8a; margin-top: 0;">New Job Application Received</h2>
+    <p><strong>Candidate Name:</strong> ${data.applicantName}</p>
+    <p><strong>Target Position:</strong> ${data.positionTitle}</p>
+    <p><strong>Email Address:</strong> <a href="mailto:${data.email}">${data.email}</a></p>
+    <p><strong>Mobile Number:</strong> <a href="tel:${data.phone}">${data.phone}</a></p>
+    <p><strong>Experience Level:</strong> ${data.experienceYears || 'Not specified'}</p>
+    <p><strong>Cover Note / Summary:</strong> ${data.coverNote || 'None provided'}</p>
+    ${data.resumeUrl ? `<p><strong>Resume Link:</strong> <a href="${data.resumeUrl}" target="_blank">${data.resumeUrl}</a></p>` : ''}
+    <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;">
+    <p style="font-size: 11px; color: #64748b;">Dispatched automatically by SellMyGhar Talent Acquisition Engine</p>
+  </div>
+</body>
+</html>`;
+
+    const idempotencyKey = `job-app-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    await this.dispatchEmail({
+      recipient: 'sellmyghar1@gmail.com',
+      subject,
+      html,
+      eventType: 'USER_WELCOME',
+      idempotencyKey,
+      fromAddress: getFormattedSender('ONBOARDING'),
+    });
+  }
+
+  static async listNotifications(limit: number = 50): Promise<any[]> {
+    try {
+      const res = await executeQuery(
+        `SELECT id, property_id, recipient_email, subject, status, idempotency_key, provider_response, provider_message_id, event_type, error_message, delivery_attempts, sent_at, created_at, updated_at
+         FROM publication_notifications
+         ORDER BY created_at DESC
+         LIMIT $1;`,
+        [limit]
+      );
+      return res.rows || [];
+    } catch (err) {
+      console.error('[EmailNotificationService] Failed to query publication_notifications:', err);
+      return [];
+    }
   }
 }

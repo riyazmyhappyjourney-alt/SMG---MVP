@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="SellMyGhar-MVP" version="2.0.0" environment="production" generated="2026-10-15">
+
+  <!-- ========================================================================= -->
+  <!-- 1. DEPLOYMENT & RUNTIME INFRASTRUCTURE                                    -->
+  <!-- ========================================================================= -->
+  <infrastructure provider="Google Cloud Platform">
+    <service name="Google Cloud Run" service_name="sellmyghar-prod" region="asia-south1">
+      <specs port="8080" memory="1Gi" cpu="1" min_instances="1" max_instances="10" />
+      <domains>
+        <domain type="public" host="sellmyghar.in" description="Customer Facing Portal" />
+        <domain type="internal" host="crm.sellmyghar.in" description="Strict Employee CRM" />
+      </domains>
+    </service>
+    <pipeline name="Google Cloud Build" config="cloudbuild.yaml">
+      <containerfile path="Dockerfile" stages="builder (node:22-slim) -> runner (node:22-slim)" />
+    </pipeline>
+  </infrastructure>
+
+  <!-- ========================================================================= -->
+  <!-- 2. BACKEND SERVER & API GATEWAYS                                          -->
+  <!-- ========================================================================= -->
+  <backend runtime="Node.js 22" language="TypeScript" entrypoint="server.ts">
+    
+    <security_layer>
+      <module name="HTTP Security" file="server.ts">
+        <headers csp="enabled" hsts="max-age=31536000" x_frame_options="DENY" nosniff="true" />
+        <csrf_defense allow_origins="sellmyghar.in, *.sellmyghar.in, *.run.app" />
+        <rate_limiter window_ms="60000" max_requests="120" />
+      </module>
+
+      <module name="Auth &amp; Session Boundary" file="src/server/auth/middleware.ts">
+        <cookie name="sellmyghar_session" httpOnly="true" secure="true" sameSite="lax" />
+        <token_revocation mechanism="PostgreSQL token_version increment" />
+        <guard name="requireStaffMember" access="Strict Employee Only (401 for guests, 403 for customers)" />
+      </module>
+
+      <module name="Authorization &amp; Permissions" file="src/server/auth/rbac.ts">
+        <policy type="Employee Equality">
+          <description>All approved staff members share standard operational permissions across CRM modules</description>
+        </policy>
+        <policy type="DPDP Erasure Guard">
+          <permission name="compliance:execute_erasure" allowed_roles="STAFF_SUPER_ADMIN" />
+        </policy>
+      </module>
+
+      <module name="Object Ownership &amp; Sanitization" file="src/server/auth/ownership.ts">
+        <rule name="assertCanAccessProperty" protects="Cross-tenant access prevention" />
+        <rule name="sanitizePropertyForStaff" exposes="Full unit numbers and reserve prices to authorized staff" />
+      </module>
+    </security_layer>
+
+    <api_endpoints>
+      <!-- Authentication -->
+      <group name="Public &amp; Customer Auth" base_path="/api/auth">
+        <endpoint method="POST" path="/otp/request" description="Send 6-digit dev/SMS OTP" />
+        <endpoint method="POST" path="/otp/verify" description="Verify OTP and issue session cookie" />
+        <endpoint method="GET" path="/me" description="Retrieve current session profile" />
+        <endpoint method="POST" path="/logout" description="Clear session cookie" />
+        <endpoint method="POST" path="/google" description="Google OAuth PKCE exchange" />
+      </group>
+
+      <!-- Customer Seller Funnel -->
+      <group name="Customer Property &amp; Lead Submission" base_path="/api">
+        <endpoint method="POST" path="/properties/submit" description="Submit property &amp; create seller lead" />
+        <endpoint method="GET" path="/properties/public" description="Browse published listings" />
+        <endpoint method="GET" path="/properties/public/:id" description="Fetch public property details" />
+      </group>
+
+      <!-- Internal Employee CRM (Strict Employee Only) -->
+      <group name="Internal CRM APIs" base_path="/api/crm" guard="requireStaffMember">
+        <endpoint method="GET" path="/leads" description="List all incoming seller leads" />
+        <endpoint method="PATCH" path="/leads/:id/status" description="Update lead lifecycle status" />
+        <endpoint method="GET" path="/properties/:id/details" description="Full specs + confidential reserve price" />
+        <endpoint method="PATCH" path="/properties/:id" description="Update property attributes &amp; verification tier" />
+        <endpoint method="POST" path="/properties/:id/publish" description="Publish approved listing to public site" />
+        <endpoint method="GET" path="/staff" description="Employee directory" />
+        <endpoint method="POST" path="/users" description="Add employee account (@sellmyghar.in domain)" />
+        <endpoint method="PATCH" path="/users/:id" description="Edit employee / Deactivate / Invalidate sessions" />
+        <endpoint method="DELETE" path="/users/:id" description="Remove staff account (preserves leads &amp; audit history)" />
+        <endpoint method="GET" path="/audit" description="Inspect immutable audit event logs" />
+      </group>
+    </api_endpoints>
+
+    <database_layer>
+      <primary type="PostgreSQL via Supabase Pooler" host="aws-0-ap-south-1.pooler.supabase.com:5432">
+        <tables>
+          <table name="users" columns="id, phone, email, roles, is_active, token_version, password_hash" />
+          <table name="properties" columns="id, owner_id, unit_number, bhk_type, asking_price_inr, reserve_minimum_price_inr, verification_tier, listing_status" />
+          <table name="seller_leads" columns="id, owner_phone, property_id, assigned_staff_id, status" />
+          <table name="buyer_enquiries" columns="id, buyer_phone, property_id, assigned_staff_id, status" />
+          <table name="property_visits" columns="id, property_id, buyer_id, scheduled_at, status" />
+          <table name="property_offers" columns="id, property_id, buyer_id, offer_amount_inr, status" />
+          <table name="audit_logs" columns="id, actor_id, event, target, client_ip, timestamp" />
+          <table name="consents" columns="id, user_id, purpose, lawful_basis, granted_at" />
+        </tables>
+      </primary>
+      <fallback type="DevSandboxStore" file="src/server/db/dev-sandbox-store.ts" condition="Offline / Local testing" />
+    </database_layer>
+  </backend>
+
+  <!-- ========================================================================= -->
+  <!-- 3. FRONTEND SINGLE PAGE APPLICATION                                       -->
+  <!-- ========================================================================= -->
+  <frontend framework="React 18" bundler="Vite" styling="Tailwind CSS">
+    
+    <router file="src/App.tsx">
+      <route path="/" component="HomePage" view="Public Consumer Landing" />
+      <route path="/seller-assisted" component="SellerFunnel" view="Step-by-step Property Listing" />
+      <route path="/property/:id" component="PropertyDetailPage" view="Public Listing Specs &amp; Brochure" />
+      <route path="/sell-flat-in-:locality-bangalore" component="LocalityPage" view="Micro-Market SEO Hubs" />
+      <route path="/contact" component="ContactPage" view="Direct Support &amp; Office Address" />
+      <route path="/careers" component="CareersPage" view="Open Positions" />
+      <route path="/privacy" component="PrivacyPolicy" view="17-Section DPDP Compliant Policy" />
+      <route path="/terms" component="TermsPage" view="Terms &amp; Conditions" />
+      <route path="/auth/login" component="AuthPage" view="Consumer Phone / Google Sign-in" />
+      <route path="/auth/staff" component="StaffLogin" view="Employee Portal Login" />
+      <route host="crm.sellmyghar.in" component="CrmDashboard" view="Internal Workspace" />
+    </router>
+
+    <crm_workspace file="src/components/crm/CrmDashboard.tsx">
+      <module name="Leads" component="LeadTable" description="Seller lead pipeline management" />
+      <module name="Properties" component="PropertyEditor" description="Listing editor + Reserve Minimum Price" />
+      <module name="Verification" component="DocumentVerificationDesk" description="Legal title &amp; deed verification" />
+      <module name="Visits" component="VisitManager" description="Buyer inspection scheduling" />
+      <module name="Offers" component="OfferManager" description="Buyer offer negotiation &amp; closing" />
+      <module name="Calendar" component="CalendarModule" description="Site visit agenda" />
+      <module name="Tasks" component="TaskManager" description="Staff follow-up tasks" />
+      <module name="Templates" component="TemplateEditor" description="WhatsApp &amp; email notification copy" />
+      <module name="Brochures" component="PropertyBrochureModal" description="PDF marketing brochure generator" />
+      <module name="Audit" component="AuditLogViewer" description="Security &amp; access event trail" />
+      <module name="Administration" component="StaffDirectory" description="Add, edit, deactivate &amp; remove employees" />
+      <module name="Erasure Queue" component="AdminErasureQueue" description="DPDP Act Section 12 data erasure desk" />
+    </crm_workspace>
+  </frontend>
+
+  <!-- ========================================================================= -->
+  <!-- 4. AUTOMATED REGRESSION & COMPLIANCE TEST SUITES                          -->
+  <!-- ========================================================================= -->
+  <test_suites engine="tsx / node:test" total_tests="489" status="100% Passing">
+    <suite name="Employee Access &amp; Administration" file="scripts/test-crm-employee-access-and-administration.ts" />
+    <suite name="Property Management &amp; Workflows" file="scripts/run-crm-property-management-tests.ts" />
+    <suite name="Auth Isolation &amp; Reset" file="scripts/test-auth-isolation-and-reset.ts" />
+    <suite name="DPDP Consent &amp; Erasure Lifecycle" file="src/server/compliance/consent.test.ts" />
+    <suite name="Full Regression Suite" file="scripts/run-all-tests.ts" />
+  </test_suites>
+</project>

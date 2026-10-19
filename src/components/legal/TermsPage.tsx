@@ -30,7 +30,7 @@ export const TermsPage: React.FC<TermsPageProps> = ({
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F4F6F9] selection:bg-[#244B8F] selection:text-white font-['Montserrat'] text-slate-800">
+    <div className="min-h-screen flex flex-col bg-[#F4F6F9] selection:bg-[#0073E6] selection:text-white font-['Montserrat'] text-slate-800">
       <Header
         onPostPropertyClick={() => {
           if (onNavigateToSellerAssisted) onNavigateToSellerAssisted();
@@ -48,7 +48,7 @@ export const TermsPage: React.FC<TermsPageProps> = ({
           
           {/* Header Card */}
           <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-8 mb-8">
-            <div className="flex items-center space-x-2 text-xs font-bold text-[#244B8F] uppercase tracking-wider mb-2">
+            <div className="flex items-center space-x-2 text-xs font-bold text-[#0073E6] uppercase tracking-wider mb-2">
               <Scale className="w-4 h-4" />
               <span>Legal & Platform Agreement</span>
             </div>
@@ -143,7 +143,7 @@ export const TermsPage: React.FC<TermsPageProps> = ({
                   if (onBackToHome) onBackToHome();
                   else window.location.hash = '#/';
                 }}
-                className="inline-flex items-center space-x-2 text-xs font-bold text-[#244B8F] hover:underline cursor-pointer"
+                className="inline-flex items-center space-x-2 text-xs font-bold text-[#0073E6] hover:underline cursor-pointer"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
                 <span>Return to Home</span>

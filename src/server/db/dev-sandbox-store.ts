@@ -133,6 +133,11 @@ export interface DevProperty {
   public_address?: string;
   floor_band?: string;
   developer_name?: string;
+  developer_logo_url?: string | null;
+  developer_rera_id?: string | null;
+  developer_launch_year?: number | null;
+  floor_plan_url?: string | null;
+  floor_plans?: any;
   landmarks?: any[];
   highlights?: string[];
   verification_tier: string;
@@ -147,6 +152,7 @@ export interface DevPropertyMedia {
   url: string;
   is_featured: boolean;
   display_order?: number;
+  title?: string | null;
   checksum: string;
   storage_path?: string | null;
   mime_type?: string | null;
@@ -237,6 +243,8 @@ class DevSandboxStore {
   public publicationNotifications = new Map<string, any>();
   public partnerLogos = new Map<string, any>();
   public partnerSectionSettings = new Map<string, any>();
+  public careerPositions = new Map<string, any>();
+  public careerApplications = new Map<string, any>();
   public passwordResetTokens = new Map<string, DevPasswordResetToken>();
   private activeTxSnapshots = new Map<string, {
     users: Map<string, DevUser>;
@@ -270,6 +278,8 @@ class DevSandboxStore {
     this.publicationNotifications.clear();
     this.partnerLogos.clear();
     this.partnerSectionSettings.clear();
+    this.careerPositions.clear();
+    this.careerApplications.clear();
     this.initialized = false;
     this.initInitialSeeds();
   }
@@ -723,7 +733,7 @@ class DevSandboxStore {
         wingTower: 'Tower 5',
         unitNumber: 'Flat 502',
         bhkType: '3BHK',
-        photos: ['https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80'],
+        photos: ['https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=1200&q=80'],
         email: 'socialmedia@myhappyjourney.com',
         phone: '+919876543210'
       }),
@@ -734,12 +744,13 @@ class DevSandboxStore {
 
     // Seed default media for sample properties
     const mediaSeeds = [
-      { id: 'media-seed-01', property_id: 'prop-dev-seed-01', url: 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80', is_featured: true },
-      { id: 'media-seed-02', property_id: 'prop-dev-seed-02', url: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80', is_featured: true },
+      { id: 'media-seed-01', property_id: 'prop-dev-seed-01', url: 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=1200&q=80', is_featured: true },
+      { id: 'media-seed-02', property_id: 'prop-dev-seed-02', url: 'https://images.unsplash.com/photo-1567496898669-ee935f5f647a?auto=format&fit=crop&w=1200&q=80', is_featured: true },
       { id: 'media-seed-03', property_id: 'prop-dev-seed-03', url: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1200&q=80', is_featured: true },
       { id: 'media-seed-04', property_id: 'prop-dev-seed-04', url: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=1200&q=80', is_featured: true },
-      { id: 'media-riyaz-01', property_id: 'prop-mv86xj5r-m4v0', url: 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80', is_featured: true },
+      { id: 'media-riyaz-01', property_id: 'prop-mv86xj5r-m4v0', url: 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=1200&q=80', is_featured: true },
     ];
+
     for (const m of mediaSeeds) {
       this.propertyMedia.set(m.id, {
         id: m.id,
@@ -1965,6 +1976,16 @@ class DevSandboxStore {
     }
 
     if (cleanSql.includes('UPDATE property_media')) {
+      if (cleanSql.includes('title = $1 WHERE id = $2')) {
+        const newTitle = params[0] || null;
+        const targetId = params[1];
+        const m = this.propertyMedia.get(targetId);
+        if (m) {
+          m.title = newTitle;
+          return { rows: [{ ...m }] };
+        }
+        return { rows: [] };
+      }
       if (cleanSql.includes('display_order = $1')) {
         const newOrder = Number(params[0]);
         const targetId = params[1];
@@ -2326,7 +2347,7 @@ class DevSandboxStore {
         return { rows: [] };
       }
 
-      // Full property field edit: UPDATE properties SET title = COALESCE($1, title)... WHERE id = $17
+      // Full property field edit: UPDATE properties SET title = COALESCE($1, title)...
       if (cleanSql.includes('title = COALESCE($1, title)')) {
         const propId = params[params.length - 1];
         const p = this.properties.get(propId);
@@ -2353,6 +2374,21 @@ class DevSandboxStore {
           if (params[15] !== null && params[15] !== undefined) {
             try { p.highlights = JSON.parse(params[15]); } catch { p.highlights = params[15]; }
           }
+          if (params[16] !== null && params[16] !== undefined) p.crm_status = params[16];
+          if (params[17] !== null && params[17] !== undefined) p.listing_status = params[17];
+          if (params[18] !== null && params[18] !== undefined) p.verification_tier = params[18];
+          if (params[19] !== null && params[19] !== undefined) p.floor_plan_url = params[19];
+          if (params[20] !== null && params[20] !== undefined) {
+            try { p.floor_plans = JSON.parse(params[20]); } catch { p.floor_plans = params[20]; }
+          }
+          if (params[21] !== null && params[21] !== undefined) p.developer_logo_url = params[21];
+          if (params[22] !== null && params[22] !== undefined) p.developer_rera_id = params[22];
+          if (params[23] !== null && params[23] !== undefined) p.developer_launch_year = Number(params[23]);
+          if (params[24] !== null && params[24] !== undefined) p.unit_floor = Number(params[24]);
+          if (params[25] !== null && params[25] !== undefined) p.total_floors = Number(params[25]);
+          if (params[26] !== null && params[26] !== undefined) p.bathrooms_count = Number(params[26]);
+          if (params[27] !== null && params[27] !== undefined) p.balconies_count = Number(params[27]);
+          if (params[28] !== null && params[28] !== undefined) p.car_parks_count = Number(params[28]);
           p.updated_at = new Date().toISOString();
           return { rows: [{ ...p }] };
         }
@@ -2897,6 +2933,86 @@ class DevSandboxStore {
       return had ? { rows: [{ id }] } : { rows: [] };
     }
 
+    if (cleanSql.includes('FROM career_positions') && cleanSql.includes('WHERE id = $1')) {
+      const pos = this.careerPositions.get(params[0]);
+      return pos ? { rows: [{ ...pos }] } : { rows: [] };
+    }
+
+    if (cleanSql.includes('FROM career_positions')) {
+      if (this.careerPositions.size === 0) {
+        this.initCareerSeeds();
+      }
+      let list = Array.from(this.careerPositions.values());
+      if (cleanSql.includes('WHERE is_active = true')) {
+        list = list.filter(p => p.is_active);
+      }
+      list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      return { rows: list.map(p => ({ ...p })) };
+    }
+
+    if (cleanSql.includes('INSERT INTO career_positions')) {
+      const item = {
+        id: params[0],
+        title: params[1],
+        department: params[2],
+        location: params[3],
+        employment_type: params[4] || 'Full-time',
+        description: params[5],
+        is_active: params[6] !== undefined ? Boolean(params[6]) : true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      this.careerPositions.set(item.id, item);
+      return { rows: [{ ...item }] };
+    }
+
+    if (cleanSql.includes('UPDATE career_positions')) {
+      const id = params[params.length - 1];
+      const pos = this.careerPositions.get(id);
+      if (pos) {
+        let pIdx = 1;
+        if (cleanSql.includes('title = $')) pos.title = params[pIdx++ - 1];
+        if (cleanSql.includes('department = $')) pos.department = params[pIdx++ - 1];
+        if (cleanSql.includes('location = $')) pos.location = params[pIdx++ - 1];
+        if (cleanSql.includes('employment_type = $')) pos.employment_type = params[pIdx++ - 1];
+        if (cleanSql.includes('description = $')) pos.description = params[pIdx++ - 1];
+        if (cleanSql.includes('is_active = $')) pos.is_active = Boolean(params[pIdx++ - 1]);
+        pos.updated_at = new Date().toISOString();
+        return { rows: [{ ...pos }] };
+      }
+      return { rows: [] };
+    }
+
+    if (cleanSql.includes('DELETE FROM career_positions WHERE id = $1')) {
+      const id = params[0];
+      const had = this.careerPositions.delete(id);
+      return had ? { rows: [{ id }] } : { rows: [] };
+    }
+
+    if (cleanSql.includes('FROM career_applications')) {
+      let list = Array.from(this.careerApplications.values());
+      list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      return { rows: list.map(a => ({ ...a })) };
+    }
+
+    if (cleanSql.includes('INSERT INTO career_applications')) {
+      const item = {
+        id: params[0],
+        position_id: params[1],
+        position_title: params[2],
+        applicant_name: params[3],
+        email: params[4],
+        phone: params[5],
+        experience_years: params[6],
+        resume_url: params[7],
+        cover_note: params[8],
+        status: 'NEW',
+        created_at: new Date().toISOString(),
+      };
+      this.careerApplications.set(item.id, item);
+      return { rows: [{ ...item }] };
+    }
+
     if (cleanSql.includes('DELETE FROM users')) {
       const deleted: DevUser[] = [];
       if (cleanSql.includes('id = $1')) {
@@ -2944,9 +3060,53 @@ class DevSandboxStore {
       return { rows: [] };
     }
 
-    // Fallback: return empty set
     return { rows: [] };
+  }
+
+  public initCareerSeeds() {
+    const seedRoles = [
+      {
+        id: 'job-smg-01',
+        title: 'Senior Residential Relationship Manager',
+        department: 'Sales & Field Operations',
+        location: 'Bengaluru (East: Whitefield / ORR)',
+        employment_type: 'Full-time',
+        description: 'Lead pre-screened site viewings, conduct seller consultations, and guide buyers through apartment resale agreements in premium gated societies.',
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      },
+      {
+        id: 'job-smg-02',
+        title: 'Legal Conveyance & Title Diligence Specialist',
+        department: 'Legal & Compliance',
+        location: 'Bengaluru (Head Office: JP Nagar Phase 5)',
+        employment_type: 'Full-time',
+        description: 'Scrutinize 30-year parent sale deeds, BBMP Khata certificates, and Form 15 Encumbrance Certificates to ensure pristine title clarity for apartment resales.',
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      },
+      {
+        id: 'job-smg-03',
+        title: 'Real Estate Valuation & Pricing Analyst',
+        department: 'Market Research',
+        location: 'Bengaluru (Hybrid)',
+        employment_type: 'Full-time',
+        description: 'Analyze recorded Sub-Registrar transactions, guidance values, and locality absorption indices to price flats at peak fair market value.',
+        is_active: true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+    ];
+    for (const r of seedRoles) {
+      this.careerPositions.set(r.id, r);
+    }
   }
 }
 
 export const devSandboxStore = new DevSandboxStore();
+export function getDevStore(): DevSandboxStore {
+  return devSandboxStore;
+}
+

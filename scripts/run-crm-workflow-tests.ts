@@ -248,7 +248,7 @@ export async function runCrmWorkflowTests(): Promise<{ passed: number; failed: n
     }
 
     // 5. SELECT seller_leads (list query)
-    if (sql.includes('FROM seller_leads sl')) {
+    if (sql.includes('FROM seller_leads sl') && !sql.includes('FROM properties')) {
       const all = Array.from(memorySellerLeads.values());
       const mapped = all.map(lead => {
         const staff = lead.assigned_staff_id ? memoryUsers.get(lead.assigned_staff_id) : null;
@@ -715,6 +715,7 @@ export async function runCrmWorkflowTests(): Promise<{ passed: number; failed: n
   });
   const sellerDashboardJson = await sellerDashboardRes.json();
   const returnedProperty = sellerDashboardJson?.properties?.[0];
+
   assert(
     sellerDashboardRes.status === 200 &&
     returnedProperty?.crm_status === 'CONVERTED' &&

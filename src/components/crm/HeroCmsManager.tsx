@@ -185,7 +185,7 @@ export const HeroCmsManager: React.FC = () => {
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-5">
         <div>
           <div className="flex items-center space-x-2">
-            <Image className="w-5 h-5 text-[#244B8F]" />
+            <Image className="w-5 h-5 text-[#0073E6]" />
             <h3 className="text-base font-extrabold text-[#172033]">
               Hero Banner Carousel CMS
             </h3>
@@ -203,14 +203,14 @@ export const HeroCmsManager: React.FC = () => {
             className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors cursor-pointer border border-slate-200"
             title="Download pixel-perfect 1920×800 sample graphic template"
           >
-            <Download className="w-3.5 h-3.5 text-[#244B8F]" />
+            <Download className="w-3.5 h-3.5 text-[#0073E6]" />
             <span>Sample 1920×800 Spec Template</span>
           </a>
 
           <button
             type="button"
             onClick={() => setIsAdding(!isAdding)}
-            className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-[#244B8F] hover:bg-[#1B396E] text-white text-xs font-bold transition-colors cursor-pointer shadow-xs"
+            className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-[#0073E6] hover:bg-[#005BB5] text-white text-xs font-bold transition-colors cursor-pointer shadow-xs"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>{isAdding ? 'Cancel' : 'Add New Slide'}</span>
@@ -220,7 +220,7 @@ export const HeroCmsManager: React.FC = () => {
 
       {/* Recommended Spec Guidelines Callout */}
       <div className="p-3.5 rounded-xl bg-blue-50/60 border border-blue-200/60 text-xs text-slate-700 space-y-1">
-        <div className="font-bold text-[#244B8F] flex items-center space-x-1.5">
+        <div className="font-bold text-[#0073E6] flex items-center space-x-1.5">
           <AlertCircle className="w-4 h-4" />
           <span>Recommended Image Specifications for Indian Real Estate Portals</span>
         </div>
@@ -344,7 +344,7 @@ export const HeroCmsManager: React.FC = () => {
                 id="is_active_check"
                 checked={isActive}
                 onChange={(e) => setIsActive(e.target.checked)}
-                className="rounded border-slate-300 text-[#244B8F] cursor-pointer"
+                className="rounded border-slate-300 text-[#0073E6] cursor-pointer"
               />
               <label htmlFor="is_active_check" className="font-bold text-slate-700 cursor-pointer">
                 Active on Live Site
@@ -356,7 +356,7 @@ export const HeroCmsManager: React.FC = () => {
             <button
               type="submit"
               disabled={submitting}
-              className="px-4 py-2 bg-[#244B8F] text-white rounded-lg font-bold hover:bg-[#1B396E] transition-colors cursor-pointer"
+              className="px-4 py-2 bg-[#0073E6] text-white rounded-lg font-bold hover:bg-[#005BB5] transition-colors cursor-pointer"
             >
               {submitting ? 'Saving Slide...' : 'Save & Publish Slide'}
             </button>
@@ -378,7 +378,7 @@ export const HeroCmsManager: React.FC = () => {
           <button
             type="button"
             onClick={fetchSlides}
-            className="inline-flex items-center space-x-1 text-slate-500 hover:text-[#244B8F] cursor-pointer"
+            className="inline-flex items-center space-x-1 text-slate-500 hover:text-[#0073E6] cursor-pointer"
           >
             <RefreshCw className="w-3 h-3" />
             <span>Refresh</span>

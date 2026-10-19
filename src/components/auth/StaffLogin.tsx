@@ -4,11 +4,11 @@ import { Lock, Mail, KeyRound, AlertCircle, ArrowRight, ShieldCheck, Loader2, Ar
 interface StaffLoginProps {
   onSuccess: (session: { user: any; token?: string }) => void;
   onBackToHome?: () => void;
-  initialMode?: 'LOGIN' | 'FORGOT' | 'RESET';
+  initialMode?: 'LOGIN' | 'RESET';
 }
 
 export const StaffLogin: React.FC<StaffLoginProps> = ({ onSuccess, onBackToHome, initialMode = 'LOGIN' }) => {
-  const [mode, setMode] = useState<'LOGIN' | 'FORGOT' | 'RESET'>(initialMode);
+  const [mode, setMode] = useState<'LOGIN' | 'RESET'>(initialMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -73,37 +73,6 @@ export const StaffLogin: React.FC<StaffLoginProps> = ({ onSuccess, onBackToHome,
     }
   };
 
-  // 2. Handle Forgot Password Request
-  const handleForgotSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMessage(null);
-    setSuccessMessage(null);
-
-    if (!email || !email.includes('@')) {
-      setErrorMessage('Please enter a valid registered email address.');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const res = await fetch('/api/auth/forgot-password', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim().toLowerCase() }),
-      });
-
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || 'Unable to process reset request. Please try again.');
-      }
-
-      setSuccessMessage(data.message || 'If an account exists with that email address, password reset instructions have been dispatched.');
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Failed to dispatch password reset link.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // 3. Handle Reset Password Confirmation
   const handleResetSubmit = async (e: React.FormEvent) => {
@@ -165,7 +134,7 @@ export const StaffLogin: React.FC<StaffLoginProps> = ({ onSuccess, onBackToHome,
           <button
             type="button"
             onClick={onBackToHome}
-            className="inline-flex items-center text-xs font-semibold text-slate-500 hover:text-[#244B8F] transition-colors cursor-pointer group"
+            className="inline-flex items-center text-xs font-semibold text-slate-500 hover:text-[#0073E6] transition-colors cursor-pointer group"
           >
             <ArrowLeft className="w-3.5 h-3.5 mr-1.5 group-hover:-translate-x-1 transition-transform" />
             <span>Return to Public Homepage</span>
@@ -184,14 +153,12 @@ export const StaffLogin: React.FC<StaffLoginProps> = ({ onSuccess, onBackToHome,
             />
           </div>
           <h2 className="text-2xl font-extrabold text-[#172033] tracking-tight">
-            {mode === 'LOGIN' && 'Staff Operations Portal'}
-            {mode === 'FORGOT' && 'Reset Staff Password'}
-            {mode === 'RESET' && 'Set New Password'}
+            {mode === 'LOGIN' ? 'Staff Operations Portal' : 'Set New Password'}
           </h2>
           <p className="text-xs text-slate-500 font-medium mt-1">
-            {mode === 'LOGIN' && 'Restricted authentication for Bengaluru verification & CRM desk'}
-            {mode === 'FORGOT' && 'Enter your registered staff email to receive a secure reset link'}
-            {mode === 'RESET' && 'Choose a strong, compliant password for your staff account'}
+            {mode === 'LOGIN' 
+              ? 'Restricted authentication for Bengaluru verification & CRM desk' 
+              : 'Choose a strong, compliant password for your staff account'}
           </p>
         </div>
 
@@ -230,7 +197,7 @@ export const StaffLogin: React.FC<StaffLoginProps> = ({ onSuccess, onBackToHome,
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="staff@sellmyghar.in"
-                    className="w-full pl-10 pr-3.5 py-3 text-sm bg-slate-50/70 border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#244B8F] focus:border-transparent transition-all"
+                    className="w-full pl-10 pr-3.5 py-3 text-sm bg-slate-50/70 border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0073E6] focus:border-transparent transition-all"
                   />
                 </div>
               </div>
@@ -250,7 +217,7 @@ export const StaffLogin: React.FC<StaffLoginProps> = ({ onSuccess, onBackToHome,
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••••••"
-                    className="w-full pl-10 pr-3.5 py-3 text-sm bg-slate-50/70 border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#244B8F] focus:border-transparent transition-all"
+                    className="w-full pl-10 pr-3.5 py-3 text-sm bg-slate-50/70 border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0073E6] focus:border-transparent transition-all"
                   />
                 </div>
               </div>
@@ -258,7 +225,7 @@ export const StaffLogin: React.FC<StaffLoginProps> = ({ onSuccess, onBackToHome,
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full mt-2 inline-flex items-center justify-center px-4 py-3.5 rounded-lg text-sm font-bold text-white bg-[#244B8F] hover:bg-[#1B396E] disabled:bg-slate-300 disabled:cursor-not-allowed shadow-md hover:shadow-lg transition-all cursor-pointer group"
+                className="w-full mt-2 inline-flex items-center justify-center px-4 py-3.5 rounded-lg text-sm font-bold text-white bg-[#0073E6] hover:bg-[#005BB5] disabled:bg-slate-300 disabled:cursor-not-allowed shadow-md hover:shadow-lg transition-all cursor-pointer group"
               >
                 {loading ? (
                   <>
@@ -275,52 +242,6 @@ export const StaffLogin: React.FC<StaffLoginProps> = ({ onSuccess, onBackToHome,
             </form>
           )}
 
-          {/* VIEW 2: FORGOT PASSWORD REQUEST */}
-          {mode === 'FORGOT' && (
-            <form onSubmit={handleForgotSubmit} className="space-y-4">
-              <div>
-                <label htmlFor="forgot-email" className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
-                  Registered Staff Email
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                    <Mail className="w-4 h-4" />
-                  </div>
-                  <input
-                    id="forgot-email"
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="staff@sellmyghar.in"
-                    className="w-full pl-10 pr-3.5 py-3 text-sm bg-slate-50/70 border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#244B8F] focus:border-transparent transition-all"
-                  />
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={loading || !email}
-                className="w-full py-3 rounded-lg text-sm font-bold text-white bg-[#244B8F] hover:bg-[#1B396E] disabled:bg-slate-300 disabled:cursor-not-allowed transition-all cursor-pointer flex items-center justify-center space-x-2"
-              >
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>Send Password Reset Link</span>}
-              </button>
-
-              <div className="pt-2 text-center">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode('LOGIN');
-                    setErrorMessage(null);
-                    setSuccessMessage(null);
-                  }}
-                  className="text-xs font-semibold text-slate-600 hover:text-[#244B8F] hover:underline cursor-pointer"
-                >
-                  &larr; Return to Sign In
-                </button>
-              </div>
-            </form>
-          )}
 
           {/* VIEW 3: SET NEW PASSWORD */}
           {mode === 'RESET' && (
@@ -341,7 +262,7 @@ export const StaffLogin: React.FC<StaffLoginProps> = ({ onSuccess, onBackToHome,
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     placeholder="••••••••••••"
-                    className="w-full pl-10 pr-3.5 py-3 text-sm bg-slate-50/70 border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#244B8F] focus:border-transparent transition-all"
+                    className="w-full pl-10 pr-3.5 py-3 text-sm bg-slate-50/70 border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0073E6] focus:border-transparent transition-all"
                   />
                 </div>
               </div>
@@ -362,7 +283,7 @@ export const StaffLogin: React.FC<StaffLoginProps> = ({ onSuccess, onBackToHome,
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="••••••••••••"
-                    className="w-full pl-10 pr-3.5 py-3 text-sm bg-slate-50/70 border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#244B8F] focus:border-transparent transition-all"
+                    className="w-full pl-10 pr-3.5 py-3 text-sm bg-slate-50/70 border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0073E6] focus:border-transparent transition-all"
                   />
                 </div>
               </div>
@@ -370,7 +291,7 @@ export const StaffLogin: React.FC<StaffLoginProps> = ({ onSuccess, onBackToHome,
               <button
                 type="submit"
                 disabled={loading || newPassword.length < 8 || newPassword !== confirmPassword}
-                className="w-full py-3 rounded-lg text-sm font-bold text-white bg-[#244B8F] hover:bg-[#1B396E] disabled:bg-slate-300 disabled:cursor-not-allowed transition-all cursor-pointer flex items-center justify-center space-x-2"
+                className="w-full py-3 rounded-lg text-sm font-bold text-white bg-[#0073E6] hover:bg-[#005BB5] disabled:bg-slate-300 disabled:cursor-not-allowed transition-all cursor-pointer flex items-center justify-center space-x-2"
               >
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <span>Update Password & Proceed</span>}
               </button>
@@ -383,7 +304,7 @@ export const StaffLogin: React.FC<StaffLoginProps> = ({ onSuccess, onBackToHome,
                     setErrorMessage(null);
                     setSuccessMessage(null);
                   }}
-                  className="text-xs font-semibold text-slate-600 hover:text-[#244B8F] hover:underline cursor-pointer"
+                  className="text-xs font-semibold text-slate-600 hover:text-[#0073E6] hover:underline cursor-pointer"
                 >
                   &larr; Return to Sign In
                 </button>

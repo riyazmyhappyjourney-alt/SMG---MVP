@@ -4,20 +4,41 @@
   --font-heading: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-crm: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --color-trust-blue: #244B8F;
-  --color-trust-blue-dark: #1B396E;
-  --color-trust-blue-light: #3264BA;
+  --color-brand-blue: #0073E6;
+  --color-brand-blue-hover: #005BB5;
+  --color-trust-blue: #0073E6;
+  --color-trust-blue-dark: #005BB5;
+  --color-trust-blue-light: #338FEF;
   --color-ink: #172033;
   --color-canvas: #F4F6F9;
 }
 
+html,
 body {
   font-family: var(--font-body);
   color: var(--color-ink);
   background-color: var(--color-canvas);
   margin: 0;
+  padding: 0;
+  overflow-x: hidden !important;
+  overflow-x: clip !important;
+  max-width: 100% !important;
+  width: 100% !important;
+  position: relative;
+  touch-action: pan-y;
+  overscroll-behavior-x: none !important;
+  -webkit-overflow-scrolling: touch;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
+  overflow-x: hidden !important;
+  overflow-x: clip !important;
+  max-width: 100% !important;
+  width: 100% !important;
+  position: relative;
+  overscroll-behavior-x: none !important;
 }
 
 /* Disable unwanted browser-native number input spin buttons */
@@ -278,7 +299,7 @@ h1, h2, h3, h4, h5, h6 {
   background: linear-gradient(
     90deg,
     transparent 0%,
-    #244B8F 50%,
+    #0073E6 50%,
     transparent 100%
   );
   animation: reraUnderlineSweep 3.5s cubic-bezier(0.4, 0, 0.2, 1) infinite;
@@ -309,12 +330,80 @@ h1, h2, h3, h4, h5, h6 {
   animation: paperPlaneFly 0.65s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
+/* View Property Button Light Sweep & Arrow Nudge (Active on Mobile & Desktop) */
+@keyframes btnLightSweep {
+  0% {
+    transform: translateX(-150%) skewX(-20deg);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.8;
+  }
+  50% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateX(250%) skewX(-20deg);
+    opacity: 0;
+  }
+}
+
+.animate-btn-light-sweep {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 50%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.08) 20%,
+    rgba(255, 255, 255, 0.55) 50%,
+    rgba(255, 255, 255, 0.08) 80%,
+    transparent 100%
+  );
+  animation: btnLightSweep 3.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  pointer-events: none;
+}
+
+@keyframes arrowNudge {
+  0%, 100% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(2px, -2px);
+  }
+}
+
+.animate-arrow-nudge {
+  animation: arrowNudge 2.2s ease-in-out infinite;
+}
+
+@keyframes btnZoomPulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.035);
+  }
+}
+
+.animate-btn-zoom-pulse {
+  animation: btnZoomPulse 3.2s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .animate-post-property-attention,
   .animate-sell-cta,
   .animate-brand-shimmer,
   .animate-rera-sweep,
-  .animate-rera-underline {
+  .animate-rera-underline,
+  .animate-btn-light-sweep,
+  .animate-arrow-nudge,
+  .animate-btn-zoom-pulse {
     animation: none !important;
     display: none !important;
   }

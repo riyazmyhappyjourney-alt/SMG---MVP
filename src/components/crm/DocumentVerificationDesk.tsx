@@ -243,7 +243,7 @@ export function DocumentVerificationDesk({ currentRole }: DocumentVerificationDe
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-4 border-b border-gray-100">
         <div>
           <div className="flex items-center space-x-2">
-            <FileCheck2 className="w-5 h-5 text-[#244B8F]" />
+            <FileCheck2 className="w-5 h-5 text-[#0073E6]" />
             <h2 className="text-base font-bold font-['Montserrat'] text-[#172033]">
               Title Document Inspection & Antivirus Audit Desk
             </h2>
@@ -291,7 +291,7 @@ export function DocumentVerificationDesk({ currentRole }: DocumentVerificationDe
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Search by property, deed name, SHA-256 hash..."
-            className="w-full pl-9 pr-3 py-2 text-xs bg-white border border-gray-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#244B8F]"
+            className="w-full pl-9 pr-3 py-2 text-xs bg-white border border-gray-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#0073E6]"
           />
         </div>
 
@@ -300,7 +300,7 @@ export function DocumentVerificationDesk({ currentRole }: DocumentVerificationDe
           <select
             value={filterType}
             onChange={(e) => setFilterType(e.target.value)}
-            className="w-full py-2 px-2.5 text-xs bg-white border border-gray-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#244B8F]"
+            className="w-full py-2 px-2.5 text-xs bg-white border border-gray-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#0073E6]"
           >
             <option value="ALL">All Document Types</option>
             <option value="SALE_DEED">Registered Sale Deed</option>
@@ -315,7 +315,7 @@ export function DocumentVerificationDesk({ currentRole }: DocumentVerificationDe
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
-            className="w-full py-2 px-2.5 text-xs bg-white border border-gray-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#244B8F]"
+            className="w-full py-2 px-2.5 text-xs bg-white border border-gray-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#0073E6]"
           >
             <option value="ALL">All Verification States</option>
             <option value="PENDING_REVIEW">Pending Review</option>
@@ -346,7 +346,7 @@ export function DocumentVerificationDesk({ currentRole }: DocumentVerificationDe
                 <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 border-b border-gray-100 pb-3">
                   <div>
                     <div className="flex items-center space-x-2">
-                      <span className="text-xs font-bold text-[#244B8F] tracking-wide">{doc.propertyId}</span>
+                      <span className="text-xs font-bold text-[#0073E6] tracking-wide">{doc.propertyId}</span>
                       <span className="text-gray-300">•</span>
                       <span className="text-xs font-semibold text-gray-900">{doc.propertyName}</span>
                     </div>
@@ -409,7 +409,7 @@ export function DocumentVerificationDesk({ currentRole }: DocumentVerificationDe
                       <button
                         type="button"
                         onClick={() => handleCopyHash(doc.id, doc.sha256Checksum)}
-                        className="text-[10px] text-[#244B8F] hover:underline flex items-center space-x-1 cursor-pointer"
+                        className="text-[10px] text-[#0073E6] hover:underline flex items-center space-x-1 cursor-pointer"
                       >
                         {copiedHashId === doc.id ? (
                           <>
@@ -465,7 +465,7 @@ export function DocumentVerificationDesk({ currentRole }: DocumentVerificationDe
                       onClick={() => setPreviewDoc(doc)}
                       className="px-3 py-1.5 rounded-lg border border-gray-300 hover:bg-gray-50 text-[#172033] font-semibold text-xs flex items-center space-x-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
                     >
-                      <Eye className="w-3.5 h-3.5 text-[#244B8F]" />
+                      <Eye className="w-3.5 h-3.5 text-[#0073E6]" />
                       <span>Inspect Deed (V4 Signed URL)</span>
                     </button>
 
@@ -491,7 +491,7 @@ export function DocumentVerificationDesk({ currentRole }: DocumentVerificationDe
                         setActionModal({ doc, type: 'VERIFY' });
                         setActionReason('');
                       }}
-                      className="px-3 py-1.5 rounded-lg bg-[#244B8F] hover:bg-[#1B3868] text-white font-semibold text-xs flex items-center space-x-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-xs transition-colors"
+                      className="px-3 py-1.5 rounded-lg bg-[#0073E6] hover:bg-[#1B3868] text-white font-semibold text-xs flex items-center space-x-1.5 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-xs transition-colors"
                     >
                       <CheckCircle2 className="w-3.5 h-3.5" />
                       <span>{isVerified ? 'Verified' : 'Verify & Sign-off'}</span>
@@ -536,7 +536,7 @@ export function DocumentVerificationDesk({ currentRole }: DocumentVerificationDe
               <div className="border border-gray-200 rounded-lg p-4 space-y-3 bg-gray-50">
                 <div className="flex justify-between items-center text-xs">
                   <span className="font-bold text-gray-700">Document Type:</span>
-                  <span className="font-mono bg-blue-100 text-[#244B8F] px-2 py-0.5 rounded">{previewDoc.docType}</span>
+                  <span className="font-mono bg-blue-100 text-[#0073E6] px-2 py-0.5 rounded">{previewDoc.docType}</span>
                 </div>
                 <div className="flex justify-between items-center text-xs">
                   <span className="font-bold text-gray-700">File Name:</span>
@@ -557,7 +557,7 @@ export function DocumentVerificationDesk({ currentRole }: DocumentVerificationDe
               </div>
 
               <div className="p-4 border-2 border-dashed border-gray-300 rounded-xl bg-white text-center space-y-2">
-                <FileText className="w-10 h-10 text-[#244B8F] mx-auto" />
+                <FileText className="w-10 h-10 text-[#0073E6] mx-auto" />
                 <p className="text-xs font-semibold text-gray-800">
                   Secure Temporary V4 Signed URL Generated (Expires in 15 Minutes)
                 </p>
@@ -585,7 +585,7 @@ export function DocumentVerificationDesk({ currentRole }: DocumentVerificationDe
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-lg w-full border border-gray-200 overflow-hidden">
             <div className={`px-5 py-4 text-white flex items-center justify-between ${
-              actionModal.type === 'VERIFY' ? 'bg-[#244B8F]' : 'bg-[#D97706]'
+              actionModal.type === 'VERIFY' ? 'bg-[#0073E6]' : 'bg-[#D97706]'
             }`}>
               <div className="flex items-center space-x-2">
                 {actionModal.type === 'VERIFY' ? (
@@ -626,7 +626,7 @@ export function DocumentVerificationDesk({ currentRole }: DocumentVerificationDe
                       ? 'e.g. Schedule A & B verified against Form 15 EC and BBMP ward tax receipt.'
                       : 'e.g. Survey number mismatch between Form 15 EC and Sale deed schedule.'
                   }
-                  className="w-full text-xs p-2.5 border border-gray-300 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#244B8F]"
+                  className="w-full text-xs p-2.5 border border-gray-300 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-[#0073E6]"
                 />
               </div>
 
@@ -655,7 +655,7 @@ export function DocumentVerificationDesk({ currentRole }: DocumentVerificationDe
                 disabled={isProcessing || (actionModal.type === 'FLAG_DISCREPANCY' && !actionReason.trim())}
                 onClick={handleConfirmAction}
                 className={`px-4 py-1.5 rounded-lg text-xs font-semibold text-white shadow-xs cursor-pointer disabled:opacity-40 flex items-center space-x-1.5 ${
-                  actionModal.type === 'VERIFY' ? 'bg-[#244B8F] hover:bg-[#1B3868]' : 'bg-[#D97706] hover:bg-[#B45309]'
+                  actionModal.type === 'VERIFY' ? 'bg-[#0073E6] hover:bg-[#1B3868]' : 'bg-[#D97706] hover:bg-[#B45309]'
                 }`}
               >
                 {isProcessing && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}

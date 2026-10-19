@@ -89,7 +89,7 @@ export const BuyerSearchPopupModal: React.FC<BuyerSearchPopupModalProps> = ({
           className="relative z-10 w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden font-['Montserrat'] my-8"
         >
           {/* Header */}
-          <div className="px-6 py-5 bg-gradient-to-r from-[#172033] to-[#244B8F] text-white flex items-start justify-between">
+          <div className="px-6 py-5 bg-gradient-to-r from-[#172033] to-[#0073E6] text-white flex items-start justify-between">
             <div>
               <div className="inline-flex items-center space-x-1.5 text-xs font-bold text-blue-200 uppercase tracking-wider mb-1">
                 <Search className="w-3.5 h-3.5" />
@@ -129,7 +129,7 @@ export const BuyerSearchPopupModal: React.FC<BuyerSearchPopupModalProps> = ({
                   <button
                     type="button"
                     onClick={handleBrowseNow}
-                    className="px-5 py-2.5 rounded-xl bg-[#244B8F] text-white text-xs font-bold hover:bg-[#1B396E] transition-colors cursor-pointer"
+                    className="px-5 py-2.5 rounded-xl bg-[#0073E6] text-white text-xs font-bold hover:bg-[#005BB5] transition-colors cursor-pointer"
                   >
                     Browse Live Listings Now
                   </button>
@@ -153,7 +153,7 @@ export const BuyerSearchPopupModal: React.FC<BuyerSearchPopupModalProps> = ({
                     <select
                       value={selectedLocality}
                       onChange={(e) => setSelectedLocality(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-lg focus:border-[#244B8F] focus:outline-hidden bg-white font-medium"
+                      className="w-full pl-9 pr-3 py-2 text-xs border border-slate-300 rounded-lg focus:border-[#0073E6] focus:outline-hidden bg-white font-medium"
                     >
                       <option value="ALL">All Bengaluru Corridors</option>
                       {BENGALURU_LOCALITIES.map((loc) => (
@@ -178,7 +178,7 @@ export const BuyerSearchPopupModal: React.FC<BuyerSearchPopupModalProps> = ({
                         onClick={() => setSelectedBhk(bhk)}
                         className={`py-2 rounded-lg font-bold border transition-colors cursor-pointer ${
                           selectedBhk === bhk
-                            ? 'bg-[#244B8F] text-white border-[#244B8F]'
+                            ? 'bg-[#0073E6] text-white border-[#0073E6]'
                             : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
                         }`}
                       >
@@ -217,7 +217,7 @@ export const BuyerSearchPopupModal: React.FC<BuyerSearchPopupModalProps> = ({
                   onClick={handleBrowseNow}
                   className="w-full py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-[#172033] font-bold text-xs transition-colors cursor-pointer flex items-center justify-center space-x-1.5"
                 >
-                  <Search className="w-3.5 h-3.5 text-[#244B8F]" />
+                  <Search className="w-3.5 h-3.5 text-[#0073E6]" />
                   <span>Browse Matching Flats On Page</span>
                 </button>
 
@@ -234,7 +234,7 @@ export const BuyerSearchPopupModal: React.FC<BuyerSearchPopupModalProps> = ({
                       placeholder="Your Full Name"
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
-                      className="px-3 py-2 text-xs border border-slate-300 rounded-lg focus:border-[#244B8F] focus:outline-hidden font-medium"
+                      className="px-3 py-2 text-xs border border-slate-300 rounded-lg focus:border-[#0073E6] focus:outline-hidden font-medium"
                     />
                     <input
                       type="tel"
@@ -243,14 +243,14 @@ export const BuyerSearchPopupModal: React.FC<BuyerSearchPopupModalProps> = ({
                       maxLength={10}
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      className="px-3 py-2 text-xs border border-slate-300 rounded-lg focus:border-[#244B8F] focus:outline-hidden font-medium"
+                      className="px-3 py-2 text-xs border border-slate-300 rounded-lg focus:border-[#0073E6] focus:outline-hidden font-medium"
                     />
                   </div>
 
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="w-full py-2.5 rounded-xl bg-[#244B8F] hover:bg-[#1B396E] disabled:opacity-50 text-white font-bold text-xs shadow-md transition-all cursor-pointer flex items-center justify-center space-x-1.5"
+                    className="w-full py-2.5 rounded-xl bg-[#0073E6] hover:bg-[#005BB5] disabled:opacity-50 text-white font-bold text-xs shadow-md transition-all cursor-pointer flex items-center justify-center space-x-1.5"
                   >
                     <span>{isSubmitting ? 'Requesting...' : 'Get Verified Shortlist on WhatsApp'}</span>
                     <ArrowRight className="w-3.5 h-3.5" />

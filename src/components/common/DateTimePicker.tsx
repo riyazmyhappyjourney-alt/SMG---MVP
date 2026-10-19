@@ -240,7 +240,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
         {/* Header */}
         <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
           <div className="flex items-center space-x-2.5">
-            <div className="w-8 h-8 rounded-lg bg-[#244B8F]/10 text-[#244B8F] flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg bg-[#0073E6]/10 text-[#0073E6] flex items-center justify-center">
               <CalendarIcon className="w-4 h-4" />
             </div>
             <div>
@@ -323,8 +323,8 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
                     }}
                     className={`
                       h-8 rounded-lg text-xs font-medium flex items-center justify-center transition-colors cursor-pointer tabular-nums
-                      ${isSelected ? 'bg-[#244B8F] text-white font-bold shadow-xs' : ''}
-                      ${!isSelected && isToday ? 'border border-[#244B8F] text-[#244B8F] font-semibold' : ''}
+                      ${isSelected ? 'bg-[#0073E6] text-white font-bold shadow-xs' : ''}
+                      ${!isSelected && isToday ? 'border border-[#0073E6] text-[#0073E6] font-semibold' : ''}
                       ${!isSelected && !isToday && item.isCurrentMonth ? 'text-slate-800 hover:bg-slate-100' : ''}
                       ${!isSelected && !item.isCurrentMonth ? 'text-slate-300 hover:bg-slate-50' : ''}
                       ${item.isDisabled ? 'opacity-30 cursor-not-allowed hover:bg-transparent text-slate-300' : ''}
@@ -344,7 +344,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
                 <Clock className="w-3.5 h-3.5 text-slate-500" />
                 <span>Time Slot (IST)</span>
               </label>
-              <span className="text-xs font-bold text-[#244B8F] tabular-nums">{selectedTime}</span>
+              <span className="text-xs font-bold text-[#0073E6] tabular-nums">{selectedTime}</span>
             </div>
 
             {/* Quick Presets */}
@@ -356,7 +356,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
                   onClick={() => handleSelectPresetTime(preset)}
                   className={`px-2 py-1.5 rounded-lg text-[11px] font-medium border text-center transition-colors cursor-pointer tabular-nums ${
                     selectedTime === preset
-                      ? 'bg-[#244B8F] text-white border-[#244B8F] font-bold shadow-2xs'
+                      ? 'bg-[#0073E6] text-white border-[#0073E6] font-bold shadow-2xs'
                       : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
                   }`}
                 >
@@ -373,7 +373,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
                 <select
                   value={customHour}
                   onChange={(e) => handleUpdateCustomTime(Number(e.target.value), customMinute, customPeriod)}
-                  className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-hidden focus:border-[#244B8F] cursor-pointer tabular-nums"
+                  className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-hidden focus:border-[#0073E6] cursor-pointer tabular-nums"
                 >
                   {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
                     <option key={h} value={h}>
@@ -386,7 +386,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
                 <select
                   value={customMinute}
                   onChange={(e) => handleUpdateCustomTime(customHour, Number(e.target.value), customPeriod)}
-                  className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-hidden focus:border-[#244B8F] cursor-pointer tabular-nums"
+                  className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:outline-hidden focus:border-[#0073E6] cursor-pointer tabular-nums"
                 >
                   {[0, 15, 30, 45].map((m) => (
                     <option key={m} value={m}>
@@ -400,7 +400,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
                     type="button"
                     onClick={() => handleUpdateCustomTime(customHour, customMinute, 'AM')}
                     className={`px-2 py-1 text-[11px] font-bold cursor-pointer transition-colors ${
-                      customPeriod === 'AM' ? 'bg-[#244B8F] text-white' : 'text-slate-600 hover:bg-slate-100'
+                      customPeriod === 'AM' ? 'bg-[#0073E6] text-white' : 'text-slate-600 hover:bg-slate-100'
                     }`}
                   >
                     AM
@@ -409,7 +409,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
                     type="button"
                     onClick={() => handleUpdateCustomTime(customHour, customMinute, 'PM')}
                     className={`px-2 py-1 text-[11px] font-bold cursor-pointer transition-colors ${
-                      customPeriod === 'PM' ? 'bg-[#244B8F] text-white' : 'text-slate-600 hover:bg-slate-100'
+                      customPeriod === 'PM' ? 'bg-[#0073E6] text-white' : 'text-slate-600 hover:bg-slate-100'
                     }`}
                   >
                     PM
@@ -422,7 +422,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
           {/* Selected Summary Pill */}
           <div className="p-3 rounded-xl bg-blue-50/60 border border-blue-200/80 flex items-center justify-between text-xs">
             <span className="text-slate-600 font-medium">Selected Schedule:</span>
-            <span className="font-bold text-[#244B8F] tabular-nums">{formatFriendlyPreview()}</span>
+            <span className="font-bold text-[#0073E6] tabular-nums">{formatFriendlyPreview()}</span>
           </div>
         </div>
 
@@ -438,7 +438,7 @@ export const DateTimePicker: React.FC<DateTimePickerProps> = ({
           <button
             type="button"
             onClick={handleConfirm}
-            className="px-5 py-2 text-xs font-bold text-white bg-[#244B8F] hover:bg-[#1B396E] rounded-xl shadow-xs transition-colors cursor-pointer flex items-center space-x-1.5"
+            className="px-5 py-2 text-xs font-bold text-white bg-[#0073E6] hover:bg-[#005BB5] rounded-xl shadow-xs transition-colors cursor-pointer flex items-center space-x-1.5"
           >
             <Check className="w-3.5 h-3.5" />
             <span>Confirm Schedule</span>

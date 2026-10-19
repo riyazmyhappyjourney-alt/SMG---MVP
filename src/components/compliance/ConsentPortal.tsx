@@ -226,7 +226,7 @@ export function ConsentPortal() {
         <div className="bg-white rounded-xl shadow-xs border border-gray-200 p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <div className="flex items-center space-x-2">
-              <ShieldCheck className="w-5 h-5 text-[#244B8F]" />
+              <ShieldCheck className="w-5 h-5 text-[#0073E6]" />
               <h1 className="text-xl font-bold font-['Poppins',sans-serif] text-[#172033]">
                 DPDP Act Consent Preferences & Withdrawal Portal
               </h1>
@@ -236,7 +236,7 @@ export function ConsentPortal() {
               to view, manage, and withdraw previously granted consent at any time. Withdrawal is instant and halts communication.
             </p>
           </div>
-          <span className="text-[11px] font-semibold bg-blue-50 text-[#244B8F] border border-blue-200 px-3 py-1.5 rounded-lg shrink-0 self-start">
+          <span className="text-[11px] font-semibold bg-blue-50 text-[#0073E6] border border-blue-200 px-3 py-1.5 rounded-lg shrink-0 self-start">
             Statutory Compliance Portal
           </span>
         </div>
@@ -271,7 +271,7 @@ export function ConsentPortal() {
                     required
                     value={phone}
                     onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
-                    className="w-full pl-11 pr-3 py-2 rounded border border-gray-300 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#244B8F]"
+                    className="w-full pl-11 pr-3 py-2 rounded border border-gray-300 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-[#0073E6]"
                   />
                 </div>
               </div>
@@ -279,7 +279,7 @@ export function ConsentPortal() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-2.5 rounded-lg bg-[#244B8F] hover:bg-[#1B396E] text-white text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                className="w-full py-2.5 rounded-lg bg-[#0073E6] hover:bg-[#005BB5] text-white text-xs font-semibold transition-colors cursor-pointer disabled:opacity-50"
               >
                 {loading ? 'Sending OTP...' : 'Send Verification OTP'}
               </button>
@@ -290,7 +290,7 @@ export function ConsentPortal() {
         {/* Phase 2: OTP Verification */}
         {step === 'OTP' && (
           <div className="bg-white rounded-xl shadow-xs border border-gray-200 p-6 max-w-md mx-auto text-center">
-            <div className="w-10 h-10 rounded-full bg-blue-50 text-[#244B8F] flex items-center justify-center mx-auto mb-3">
+            <div className="w-10 h-10 rounded-full bg-blue-50 text-[#0073E6] flex items-center justify-center mx-auto mb-3">
               <Lock className="w-5 h-5" />
             </div>
             <h2 className="text-sm font-bold font-['Poppins',sans-serif] text-gray-900">
@@ -318,7 +318,7 @@ export function ConsentPortal() {
                 placeholder="123456"
                 value={otp}
                 onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                className="w-48 mx-auto text-center tracking-widest text-xl font-mono py-2 px-3 rounded border border-gray-300 focus:outline-none focus:ring-1 focus:ring-[#244B8F]"
+                className="w-48 mx-auto text-center tracking-widest text-xl font-mono py-2 px-3 rounded border border-gray-300 focus:outline-none focus:ring-1 focus:ring-[#0073E6]"
               />
 
               <div className="flex items-center space-x-2">
@@ -332,7 +332,7 @@ export function ConsentPortal() {
                 <button
                   type="submit"
                   disabled={loading || otp.length !== 6}
-                  className="w-2/3 py-2 rounded bg-[#244B8F] hover:bg-[#1B396E] text-white text-xs font-semibold cursor-pointer disabled:opacity-50"
+                  className="w-2/3 py-2 rounded bg-[#0073E6] hover:bg-[#005BB5] text-white text-xs font-semibold cursor-pointer disabled:opacity-50"
                 >
                   {loading ? 'Verifying...' : 'Access Consent Ledger'}
                 </button>
@@ -455,7 +455,7 @@ export function ConsentPortal() {
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <div>
                     <h3 className="text-sm font-bold text-gray-900 flex items-center space-x-1.5">
-                      <ShieldCheck className="w-4 h-4 text-[#244B8F]" />
+                      <ShieldCheck className="w-4 h-4 text-[#0073E6]" />
                       <span>Data Principal Rights (DPDP Act Sections 11 & 12)</span>
                     </h3>
                     <p className="text-xs text-gray-600 mt-0.5">
@@ -483,7 +483,7 @@ export function ConsentPortal() {
                     type="button"
                     disabled={isExporting}
                     onClick={handleExportData}
-                    className="inline-flex items-center space-x-2 px-3.5 py-2 rounded-lg bg-[#244B8F] hover:bg-[#1B396E] text-white text-xs font-semibold shadow-xs cursor-pointer disabled:opacity-50 transition-colors"
+                    className="inline-flex items-center space-x-2 px-3.5 py-2 rounded-lg bg-[#0073E6] hover:bg-[#005BB5] text-white text-xs font-semibold shadow-xs cursor-pointer disabled:opacity-50 transition-colors"
                   >
                     <Download className="w-3.5 h-3.5" />
                     <span>{isExporting ? 'Generating Package...' : 'Download Personal Data Package (JSON)'}</span>
@@ -503,7 +503,7 @@ export function ConsentPortal() {
               {/* Statutory Note */}
               <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 text-xs text-gray-500 space-y-1">
                 <div className="font-semibold text-gray-700 flex items-center space-x-1.5">
-                  <Info className="w-3.5 h-3.5 text-[#244B8F]" />
+                  <Info className="w-3.5 h-3.5 text-[#0073E6]" />
                   <span>Statutory Legal Notice (DPDP Section 6)</span>
                 </div>
                 <p className="text-[11px] leading-relaxed">

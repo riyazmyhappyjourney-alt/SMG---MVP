@@ -81,7 +81,8 @@ function dispatchRequest(
           }
         },
       });
-    };
+      return res as any;
+    } as any;
 
     expressApp(req, res);
     if (payload) {

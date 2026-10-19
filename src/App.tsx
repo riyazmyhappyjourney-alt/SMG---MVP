@@ -19,6 +19,8 @@ import { TermsPage } from './components/legal/TermsPage';
 import { PrivacyPolicyPage } from './components/legal/PrivacyPolicyPage';
 import { CookiePolicyPage } from './components/legal/CookiePolicyPage';
 import { CareersPage } from './components/company/CareersPage';
+import { AboutUsPage } from './components/company/AboutUsPage';
+import { FaqPage } from './components/company/FaqPage';
 import { initGA4, trackPageView } from './utils/analytics';
 
 export type AppRoute = 
@@ -28,6 +30,8 @@ export type AppRoute =
   | 'SELLER_ASSISTED' 
   | 'LOGIN' 
   | 'CONTACT'
+  | 'ABOUT'
+  | 'FAQ'
   | 'DASHBOARD'
   | 'PROPERTY_DETAIL'
   | 'LOCALITY_DETAIL'
@@ -62,6 +66,8 @@ export function resolveRoute(path: string, hash: string, host: string): AppRoute
   if (hash === '#/privacy-policy' || hash === '#/privacy') return 'PRIVACY_POLICY';
   if (hash === '#/cookie-policy') return 'COOKIE_POLICY';
   if (hash === '#/careers') return 'CAREERS';
+  if (hash === '#/about' || hash === '#/about-us') return 'ABOUT';
+  if (hash === '#/faq' || hash === '#/faqs') return 'FAQ';
   if (hash === '#/contact') return 'CONTACT';
   if (hash === '#/login' || hash === '#/register') return 'LOGIN';
   if (hash.startsWith('#/reset-password')) return 'RESET_PASSWORD';
@@ -96,6 +102,8 @@ export function resolveRoute(path: string, hash: string, host: string): AppRoute
   if (path === '/privacy-policy' || path === '/privacy') return 'PRIVACY_POLICY';
   if (path === '/cookie-policy') return 'COOKIE_POLICY';
   if (path === '/careers') return 'CAREERS';
+  if (path === '/about' || path === '/about-us') return 'ABOUT';
+  if (path === '/faq' || path === '/faqs') return 'FAQ';
 
   // 6. SEO Locality and Contact pages
   if (path === '/contact') return 'CONTACT';
@@ -163,6 +171,10 @@ export default function App() {
   useEffect(() => {
     const currentPath = window.location.hash || window.location.pathname || '/';
     trackPageView(currentPath, document.title || 'SellMyGhar');
+    // Always reset viewport to top when route changes so new pages start from top
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    }
   }, [currentRoute]);
 
   // Staff internal session (Strictly accessible ONLY via custom link e.g. #/crm or crm.domain)
@@ -236,6 +248,10 @@ export default function App() {
       }
     } else if (route === 'CONTACT') {
       window.location.hash = '/contact';
+    } else if (route === 'ABOUT') {
+      window.location.hash = '/about';
+    } else if (route === 'FAQ') {
+      window.location.hash = '/faq';
     } else if (route === 'TERMS') {
       window.location.hash = '/terms';
     } else if (route === 'PRIVACY_POLICY') {
@@ -302,12 +318,22 @@ export default function App() {
   const navigateToLogin = (fromRoute?: AppRoute) => {
     const origin = fromRoute || (currentRoute !== 'LOGIN' ? currentRoute : 'HOME');
     setLoginReturnRoute(origin);
+    try {
+      sessionStorage.setItem('sellmyghar_auth_redirect', origin);
+    } catch {}
     navigateTo('LOGIN');
   };
 
   const handleAuthSuccess = useCallback((user: UserAuthProfile) => {
     setActiveUser(user);
-    const dest = loginReturnRoute && loginReturnRoute !== 'LOGIN' ? loginReturnRoute : 'HOME';
+    let dest = loginReturnRoute && loginReturnRoute !== 'LOGIN' ? loginReturnRoute : 'HOME';
+    try {
+      const stored = sessionStorage.getItem('sellmyghar_auth_redirect') as AppRoute;
+      if (stored && stored !== 'LOGIN') {
+        dest = stored;
+        sessionStorage.removeItem('sellmyghar_auth_redirect');
+      }
+    } catch {}
     navigateTo(dest);
   }, [loginReturnRoute]);
 
@@ -368,14 +394,14 @@ export default function App() {
       <AuthPage
         initialMode="SIGNIN"
         onBackToHome={() => {
-          const dest = loginReturnRoute && loginReturnRoute !== 'LOGIN' ? loginReturnRoute : 'HOME';
+          let dest = loginReturnRoute && loginReturnRoute !== 'LOGIN' ? loginReturnRoute : 'HOME';
+          try {
+            const stored = sessionStorage.getItem('sellmyghar_auth_redirect') as AppRoute;
+            if (stored && stored !== 'LOGIN') dest = stored;
+          } catch {}
           navigateTo(dest);
         }}
-        onSuccess={(user) => {
-          setActiveUser(user);
-          const dest = loginReturnRoute && loginReturnRoute !== 'LOGIN' ? loginReturnRoute : 'HOME';
-          navigateTo(dest);
-        }}
+        onSuccess={handleAuthSuccess}
       />
     );
   }
@@ -435,6 +461,32 @@ export default function App() {
         onNavigateToContact={() => navigateTo('CONTACT')}
         onNavigateToSellerAssisted={() => navigateTo('SELLER_ASSISTED')}
         onSignInClick={() => navigateToLogin('CAREERS')}
+        onNavigateToAbout={() => navigateTo('ABOUT')}
+        onNavigateToFaq={() => navigateTo('FAQ')}
+      />
+    );
+  }
+
+  // Dedicated About Us Page
+  if (currentRoute === 'ABOUT') {
+    return (
+      <AboutUsPage
+        onBackToHome={() => navigateTo('HOME')}
+        onNavigateToContact={() => navigateTo('CONTACT')}
+        onNavigateToSellerAssisted={() => navigateTo('SELLER_ASSISTED')}
+        onSignInClick={() => navigateToLogin('ABOUT')}
+      />
+    );
+  }
+
+  // Dedicated FAQ Page
+  if (currentRoute === 'FAQ') {
+    return (
+      <FaqPage
+        onBackToHome={() => navigateTo('HOME')}
+        onNavigateToContact={() => navigateTo('CONTACT')}
+        onNavigateToSellerAssisted={() => navigateTo('SELLER_ASSISTED')}
+        onSignInClick={() => navigateToLogin('FAQ')}
       />
     );
   }
@@ -497,6 +549,19 @@ export default function App() {
 
   // If on Seller Assisted Multi-Step Funnel
   if (currentRoute === 'SELLER_ASSISTED') {
+    if (!activeUser) {
+      return (
+        <AuthPage
+          initialMode="SIGNIN"
+          onBackToHome={() => navigateTo('HOME')}
+          onSuccess={(user) => {
+            setActiveUser(user);
+            navigateTo('SELLER_ASSISTED');
+          }}
+        />
+      );
+    }
+
     return (
       <SellerFunnel
         onBackToHome={() => navigateTo('HOME')}
@@ -522,7 +587,9 @@ export default function App() {
       activeUser={activeUser}
       onNavigateToSellerAssisted={() => navigateTo('SELLER_ASSISTED')}
       onNavigateToContact={() => navigateTo('CONTACT')}
-      onNavigateToLogin={() => navigateToLogin('HOME')}
+      onNavigateToAbout={() => navigateTo('ABOUT')}
+      onNavigateToFaq={() => navigateTo('FAQ')}
+      onNavigateToLogin={(fromRoute) => navigateToLogin(fromRoute || 'HOME')}
       onNavigateToDashboard={() => {
         if (activeUser) {
           navigateTo('DASHBOARD');

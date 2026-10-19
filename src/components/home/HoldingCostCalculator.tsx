@@ -10,13 +10,13 @@ export const HoldingCostCalculator: React.FC<HoldingCostCalculatorProps> = ({
   onExploreSellingOptions,
 }) => {
   // Baseline parameters: ₹1.08 Cr, 1,461 sq.ft, ₹5/sq.ft/mo, ₹40k rent, 12 months, 2% brokerage
-  const [propertyValueInr, setPropertyValueInr] = useState<number | string>(10800000);
-  const [areaSqft, setAreaSqft] = useState<number | string>(1461);
-  const [maintenanceRate, setMaintenanceRate] = useState<number | string>(5);
+  const [propertyValueInr, setPropertyValueInr] = useState<string>('10800000');
+  const [areaSqft, setAreaSqft] = useState<string>('1461');
+  const [maintenanceRate, setMaintenanceRate] = useState<string>('5');
   const [isVacant, setIsVacant] = useState<boolean>(true);
-  const [monthlyRentInr, setMonthlyRentInr] = useState<number | string>(40000);
+  const [monthlyRentInr, setMonthlyRentInr] = useState<string>('40000');
   const [holdingMonths, setHoldingMonths] = useState<number>(12);
-  const [brokeragePct, setBrokeragePct] = useState<number | string>(2.0);
+  const [brokeragePct] = useState<number>(2.0);
 
   // Accessible unique IDs
   const propValueId = useId();
@@ -25,26 +25,54 @@ export const HoldingCostCalculator: React.FC<HoldingCostCalculatorProps> = ({
   const rentId = useId();
   const monthsId = useId();
 
-  // Safe numerical normalization (prevents NaN / Infinity)
-  const numValue = Math.max(0, Number(propertyValueInr) || 0);
-  const numArea = Math.max(0, Number(areaSqft) || 0);
-  const numMaintRate = Math.max(0, Number(maintenanceRate) || 0);
-  const numRent = Math.max(0, Number(monthlyRentInr) || 0);
-  const numMonths = Math.max(1, Number(holdingMonths) || 12);
-  const numBrokeragePct = Math.max(0, Number(brokeragePct) || 0);
+  // Clean numeric parser tolerant to commas and spaces
+  const parseNum = (val: string | number): number => {
+    if (typeof val === 'number') return isFinite(val) ? val : 0;
+    const cleaned = String(val).replace(/,/g, '').trim();
+    const parsed = parseFloat(cleaned);
+    return isFinite(parsed) ? parsed : 0;
+  };
+
+  const numValue = parseNum(propertyValueInr);
+  const numArea = parseNum(areaSqft);
+  const numMaintRate = parseNum(maintenanceRate);
+  const numRent = parseNum(monthlyRentInr);
+  const numMonths = Math.min(36, Math.max(1, holdingMonths || 12));
+  const numBrokeragePct = Math.min(10, Math.max(0, brokeragePct || 2));
+
+  // Validation errors
+  const propValueError = propertyValueInr && (numValue < 100000 || numValue > 1000000000)
+    ? 'Price must be between ₹1 Lakh and ₹100 Cr (max 10 digits)'
+    : null;
+  const areaError = areaSqft && (numArea < 100 || numArea > 50000)
+    ? 'Area must be between 100 and 50,000 sq.ft (max 5 digits)'
+    : null;
+  const maintError = maintenanceRate && (numMaintRate < 0 || numMaintRate > 100)
+    ? 'Maintenance must be between ₹0 and ₹100/sq.ft'
+    : null;
+  const rentError = monthlyRentInr && (numRent < 0 || numRent > 5000000)
+    ? 'Monthly rent cannot exceed ₹50 Lakhs'
+    : null;
+
+  // Clamped values to prevent NaN or astronomical overflows
+  const clampedValue = Math.min(1000000000, Math.max(0, numValue));
+  const clampedArea = Math.min(50000, Math.max(0, numArea));
+  const clampedMaint = Math.min(100, Math.max(0, numMaintRate));
+  const clampedRent = Math.min(5000000, Math.max(0, numRent));
 
   // Exact audited calculations
   // 1. Maintenance cost
-  const totalMaintenance = Math.round(numArea * numMaintRate * numMonths);
+  const totalMaintenance = Math.round(clampedArea * clampedMaint * numMonths);
 
   // 2. Foregone rent (if vacant)
-  const totalForegoneRent = isVacant ? Math.round(numRent * numMonths) : 0;
+  const totalForegoneRent = isVacant ? Math.round(clampedRent * numMonths) : 0;
 
   // 3. Brokerage cost at sale
-  const totalBrokerage = Math.round(numValue * (numBrokeragePct / 100));
+  const totalBrokerage = Math.round(clampedValue * (numBrokeragePct / 100));
 
   // Combined illustrative total
-  const totalHoldingCost = totalMaintenance + totalForegoneRent + totalBrokerage;
+  const rawTotal = totalMaintenance + totalForegoneRent + totalBrokerage;
+  const totalHoldingCost = isFinite(rawTotal) && rawTotal >= 0 ? rawTotal : 0;
 
   return (
     <section id="holding-calculator" className="bg-[#F4F6F9] py-12 sm:py-16 font-['Poppins',sans-serif] relative">
@@ -82,32 +110,43 @@ export const HoldingCostCalculator: React.FC<HoldingCostCalculatorProps> = ({
                   <label htmlFor={propValueId} className="font-semibold text-slate-700">
                     Expected Asking Price
                   </label>
-                  <span className="font-bold text-[#244B8F]">
-                    {formatIndianCurrency(numValue)}
+                  <span className="font-bold text-[#0073E6]">
+                    {formatIndianCurrency(clampedValue)}
                   </span>
                 </div>
                 <div className="relative">
                   <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-medium">₹</span>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
                     id={propValueId}
-                    min="100000"
-                    step="50000"
                     value={propertyValueInr}
-                    onChange={(e) => setPropertyValueInr(e.target.value === '' ? '' : Number(e.target.value))}
-                    className="w-full pl-7 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#244B8F]"
+                    onChange={(e) => {
+                      const clean = e.target.value.replace(/[^0-9]/g, '');
+                      if (clean.length <= 10) {
+                        setPropertyValueInr(clean);
+                      }
+                    }}
+                    className={`w-full pl-7 pr-3 py-2 bg-slate-50 border rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 ${
+                      propValueError ? 'border-rose-400 focus:ring-rose-400' : 'border-slate-300 focus:ring-[#0073E6]'
+                    }`}
                     placeholder="10800000"
                   />
                 </div>
+                {propValueError && (
+                  <p className="text-[11px] text-rose-600 font-medium mt-1">
+                    {propValueError}
+                  </p>
+                )}
                 <div className="mt-2.5">
                   <input
                     type="range"
                     min="5000000"
                     max="50000000"
                     step="500000"
-                    value={Math.min(50000000, Math.max(5000000, numValue))}
-                    onChange={(e) => setPropertyValueInr(Number(e.target.value))}
-                    className="w-full accent-[#244B8F] h-2 bg-slate-200 rounded-lg cursor-pointer"
+                    value={Math.min(50000000, Math.max(5000000, clampedValue))}
+                    onChange={(e) => setPropertyValueInr(e.target.value)}
+                    className="w-full accent-[#0073E6] h-2 bg-slate-200 rounded-lg cursor-pointer"
                   />
                   <div className="flex justify-between text-[10px] text-slate-400 mt-0.5">
                     <span>₹50 L</span>
@@ -122,35 +161,57 @@ export const HoldingCostCalculator: React.FC<HoldingCostCalculatorProps> = ({
                 <div>
                   <div className="flex justify-between text-xs mb-1">
                     <label htmlFor={areaId} className="font-semibold text-slate-700">Area (sq.ft)</label>
-                    <span className="text-slate-500">{numArea} sq.ft</span>
+                    <span className="text-slate-500">{clampedArea} sq.ft</span>
                   </div>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
                     id={areaId}
-                    min="100"
-                    step="10"
                     value={areaSqft}
-                    onChange={(e) => setAreaSqft(e.target.value === '' ? '' : Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#244B8F]"
+                    onChange={(e) => {
+                      const clean = e.target.value.replace(/[^0-9]/g, '');
+                      if (clean.length <= 5) {
+                        setAreaSqft(clean);
+                      }
+                    }}
+                    className={`w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 ${
+                      areaError ? 'border-rose-400 focus:ring-rose-400' : 'border-slate-300 focus:ring-[#0073E6]'
+                    }`}
                     placeholder="1461"
                   />
+                  {areaError && (
+                    <p className="text-[11px] text-rose-600 font-medium mt-1">
+                      {areaError}
+                    </p>
+                  )}
                 </div>
 
                 <div>
                   <div className="flex justify-between text-xs mb-1">
                     <label htmlFor={maintId} className="font-semibold text-slate-700">Maintenance (₹/sq.ft/mo)</label>
-                    <span className="text-slate-500">₹{numMaintRate}/sq.ft</span>
+                    <span className="text-slate-500">₹{clampedMaint}/sq.ft</span>
                   </div>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
                     id={maintId}
-                    min="0"
-                    step="0.5"
                     value={maintenanceRate}
-                    onChange={(e) => setMaintenanceRate(e.target.value === '' ? '' : Number(e.target.value))}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#244B8F]"
+                    onChange={(e) => {
+                      const clean = e.target.value.replace(/[^0-9.]/g, '');
+                      if (clean.length <= 4) {
+                        setMaintenanceRate(clean);
+                      }
+                    }}
+                    className={`w-full px-3 py-2 bg-slate-50 border rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 ${
+                      maintError ? 'border-rose-400 focus:ring-rose-400' : 'border-slate-300 focus:ring-[#0073E6]'
+                    }`}
                     placeholder="5"
                   />
+                  {maintError && (
+                    <p className="text-[11px] text-rose-600 font-medium mt-1">
+                      {maintError}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -163,7 +224,7 @@ export const HoldingCostCalculator: React.FC<HoldingCostCalculatorProps> = ({
                       type="button"
                       onClick={() => setIsVacant(true)}
                       className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-colors cursor-pointer ${
-                        isVacant ? 'bg-[#244B8F] text-white' : 'text-slate-600 hover:text-slate-900'
+                        isVacant ? 'bg-[#0073E6] text-white' : 'text-slate-600 hover:text-slate-900'
                       }`}
                     >
                       Vacant
@@ -172,7 +233,7 @@ export const HoldingCostCalculator: React.FC<HoldingCostCalculatorProps> = ({
                       type="button"
                       onClick={() => setIsVacant(false)}
                       className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-colors cursor-pointer ${
-                        !isVacant ? 'bg-[#244B8F] text-white' : 'text-slate-600 hover:text-slate-900'
+                        !isVacant ? 'bg-[#0073E6] text-white' : 'text-slate-600 hover:text-slate-900'
                       }`}
                     >
                       Tenanted
@@ -187,22 +248,33 @@ export const HoldingCostCalculator: React.FC<HoldingCostCalculatorProps> = ({
                         Monthly Expected Rent
                       </label>
                       <span className="font-bold text-slate-800">
-                        {formatIndianNumberFull(numRent)} / mo
+                        {formatIndianNumberFull(clampedRent)} / mo
                       </span>
                     </div>
                     <div className="relative">
                       <span className="absolute left-3 top-2 text-xs text-slate-400">₹</span>
                       <input
-                        type="number"
+                        type="text"
+                        inputMode="numeric"
                         id={rentId}
-                        min="0"
-                        step="1000"
                         value={monthlyRentInr}
-                        onChange={(e) => setMonthlyRentInr(e.target.value === '' ? '' : Number(e.target.value))}
-                        className="w-full pl-7 pr-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#244B8F]"
+                        onChange={(e) => {
+                          const clean = e.target.value.replace(/[^0-9]/g, '');
+                          if (clean.length <= 8) {
+                            setMonthlyRentInr(clean);
+                          }
+                        }}
+                        className={`w-full pl-7 pr-3 py-1.5 bg-white border rounded-lg text-xs font-semibold text-slate-800 focus:outline-none focus:ring-1 ${
+                          rentError ? 'border-rose-400 focus:ring-rose-400' : 'border-slate-300 focus:ring-[#0073E6]'
+                        }`}
                         placeholder="40000"
                       />
                     </div>
+                    {rentError && (
+                      <p className="text-[11px] text-rose-600 font-medium mt-1">
+                        {rentError}
+                      </p>
+                    )}
                   </div>
                 )}
               </div>
@@ -213,7 +285,7 @@ export const HoldingCostCalculator: React.FC<HoldingCostCalculatorProps> = ({
                   <label htmlFor={monthsId} className="font-semibold text-slate-700">
                     Holding Period
                   </label>
-                  <span className="font-bold text-[#244B8F]">
+                  <span className="font-bold text-[#0073E6]">
                     {holdingMonths} Months
                   </span>
                 </div>
@@ -241,7 +313,7 @@ export const HoldingCostCalculator: React.FC<HoldingCostCalculatorProps> = ({
                   step="1"
                   value={holdingMonths}
                   onChange={(e) => setHoldingMonths(Number(e.target.value))}
-                  className="w-full accent-[#244B8F] h-2 bg-slate-200 rounded-lg cursor-pointer"
+                  className="w-full accent-[#0073E6] h-2 bg-slate-200 rounded-lg cursor-pointer"
                 />
                 <div className="flex justify-between text-[10px] text-slate-400 mt-0.5">
                   <span>3 Months</span>
@@ -344,7 +416,7 @@ export const HoldingCostCalculator: React.FC<HoldingCostCalculatorProps> = ({
 
               {/* Restrained Informational Note on Market Conditions */}
               <div className="flex items-start space-x-2 text-[11px] text-slate-500 leading-relaxed bg-white p-2.5 rounded-lg border border-slate-200/70">
-                <Info className="w-3.5 h-3.5 text-[#244B8F] shrink-0 mt-0.5" />
+                <Info className="w-3.5 h-3.5 text-[#0073E6] shrink-0 mt-0.5" />
                 <span>
                   Micro-market pricing varies with buyer absorption and registered sale deed trends. SellMyGhar benchmarks real government registered deed transactions to price accurately.
                 </span>
@@ -360,7 +432,7 @@ export const HoldingCostCalculator: React.FC<HoldingCostCalculatorProps> = ({
                     window.location.hash = '/seller-assisted';
                   }
                 }}
-                className="w-full py-2.5 px-4 rounded-xl bg-[#244B8F] hover:bg-[#1B396E] text-white text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center justify-center space-x-1.5 group"
+                className="w-full py-2.5 px-4 rounded-xl bg-[#0073E6] hover:bg-[#005BB5] text-white text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center justify-center space-x-1.5 group"
               >
                 <span>Explore Selling Options</span>
                 <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />

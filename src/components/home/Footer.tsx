@@ -37,10 +37,10 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
   const [feedbackText, setFeedbackText] = useState('');
 
   return (
-    <footer className="relative overflow-hidden text-[#1E3A8A] font-['Poppins',sans-serif] border-t border-slate-200/80">
+    <footer className="relative overflow-hidden text-[#1E3A8A] font-['Poppins',sans-serif] border-t border-slate-200/80 w-full max-w-full">
       
       {/* 1. Main Footer Content Container with Integrated Bengaluru Illustration as Full Background */}
-      <div className="relative overflow-hidden bg-[#EFF6FB]">
+      <div className="relative overflow-hidden bg-[#EFF6FB] w-full max-w-full">
         
         {/* Absolutely positioned background illustration covering entire footer content area */}
         <div 
@@ -60,8 +60,8 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
         </div>
 
         {/* 4-Column Layout Layered Above Background */}
-        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 sm:pt-14 pb-12 sm:pb-16">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-8 lg:gap-8 items-start">
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 sm:pt-12 pb-8 sm:pb-14">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
             
             {/* Column 1: Brand Info & Unified RERA Block (lg:col-span-4) */}
             <div className="lg:col-span-4 space-y-4">
@@ -72,22 +72,26 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                 SellMyGhar is Bengaluru’s dedicated apartment resale platform. We eliminate broker spam, provide certified title due diligence, and connect verified sellers directly with serious home buyers.
               </p>
               
-              {/* Unified Karnataka RERA Approved Block with Registration Number & Lighting Sweep */}
+              {/* Unified Karnataka RERA Registered Block with Full Number Visible on Desktop & Mobile */}
               <div className="pt-1">
                 <div 
-                  className="relative overflow-hidden inline-flex flex-col sm:flex-row sm:items-center gap-1.5 sm:gap-2 text-xs bg-emerald-50/95 backdrop-blur-xs px-3.5 py-2 rounded-xl border border-emerald-400 font-['Montserrat'] shadow-2xs max-w-full"
-                  title="Karnataka Real Estate Regulatory Authority Approved Platform"
+                  className="relative overflow-hidden flex flex-col gap-1.5 text-xs bg-emerald-50/95 backdrop-blur-xs p-3 rounded-xl border border-emerald-400 font-['Montserrat'] shadow-2xs max-w-sm w-full"
+                  title="Karnataka Real Estate Regulatory Authority Registered Platform"
                 >
-                  <div className="flex items-center space-x-2 shrink-0 font-bold text-emerald-800">
+                  <div className="flex items-center space-x-2 font-bold text-emerald-900">
                     <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                    <span className="text-[11px] sm:text-xs whitespace-nowrap">
+                    <span className="text-[11px] sm:text-xs leading-snug">
                       Karnataka RERA Registered Real Estate Platform
                     </span>
                   </div>
-                  <span className="hidden sm:inline text-emerald-300">|</span>
-                  <span className="font-mono text-[10px] sm:text-[11px] font-bold text-[#1E3A8A] tracking-wider whitespace-nowrap select-all">
-                    PRM/KA/RERA/1251/309/AG/221108/003210
-                  </span>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-2 bg-white/95 border border-emerald-200 rounded-lg px-2.5 py-1.5 gap-0.5 sm:gap-0">
+                    <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-500 shrink-0">
+                      RERA No:
+                    </span>
+                    <span className="font-mono text-[10px] sm:text-xs font-bold text-[#1E3A8A] tracking-tight sm:tracking-wider select-all break-all">
+                      PRM/KA/RERA/1251/309/AG/221108/003210
+                    </span>
+                  </div>
                   {/* Subtle Lighting Sweep Animation Across the Card */}
                   <span className="animate-rera-sweep" aria-hidden="true" />
                 </div>
@@ -127,13 +131,12 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                 </a>
               </li>
               <li>
-                <button
-                  type="button"
-                  onClick={() => setModalType('TERMS')}
+                <a
+                  href="#/terms"
                   className="hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left py-0.5 block"
                 >
                   Terms & Conditions
-                </button>
+                </a>
               </li>
               <li>
                 <button
@@ -149,31 +152,28 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                 </button>
               </li>
               <li>
-                <button
-                  type="button"
-                  onClick={() => setModalType('PRIVACY')}
+                <a
+                  href="#/privacy-policy"
                   className="hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left py-0.5 block"
                 >
                   Privacy Policy
-                </button>
+                </a>
               </li>
               <li>
-                <button
-                  type="button"
-                  onClick={() => setModalType('GRIEVANCE')}
+                <a
+                  href="#/privacy-policy#sec-17"
                   className="hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left py-0.5 block"
                 >
                   Grievances
-                </button>
+                </a>
               </li>
               <li>
-                <button
-                  type="button"
-                  onClick={() => setModalType('COOKIE')}
+                <a
+                  href="#/cookie-policy"
                   className="hover:text-[#0F2860] text-[#1E3A8A] font-medium transition-colors cursor-pointer text-left py-0.5 block"
                 >
                   Cookie Policy
-                </button>
+                </a>
               </li>
             </ul>
           </div>
@@ -211,17 +211,13 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                 </a>
               </li>
               <li>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setOpenModalFaqIndex(0);
-                    setModalType('FAQ');
-                  }}
+                <a
+                  href="#/faq"
                   className="hover:text-[#B85418] text-[#D96B27] font-semibold transition-colors cursor-pointer text-left flex items-center py-0.5"
                 >
                   <HelpCircle className="w-3.5 h-3.5 mr-1.5 text-[#D96B27] shrink-0" />
-                  <span>Frequently Asked Questions</span>
-                </button>
+                  <span>Frequently Asked Questions (FAQ)</span>
+                </a>
               </li>
               {onConsentPortalOpen && (
                 <li>
@@ -245,11 +241,11 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
             </h4>
             <div className="space-y-3 text-xs text-[#1E3A8A] font-['Poppins']">
               <p className="flex items-start leading-relaxed font-medium">
-                <MapPin className="w-3.5 h-3.5 mr-2 text-[#244B8F] shrink-0 mt-0.5" />
+                <MapPin className="w-3.5 h-3.5 mr-2 text-[#0073E6] shrink-0 mt-0.5" />
                 <span>ESTEEM PARK, Rose Garden Rd, 5th Phase, J P Nagar Phase 5, J. P. Nagar, Bengaluru, Karnataka 560078</span>
               </p>
               <p className="flex items-center font-medium">
-                <Mail className="w-3.5 h-3.5 mr-2 text-[#244B8F] shrink-0" />
+                <Mail className="w-3.5 h-3.5 mr-2 text-[#0073E6] shrink-0" />
                 <a href="mailto:support@sellmyghar.in" className="hover:text-[#0F2860] transition-colors">
                   support@sellmyghar.in
                 </a>
@@ -261,8 +257,8 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
       </div>
     </div>
 
-      {/* Bottom Bar: Copyright & Compliance */}
-      <div className="relative z-20 pt-4 pb-6 bg-[#172033] text-slate-300 font-['Poppins'] border-t border-slate-700/60 shadow-lg">
+      {/* Bottom Bar: Copyright & Compliance (Clean pb-24 on mobile to clear bottom nav) */}
+      <div className="relative z-20 pt-4 pb-24 md:pb-6 bg-[#172033] text-slate-300 font-['Poppins'] border-t border-slate-700/60 shadow-lg">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between text-[11px] gap-2">
           <p>© {new Date().getFullYear()} SellMyGhar. All rights reserved.</p>
           <p className="text-center sm:text-right text-slate-400">
@@ -286,8 +282,8 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
 
             {modalType === 'FAQ' && (
               <div className="space-y-4 font-['Poppins'] text-xs">
-                <div className="flex items-center space-x-2 text-[#244B8F]">
-                  <HelpCircle className="w-6 h-6 text-[#244B8F] shrink-0" />
+                <div className="flex items-center space-x-2 text-[#0073E6]">
+                  <HelpCircle className="w-6 h-6 text-[#0073E6] shrink-0" />
                   <div>
                     <h3 className="text-lg font-bold font-['Montserrat'] text-[#172033]">
                       Frequently Asked Questions
@@ -309,7 +305,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                         <button
                           type="button"
                           onClick={() => setOpenModalFaqIndex(isOpen ? null : idx)}
-                          className="w-full flex items-center justify-between text-left p-3.5 text-xs font-bold text-slate-900 hover:text-[#244B8F] transition-colors cursor-pointer"
+                          className="w-full flex items-center justify-between text-left p-3.5 text-xs font-bold text-slate-900 hover:text-[#0073E6] transition-colors cursor-pointer"
                         >
                           <span className="pr-3">{faq.q}</span>
                           {isOpen ? (
@@ -332,7 +328,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
 
             {modalType === 'GRIEVANCE' && (
               <div className="space-y-4 font-['Poppins'] text-xs">
-                <div className="flex items-center space-x-2 text-[#244B8F]">
+                <div className="flex items-center space-x-2 text-[#0073E6]">
                   <ShieldCheck className="w-6 h-6" />
                   <h3 className="text-lg font-bold font-['Montserrat'] text-[#172033]">
                     Statutory DPDP Grievance Officer
@@ -344,7 +340,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-2">
                   <p><strong>Officer Name:</strong> Mr. A. Krishnamurthy</p>
                   <p><strong>Designation:</strong> Head of Legal & Data Compliance</p>
-                  <p><strong>Direct Email:</strong> <a href="mailto:grievance@sellmyghar.in" className="text-[#244B8F] underline">grievance@sellmyghar.in</a></p>
+                  <p><strong>Direct Email:</strong> <a href="mailto:grievance@sellmyghar.in" className="text-[#0073E6] underline">grievance@sellmyghar.in</a></p>
                   <p><strong>Response SLA:</strong> Acknowledgment within 24 hours, resolution within 48 business hours.</p>
                   <p><strong>Office:</strong> ESTEEM PARK, Rose Garden Rd, 5th Phase, J P Nagar Phase 5, J. P. Nagar, Bengaluru, Karnataka 560078</p>
                 </div>
@@ -356,7 +352,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
 
             {modalType === 'PRIVACY' && (
               <div className="space-y-4 font-['Poppins'] text-xs">
-                <div className="flex items-center space-x-2 text-[#244B8F]">
+                <div className="flex items-center space-x-2 text-[#0073E6]">
                   <Lock className="w-6 h-6" />
                   <h3 className="text-lg font-bold font-['Montserrat'] text-[#172033]">
                     Privacy Policy & DPDP Notice
@@ -376,7 +372,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
 
             {modalType === 'TERMS' && (
               <div className="space-y-4 font-['Poppins'] text-xs">
-                <div className="flex items-center space-x-2 text-[#244B8F]">
+                <div className="flex items-center space-x-2 text-[#0073E6]">
                   <Scale className="w-6 h-6" />
                   <h3 className="text-lg font-bold font-['Montserrat'] text-[#172033]">
                     Terms of Service
@@ -393,8 +389,8 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
 
             {modalType === 'FEEDBACK' && (
               <div className="space-y-4 font-['Poppins'] text-xs">
-                <div className="flex items-center space-x-2 text-[#244B8F]">
-                  <HelpCircle className="w-6 h-6 text-[#244B8F]" />
+                <div className="flex items-center space-x-2 text-[#0073E6]">
+                  <HelpCircle className="w-6 h-6 text-[#0073E6]" />
                   <h3 className="text-lg font-bold font-['Montserrat'] text-[#172033]">
                     Feedback & Suggestions
                   </h3>
@@ -412,13 +408,13 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
                       value={feedbackText}
                       onChange={(e) => setFeedbackText(e.target.value)}
                       placeholder="Share your thoughts, feedback, or suggestions..."
-                      className="w-full p-3 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-[#244B8F] focus:outline-none min-h-[100px]"
+                      className="w-full p-3 border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-[#0073E6] focus:outline-none min-h-[100px]"
                     />
                     <button
                       type="button"
                       disabled={!feedbackText.trim()}
                       onClick={() => setFeedbackSent(true)}
-                      className="px-4 py-2 bg-[#244B8F] text-white rounded-lg text-xs font-semibold cursor-pointer hover:bg-[#1B396E] disabled:opacity-50 transition-colors"
+                      className="px-4 py-2 bg-[#0073E6] text-white rounded-lg text-xs font-semibold cursor-pointer hover:bg-[#005BB5] disabled:opacity-50 transition-colors"
                     >
                       Submit Feedback
                     </button>
@@ -429,7 +425,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
 
             {modalType === 'COOKIE' && (
               <div className="space-y-4 font-['Poppins'] text-xs">
-                <div className="flex items-center space-x-2 text-[#244B8F]">
+                <div className="flex items-center space-x-2 text-[#0073E6]">
                   <Lock className="w-6 h-6" />
                   <h3 className="text-lg font-bold font-['Montserrat'] text-[#172033]">
                     Cookie Policy
@@ -445,7 +441,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
               <button
                 type="button"
                 onClick={() => setModalType(null)}
-                className="px-4 py-2 bg-[#244B8F] text-white rounded-lg text-xs font-semibold cursor-pointer hover:bg-[#1B396E] transition-colors"
+                className="px-4 py-2 bg-[#0073E6] text-white rounded-lg text-xs font-semibold cursor-pointer hover:bg-[#005BB5] transition-colors"
               >
                 Close
               </button>

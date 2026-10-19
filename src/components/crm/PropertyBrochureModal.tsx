@@ -66,16 +66,17 @@ export const PropertyBrochureModal: React.FC<PropertyBrochureModalProps> = ({
     return [
       {
         id: 'img-fb-0',
-        url: 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80',
+        url: 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=1200&q=80',
         isFeatured: true,
         caption: 'Primary Featured Residence',
       },
       {
         id: 'img-fb-1',
-        url: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80',
+        url: 'https://images.unsplash.com/photo-1567496898669-ee935f5f647a?auto=format&fit=crop&w=1200&q=80',
         isFeatured: false,
         caption: 'Living Lounge & Balcony',
       },
+
       {
         id: 'img-fb-2',
         url: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=1200&q=80',
@@ -387,7 +388,7 @@ export const PropertyBrochureModal: React.FC<PropertyBrochureModalProps> = ({
         {/* Dock Header */}
         <div className="px-6 py-4 border-b border-slate-200/80 bg-slate-50/50 flex items-center justify-between shrink-0">
           <div className="flex items-center space-x-2.5">
-            <div className="w-8 h-8 rounded-xl bg-[#244B8F] text-white flex items-center justify-center font-bold text-xs shadow-xs">
+            <div className="w-8 h-8 rounded-xl bg-[#0073E6] text-white flex items-center justify-center font-bold text-xs shadow-xs">
               <FileText className="w-4 h-4" />
             </div>
             <div>
@@ -415,7 +416,7 @@ export const PropertyBrochureModal: React.FC<PropertyBrochureModalProps> = ({
             onClick={() => setActiveTab('configure')}
             className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center space-x-2 font-['Montserrat'] ${
               activeTab === 'configure'
-                ? 'bg-[#244B8F] text-white shadow-xs'
+                ? 'bg-[#0073E6] text-white shadow-xs'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70'
             }`}
           >
@@ -427,7 +428,7 @@ export const PropertyBrochureModal: React.FC<PropertyBrochureModalProps> = ({
             onClick={() => setActiveTab('share')}
             className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center space-x-2 font-['Montserrat'] ${
               activeTab === 'share'
-                ? 'bg-[#244B8F] text-white shadow-xs'
+                ? 'bg-[#0073E6] text-white shadow-xs'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200/70'
             }`}
           >
@@ -456,13 +457,13 @@ export const PropertyBrochureModal: React.FC<PropertyBrochureModalProps> = ({
                       onClick={() => setCoverPhotoId(img.id)}
                       className={`relative aspect-4/3 rounded-xl overflow-hidden border-2 transition-all cursor-pointer group ${
                         coverPhotoId === img.id
-                          ? 'border-[#244B8F] ring-2 ring-blue-200 scale-102'
+                          ? 'border-[#0073E6] ring-2 ring-blue-200 scale-102'
                           : 'border-slate-200 opacity-70 hover:opacity-100'
                       }`}
                     >
                       <img src={img.url} alt={img.caption} className="w-full h-full object-cover" />
                       {coverPhotoId === img.id && (
-                        <div className="absolute top-1 left-1 bg-[#244B8F] text-white p-0.5 rounded-full shadow-xs">
+                        <div className="absolute top-1 left-1 bg-[#0073E6] text-white p-0.5 rounded-full shadow-xs">
                           <Check className="w-3 h-3" />
                         </div>
                       )}
@@ -489,7 +490,7 @@ export const PropertyBrochureModal: React.FC<PropertyBrochureModalProps> = ({
                         setSelectedGalleryIds(availableImages.map((i) => i.id));
                       }
                     }}
-                    className="text-[10px] text-[#244B8F] font-bold hover:underline cursor-pointer"
+                    className="text-[10px] text-[#0073E6] font-bold hover:underline cursor-pointer"
                   >
                     {selectedGalleryIds.length === availableImages.length ? 'Deselect All' : 'Select All'}
                   </button>
@@ -514,7 +515,7 @@ export const PropertyBrochureModal: React.FC<PropertyBrochureModalProps> = ({
                             setSelectedGalleryIds((prev) => prev.filter((id) => id !== img.id));
                           }
                         }}
-                        className="rounded text-[#244B8F] focus:ring-[#244B8F] h-4 w-4"
+                        className="rounded text-[#0073E6] focus:ring-[#0073E6] h-4 w-4"
                       />
                     </label>
                   ))}
@@ -550,7 +551,7 @@ export const PropertyBrochureModal: React.FC<PropertyBrochureModalProps> = ({
                         onChange={(e) =>
                           setSections((prev) => ({ ...prev, [sec.key]: e.target.checked }))
                         }
-                        className="rounded text-[#244B8F] focus:ring-[#244B8F] h-4 w-4"
+                        className="rounded text-[#0073E6] focus:ring-[#0073E6] h-4 w-4"
                       />
                     </label>
                   ))}
@@ -569,7 +570,7 @@ export const PropertyBrochureModal: React.FC<PropertyBrochureModalProps> = ({
                       type="text"
                       value={advisorName}
                       onChange={(e) => setAdvisorName(e.target.value)}
-                      className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-[#244B8F]"
+                      className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-[#0073E6]"
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-2">
@@ -579,7 +580,7 @@ export const PropertyBrochureModal: React.FC<PropertyBrochureModalProps> = ({
                         type="text"
                         value={advisorPhone}
                         onChange={(e) => setAdvisorPhone(e.target.value)}
-                        className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-[#244B8F]"
+                        className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-[#0073E6]"
                       />
                     </div>
                     <div>
@@ -588,7 +589,7 @@ export const PropertyBrochureModal: React.FC<PropertyBrochureModalProps> = ({
                         type="text"
                         value={advisorEmail}
                         onChange={(e) => setAdvisorEmail(e.target.value)}
-                        className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-[#244B8F]"
+                        className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold focus:outline-[#0073E6]"
                       />
                     </div>
                   </div>
@@ -599,7 +600,7 @@ export const PropertyBrochureModal: React.FC<PropertyBrochureModalProps> = ({
             /* SHARE & BUYER DELIVERY TAB */
             <div className="space-y-5">
               <div className="p-4 bg-blue-50/80 rounded-2xl border border-blue-100 space-y-2">
-                <h4 className="text-xs font-bold text-[#244B8F] font-['Montserrat'] flex items-center space-x-1.5">
+                <h4 className="text-xs font-bold text-[#0073E6] font-['Montserrat'] flex items-center space-x-1.5">
                   <ShieldCheck className="w-4 h-4" />
                   <span>Approved Resale Distribution</span>
                 </h4>
@@ -655,7 +656,7 @@ export const PropertyBrochureModal: React.FC<PropertyBrochureModalProps> = ({
                       placeholder="e.g. buyer@example.com"
                       value={emailRecipient}
                       onChange={(e) => setEmailRecipient(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-[#244B8F]"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-[#0073E6]"
                     />
                   </div>
                   <div>
@@ -665,7 +666,7 @@ export const PropertyBrochureModal: React.FC<PropertyBrochureModalProps> = ({
                       placeholder="e.g. Anand Murthy"
                       value={emailRecipientName}
                       onChange={(e) => setEmailRecipientName(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-[#244B8F]"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-[#0073E6]"
                     />
                   </div>
                   <div>
@@ -674,13 +675,13 @@ export const PropertyBrochureModal: React.FC<PropertyBrochureModalProps> = ({
                       rows={3}
                       value={emailCustomNote}
                       onChange={(e) => setEmailCustomNote(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-[#244B8F]"
+                      className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-[#0073E6]"
                     />
                   </div>
                   <button
                     type="submit"
                     disabled={isSendingEmail}
-                    className="w-full py-2.5 px-4 bg-[#244B8F] hover:bg-[#1B396E] disabled:bg-slate-400 text-white font-bold text-xs rounded-xl flex items-center justify-center space-x-2 transition-all shadow-xs cursor-pointer font-['Montserrat']"
+                    className="w-full py-2.5 px-4 bg-[#0073E6] hover:bg-[#005BB5] disabled:bg-slate-400 text-white font-bold text-xs rounded-xl flex items-center justify-center space-x-2 transition-all shadow-xs cursor-pointer font-['Montserrat']"
                   >
                     {isSendingEmail ? (
                       <>
@@ -729,7 +730,7 @@ export const PropertyBrochureModal: React.FC<PropertyBrochureModalProps> = ({
           <button
             type="button"
             onClick={handlePrint}
-            className="flex-1 py-2.5 px-4 bg-[#244B8F] hover:bg-[#1B396E] text-white font-bold text-xs rounded-xl flex items-center justify-center space-x-2 transition-all shadow-md cursor-pointer font-['Montserrat']"
+            className="flex-1 py-2.5 px-4 bg-[#0073E6] hover:bg-[#005BB5] text-white font-bold text-xs rounded-xl flex items-center justify-center space-x-2 transition-all shadow-md cursor-pointer font-['Montserrat']"
           >
             <Printer className="w-4 h-4" />
             <span>Download PDF / Print</span>
@@ -814,7 +815,7 @@ export const PropertyBrochureModal: React.FC<PropertyBrochureModalProps> = ({
                 <div className="border-b border-[#172033]/15 pb-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-2xl font-black tracking-widest text-[#244B8F] font-['Montserrat']">
+                      <div className="text-2xl font-black tracking-widest text-[#0073E6] font-['Montserrat']">
                         SELLMYGHAR<span className="text-[#B68A4A]">.IN</span>
                       </div>
                       <div className="text-[9px] uppercase tracking-[0.25em] text-[#172033]/70 font-semibold mt-0.5 font-['Montserrat']">
@@ -827,7 +828,7 @@ export const PropertyBrochureModal: React.FC<PropertyBrochureModalProps> = ({
                       </span>
                     </div>
                   </div>
-                  <div className="h-0.5 bg-gradient-to-r from-[#244B8F] via-[#B68A4A] to-[#244B8F] mt-3 opacity-80" />
+                  <div className="h-0.5 bg-gradient-to-r from-[#0073E6] via-[#B68A4A] to-[#0073E6] mt-3 opacity-80" />
                 </div>
 
                 {/* Primary Large Cover Photograph */}
@@ -866,7 +867,7 @@ export const PropertyBrochureModal: React.FC<PropertyBrochureModalProps> = ({
                   </h1>
 
                   <div className="flex items-center text-xs text-slate-600 font-['Poppins']">
-                    <MapPin className="w-3.5 h-3.5 mr-1 text-[#244B8F] shrink-0" />
+                    <MapPin className="w-3.5 h-3.5 mr-1 text-[#0073E6] shrink-0" />
                     <span>{customSubtitle}, Bengaluru</span>
                   </div>
 
@@ -890,7 +891,7 @@ export const PropertyBrochureModal: React.FC<PropertyBrochureModalProps> = ({
                     <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block font-['Poppins']">
                       Asking Benchmark Price
                     </span>
-                    <span className="text-3xl font-extrabold text-[#244B8F] font-['Montserrat'] tracking-tight">
+                    <span className="text-3xl font-extrabold text-[#0073E6] font-['Montserrat'] tracking-tight">
                       ₹ {askingPriceCr} Cr
                     </span>
                   </div>
@@ -946,7 +947,7 @@ export const PropertyBrochureModal: React.FC<PropertyBrochureModalProps> = ({
                       {/* 4 Resale Pillars Grid */}
                       <div className="grid grid-cols-2 gap-3 pt-1 font-['Poppins']">
                         <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/80 space-y-1">
-                          <strong className="text-xs font-bold text-[#244B8F] block font-['Montserrat']">
+                          <strong className="text-xs font-bold text-[#0073E6] block font-['Montserrat']">
                             Direct Owner Resale
                           </strong>
                           <p className="text-[11px] text-slate-600">
@@ -954,7 +955,7 @@ export const PropertyBrochureModal: React.FC<PropertyBrochureModalProps> = ({
                           </p>
                         </div>
                         <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/80 space-y-1">
-                          <strong className="text-xs font-bold text-[#244B8F] block font-['Montserrat']">
+                          <strong className="text-xs font-bold text-[#0073E6] block font-['Montserrat']">
                             Registered Deed Benchmarked
                           </strong>
                           <p className="text-[11px] text-slate-600">
@@ -962,7 +963,7 @@ export const PropertyBrochureModal: React.FC<PropertyBrochureModalProps> = ({
                           </p>
                         </div>
                         <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/80 space-y-1">
-                          <strong className="text-xs font-bold text-[#244B8F] block font-['Montserrat']">
+                          <strong className="text-xs font-bold text-[#0073E6] block font-['Montserrat']">
                             Statutory Title Diligence
                           </strong>
                           <p className="text-[11px] text-slate-600">
@@ -970,7 +971,7 @@ export const PropertyBrochureModal: React.FC<PropertyBrochureModalProps> = ({
                           </p>
                         </div>
                         <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/80 space-y-1">
-                          <strong className="text-xs font-bold text-[#244B8F] block font-['Montserrat']">
+                          <strong className="text-xs font-bold text-[#0073E6] block font-['Montserrat']">
                             Escorted Private Walkthroughs
                           </strong>
                           <p className="text-[11px] text-slate-600">
@@ -1190,7 +1191,7 @@ export const PropertyBrochureModal: React.FC<PropertyBrochureModalProps> = ({
                       <div className="grid grid-cols-2 gap-2 text-xs font-['Poppins']">
                         {amenitiesList.slice(0, 6).map((am: string, idx: number) => (
                           <div key={idx} className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/80 flex items-center space-x-2 text-slate-800">
-                            <span className="w-1.5 h-1.5 rounded-full bg-[#244B8F] shrink-0" />
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#0073E6] shrink-0" />
                             <span className="truncate font-medium">{am}</span>
                           </div>
                         ))}
@@ -1204,19 +1205,19 @@ export const PropertyBrochureModal: React.FC<PropertyBrochureModalProps> = ({
                         <div className="grid grid-cols-2 gap-2 text-xs font-['Poppins']">
                           <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/80 flex items-center justify-between">
                             <span className="text-slate-700 font-medium">Outer Ring Road Metro</span>
-                            <span className="font-bold text-[#244B8F] font-mono text-[11px]">600 m</span>
+                            <span className="font-bold text-[#0073E6] font-mono text-[11px]">600 m</span>
                           </div>
                           <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/80 flex items-center justify-between">
                             <span className="text-slate-700 font-medium">Major Tech Parks (ORR/ITPB)</span>
-                            <span className="font-bold text-[#244B8F] font-mono text-[11px]">3.2 km</span>
+                            <span className="font-bold text-[#0073E6] font-mono text-[11px]">3.2 km</span>
                           </div>
                           <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/80 flex items-center justify-between">
                             <span className="text-slate-700 font-medium">Manipal / Columbia Asia Hospital</span>
-                            <span className="font-bold text-[#244B8F] font-mono text-[11px]">2.5 km</span>
+                            <span className="font-bold text-[#0073E6] font-mono text-[11px]">2.5 km</span>
                           </div>
                           <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200/80 flex items-center justify-between">
                             <span className="text-slate-700 font-medium">International Schools</span>
-                            <span className="font-bold text-[#244B8F] font-mono text-[11px]">4.0 km</span>
+                            <span className="font-bold text-[#0073E6] font-mono text-[11px]">4.0 km</span>
                           </div>
                         </div>
                       </div>
@@ -1312,7 +1313,7 @@ export const PropertyBrochureModal: React.FC<PropertyBrochureModalProps> = ({
 
                       {/* DPDP Notice */}
                       <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-[10px] text-slate-500 flex items-center space-x-2 font-['Poppins']">
-                        <ShieldCheck className="w-3.5 h-3.5 text-[#244B8F] shrink-0" />
+                        <ShieldCheck className="w-3.5 h-3.5 text-[#0073E6] shrink-0" />
                         <span>
                           Protected under DPDP Act 2023. Private flat unit numbers, owner deeds, and phone numbers remain protected until escorted private tour.
                         </span>
@@ -1337,7 +1338,7 @@ export const PropertyBrochureModal: React.FC<PropertyBrochureModalProps> = ({
                         
                         {/* Left: Relationship Advisor Details */}
                         <div className="space-y-2 flex-1 font-['Poppins']">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-[#244B8F] font-['Montserrat'] block">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-[#0073E6] font-['Montserrat'] block">
                             Assigned Relationship Advisor
                           </span>
                           <strong className="text-base font-bold text-[#172033] block font-['Montserrat']">

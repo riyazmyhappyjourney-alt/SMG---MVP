@@ -40,7 +40,7 @@ export const BrandLoader: React.FC<BrandLoaderProps> = ({
         />
         {/* Core Brand Square with Trust Blue */}
         <div
-          className={`${containerSizes[size]} rounded-2xl bg-[#244B8F] text-white flex items-center justify-center shadow-lg shadow-blue-900/20 relative z-10`}
+          className={`${containerSizes[size]} rounded-2xl bg-[#0073E6] text-white flex items-center justify-center shadow-lg shadow-blue-900/20 relative z-10`}
         >
           <Building2 className={`${iconSizes[size]} animate-pulse`} />
         </div>

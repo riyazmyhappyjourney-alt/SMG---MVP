@@ -77,7 +77,7 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({
   ];
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F4F6F9] selection:bg-[#244B8F] selection:text-white font-['Montserrat'] text-slate-800">
+    <div className="min-h-screen flex flex-col bg-[#F4F6F9] selection:bg-[#0073E6] selection:text-white font-['Montserrat'] text-slate-800">
       
       {/* Top Header */}
       <Header
@@ -99,7 +99,7 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({
             <button
               type="button"
               onClick={() => onBackToHome ? onBackToHome() : window.location.hash = '#/'}
-              className="hover:text-[#244B8F] transition-colors cursor-pointer"
+              className="hover:text-[#0073E6] transition-colors cursor-pointer"
             >
               Home
             </button>
@@ -114,7 +114,7 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({
             </span>
             <a
               href="mailto:support@sellmyghar.in"
-              className="inline-flex items-center space-x-1 text-[#244B8F] font-semibold hover:underline"
+              className="inline-flex items-center space-x-1 text-[#0073E6] font-semibold hover:underline"
             >
               <Mail className="w-3.5 h-3.5" />
               <span>support@sellmyghar.in</span>
@@ -127,7 +127,7 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           
           {/* Main Hero Header Banner */}
-          <div className="bg-gradient-to-br from-[#172033] via-[#1B396E] to-[#244B8F] text-white rounded-3xl shadow-xl p-8 sm:p-12 mb-10 relative overflow-hidden">
+          <div className="bg-gradient-to-br from-[#172033] via-[#005BB5] to-[#0073E6] text-white rounded-3xl shadow-xl p-8 sm:p-12 mb-10 relative overflow-hidden">
             <div className="relative z-10 max-w-3xl">
               <div className="inline-flex items-center space-x-2 px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs font-semibold uppercase tracking-wider text-emerald-300 mb-4">
                 <ShieldCheck className="w-4 h-4 text-emerald-400" />
@@ -157,7 +157,7 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({
             </div>
 
             {/* Decorative subtle background accents */}
-            <div className="absolute right-0 bottom-0 translate-x-12 translate-y-12 w-96 h-96 bg-[#244B8F]/30 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute right-0 bottom-0 translate-x-12 translate-y-12 w-96 h-96 bg-[#0073E6]/30 rounded-full blur-3xl pointer-events-none" />
             <div className="absolute top-0 right-1/4 w-64 h-64 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none" />
           </div>
 
@@ -167,7 +167,7 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({
             <div className="lg:col-span-4 xl:col-span-3 lg:sticky lg:top-8 space-y-4">
               <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-5 font-['Poppins']">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-[#172033] font-['Montserrat'] mb-3 flex items-center space-x-2">
-                  <FileCheck2 className="w-4 h-4 text-[#244B8F]" />
+                  <FileCheck2 className="w-4 h-4 text-[#0073E6]" />
                   <span>Table of Contents</span>
                 </h3>
                 <nav className="space-y-1 text-xs">
@@ -178,7 +178,7 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({
                       onClick={() => scrollTo(sec.id)}
                       className={`w-full text-left px-3 py-2 rounded-xl transition-all flex items-center justify-between cursor-pointer ${
                         activeSection === sec.id
-                          ? 'bg-[#244B8F] text-white font-semibold shadow-xs'
+                          ? 'bg-[#0073E6] text-white font-semibold shadow-xs'
                           : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
                       }`}
                     >
@@ -192,9 +192,9 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({
                   <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Privacy Contact Desk</p>
                   <a
                     href="mailto:support@sellmyghar.in"
-                    className="flex items-center space-x-2 text-xs font-semibold text-[#244B8F] hover:underline"
+                    className="flex items-center space-x-2 text-xs font-semibold text-[#0073E6] hover:underline"
                   >
-                    <Mail className="w-3.5 h-3.5 text-[#244B8F]" />
+                    <Mail className="w-3.5 h-3.5 text-[#0073E6]" />
                     <span>support@sellmyghar.in</span>
                   </a>
                   <a
@@ -232,7 +232,7 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({
               {/* SECTION 1 */}
               <section id="sec-1" className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6 sm:p-8 space-y-4">
                 <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 rounded-xl bg-[#244B8F]/10 text-[#244B8F] flex items-center justify-center font-bold text-xs font-['Montserrat']">
+                  <div className="w-8 h-8 rounded-xl bg-[#0073E6]/10 text-[#0073E6] flex items-center justify-center font-bold text-xs font-['Montserrat']">
                     01
                   </div>
                   <h2 className="text-xl font-extrabold text-[#172033] font-['Montserrat']">
@@ -256,7 +256,7 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({
               {/* SECTION 2 */}
               <section id="sec-2" className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6 sm:p-8 space-y-5">
                 <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 rounded-xl bg-[#244B8F]/10 text-[#244B8F] flex items-center justify-center font-bold text-xs font-['Montserrat']">
+                  <div className="w-8 h-8 rounded-xl bg-[#0073E6]/10 text-[#0073E6] flex items-center justify-center font-bold text-xs font-['Montserrat']">
                     02
                   </div>
                   <h2 className="text-xl font-extrabold text-[#172033] font-['Montserrat']">
@@ -268,7 +268,7 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({
                 <div className="space-y-4 pt-2">
                   <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
                     <h3 className="font-bold text-[#172033] font-['Montserrat'] text-sm mb-2 flex items-center space-x-2">
-                      <UserCheck className="w-4 h-4 text-[#244B8F]" />
+                      <UserCheck className="w-4 h-4 text-[#0073E6]" />
                       <span>A. Personal and Account Information</span>
                     </h3>
                     <p className="mb-2">When you register or create an account, we may collect:</p>
@@ -289,7 +289,7 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({
 
                   <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
                     <h3 className="font-bold text-[#172033] font-['Montserrat'] text-sm mb-2 flex items-center space-x-2">
-                      <Building2 className="w-4 h-4 text-[#244B8F]" />
+                      <Building2 className="w-4 h-4 text-[#0073E6]" />
                       <span>B. Property Information</span>
                     </h3>
                     <p className="mb-2">When you submit a property listing, we may collect:</p>
@@ -309,7 +309,7 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({
 
                   <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
                     <h3 className="font-bold text-[#172033] font-['Montserrat'] text-sm mb-2 flex items-center space-x-2">
-                      <Mail className="w-4 h-4 text-[#244B8F]" />
+                      <Mail className="w-4 h-4 text-[#0073E6]" />
                       <span>C. Buyer and Seller Enquiry Information</span>
                     </h3>
                     <p className="text-xs">
@@ -319,7 +319,7 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({
 
                   <div className="p-4 rounded-xl bg-slate-50 border border-slate-200">
                     <h3 className="font-bold text-[#172033] font-['Montserrat'] text-sm mb-2 flex items-center space-x-2">
-                      <Lock className="w-4 h-4 text-[#244B8F]" />
+                      <Lock className="w-4 h-4 text-[#0073E6]" />
                       <span>D. Technical and Usage Information</span>
                     </h3>
                     <p className="text-xs leading-relaxed">
@@ -332,7 +332,7 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({
               {/* SECTION 3 */}
               <section id="sec-3" className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6 sm:p-8 space-y-4">
                 <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 rounded-xl bg-[#244B8F]/10 text-[#244B8F] flex items-center justify-center font-bold text-xs font-['Montserrat']">
+                  <div className="w-8 h-8 rounded-xl bg-[#0073E6]/10 text-[#0073E6] flex items-center justify-center font-bold text-xs font-['Montserrat']">
                     03
                   </div>
                   <h2 className="text-xl font-extrabold text-[#172033] font-['Montserrat']">
@@ -367,9 +367,9 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({
               </section>
 
               {/* SECTION 4: GOOGLE SIGN-IN & LIMITED USE */}
-              <section id="sec-4" className="bg-gradient-to-br from-white to-blue-50/40 rounded-2xl border-2 border-[#244B8F]/30 shadow-sm p-6 sm:p-8 space-y-4">
+              <section id="sec-4" className="bg-gradient-to-br from-white to-blue-50/40 rounded-2xl border-2 border-[#0073E6]/30 shadow-sm p-6 sm:p-8 space-y-4">
                 <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 rounded-xl bg-[#244B8F] text-white flex items-center justify-center font-bold text-xs font-['Montserrat']">
+                  <div className="w-8 h-8 rounded-xl bg-[#0073E6] text-white flex items-center justify-center font-bold text-xs font-['Montserrat']">
                     04
                   </div>
                   <h2 className="text-xl font-extrabold text-[#172033] font-['Montserrat']">
@@ -415,7 +415,7 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({
               {/* SECTION 5 */}
               <section id="sec-5" className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6 sm:p-8 space-y-4">
                 <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 rounded-xl bg-[#244B8F]/10 text-[#244B8F] flex items-center justify-center font-bold text-xs font-['Montserrat']">
+                  <div className="w-8 h-8 rounded-xl bg-[#0073E6]/10 text-[#0073E6] flex items-center justify-center font-bold text-xs font-['Montserrat']">
                     05
                   </div>
                   <h2 className="text-xl font-extrabold text-[#172033] font-['Montserrat']">
@@ -439,7 +439,7 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({
               {/* SECTION 6 */}
               <section id="sec-6" className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6 sm:p-8 space-y-4">
                 <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 rounded-xl bg-[#244B8F]/10 text-[#244B8F] flex items-center justify-center font-bold text-xs font-['Montserrat']">
+                  <div className="w-8 h-8 rounded-xl bg-[#0073E6]/10 text-[#0073E6] flex items-center justify-center font-bold text-xs font-['Montserrat']">
                     06
                   </div>
                   <h2 className="text-xl font-extrabold text-[#172033] font-['Montserrat']">
@@ -465,7 +465,7 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({
               {/* SECTION 7 */}
               <section id="sec-7" className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6 sm:p-8 space-y-4">
                 <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 rounded-xl bg-[#244B8F]/10 text-[#244B8F] flex items-center justify-center font-bold text-xs font-['Montserrat']">
+                  <div className="w-8 h-8 rounded-xl bg-[#0073E6]/10 text-[#0073E6] flex items-center justify-center font-bold text-xs font-['Montserrat']">
                     07
                   </div>
                   <h2 className="text-xl font-extrabold text-[#172033] font-['Montserrat']">
@@ -489,7 +489,7 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({
               {/* SECTION 8 */}
               <section id="sec-8" className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6 sm:p-8 space-y-4">
                 <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 rounded-xl bg-[#244B8F]/10 text-[#244B8F] flex items-center justify-center font-bold text-xs font-['Montserrat']">
+                  <div className="w-8 h-8 rounded-xl bg-[#0073E6]/10 text-[#0073E6] flex items-center justify-center font-bold text-xs font-['Montserrat']">
                     08
                   </div>
                   <h2 className="text-xl font-extrabold text-[#172033] font-['Montserrat']">
@@ -510,7 +510,7 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({
               {/* SECTION 9 */}
               <section id="sec-9" className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6 sm:p-8 space-y-4">
                 <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 rounded-xl bg-[#244B8F]/10 text-[#244B8F] flex items-center justify-center font-bold text-xs font-['Montserrat']">
+                  <div className="w-8 h-8 rounded-xl bg-[#0073E6]/10 text-[#0073E6] flex items-center justify-center font-bold text-xs font-['Montserrat']">
                     09
                   </div>
                   <h2 className="text-xl font-extrabold text-[#172033] font-['Montserrat']">
@@ -530,7 +530,7 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({
                   Withdrawing consent does not affect processing lawfully undertaken before withdrawal. It may also affect our ability to provide certain services.
                 </p>
                 <p className="text-xs">
-                  To exercise these rights, contact us at <a href="mailto:support@sellmyghar.in" className="text-[#244B8F] font-semibold underline">support@sellmyghar.in</a> or <a href="mailto:contact@sellmyghar.in" className="text-[#244B8F] font-semibold underline">contact@sellmyghar.in</a>. We will review requests and respond in accordance with applicable law. We may need to verify your identity before acting on a request.
+                  To exercise these rights, contact us at <a href="mailto:support@sellmyghar.in" className="text-[#0073E6] font-semibold underline">support@sellmyghar.in</a> or <a href="mailto:contact@sellmyghar.in" className="text-[#0073E6] font-semibold underline">contact@sellmyghar.in</a>. We will review requests and respond in accordance with applicable law. We may need to verify your identity before acting on a request.
                 </p>
               </section>
 
@@ -551,7 +551,7 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({
                 <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
                   <div>
                     <span className="font-semibold text-slate-800">Primary Deletion Desks:</span>
-                    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 font-mono text-[#244B8F] font-bold">
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 font-mono text-[#0073E6] font-bold">
                       <a href="mailto:support@sellmyghar.in" className="hover:underline">support@sellmyghar.in</a>
                       <span className="text-slate-300">|</span>
                       <a href="mailto:contact@sellmyghar.in" className="hover:underline">contact@sellmyghar.in</a>
@@ -582,7 +582,7 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({
               {/* SECTION 11 */}
               <section id="sec-11" className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6 sm:p-8 space-y-4">
                 <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 rounded-xl bg-[#244B8F]/10 text-[#244B8F] flex items-center justify-center font-bold text-xs font-['Montserrat']">
+                  <div className="w-8 h-8 rounded-xl bg-[#0073E6]/10 text-[#0073E6] flex items-center justify-center font-bold text-xs font-['Montserrat']">
                     11
                   </div>
                   <h2 className="text-xl font-extrabold text-[#172033] font-['Montserrat']">
@@ -603,7 +603,7 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({
               {/* SECTION 12 */}
               <section id="sec-12" className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6 sm:p-8 space-y-4">
                 <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 rounded-xl bg-[#244B8F]/10 text-[#244B8F] flex items-center justify-center font-bold text-xs font-['Montserrat']">
+                  <div className="w-8 h-8 rounded-xl bg-[#0073E6]/10 text-[#0073E6] flex items-center justify-center font-bold text-xs font-['Montserrat']">
                     12
                   </div>
                   <h2 className="text-xl font-extrabold text-[#172033] font-['Montserrat']">
@@ -624,7 +624,7 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({
               {/* SECTION 13 */}
               <section id="sec-13" className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6 sm:p-8 space-y-4">
                 <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 rounded-xl bg-[#244B8F]/10 text-[#244B8F] flex items-center justify-center font-bold text-xs font-['Montserrat']">
+                  <div className="w-8 h-8 rounded-xl bg-[#0073E6]/10 text-[#0073E6] flex items-center justify-center font-bold text-xs font-['Montserrat']">
                     13
                   </div>
                   <h2 className="text-xl font-extrabold text-[#172033] font-['Montserrat']">
@@ -635,14 +635,14 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({
                   SellMyGhar is intended for individuals legally capable of using our property-related services. Our services are not directed at children, and we do not knowingly collect children’s personal information in violation of applicable law.
                 </p>
                 <p className="text-xs text-slate-600">
-                  If you believe that a child has provided personal information inappropriately, contact us at <a href="mailto:support@sellmyghar.in" className="text-[#244B8F] font-semibold underline">support@sellmyghar.in</a> so that we can review the matter and take appropriate action.
+                  If you believe that a child has provided personal information inappropriately, contact us at <a href="mailto:support@sellmyghar.in" className="text-[#0073E6] font-semibold underline">support@sellmyghar.in</a> so that we can review the matter and take appropriate action.
                 </p>
               </section>
 
               {/* SECTION 14 */}
               <section id="sec-14" className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6 sm:p-8 space-y-4">
                 <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 rounded-xl bg-[#244B8F]/10 text-[#244B8F] flex items-center justify-center font-bold text-xs font-['Montserrat']">
+                  <div className="w-8 h-8 rounded-xl bg-[#0073E6]/10 text-[#0073E6] flex items-center justify-center font-bold text-xs font-['Montserrat']">
                     14
                   </div>
                   <h2 className="text-xl font-extrabold text-[#172033] font-['Montserrat']">
@@ -681,7 +681,7 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({
               {/* SECTION 16 */}
               <section id="sec-16" className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6 sm:p-8 space-y-4">
                 <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 rounded-xl bg-[#244B8F]/10 text-[#244B8F] flex items-center justify-center font-bold text-xs font-['Montserrat']">
+                  <div className="w-8 h-8 rounded-xl bg-[#0073E6]/10 text-[#0073E6] flex items-center justify-center font-bold text-xs font-['Montserrat']">
                     16
                   </div>
                   <h2 className="text-xl font-extrabold text-[#172033] font-['Montserrat']">
@@ -702,7 +702,7 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({
               {/* SECTION 17: CONTACT US & GRIEVANCES */}
               <section id="sec-17" className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-6 sm:p-8 space-y-5">
                 <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 rounded-xl bg-[#244B8F] text-white flex items-center justify-center font-bold text-xs font-['Montserrat']">
+                  <div className="w-8 h-8 rounded-xl bg-[#0073E6] text-white flex items-center justify-center font-bold text-xs font-['Montserrat']">
                     17
                   </div>
                   <h2 className="text-xl font-extrabold text-[#172033] font-['Montserrat']">
@@ -761,7 +761,7 @@ export const PrivacyPolicyPage: React.FC<PrivacyPolicyPageProps> = ({
                   <button
                     type="button"
                     onClick={() => onBackToHome ? onBackToHome() : window.location.hash = '#/'}
-                    className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-xl bg-[#244B8F] hover:bg-[#1B396E] text-white text-xs font-bold font-['Montserrat'] shadow-md transition-all cursor-pointer"
+                    className="inline-flex items-center space-x-2 px-5 py-2.5 rounded-xl bg-[#0073E6] hover:bg-[#005BB5] text-white text-xs font-bold font-['Montserrat'] shadow-md transition-all cursor-pointer"
                   >
                     <ArrowLeft className="w-3.5 h-3.5" />
                     <span>Back to Homepage</span>

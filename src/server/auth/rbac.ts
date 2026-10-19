@@ -113,6 +113,32 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
     'compliance:execute_erasure',
     'audit:read',
   ],
+
+  // 8. General Staff / Employee Roles (Unified CRM Access)
+  STAFF: [
+    'leads:create', 'leads:read_all', 'leads:update_status', 'leads:assign', 'leads:export',
+    'properties:create', 'properties:read_own', 'properties:read_details_all', 'properties:read_sensitive_identifiers', 'properties:read_reserve_price',
+    'properties:update_own', 'properties:update_verification_tier', 'documents:upload_own', 'documents:read_own', 'documents:read_all_secure',
+    'documents:verify', 'listings:read_public', 'listings:draft', 'listings:publish_approve', 'listings:archive',
+    'visits:request', 'visits:read_own', 'visits:coordinate', 'visits:complete', 'offers:create', 'offers:read_own',
+    'offers:manage_all', 'deals:manage', 'compliance:view_consents', 'compliance:execute_erasure', 'audit:read',
+  ],
+  EMPLOYEE: [
+    'leads:create', 'leads:read_all', 'leads:update_status', 'leads:assign', 'leads:export',
+    'properties:create', 'properties:read_own', 'properties:read_details_all', 'properties:read_sensitive_identifiers', 'properties:read_reserve_price',
+    'properties:update_own', 'properties:update_verification_tier', 'documents:upload_own', 'documents:read_own', 'documents:read_all_secure',
+    'documents:verify', 'listings:read_public', 'listings:draft', 'listings:publish_approve', 'listings:archive',
+    'visits:request', 'visits:read_own', 'visits:coordinate', 'visits:complete', 'offers:create', 'offers:read_own',
+    'offers:manage_all', 'deals:manage', 'compliance:view_consents', 'compliance:execute_erasure', 'audit:read',
+  ],
+  STAFF_MEMBER: [
+    'leads:create', 'leads:read_all', 'leads:update_status', 'leads:assign', 'leads:export',
+    'properties:create', 'properties:read_own', 'properties:read_details_all', 'properties:read_sensitive_identifiers', 'properties:read_reserve_price',
+    'properties:update_own', 'properties:update_verification_tier', 'documents:upload_own', 'documents:read_own', 'documents:read_all_secure',
+    'documents:verify', 'listings:read_public', 'listings:draft', 'listings:publish_approve', 'listings:archive',
+    'visits:request', 'visits:read_own', 'visits:coordinate', 'visits:complete', 'offers:create', 'offers:read_own',
+    'offers:manage_all', 'deals:manage', 'compliance:view_consents', 'compliance:execute_erasure', 'audit:read',
+  ],
 };
 
 /**

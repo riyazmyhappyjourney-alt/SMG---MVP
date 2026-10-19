@@ -116,7 +116,7 @@ export const PasswordResetPage: React.FC<PasswordResetPageProps> = ({ onBackToHo
         <button
           type="button"
           onClick={onBackToHome}
-          className="inline-flex items-center text-xs font-semibold text-slate-500 hover:text-[#244B8F] transition-colors cursor-pointer group"
+          className="inline-flex items-center text-xs font-semibold text-slate-500 hover:text-[#0073E6] transition-colors cursor-pointer group"
         >
           <ArrowLeft className="w-3.5 h-3.5 mr-1.5 group-hover:-translate-x-1 transition-transform" />
           <span>Return to Homepage</span>
@@ -146,7 +146,7 @@ export const PasswordResetPage: React.FC<PasswordResetPageProps> = ({ onBackToHo
           {/* STATE 1: VERIFYING TOKEN */}
           {verifying && (
             <div className="py-8 text-center space-y-3">
-              <Loader2 className="w-8 h-8 text-[#244B8F] animate-spin mx-auto" />
+              <Loader2 className="w-8 h-8 text-[#0073E6] animate-spin mx-auto" />
               <p className="text-xs text-slate-600 font-medium">Validating security token...</p>
             </div>
           )}
@@ -170,7 +170,7 @@ export const PasswordResetPage: React.FC<PasswordResetPageProps> = ({ onBackToHo
                 <button
                   type="button"
                   onClick={onBackToHome}
-                  className="w-full py-3 rounded-xl bg-[#244B8F] hover:bg-[#1B396E] text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+                  className="w-full py-3 rounded-xl bg-[#0073E6] hover:bg-[#005BB5] text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
                 >
                   Return to Homepage
                 </button>
@@ -197,7 +197,7 @@ export const PasswordResetPage: React.FC<PasswordResetPageProps> = ({ onBackToHo
                 <button
                   type="button"
                   onClick={onBackToHome}
-                  className="w-full py-3 rounded-xl bg-[#244B8F] hover:bg-[#1B396E] text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
+                  className="w-full py-3 rounded-xl bg-[#0073E6] hover:bg-[#005BB5] text-white text-xs font-bold transition-all shadow-xs cursor-pointer"
                 >
                   Return to Homepage
                 </button>
@@ -236,7 +236,7 @@ export const PasswordResetPage: React.FC<PasswordResetPageProps> = ({ onBackToHo
                     value={newPassword}
                     onChange={(e) => setNewPassword(e.target.value)}
                     placeholder="••••••••••••"
-                    className="w-full pl-10 pr-3.5 py-3 text-sm bg-slate-50/70 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#244B8F] focus:border-transparent transition-all"
+                    className="w-full pl-10 pr-3.5 py-3 text-sm bg-slate-50/70 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0073E6] focus:border-transparent transition-all"
                   />
                 </div>
               </div>
@@ -256,7 +256,7 @@ export const PasswordResetPage: React.FC<PasswordResetPageProps> = ({ onBackToHo
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="••••••••••••"
-                    className="w-full pl-10 pr-3.5 py-3 text-sm bg-slate-50/70 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#244B8F] focus:border-transparent transition-all"
+                    className="w-full pl-10 pr-3.5 py-3 text-sm bg-slate-50/70 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0073E6] focus:border-transparent transition-all"
                   />
                 </div>
               </div>
@@ -264,7 +264,7 @@ export const PasswordResetPage: React.FC<PasswordResetPageProps> = ({ onBackToHo
               <button
                 type="submit"
                 disabled={submitting || newPassword.length < 8 || newPassword !== confirmPassword}
-                className="w-full py-3.5 rounded-xl text-sm font-bold text-white bg-[#244B8F] hover:bg-[#1B396E] disabled:bg-slate-300 disabled:cursor-not-allowed transition-all cursor-pointer flex items-center justify-center space-x-2 shadow-xs"
+                className="w-full py-3.5 rounded-xl text-sm font-bold text-white bg-[#0073E6] hover:bg-[#005BB5] disabled:bg-slate-300 disabled:cursor-not-allowed transition-all cursor-pointer flex items-center justify-center space-x-2 shadow-xs"
               >
                 {submitting ? (
                   <>
@@ -280,7 +280,7 @@ export const PasswordResetPage: React.FC<PasswordResetPageProps> = ({ onBackToHo
                 <button
                   type="button"
                   onClick={onBackToHome}
-                  className="text-xs font-semibold text-slate-500 hover:text-[#244B8F] hover:underline cursor-pointer"
+                  className="text-xs font-semibold text-slate-500 hover:text-[#0073E6] hover:underline cursor-pointer"
                 >
                   &larr; Return to Homepage
                 </button>

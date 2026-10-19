@@ -14,25 +14,22 @@ import {
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { getFavoritePropertyIds, toggleFavoriteProperty } from '../../utils/favoritesStore';
-import { getDistinctCommunityPhoto } from '../../utils/propertyImages';
 import { PropertyCardSkeleton } from '../common/PropertyCardSkeleton';
+import { PropertyCard, PropertyCardData } from '../common/PropertyCard';
+import { useListings } from '../../utils/listingsHook';
+import { getDistinctCommunityPhoto } from '../../utils/propertyImages';
 
-interface PropertyItem {
-  id: string;
-  projectName: string;
-  localityName: string;
-  bhkType: string;
-  superBuiltUpSqft: number;
-  carpetAreaSqft: number;
-  floorBand: string;
-  facing: string;
-  bathroomsCount: number;
-  carParksCount: number;
-  askingPriceInr: number;
-  pricePerSqft: number;
-  image: string;
-  verificationBadge: 'DOCS CHECKED' | 'INSPECTED' | 'OWNER VERIFIED';
-}
+export type PropertyItem = PropertyCardData;
+
+// Resilient onError fallback handler to eliminate broken image icons
+export const handleListingImageError = (e: React.SyntheticEvent<HTMLImageElement>, id: string) => {
+  const target = e.target as HTMLImageElement;
+  if (!target.dataset.hasFallback) {
+    target.dataset.hasFallback = 'true';
+    target.src = getDistinctCommunityPhoto(id, 800);
+  }
+};
+// onError={(e) => { handleListingImageError(e, item.id); }}
 
 interface ListedPropertiesProps {
   onSelectProperty: (projectName: string, locality: string, bhkType: any) => void;
@@ -45,8 +42,7 @@ export const ListedProperties: React.FC<ListedPropertiesProps> = ({
   searchQuery,
   externalLocality,
 }) => {
-  const [properties, setProperties] = useState<PropertyItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { properties, loading } = useListings();
   const [bhkFilter, setBhkFilter] = useState<string>('ALL');
   const [localityFilter, setLocalityFilter] = useState<string>('ALL');
   const [favorites, setFavorites] = useState<Set<string>>(new Set(getFavoritePropertyIds()));
@@ -58,23 +54,6 @@ export const ListedProperties: React.FC<ListedPropertiesProps> = ({
   }, [externalLocality]);
 
   useEffect(() => {
-    async function fetchListings() {
-      try {
-        const res = await fetch('/api/listings');
-        if (res.ok) {
-          const data = await res.json();
-          if (data.listings && data.listings.length > 0) {
-            setProperties(data.listings);
-          }
-        }
-      } catch (err) {
-        console.error('Failed to load listings:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    fetchListings();
-
     const handleFavUpdated = (e: any) => {
       setFavorites(new Set(e.detail?.ids || getFavoritePropertyIds()));
     };
@@ -94,11 +73,31 @@ export const ListedProperties: React.FC<ListedPropertiesProps> = ({
     return `₹${(priceInr / 100000).toFixed(1)} Lakhs`;
   };
 
+  const CORRIDOR_MAP: Record<string, string[]> = {
+    'bengaluru east': ['whitefield', 'sarjapur', 'bellandur', 'marathahalli', 'varthur', 'kadugodi', 'brookefield', 'indiranagar', 'east'],
+    'bengaluru north': ['hebbal', 'thanisandra', 'yelahanka', 'jakkur', 'hennur', 'sahakarnagar', 'north'],
+    'bengaluru south': ['jp nagar', 'hsr', 'electronic city', 'bannerghatta', 'btm', 'kanakapura', 'south'],
+  };
+
   const filteredProperties = properties.filter((p) => {
     if (bhkFilter !== 'ALL' && p.bhkType !== bhkFilter) return false;
-    if (localityFilter !== 'ALL' && 
-        !p.localityName.toLowerCase().includes(localityFilter.toLowerCase()) &&
-        !p.projectName.toLowerCase().includes(localityFilter.toLowerCase())) return false;
+    
+    if (localityFilter !== 'ALL' && localityFilter.toLowerCase() !== 'all bengaluru') {
+      const locKey = localityFilter.toLowerCase().trim();
+      const corridorKeywords = CORRIDOR_MAP[locKey];
+
+      if (corridorKeywords) {
+        const pLoc = (p.localityName || '').toLowerCase();
+        const pProj = (p.projectName || '').toLowerCase();
+        const matchesCorridor = corridorKeywords.some(kw => pLoc.includes(kw) || pProj.includes(kw));
+        if (!matchesCorridor) return false;
+      } else {
+        const pLoc = (p.localityName || '').toLowerCase();
+        const pProj = (p.projectName || '').toLowerCase();
+        if (!pLoc.includes(locKey) && !pProj.includes(locKey)) return false;
+      }
+    }
+
     if (searchQuery && searchQuery.trim()) {
       const q = searchQuery.toLowerCase().trim();
       const match = p.projectName.toLowerCase().includes(q) ||
@@ -130,8 +129,8 @@ export const ListedProperties: React.FC<ListedPropertiesProps> = ({
         {/* Section Header */}
         <div className="mb-8 sm:mb-10 text-left">
           <div className="flex items-center space-x-2 mb-2">
-            <span className="w-6 h-0.5 bg-[#244B8F] rounded-full" />
-            <span className="text-xs font-bold uppercase tracking-wider text-[#244B8F]">
+            <span className="w-6 h-0.5 bg-[#0073E6] rounded-full" />
+            <span className="text-xs font-bold uppercase tracking-wider text-[#0073E6]">
               Curated Resale
             </span>
           </div>
@@ -156,7 +155,7 @@ export const ListedProperties: React.FC<ListedPropertiesProps> = ({
                 onClick={() => setBhkFilter(bhk)}
                 className={`px-3 py-1.5 rounded-lg transition-all cursor-pointer shrink-0 ${
                   bhkFilter === bhk
-                    ? 'bg-[#244B8F] text-white shadow-xs'
+                    ? 'bg-[#0073E6] text-white shadow-xs'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                 }`}
               >
@@ -199,7 +198,7 @@ export const ListedProperties: React.FC<ListedPropertiesProps> = ({
             <button
               type="button"
               onClick={() => { setBhkFilter('ALL'); setLocalityFilter('ALL'); }}
-              className="mt-4 px-4 py-2 bg-[#244B8F] text-white text-xs font-semibold rounded-lg cursor-pointer"
+              className="mt-4 px-4 py-2 bg-[#0073E6] text-white text-xs font-semibold rounded-lg cursor-pointer"
             >
               Reset Filters
             </button>
@@ -207,144 +206,14 @@ export const ListedProperties: React.FC<ListedPropertiesProps> = ({
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
             {filteredProperties.map((property) => (
-              <motion.div
+              <PropertyCard
                 key={property.id}
-                whileHover={{ y: -6 }}
-                transition={{ duration: 0.25, ease: 'easeOut' }}
-                onClick={(e) => handleCardClick(e, property.id)}
-                className="bg-white rounded-2xl overflow-hidden border border-slate-200/90 shadow-xs hover:shadow-xl transition-all duration-300 flex flex-col group cursor-pointer"
-              >
-                {/* Photo & Badges Exactly Matching User Reference Design */}
-                <div className="relative aspect-16/10 overflow-hidden bg-slate-100">
-                  <img
-                    src={property.image}
-                    alt={property.projectName}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                    loading="lazy"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      if (!target.dataset.hasFallback) {
-                        target.dataset.hasFallback = 'true';
-                        target.src = getDistinctCommunityPhoto(property.id || property.projectName, 800);
-                      }
-                    }}
-                  />
-                  
-                  {/* Top-Left: "OWNER VERIFIED" Rounded Pill Badge */}
-                  <div className="absolute top-3 left-3">
-                    <span className="inline-flex items-center space-x-1 px-2.5 py-1 rounded-full bg-[#1E3A8A]/90 backdrop-blur-xs text-white text-[11px] font-bold tracking-wide shadow-xs font-['Montserrat']">
-                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                      <span>OWNER VERIFIED</span>
-                    </span>
-                  </div>
-
-                  {/* Top-Right: BHK Pill Badge + Heart Favorite Button */}
-                  <div className="absolute top-3 right-3 flex items-center space-x-1.5">
-                    <span className="px-2.5 py-1 rounded-md bg-[#172033]/90 backdrop-blur-xs text-white text-[11px] font-bold shadow-xs font-['Montserrat']">
-                      {property.bhkType}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleToggleFavorite(property.id);
-                      }}
-                      className="w-7 h-7 rounded-full bg-white/80 backdrop-blur-xs hover:bg-white flex items-center justify-center text-slate-600 hover:text-rose-500 transition-all shadow-xs cursor-pointer"
-                      aria-label="Save to favorites"
-                    >
-                      <Heart className={`w-3.5 h-3.5 ${favorites.has(property.id) ? 'fill-rose-500 text-rose-500' : 'text-slate-600'}`} />
-                    </button>
-                  </div>
-
-                  {/* Bottom Image Overlay Strip: Price on Left, Price/Sq.ft on Right */}
-                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/70 to-transparent pt-8 pb-3 px-4 flex items-baseline justify-between text-white">
-                    <span className="text-xl sm:text-2xl font-extrabold tracking-tight font-['Montserrat']">
-                      {formatPriceLakhsOrCrores(property.askingPriceInr)}
-                    </span>
-                    <span className="text-xs text-slate-300 font-['Poppins']">
-                      ₹{property.pricePerSqft.toLocaleString('en-IN')}/sq.ft
-                    </span>
-                  </div>
-                </div>
-
-                {/* Property Content Details */}
-                <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3.5 text-left">
-                  
-                  {/* Title & Locality */}
-                  <div>
-                    <h3 className="text-base sm:text-lg font-bold text-[#172033] font-['Montserrat'] group-hover:text-[#244B8F] transition-colors leading-snug">
-                      {property.projectName}
-                    </h3>
-                    <p className="text-xs text-slate-500 font-['Poppins'] flex items-center mt-1">
-                      <MapPin className="w-3.5 h-3.5 mr-1 text-slate-400 shrink-0" />
-                      <span>{property.localityName}</span>
-                    </p>
-                  </div>
-
-                  <div className="border-t border-slate-100" />
-
-                  {/* 3 Specifications Tiles: SBUA Area | Facing | Floor */}
-                  <div className="grid grid-cols-3 gap-2">
-                    {/* Tile 1: SBUA Area */}
-                    <div className="bg-slate-50/80 rounded-xl p-2.5 text-center border border-slate-100 flex flex-col items-center justify-center">
-                      <Maximize2 className="w-5 h-5 text-[#244B8F] mb-1" />
-                      <span className="text-xs font-bold text-slate-800 font-['Montserrat'] leading-tight">
-                        {property.superBuiltUpSqft.toLocaleString('en-IN')} sq.ft
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-['Poppins'] mt-0.5">SBUA Area</span>
-                    </div>
-
-                    {/* Tile 2: Facing */}
-                    <div className="bg-slate-50/80 rounded-xl p-2.5 text-center border border-slate-100 flex flex-col items-center justify-center">
-                      <Compass className="w-5 h-5 text-[#244B8F] mb-1" />
-                      <span className="text-xs font-bold text-slate-800 font-['Montserrat'] uppercase leading-tight">
-                        {property.facing || 'EAST'}
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-['Poppins'] mt-0.5">Facing</span>
-                    </div>
-
-                    {/* Tile 3: Floor (Building2 instead of Bed) */}
-                    <div className="bg-slate-50/80 rounded-xl p-2.5 text-center border border-slate-100 flex flex-col items-center justify-center">
-                      <Building2 className="w-5 h-5 text-[#244B8F] mb-1" />
-                      <span className="text-xs font-bold text-slate-800 font-['Montserrat'] leading-tight truncate w-full">
-                        {property.floorBand || 'Floor 8 of 8'}
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-['Poppins'] mt-0.5">Floor</span>
-                    </div>
-                  </div>
-
-                  <div className="border-t border-slate-100" />
-
-                  {/* Action Buttons: View Property ↗ (Blue) & Quick Call (Slate) */}
-                  <div className="flex items-center space-x-2.5 pt-0.5">
-                    <a
-                      href={`/property/${property.id}`}
-                      target={isMobile ? '_self' : '_blank'}
-                      rel={isMobile ? undefined : 'noopener noreferrer'}
-                      onClick={(e) => e.stopPropagation()}
-                      className="group/view flex-1 relative overflow-hidden py-2.5 px-3 bg-[#244B8F] hover:bg-[#1B396E] text-white font-bold text-xs rounded-xl shadow-xs hover:shadow-md transition-all duration-200 flex items-center justify-center space-x-1.5 font-['Montserrat'] cursor-pointer hover:scale-[1.02] active:scale-[0.98] before:absolute before:inset-0 before:-translate-x-full hover:before:translate-x-full before:bg-gradient-to-r before:from-transparent before:via-white/25 before:to-transparent before:transition-transform before:duration-700"
-                    >
-                      <span>View Property</span>
-                      <ArrowUpRight className="w-3.5 h-3.5 group-hover/view:translate-x-0.5 group-hover/view:-translate-y-0.5 transition-transform duration-200" />
-                    </a>
-
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onSelectProperty(property.projectName, property.localityName, property.bhkType);
-                      }}
-                      className="group/call py-2.5 px-3 bg-slate-100 hover:bg-emerald-50/90 border border-slate-200/80 hover:border-emerald-300 text-slate-800 hover:text-emerald-800 font-bold text-xs rounded-xl transition-all duration-200 flex items-center justify-center space-x-1.5 font-['Montserrat'] cursor-pointer shrink-0 hover:scale-[1.02] active:scale-[0.98] shadow-2xs hover:shadow-xs"
-                      title="Quick Call Enquiry"
-                    >
-                      <PhoneCall className="w-3.5 h-3.5 text-slate-600 group-hover/call:text-emerald-600 group-hover-phone-ring transition-colors" />
-                      <span>Quick Call</span>
-                    </button>
-                  </div>
-
-                </div>
-
-              </motion.div>
+                property={property}
+                variant="grid"
+                isFavorite={favorites.has(property.id)}
+                onToggleFavorite={handleToggleFavorite}
+                onSelectProperty={onSelectProperty}
+              />
             ))}
           </div>
         )}
@@ -359,7 +228,7 @@ export const ListedProperties: React.FC<ListedPropertiesProps> = ({
               const el = document.getElementById('listings');
               if (el) el.scrollIntoView({ behavior: 'smooth' });
             }}
-            className="inline-flex items-center space-x-2 px-8 py-3 rounded-full bg-[#172033] hover:bg-[#244B8F] text-white font-bold text-xs sm:text-sm shadow-md hover:shadow-lg transition-all cursor-pointer group"
+            className="inline-flex items-center space-x-2 px-8 py-3 rounded-full bg-[#172033] hover:bg-[#0073E6] text-white font-bold text-xs sm:text-sm shadow-md hover:shadow-lg transition-all cursor-pointer group"
           >
             <span>View All Properties</span>
             <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />

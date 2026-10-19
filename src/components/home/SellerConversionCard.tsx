@@ -25,7 +25,7 @@ export const SellerConversionCard: React.FC<SellerConversionCardProps> = ({
     <section className="py-14 sm:py-20 bg-[#F4F6F9]">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
-        <div className="bg-gradient-to-r from-[#172033] via-[#1E2E4B] to-[#244B8F] rounded-3xl p-8 sm:p-14 text-white shadow-xl relative overflow-hidden">
+        <div className="bg-gradient-to-r from-[#172033] via-[#1E2E4B] to-[#0073E6] rounded-3xl p-8 sm:p-14 text-white shadow-xl relative overflow-hidden">
           
           {/* Subtle Ambient Background Accent */}
           <div className="absolute right-0 top-0 bottom-0 w-1/3 opacity-10 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-white to-transparent pointer-events-none" />
@@ -51,15 +51,15 @@ export const SellerConversionCard: React.FC<SellerConversionCardProps> = ({
             {/* Core Trust Pillars */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs text-slate-200">
               <div className="flex items-center space-x-2 bg-white/5 rounded-lg p-2.5 border border-white/10">
-                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <CheckCircle2 className="w-4 h-4 text-[#B68A4A] shrink-0" />
                 <span>Zero Upfront Listing Fee</span>
               </div>
               <div className="flex items-center space-x-2 bg-white/5 rounded-lg p-2.5 border border-white/10">
-                <Lock className="w-4 h-4 text-emerald-400 shrink-0" />
+                <Lock className="w-4 h-4 text-sky-300 shrink-0" />
                 <span>Confidential Phone Protection</span>
               </div>
               <div className="flex items-center space-x-2 bg-white/5 rounded-lg p-2.5 border border-white/10">
-                <Building className="w-4 h-4 text-emerald-400 shrink-0" />
+                <Building className="w-4 h-4 text-[#B68A4A] shrink-0" />
                 <span>Screened Apartment Buyers</span>
               </div>
             </div>
@@ -71,11 +71,11 @@ export const SellerConversionCard: React.FC<SellerConversionCardProps> = ({
                 onClick={handlePrimaryClick}
                 className="relative px-7 py-4 rounded-xl bg-white hover:bg-slate-100 text-[#172033] font-extrabold text-sm shadow-lg transition-all cursor-pointer inline-flex items-center justify-center space-x-2 group"
               >
-                <span className="absolute -top-2.5 -right-2 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider bg-emerald-600 text-white rounded-full shadow-xs">
+                <span className="absolute -top-2.5 -right-2 px-2 py-0.5 text-[9px] font-black uppercase tracking-wider bg-[#0073E6] text-white rounded-full shadow-xs">
                   FREE ONBOARDING
                 </span>
                 <span>Start Selling My Flat</span>
-                <ArrowRight className="w-4 h-4 text-[#244B8F] group-hover:translate-x-1 transition-transform" />
+                <ArrowRight className="w-4 h-4 text-[#0073E6] group-hover:translate-x-1 transition-transform" />
               </button>
 
               <button

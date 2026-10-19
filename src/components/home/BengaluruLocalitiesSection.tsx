@@ -35,7 +35,7 @@ export const BengaluruLocalitiesSection: React.FC<BengaluruLocalitiesSectionProp
         
         {/* Section Header */}
         <div className="max-w-3xl mb-10">
-          <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-md bg-blue-50 border border-blue-200/60 text-xs font-bold text-[#244B8F] uppercase tracking-wider mb-3">
+          <div className="inline-flex items-center space-x-2 px-3 py-1 rounded-md bg-blue-50 border border-blue-200/60 text-xs font-bold text-[#0073E6] uppercase tracking-wider mb-3">
             <Compass className="w-3.5 h-3.5" />
             <span>Bengaluru Residential Resale Micro-Markets</span>
           </div>
@@ -58,7 +58,7 @@ export const BengaluruLocalitiesSection: React.FC<BengaluruLocalitiesSectionProp
               onClick={() => setSelectedZone(z)}
               className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                 selectedZone === z
-                  ? 'bg-[#244B8F] text-white shadow-xs'
+                  ? 'bg-[#0073E6] text-white shadow-xs'
                   : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
               }`}
             >
@@ -87,9 +87,9 @@ export const BengaluruLocalitiesSection: React.FC<BengaluruLocalitiesSectionProp
                 </div>
 
                 <div>
-                  <h3 className="text-lg font-bold text-[#172033] group-hover:text-[#244B8F] transition-colors flex items-center justify-between">
+                  <h3 className="text-lg font-bold text-[#172033] group-hover:text-[#0073E6] transition-colors flex items-center justify-between">
                     <span>{loc.name}</span>
-                    <MapPin className="w-4 h-4 text-slate-400 group-hover:text-[#244B8F] transition-colors" />
+                    <MapPin className="w-4 h-4 text-slate-400 group-hover:text-[#0073E6] transition-colors" />
                   </h3>
                   <p className="text-xs text-slate-500 font-medium mt-0.5">
                     {loc.corridorHighlight}
@@ -150,7 +150,7 @@ export const BengaluruLocalitiesSection: React.FC<BengaluruLocalitiesSectionProp
                 <button
                   type="button"
                   onClick={() => handleCardClick(loc)}
-                  className="text-xs font-bold text-[#244B8F] hover:text-[#1B396E] inline-flex items-center space-x-1.5 cursor-pointer group/link"
+                  className="text-xs font-bold text-[#0073E6] hover:text-[#005BB5] inline-flex items-center space-x-1.5 cursor-pointer group/link"
                 >
                   <span>Explore {loc.name} Resale</span>
                   <ArrowRight className="w-3.5 h-3.5 group-hover/link:translate-x-0.5 transition-transform" />
@@ -163,7 +163,7 @@ export const BengaluruLocalitiesSection: React.FC<BengaluruLocalitiesSectionProp
                       trackEvent('SELLER_FUNNEL_START', { source: 'locality_grid', locality: loc.name });
                       onStartSelling(loc.name);
                     }}
-                    className="px-2.5 py-1 bg-slate-100 hover:bg-blue-50 hover:text-[#244B8F] text-slate-700 text-[11px] font-bold rounded-lg border border-slate-200 transition-colors cursor-pointer"
+                    className="px-2.5 py-1 bg-slate-100 hover:bg-blue-50 hover:text-[#0073E6] text-slate-700 text-[11px] font-bold rounded-lg border border-slate-200 transition-colors cursor-pointer"
                   >
                     List Here
                   </button>
@@ -176,7 +176,7 @@ export const BengaluruLocalitiesSection: React.FC<BengaluruLocalitiesSectionProp
         {/* Bottom Assurance Note */}
         <div className="mt-10 p-4 rounded-xl bg-white border border-slate-200 text-xs text-slate-600 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
           <div className="flex items-center space-x-2">
-            <CheckCircle2 className="w-4 h-4 text-[#244B8F] shrink-0" />
+            <CheckCircle2 className="w-4 h-4 text-[#0073E6] shrink-0" />
             <span>
               <strong>Sub-Registrar Compliance:</strong> All locality listings are verified against Karnataka Sub-Registrar encumbrance guidelines before active buyer matching.
             </span>

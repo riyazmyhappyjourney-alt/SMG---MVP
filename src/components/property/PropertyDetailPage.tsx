@@ -47,6 +47,8 @@ import { Header } from '../home/Header';
 import { Footer } from '../home/Footer';
 import { isFavoriteProperty, toggleFavoriteProperty } from '../../utils/favoritesStore';
 import { getDistinctCommunityPhoto } from '../../utils/propertyImages';
+import { AdaptivePropertyImage } from '../common/AdaptivePropertyImage';
+import { FullImageViewerModal } from '../common/FullImageViewerModal';
 
 export interface PublicPropertyDetail {
   id: string;
@@ -135,6 +137,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [activePhotoIndex, setActivePhotoIndex] = useState<number>(0);
   const [slideDirection, setSlideDirection] = useState<'left' | 'right'>('right');
+  const [isImageViewerOpen, setIsImageViewerOpen] = useState<boolean>(false);
 
   // Favorites state
   const [isSaved, setIsSaved] = useState<boolean>(false);
@@ -323,29 +326,29 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
   // Helper to resolve clean, authentic icons for society amenities
   const getAmenityIcon = (name: string) => {
     const lower = name.toLowerCase();
-    if (lower.includes('pool') || lower.includes('swimming')) return <Waves className="w-5 h-5 text-[#244B8F] shrink-0" />;
-    if (lower.includes('gym') || lower.includes('fitness')) return <Dumbbell className="w-5 h-5 text-[#244B8F] shrink-0" />;
-    if (lower.includes('club') || lower.includes('hall')) return <Building className="w-5 h-5 text-[#244B8F] shrink-0" />;
+    if (lower.includes('pool') || lower.includes('swimming')) return <Waves className="w-5 h-5 text-[#0073E6] shrink-0" />;
+    if (lower.includes('gym') || lower.includes('fitness')) return <Dumbbell className="w-5 h-5 text-[#0073E6] shrink-0" />;
+    if (lower.includes('club') || lower.includes('hall')) return <Building className="w-5 h-5 text-[#0073E6] shrink-0" />;
     if (lower.includes('tennis') || lower.includes('court') || lower.includes('badminton') || lower.includes('squash')) {
-      return <Activity className="w-5 h-5 text-[#244B8F] shrink-0" />;
+      return <Activity className="w-5 h-5 text-[#0073E6] shrink-0" />;
     }
     if (lower.includes('power') || lower.includes('backup') || lower.includes('generator')) return <Zap className="w-5 h-5 text-amber-600 shrink-0" />;
     if (lower.includes('security') || lower.includes('cctv') || lower.includes('guard')) return <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0" />;
     if (lower.includes('garden') || lower.includes('park') || lower.includes('lawn')) return <Trees className="w-5 h-5 text-emerald-600 shrink-0" />;
     if (lower.includes('play') || lower.includes('kids') || lower.includes('children')) return <Smile className="w-5 h-5 text-orange-500 shrink-0" />;
-    if (lower.includes('parking') || lower.includes('car')) return <Car className="w-5 h-5 text-[#244B8F] shrink-0" />;
+    if (lower.includes('parking') || lower.includes('car')) return <Car className="w-5 h-5 text-[#0073E6] shrink-0" />;
     if (lower.includes('water') || lower.includes('rainwater')) return <Droplets className="w-5 h-5 text-sky-500 shrink-0" />;
-    return <CheckCircle2 className="w-5 h-5 text-[#244B8F] shrink-0" />;
+    return <CheckCircle2 className="w-5 h-5 text-[#0073E6] shrink-0" />;
   };
 
   // Helper to resolve authentic icons for nearby landmarks
   const getLandmarkIcon = (name: string) => {
     const lower = name.toLowerCase();
     if (lower.includes('metro') || lower.includes('station') || lower.includes('transit')) {
-      return <TrainFront className="w-5 h-5 text-[#244B8F] shrink-0" />;
+      return <TrainFront className="w-5 h-5 text-[#0073E6] shrink-0" />;
     }
     if (lower.includes('tech') || lower.includes('prestige') || lower.includes('cisco') || lower.includes('park') || lower.includes('office')) {
-      return <Briefcase className="w-5 h-5 text-[#244B8F] shrink-0" />;
+      return <Briefcase className="w-5 h-5 text-[#0073E6] shrink-0" />;
     }
     if (lower.includes('hospital') || lower.includes('medical') || lower.includes('manipal') || lower.includes('columbia') || lower.includes('clinic')) {
       return <Stethoscope className="w-5 h-5 text-rose-600 shrink-0" />;
@@ -369,7 +372,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
   if (loading) {
     return (
       <div className="min-h-screen bg-[#F4F6F9] flex flex-col items-center justify-center p-4 font-['Montserrat']">
-        <div className="w-12 h-12 border-4 border-[#244B8F] border-t-transparent rounded-full animate-spin mb-4" />
+        <div className="w-12 h-12 border-4 border-[#0073E6] border-t-transparent rounded-full animate-spin mb-4" />
         <h2 className="text-base font-bold text-slate-800">Loading Property Details...</h2>
         <p className="text-xs text-slate-500 mt-1 font-['Poppins']">Inspecting statutory title records and verified inventory benchmarks</p>
       </div>
@@ -395,7 +398,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
           <button
             type="button"
             onClick={onBackToHome}
-            className="px-6 py-2.5 bg-[#244B8F] text-white font-bold text-xs rounded-xl hover:bg-[#1B396E] transition-all cursor-pointer shadow-md font-['Montserrat']"
+            className="px-6 py-2.5 bg-[#0073E6] text-white font-bold text-xs rounded-xl hover:bg-[#005BB5] transition-all cursor-pointer shadow-md font-['Montserrat']"
           >
             Explore Active Bengaluru Homes
           </button>
@@ -438,7 +441,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
   const localitySlug = property.localityName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
   return (
-    <div className="min-h-screen bg-[#F4F6F9] text-slate-900 font-['Montserrat'] selection:bg-[#244B8F] selection:text-white pb-24 md:pb-0 text-left">
+    <div className="min-h-screen bg-[#F4F6F9] text-slate-900 font-['Montserrat'] selection:bg-[#0073E6] selection:text-white pb-24 md:pb-0 text-left">
       
       {/* Toast Notification */}
       {toastMessage && (
@@ -464,7 +467,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
             <button
               type="button"
               onClick={onBackToHome}
-              className="inline-flex items-center text-slate-500 hover:text-[#244B8F] transition-colors cursor-pointer mr-1"
+              className="inline-flex items-center text-slate-500 hover:text-[#0073E6] transition-colors cursor-pointer mr-1"
             >
               <ArrowLeft className="w-3.5 h-3.5 mr-1" />
               <span>Back</span>
@@ -474,7 +477,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
             <button
               type="button"
               onClick={onBackToHome}
-              className="hover:text-[#244B8F] transition-colors cursor-pointer"
+              className="hover:text-[#0073E6] transition-colors cursor-pointer"
             >
               Bengaluru
             </button>
@@ -489,7 +492,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                   window.location.hash = `#/sell-flat-in-${localitySlug}-bangalore`;
                 }
               }}
-              className="hover:text-[#244B8F] transition-colors cursor-pointer"
+              className="hover:text-[#0073E6] transition-colors cursor-pointer"
             >
               {property.localityName}
             </button>
@@ -533,7 +536,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
             <button
               type="button"
               onClick={handleShare}
-              className="p-1.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-white text-slate-600 hover:text-[#244B8F] transition-colors cursor-pointer"
+              className="p-1.5 rounded-lg border border-slate-200 hover:border-slate-300 bg-white text-slate-600 hover:text-[#0073E6] transition-colors cursor-pointer"
               title="Share Listing"
             >
               <Share2 className="w-4 h-4" />
@@ -562,7 +565,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
           <div className="space-y-2">
             
             <div className="flex flex-wrap items-center gap-2 font-['Montserrat']">
-              <span className="px-3 py-1 rounded-full bg-[#244B8F] text-white text-[11px] font-bold shadow-xs">
+              <span className="px-3 py-1 rounded-full bg-[#0073E6] text-white text-[11px] font-bold shadow-xs">
                 For Resale
               </span>
               {isAuthoritativelyVerified && (
@@ -584,7 +587,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
             </h1>
 
             <p className="text-sm text-slate-600 flex items-center font-['Poppins']">
-              <MapPin className="w-4 h-4 mr-1.5 text-[#244B8F] shrink-0" />
+              <MapPin className="w-4 h-4 mr-1.5 text-[#0073E6] shrink-0" />
               <span>{property.localityName}, Bengaluru</span>
             </p>
           </div>
@@ -614,31 +617,22 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
             
             {/* 1. Large Sliding Photo Showcase */}
             <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs">
-              <div className="relative aspect-16/10 bg-slate-950 overflow-hidden">
-                <AnimatePresence initial={false} mode="wait">
-                  <motion.img
-                    key={activePhotoIndex}
-                    src={activePhoto.url}
-                    alt={activePhoto.caption || property.projectName}
-                    initial={{ opacity: 0, x: slideDirection === 'right' ? 60 : -60 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: slideDirection === 'right' ? -60 : 60 }}
-                    transition={{ duration: 0.25, ease: 'easeOut' }}
-                    className="w-full h-full object-cover"
-                    onError={(e: any) => {
-                      const target = e.target as HTMLImageElement;
-                      if (!target.dataset.hasFallback) {
-                        target.dataset.hasFallback = 'true';
-                        target.src = getDistinctCommunityPhoto(property?.id || property?.projectName || '', 1200);
-                      }
-                    }}
-                  />
-                </AnimatePresence>
+              <div 
+                className="relative aspect-16/10 bg-slate-950 overflow-hidden cursor-pointer"
+                onClick={() => setIsImageViewerOpen(true)}
+              >
+                <AdaptivePropertyImage
+                  src={activePhoto.url}
+                  alt={activePhoto.caption || property.projectName}
+                  aspectRatioClass="aspect-16/10"
+                  fallbackKey={property.id || property.projectName}
+                  title={activePhoto.caption}
+                  onFullscreenClick={() => setIsImageViewerOpen(true)}
+                />
                 
-                {/* Photo Caption Overlay */}
-                <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-4 flex items-end justify-between text-white text-xs font-['Poppins']">
-                  <span className="font-semibold">{activePhoto.caption}</span>
-                  <span className="px-2 py-0.5 rounded bg-black/60 backdrop-blur-xs font-mono text-[11px]">
+                {/* Photo Counter Overlay */}
+                <div className="absolute bottom-3 right-3 z-30 pointer-events-none">
+                  <span className="px-2.5 py-1 rounded bg-black/60 backdrop-blur-xs font-mono text-[11px] text-white">
                     {activePhotoIndex + 1} of {property.photos.length}
                   </span>
                 </div>
@@ -648,16 +642,22 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                   <>
                     <button
                       type="button"
-                      onClick={handlePrevPhoto}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-black/55 hover:bg-black/80 text-white transition-all cursor-pointer shadow-lg hover:scale-105"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handlePrevPhoto();
+                      }}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 z-30 p-2.5 rounded-full bg-black/55 hover:bg-black/80 text-white transition-all cursor-pointer shadow-lg hover:scale-105"
                       aria-label="Previous photo"
                     >
                       <ChevronLeft className="w-5 h-5" />
                     </button>
                     <button
                       type="button"
-                      onClick={handleNextPhoto}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-black/55 hover:bg-black/80 text-white transition-all cursor-pointer shadow-lg hover:scale-105"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleNextPhoto();
+                      }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 z-30 p-2.5 rounded-full bg-black/55 hover:bg-black/80 text-white transition-all cursor-pointer shadow-lg hover:scale-105"
                       aria-label="Next photo"
                     >
                       <ChevronRight className="w-5 h-5" />
@@ -679,7 +679,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                       }}
                       className={`relative w-20 h-14 rounded-lg overflow-hidden border-2 transition-all cursor-pointer shrink-0 ${
                         idx === activePhotoIndex
-                          ? 'border-[#244B8F] ring-2 ring-blue-200 scale-102'
+                          ? 'border-[#0073E6] ring-2 ring-blue-200 scale-102'
                           : 'border-slate-300 opacity-70 hover:opacity-100'
                       }`}
                     >
@@ -704,7 +704,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
             {/* 2. Key Specifications Grid (Montserrat headings + Poppins details) */}
             <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-7 shadow-xs space-y-5">
               <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center space-x-2 font-['Montserrat']">
-                <Layers className="w-4 h-4 text-[#244B8F]" />
+                <Layers className="w-4 h-4 text-[#0073E6]" />
                 <span>Property Specifications</span>
               </h2>
 
@@ -713,7 +713,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                 {/* Super Built-Up Sqft */}
                 <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80">
                   <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1.5 font-medium">
-                    <Maximize2 className="w-5 h-5 text-[#244B8F] shrink-0" />
+                    <Maximize2 className="w-5 h-5 text-[#0073E6] shrink-0" />
                     <span>Super Built-up</span>
                   </div>
                   <span className="text-base font-bold text-slate-900 font-['Montserrat'] block">{property.superBuiltUpSqft} sq.ft</span>
@@ -732,7 +732,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                 {/* Floor Level */}
                 <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80">
                   <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1.5 font-medium">
-                    <Building2 className="w-5 h-5 text-[#244B8F] shrink-0" />
+                    <Building2 className="w-5 h-5 text-[#0073E6] shrink-0" />
                     <span>Floor Level</span>
                   </div>
                   <span className="text-sm font-bold text-slate-900 font-['Montserrat'] block">{property.floorBand}</span>
@@ -741,7 +741,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                 {/* Facing */}
                 <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80">
                   <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1.5 font-medium">
-                    <Compass className="w-5 h-5 text-[#244B8F] shrink-0" />
+                    <Compass className="w-5 h-5 text-[#0073E6] shrink-0" />
                     <span>Facing</span>
                   </div>
                   <span className="text-base font-bold text-slate-900 font-['Montserrat'] block">{property.facing}</span>
@@ -750,7 +750,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                 {/* Bathrooms */}
                 <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80">
                   <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1.5 font-medium">
-                    <Bath className="w-5 h-5 text-[#244B8F] shrink-0" />
+                    <Bath className="w-5 h-5 text-[#0073E6] shrink-0" />
                     <span>Bathrooms</span>
                   </div>
                   <span className="text-base font-bold text-slate-900 font-['Montserrat'] block">{property.bathroomsCount} Baths</span>
@@ -759,7 +759,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                 {/* Parking */}
                 <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80">
                   <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1.5 font-medium">
-                    <Car className="w-5 h-5 text-[#244B8F] shrink-0" />
+                    <Car className="w-5 h-5 text-[#0073E6] shrink-0" />
                     <span>Parking</span>
                   </div>
                   <span className="text-base font-bold text-slate-900 font-['Montserrat'] block">
@@ -804,7 +804,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
             <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-7 shadow-xs space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center space-x-2 font-['Montserrat']">
-                  <Layout className="w-4 h-4 text-[#244B8F]" />
+                  <Layout className="w-4 h-4 text-[#0073E6]" />
                   <span>Floor Plan</span>
                 </h2>
                 <span className="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold font-['Montserrat']">
@@ -821,7 +821,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                       onClick={() => setActiveFloorPlanTab(idx)}
                       className={`pb-2.5 transition-all cursor-pointer border-b-2 ${
                         activeFloorPlanTab === idx
-                          ? 'border-[#244B8F] text-[#244B8F]'
+                          ? 'border-[#0073E6] text-[#0073E6]'
                           : 'border-transparent text-slate-400 hover:text-slate-700'
                       }`}
                     >
@@ -859,7 +859,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                     onClick={() => setIsFloorPlanZoomOpen(true)}
                     className="mt-3 inline-flex items-center space-x-1.5 px-3.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer font-['Montserrat']"
                   >
-                    <ZoomIn className="w-3.5 h-3.5 text-[#244B8F]" />
+                    <ZoomIn className="w-3.5 h-3.5 text-[#0073E6]" />
                     <span>Click to Zoom Floor Plan</span>
                   </button>
                 )}
@@ -870,7 +870,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
             <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-7 shadow-xs space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center space-x-2">
-                  <ShieldCheck className="w-5 h-5 text-[#244B8F]" />
+                  <ShieldCheck className="w-5 h-5 text-[#0073E6]" />
                   <h2 className="text-base font-bold text-[#172033] font-['Montserrat']">
                     SellMyGhar Advocate Legal Diligence
                   </h2>
@@ -886,7 +886,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 font-['Poppins']">
                 <div className="flex items-start space-x-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200/80">
-                  <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <Check className="w-4 h-4 text-[#0073E6] shrink-0 mt-0.5" />
                   <div>
                     <span className="text-xs font-bold text-slate-900 block font-['Montserrat']">{property.verification.khata || 'BBMP A-Khata Authenticated'}</span>
                     <span className="text-[11px] text-slate-500">BBMP A-Khata with valid SAS tax challan</span>
@@ -894,7 +894,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                 </div>
 
                 <div className="flex items-start space-x-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200/80">
-                  <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <Check className="w-4 h-4 text-[#0073E6] shrink-0 mt-0.5" />
                   <div>
                     <span className="text-xs font-bold text-slate-900 block font-['Montserrat']">{property.verification.encumbrance || 'Form 15 Encumbrance NIL'}</span>
                     <span className="text-[11px] text-slate-500">Form 15 Sub-Registrar search zero encumbrances</span>
@@ -902,7 +902,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                 </div>
 
                 <div className="flex items-start space-x-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200/80">
-                  <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <Check className="w-4 h-4 text-[#0073E6] shrink-0 mt-0.5" />
                   <div>
                     <span className="text-xs font-bold text-slate-900 block font-['Montserrat']">{property.verification.titleDeed || '30-Year Continuous Parent Title'}</span>
                     <span className="text-[11px] text-slate-500">Complete registered sale deed & mother deed chain</span>
@@ -910,7 +910,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                 </div>
 
                 <div className="flex items-start space-x-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200/80">
-                  <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <Check className="w-4 h-4 text-[#0073E6] shrink-0 mt-0.5" />
                   <div>
                     <span className="text-xs font-bold text-slate-900 block font-['Montserrat']">{property.verification.fieldInspection || 'Physical Inspection Completed'}</span>
                     <span className="text-[11px] text-slate-500">Physical field verification completed by relationship desk</span>
@@ -919,7 +919,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
               </div>
 
               <div className="text-[11px] text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-200/80 flex items-center space-x-2 font-['Poppins']">
-                <ShieldCheck className="w-4 h-4 text-[#244B8F] shrink-0" />
+                <ShieldCheck className="w-4 h-4 text-[#0073E6] shrink-0" />
                 <span>Private owner deeds and flat identity remain protected under the Digital Personal Data Protection (DPDP) Act until escorted private viewing.</span>
               </div>
             </div>
@@ -955,24 +955,31 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                   <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider font-['Montserrat']">
                     Developer & Project Information
                   </h2>
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50 text-[#244B8F] text-[11px] font-bold font-['Montserrat']">
-                    <ShieldCheck className="w-3.5 h-3.5 text-[#244B8F]" />
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-blue-50 text-[#0073E6] text-[11px] font-bold font-['Montserrat']">
+                    <ShieldCheck className="w-3.5 h-3.5 text-[#0073E6]" />
                     <span>RERA Registered</span>
                   </span>
                 </div>
                 
                 <div className="space-y-3">
                   <div className="flex items-center space-x-3.5">
-                    {property.developer.logoUrl && (
-                      <div className="w-14 h-14 rounded-xl border border-slate-200 bg-white p-1.5 flex items-center justify-center shrink-0 shadow-2xs">
+                    <div className="w-14 h-14 rounded-xl border border-slate-200 bg-white p-1.5 flex items-center justify-center shrink-0 shadow-2xs">
+                      {property.developer.logoUrl ? (
                         <img
                           src={property.developer.logoUrl}
                           alt={property.developer.name}
                           className="max-h-full max-w-full object-contain"
-                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                            const fallback = (e.target as HTMLElement).parentElement?.querySelector('.developer-logo-fallback');
+                            if (fallback) (fallback as HTMLElement).classList.remove('hidden');
+                          }}
                         />
+                      ) : null}
+                      <div className={`developer-logo-fallback items-center justify-center text-[#0073E6] ${property.developer.logoUrl ? 'hidden' : 'flex'}`}>
+                        <Building2 className="w-7 h-7 text-[#0073E6]" />
                       </div>
-                    )}
+                    </div>
                     <div>
                       <h3 className="text-xl font-extrabold text-[#172033] font-['Montserrat'] tracking-tight">
                         {property.developer.name}
@@ -1037,7 +1044,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
             <div id="tour-booking-form" className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-7 shadow-xs space-y-5">
               
               <div className="border-b border-slate-100 pb-3">
-                <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-[#244B8F] px-2.5 py-0.5 rounded-full font-['Montserrat']">
+                <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-100 text-[#0073E6] px-2.5 py-0.5 rounded-full font-['Montserrat']">
                   Private Tour
                 </span>
                 <h3 className="text-lg font-bold text-[#172033] mt-2 font-['Montserrat']">
@@ -1084,7 +1091,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                       value={buyerName}
                       onChange={(e) => setBuyerName(e.target.value)}
                       placeholder="e.g. Ramesh Kumar"
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-[#244B8F] focus:outline-hidden"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-[#0073E6] focus:outline-hidden"
                     />
                   </div>
 
@@ -1101,7 +1108,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                         value={buyerPhone}
                         onChange={(e) => setBuyerPhone(e.target.value.replace(/\D/g, ''))}
                         placeholder="9845012345"
-                        className="w-full pl-11 pr-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-[#244B8F] focus:outline-hidden"
+                        className="w-full pl-11 pr-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-[#0073E6] focus:outline-hidden"
                       />
                     </div>
                   </div>
@@ -1113,7 +1120,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                     <select
                       value={preferredSlot}
                       onChange={(e) => setPreferredSlot(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-[#244B8F] focus:outline-hidden"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-[#0073E6] focus:outline-hidden"
                     >
                       <option value="This Saturday (11:00 AM)">This Saturday (11:00 AM)</option>
                       <option value="This Saturday (04:00 PM)">This Saturday (04:00 PM)</option>
@@ -1131,7 +1138,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                     <select
                       value={fundingMode}
                       onChange={(e) => setFundingMode(e.target.value)}
-                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-[#244B8F] focus:outline-hidden"
+                      className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-[#0073E6] focus:outline-hidden"
                     >
                       <option value="PRE_APPROVED_LOAN">Pre-Approved Home Loan</option>
                       <option value="SELF_FUNDED">Self-Funded / Ready Capital</option>
@@ -1147,7 +1154,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                         type="checkbox"
                         checked={dpdpConsent}
                         onChange={(e) => setDpdpConsent(e.target.checked)}
-                        className="mt-0.5 rounded text-[#244B8F] focus:ring-[#244B8F]"
+                        className="mt-0.5 rounded text-[#0073E6] focus:ring-[#0073E6]"
                       />
                       <span>
                         I consent to SellMyGhar coordinating this private viewing under the Digital Personal Data Protection Act, 2023.
@@ -1158,7 +1165,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="w-full py-3 bg-[#244B8F] hover:bg-[#1B396E] text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center space-x-2 font-['Montserrat']"
+                    className="w-full py-3 bg-[#0073E6] hover:bg-[#005BB5] text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center space-x-2 font-['Montserrat']"
                   >
                     <Calendar className="w-4 h-4" />
                     <span>{isSubmitting ? 'Confirming Request...' : 'Confirm Private Viewing Slot'}</span>
@@ -1298,7 +1305,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                   {/* Card Content Details */}
                   <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3.5 text-left">
                     <div>
-                      <h3 className="text-base sm:text-lg font-bold text-[#172033] font-['Montserrat'] group-hover:text-[#244B8F] transition-colors leading-snug">
+                      <h3 className="text-base sm:text-lg font-bold text-[#172033] font-['Montserrat'] group-hover:text-[#0073E6] transition-colors leading-snug">
                         {sim.projectName}
                       </h3>
                       <p className="text-xs text-slate-500 font-['Poppins'] flex items-center mt-1">
@@ -1312,7 +1319,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                     {/* 3 Specifications Tiles: SBUA Area | Facing | Floor */}
                     <div className="grid grid-cols-3 gap-2">
                       <div className="bg-slate-50/80 rounded-xl p-2.5 text-center border border-slate-100 flex flex-col items-center justify-center">
-                        <Maximize2 className="w-5 h-5 text-[#244B8F] mb-1" />
+                        <Maximize2 className="w-5 h-5 text-[#0073E6] mb-1" />
                         <span className="text-xs font-bold text-slate-800 font-['Montserrat'] leading-tight">
                           {sim.superBuiltUpSqft.toLocaleString('en-IN')} sq.ft
                         </span>
@@ -1320,7 +1327,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                       </div>
 
                       <div className="bg-slate-50/80 rounded-xl p-2.5 text-center border border-slate-100 flex flex-col items-center justify-center">
-                        <Compass className="w-5 h-5 text-[#244B8F] mb-1" />
+                        <Compass className="w-5 h-5 text-[#0073E6] mb-1" />
                         <span className="text-xs font-bold text-slate-800 font-['Montserrat'] uppercase leading-tight">
                           {sim.facing || 'EAST'}
                         </span>
@@ -1328,7 +1335,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                       </div>
 
                       <div className="bg-slate-50/80 rounded-xl p-2.5 text-center border border-slate-100 flex flex-col items-center justify-center">
-                        <Building2 className="w-5 h-5 text-[#244B8F] mb-1" />
+                        <Building2 className="w-5 h-5 text-[#0073E6] mb-1" />
                         <span className="text-xs font-bold text-slate-800 font-['Montserrat'] leading-tight truncate w-full">
                           {sim.floorBand || 'Floor 8 of 8'}
                         </span>
@@ -1345,7 +1352,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                         target={isMobile ? '_self' : '_blank'}
                         rel={isMobile ? undefined : 'noopener noreferrer'}
                         onClick={(e) => e.stopPropagation()}
-                        className="group/view flex-1 relative overflow-hidden py-2.5 px-3 bg-[#244B8F] hover:bg-[#1B396E] text-white font-bold text-xs rounded-xl shadow-xs hover:shadow-md transition-all duration-200 flex items-center justify-center space-x-1.5 font-['Montserrat'] cursor-pointer hover:scale-[1.02] active:scale-[0.98] before:absolute before:inset-0 before:-translate-x-full hover:before:translate-x-full before:bg-gradient-to-r before:from-transparent before:via-white/25 before:to-transparent before:transition-transform before:duration-700"
+                        className="group/view flex-1 relative overflow-hidden py-2.5 px-3 bg-[#0073E6] hover:bg-[#005BB5] text-white font-bold text-xs rounded-xl shadow-xs hover:shadow-md transition-all duration-200 flex items-center justify-center space-x-1.5 font-['Montserrat'] cursor-pointer hover:scale-[1.02] active:scale-[0.98] before:absolute before:inset-0 before:-translate-x-full hover:before:translate-x-full before:bg-gradient-to-r before:from-transparent before:via-white/25 before:to-transparent before:transition-transform before:duration-700"
                       >
                         <span>View Property</span>
                         <ArrowUpRight className="w-3.5 h-3.5 group-hover/view:translate-x-0.5 group-hover/view:-translate-y-0.5 transition-transform duration-200" />
@@ -1433,7 +1440,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                 el.scrollIntoView({ behavior: 'smooth', block: 'start' });
               }
             }}
-            className="group/view py-2 px-3.5 bg-[#244B8F] hover:bg-[#1B396E] text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center space-x-1.5 cursor-pointer"
+            className="group/view py-2 px-3.5 bg-[#0073E6] hover:bg-[#005BB5] text-white font-bold text-xs rounded-xl shadow-xs transition-all flex items-center space-x-1.5 cursor-pointer"
           >
             <span>Book Tour</span>
             <ArrowRight className="w-3.5 h-3.5" />
@@ -1445,6 +1452,23 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
       <Footer
         onNavClick={handleHeaderTabClick}
       />
+
+      {/* Fullscreen Photo Viewer Modal with keyboard support & titles */}
+      {property.photos && property.photos.length > 0 && (
+        <FullImageViewerModal
+          photos={property.photos.map(p => ({
+            id: p.id,
+            url: p.url,
+            title: p.caption,
+            caption: p.caption,
+          }))}
+          activeIndex={activePhotoIndex}
+          isOpen={isImageViewerOpen}
+          onClose={() => setIsImageViewerOpen(false)}
+          onIndexChange={(idx) => setActivePhotoIndex(idx)}
+          propertyTitle={`${property.bhkType} Apartment in ${property.projectName}`}
+        />
+      )}
 
     </div>
   );

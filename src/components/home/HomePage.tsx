@@ -1,20 +1,26 @@
 import React, { useState, useEffect } from 'react';
 import { Header } from './Header';
 import { Hero } from './Hero';
+import { MobileHomeView } from './MobileHomeView';
 import { TrustedPartnersMarquee } from './TrustedPartnersMarquee';
 import { HoldingCostCalculator } from './HoldingCostCalculator';
+import { HowItWorks } from './HowItWorks';
 import { ListedProperties } from './ListedProperties';
 import { Footer } from './Footer';
 import { BuyerSearchPopupModal } from './BuyerSearchPopupModal';
 import { FavoritesModal } from './FavoritesModal';
+import { MobileBottomNav } from '../common/MobileBottomNav';
 import { UserAuthProfile } from '../../types/user';
 import { trackEvent } from '../../utils/analytics';
+import { redirectToBuyMyGhar } from '../../utils/domainConfig';
 
 interface HomePageProps {
   activeUser?: UserAuthProfile | null;
   onNavigateToSellerAssisted?: (localityPrefill?: string) => void;
   onNavigateToContact?: () => void;
-  onNavigateToLogin?: () => void;
+  onNavigateToAbout?: () => void;
+  onNavigateToFaq?: () => void;
+  onNavigateToLogin?: (fromRoute?: any) => void;
   onNavigateToDashboard?: () => void;
   onConsentPortalOpen?: () => void;
   onNavigateToLocality?: (slug: string) => void;
@@ -24,6 +30,8 @@ export const HomePage: React.FC<HomePageProps> = ({
   activeUser,
   onNavigateToSellerAssisted,
   onNavigateToContact,
+  onNavigateToAbout,
+  onNavigateToFaq,
   onNavigateToLogin,
   onNavigateToDashboard,
   onConsentPortalOpen,
@@ -70,9 +78,17 @@ export const HomePage: React.FC<HomePageProps> = ({
     if (tab === 'BUY') {
       setIsBuyerModalOpen(true);
     } else if (tab === 'SELL') {
+      if (!activeUser) {
+        if (onNavigateToLogin) onNavigateToLogin('SELLER_ASSISTED');
+        return;
+      }
       if (onNavigateToSellerAssisted) onNavigateToSellerAssisted();
     } else if (tab === 'ABOUT') {
-      scrollToCalculator();
+      if (onNavigateToAbout) {
+        onNavigateToAbout();
+      } else {
+        window.location.hash = '#/about';
+      }
     } else if (tab === 'CONTACT') {
       if (onNavigateToContact) {
         onNavigateToContact();
@@ -82,6 +98,10 @@ export const HomePage: React.FC<HomePageProps> = ({
 
   const handlePostProperty = () => {
     trackEvent('SELLER_FUNNEL_START', { source: 'header_post_property' });
+    if (!activeUser) {
+      if (onNavigateToLogin) onNavigateToLogin('SELLER_ASSISTED');
+      return;
+    }
     if (onNavigateToSellerAssisted) {
       onNavigateToSellerAssisted();
     }
@@ -89,6 +109,10 @@ export const HomePage: React.FC<HomePageProps> = ({
 
   const handleStartSelling = (prefillLocality?: string) => {
     trackEvent('SELLER_FUNNEL_START', { source: 'homepage', locality: prefillLocality || 'DIRECT' });
+    if (!activeUser) {
+      if (onNavigateToLogin) onNavigateToLogin('SELLER_ASSISTED');
+      return;
+    }
     if (onNavigateToSellerAssisted) {
       onNavigateToSellerAssisted(prefillLocality);
     }
@@ -98,7 +122,7 @@ export const HomePage: React.FC<HomePageProps> = ({
   const [selectedLocality, setSelectedLocality] = useState<string>('ALL');
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F4F6F9] selection:bg-[#244B8F] selection:text-white font-['Montserrat'] text-[#172033]">
+    <div className="min-h-screen w-full max-w-full overflow-x-hidden flex flex-col bg-[#F4F6F9] selection:bg-[#0073E6] selection:text-white font-['Montserrat'] text-[#172033] pb-0">
       
       {/* 1. Sticky Responsive Header */}
       <Header
@@ -123,22 +147,51 @@ export const HomePage: React.FC<HomePageProps> = ({
       />
 
       <main className="flex-1">
-        
-        {/* 2. Hero Section: 45-day Proposition, Controlled Rolling Ticker, 99acres Inspired Quick Action Card */}
-        <Hero
+        {/* Mobile Dedicated Experience (Exact match to Reference UI) */}
+        <MobileHomeView
           onSellClick={() => handleStartSelling()}
-          onExploreClick={scrollToListings}
-          onUnderstandProcessClick={scrollToCalculator}
+          onExploreClick={() => redirectToBuyMyGhar()}
+          onSelectLocality={(loc) => {
+            setSelectedLocality(loc);
+            scrollToListings();
+          }}
+          onSearchQuery={(q) => {
+            setSearchQuery(q);
+            scrollToListings();
+          }}
+          onOpenSaved={() => setIsFavoritesModalOpen(true)}
+          onOpenBuyerModal={() => setIsBuyerModalOpen(true)}
+          onSelectProperty={(_proj, _loc, _bhk) => {
+            if (onNavigateToContact) onNavigateToContact();
+          }}
         />
 
-        {/* 3. Trusted Partners Dynamic Marquee */}
-        <TrustedPartnersMarquee />
+        {/* Desktop Hero Section: 45-day Proposition, Controlled Rolling Ticker, 99acres Inspired Quick Action Card */}
+        <div className="hidden md:block">
+          <Hero
+            onSellClick={() => handleStartSelling()}
+            onExploreClick={() => redirectToBuyMyGhar()}
+            onUnderstandProcessClick={scrollToCalculator}
+          />
+        </div>
 
-        {/* 4. Financial Cost of an Unsold Flat Calculator */}
-        <HoldingCostCalculator onExploreSellingOptions={() => handleStartSelling()} />
+        {/* 3. Trusted Partners Dynamic Marquee (Desktop layout) */}
+        <div className="hidden md:block">
+          <TrustedPartnersMarquee />
+        </div>
 
-        {/* 5. Verified Resale Inventory */}
-        <div id="listings">
+        {/* 4. "How It Works" Seller Journey (Desktop layout) */}
+        <div className="hidden md:block bg-white border-y border-slate-200/60 my-8 py-4">
+          <HowItWorks onPostProperty={handlePostProperty} />
+        </div>
+
+        {/* 5. Financial Cost of an Unsold Flat Calculator (Desktop Only per spec) */}
+        <div className="hidden md:block">
+          <HoldingCostCalculator onExploreSellingOptions={() => handleStartSelling()} />
+        </div>
+
+        {/* 6. Verified Resale Inventory (Desktop layout) */}
+        <div id="listings" className="hidden md:block">
           <ListedProperties
             onSelectProperty={(_proj, _loc, _bhk) => {
               if (onNavigateToContact) onNavigateToContact();
@@ -168,6 +221,26 @@ export const HomePage: React.FC<HomePageProps> = ({
         isOpen={isFavoritesModalOpen}
         onClose={() => setIsFavoritesModalOpen(false)}
       />
+
+      {/* Mobile Bottom Navigation Bar */}
+      <MobileBottomNav
+        currentTab="HOME"
+        user={activeUser}
+        onNavigateHome={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        onNavigateExplore={() => redirectToBuyMyGhar()}
+        onOpenSaved={() => setIsFavoritesModalOpen(true)}
+        onNavigateActivity={() => {
+          handlePostProperty();
+        }}
+        onNavigateProfile={() => {
+          if (activeUser && onNavigateToDashboard) {
+            onNavigateToDashboard();
+          } else if (onNavigateToLogin) {
+            onNavigateToLogin();
+          }
+        }}
+      />
     </div>
   );
 };
+

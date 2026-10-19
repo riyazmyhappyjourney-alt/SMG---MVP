@@ -56,6 +56,15 @@ let testQueryHandler: TestQueryHandler | null = null;
  * Clean Test Double Hook: allows automated tests to supply query results
  * without embedding test-support state inside production domain services.
  */
+let lastSandboxWarningTime = 0;
+function logSandboxWarning(msg: string): void {
+  const now = Date.now();
+  if (now - lastSandboxWarningTime > 60000) {
+    console.warn(msg);
+    lastSandboxWarningTime = now;
+  }
+}
+
 export function setTestQueryHandler(handler: TestQueryHandler | null): void {
   testQueryHandler = handler;
 }
@@ -119,7 +128,7 @@ export function getDbPool(): pg.Pool {
         return origConnect((err: any, client: any, release: any) => {
           if (err || !client) {
             if (config.allowSandbox) {
-              console.warn(`[Dev Sandbox] Database connection unavailable (${err?.message || 'connection failed'}) — falling back to sandbox client`);
+              logSandboxWarning(`[Dev Sandbox] Database connection unavailable (${err?.message || 'connection failed'}) — falling back to sandbox client`);
               const sandboxClient = new SandboxDbClient();
               return cb(null, sandboxClient, () => sandboxClient.release());
             }
@@ -155,7 +164,7 @@ export function getDbPool(): pg.Pool {
         return client;
       }).catch((err: any) => {
         if (config.allowSandbox) {
-          console.warn(`[Dev Sandbox] Database connection unavailable (${err?.message || 'connection failed'}) — falling back to sandbox client`);
+          logSandboxWarning(`[Dev Sandbox] Database connection unavailable (${err?.message || 'connection failed'}) — falling back to sandbox client`);
           return new SandboxDbClient();
         }
         throw err;
@@ -172,7 +181,7 @@ export function getDbPool(): pg.Pool {
         return await (origPoolQuery as any)(text, params, ...rest);
       } catch (err: any) {
         if (config.allowSandbox) {
-          console.warn(`[Dev Sandbox] Database pool query unavailable (${err?.message || 'query failed'}) — falling back to sandbox store`);
+          logSandboxWarning(`[Dev Sandbox] Database pool query unavailable (${err?.message || 'query failed'}) — falling back to sandbox store`);
           return devSandboxStore.handleQuery(text, (params as any[]) || []);
         }
         throw err;
@@ -220,7 +229,7 @@ export async function executeQuery<T = any>(text: string, params?: unknown[]): P
     return res as { rows: T[] };
   } catch (err: any) {
     if (config.allowSandbox) {
-      console.warn(`[Dev Sandbox] Database connection unavailable (${err.message}) — falling back to sandbox store`);
+      logSandboxWarning(`[Dev Sandbox] Database connection unavailable (${err.message}) — falling back to sandbox store`);
       const res = devSandboxStore.handleQuery(text, (params as any[]) || []);
       return res as { rows: T[] };
     }

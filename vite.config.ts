@@ -13,10 +13,11 @@ export default defineConfig(({ mode }) => {
         '@': path.resolve(import.meta.dirname, '.'),
       },
     },
-    oxc: {
+    esbuild: {
       drop: isProd ? ['console', 'debugger'] : [],
     },
     build: {
+      minify: isProd ? 'esbuild' : false,
       chunkSizeWarningLimit: 2500,
     },
     server: {

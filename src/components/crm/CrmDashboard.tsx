@@ -64,6 +64,7 @@ import { HeroCmsManager } from './HeroCmsManager';
 import { PartnerLogosManager } from './PartnerLogosManager';
 import { PublicationEmailManager } from './PublicationEmailManager';
 import { PropertySuggestionsManager } from './PropertySuggestionsManager';
+import { CareerCmsManager } from './CareerCmsManager';
 import { DateTimePicker } from '../common/DateTimePicker';
 import {
   formatIndianCurrency,
@@ -253,7 +254,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
   // Navigation State
   const [activeSection, setActiveSection] = useState<NavSection>('OVERVIEW');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<'SECURITY' | 'HERO_CMS' | 'PARTNER_CMS' | 'EMAIL_TEMPLATE' | 'SUGGESTIONS_CSV'>('SECURITY');
+  const [settingsTab, setSettingsTab] = useState<'SECURITY' | 'HERO_CMS' | 'PARTNER_CMS' | 'CAREERS_CMS' | 'EMAIL_TEMPLATE' | 'SUGGESTIONS_CSV'>('SECURITY');
 
   const handleSelectSection = useCallback((section: NavSection) => {
     setActiveSection(section);
@@ -678,8 +679,10 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               createdAt: p.createdAt
             };
           });
-          setProperties(mapped);
+          const uniqueProps = Array.from(new Map(mapped.map((p: CrmProperty) => [p.id, p])).values());
+          setProperties(uniqueProps);
           return;
+
         }
       }
 
@@ -1635,7 +1638,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 onClick={() => handleSelectSection('OVERVIEW')}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                   activeSection === 'OVERVIEW'
-                    ? 'bg-[#244B8F] text-white shadow-xs'
+                    ? 'bg-[#0073E6] text-white shadow-xs'
                     : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
                 }`}
               >
@@ -1653,7 +1656,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 onClick={() => handleSelectSection('LEADS')}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                   activeSection === 'LEADS'
-                    ? 'bg-[#244B8F] text-white shadow-xs'
+                    ? 'bg-[#0073E6] text-white shadow-xs'
                     : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
                 }`}
               >
@@ -1678,7 +1681,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 onClick={() => handleSelectSection('PROPERTIES')}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                   activeSection === 'PROPERTIES'
-                    ? 'bg-[#244B8F] text-white shadow-xs'
+                    ? 'bg-[#0073E6] text-white shadow-xs'
                     : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
                 }`}
               >
@@ -1703,7 +1706,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 onClick={() => handleSelectSection('VISITS')}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                   activeSection === 'VISITS'
-                    ? 'bg-[#244B8F] text-white shadow-xs'
+                    ? 'bg-[#0073E6] text-white shadow-xs'
                     : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
                 }`}
               >
@@ -1728,7 +1731,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 onClick={() => handleSelectSection('OFFERS')}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                   activeSection === 'OFFERS'
-                    ? 'bg-[#244B8F] text-white shadow-xs'
+                    ? 'bg-[#0073E6] text-white shadow-xs'
                     : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
                 }`}
               >
@@ -1753,7 +1756,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 onClick={() => handleSelectSection('TASKS')}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                   activeSection === 'TASKS'
-                    ? 'bg-[#244B8F] text-white shadow-xs'
+                    ? 'bg-[#0073E6] text-white shadow-xs'
                     : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
                 }`}
               >
@@ -1780,7 +1783,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 onClick={() => handleSelectSection('CALENDAR')}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                   activeSection === 'CALENDAR'
-                    ? 'bg-[#244B8F] text-white shadow-xs'
+                    ? 'bg-[#0073E6] text-white shadow-xs'
                     : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
                 }`}
               >
@@ -1798,7 +1801,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 onClick={() => handleSelectSection('TEAM')}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                   activeSection === 'TEAM'
-                    ? 'bg-[#244B8F] text-white shadow-xs'
+                    ? 'bg-[#0073E6] text-white shadow-xs'
                     : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
                 }`}
               >
@@ -1816,7 +1819,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 onClick={() => handleSelectSection('REPORTS')}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                   activeSection === 'REPORTS'
-                    ? 'bg-[#244B8F] text-white shadow-xs'
+                    ? 'bg-[#0073E6] text-white shadow-xs'
                     : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
                 }`}
               >
@@ -1834,7 +1837,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 onClick={() => handleSelectSection('AUDIT')}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                   activeSection === 'AUDIT'
-                    ? 'bg-[#244B8F] text-white shadow-xs'
+                    ? 'bg-[#0073E6] text-white shadow-xs'
                     : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
                 }`}
               >
@@ -1852,7 +1855,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 onClick={() => handleSelectSection('SETTINGS')}
                 className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
                   activeSection === 'SETTINGS'
-                    ? 'bg-[#244B8F] text-white shadow-xs'
+                    ? 'bg-[#0073E6] text-white shadow-xs'
                     : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
                 }`}
               >
@@ -1933,7 +1936,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 placeholder="Search CRM..."
                 value={globalSearch}
                 onChange={(e) => setGlobalSearch(e.target.value)}
-                className="pl-8 sm:pl-9 pr-6 sm:pr-8 py-1.5 sm:py-2 bg-slate-50 border border-slate-200/80 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:border-[#244B8F] focus:outline-hidden w-28 sm:w-56 focus:w-44 sm:focus:w-72 transition-all"
+                className="pl-8 sm:pl-9 pr-6 sm:pr-8 py-1.5 sm:py-2 bg-slate-50 border border-slate-200/80 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:border-[#0073E6] focus:outline-hidden w-28 sm:w-56 focus:w-44 sm:focus:w-72 transition-all"
               />
               {globalSearch && (
                 <button
@@ -1969,7 +1972,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               >
                 <Bell className="w-4 h-4 text-slate-600" />
                 {unreadNotificationCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-[#244B8F] text-white text-[10px] font-extrabold rounded-full flex items-center justify-center border-2 border-white animate-pulse">
+                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-[#0073E6] text-white text-[10px] font-extrabold rounded-full flex items-center justify-center border-2 border-white animate-pulse">
                     {unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}
                   </span>
                 )}
@@ -1984,7 +1987,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                         Notifications
                       </span>
                       {unreadNotificationCount > 0 && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-[#244B8F]">
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-[#0073E6]">
                           {unreadNotificationCount} new
                         </span>
                       )}
@@ -1993,7 +1996,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                       <button
                         type="button"
                         onClick={markAllNotificationsAsRead}
-                        className="text-[11px] font-semibold text-[#244B8F] hover:text-[#1B396E] hover:underline cursor-pointer"
+                        className="text-[11px] font-semibold text-[#0073E6] hover:text-[#005BB5] hover:underline cursor-pointer"
                       >
                         Mark all as read
                       </button>
@@ -2027,7 +2030,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                           >
                             <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
                               item.type === 'PROPERTY' ? 'bg-amber-100 text-amber-700' :
-                              item.type === 'LEAD' ? 'bg-blue-100 text-[#244B8F]' :
+                              item.type === 'LEAD' ? 'bg-blue-100 text-[#0073E6]' :
                               'bg-emerald-100 text-emerald-700'
                             }`}>
                               {item.type === 'PROPERTY' && <Building2 className="w-4 h-4" />}
@@ -2041,7 +2044,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                                   {item.title}
                                 </div>
                                 {!isRead && (
-                                  <span className="w-2 h-2 rounded-full bg-[#244B8F] shrink-0 ml-1.5" />
+                                  <span className="w-2 h-2 rounded-full bg-[#0073E6] shrink-0 ml-1.5" />
                                 )}
                               </div>
                               <div className="text-[11px] text-slate-500 truncate mb-1">
@@ -2087,7 +2090,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 setEditingProperty(null);
                 setIsPropertyEditorOpen(true);
               }}
-              className="inline-flex items-center space-x-1 sm:space-x-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl bg-[#244B8F] hover:bg-[#1B396E] text-white text-xs font-bold transition-colors shadow-xs cursor-pointer"
+              className="inline-flex items-center space-x-1 sm:space-x-1.5 px-3 sm:px-4 py-1.5 sm:py-2 rounded-xl bg-[#0073E6] hover:bg-[#005BB5] text-white text-xs font-bold transition-colors shadow-xs cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Add Property</span>
@@ -2128,15 +2131,15 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     setLeadStatusFilter('NEW');
                     setActiveSection('LEADS');
                   }}
-                  className="bg-white p-4 rounded-2xl border border-slate-200/80 hover:border-[#244B8F] transition-all cursor-pointer shadow-xs group"
+                  className="bg-white p-4 rounded-2xl border border-slate-200/80 hover:border-[#0073E6] transition-all cursor-pointer shadow-xs group"
                 >
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 group-hover:text-[#244B8F]">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 group-hover:text-[#0073E6]">
                     New Leads
                   </span>
                   <div className="text-2xl font-bold text-slate-900 mt-1">
                     {overviewMetrics?.metrics?.newLeads ?? leads.filter(l => l.stage === 'NEW').length}
                   </div>
-                  <span className="text-[11px] text-[#244B8F] font-semibold flex items-center mt-1">
+                  <span className="text-[11px] text-[#0073E6] font-semibold flex items-center mt-1">
                     View New <ChevronRight className="w-3 h-3 ml-0.5" />
                   </span>
                 </div>
@@ -2147,15 +2150,15 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     setLeadStatusFilter('FOLLOW_UP');
                     setActiveSection('LEADS');
                   }}
-                  className="bg-white p-4 rounded-2xl border border-slate-200/80 hover:border-[#244B8F] transition-all cursor-pointer shadow-xs group"
+                  className="bg-white p-4 rounded-2xl border border-slate-200/80 hover:border-[#0073E6] transition-all cursor-pointer shadow-xs group"
                 >
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 group-hover:text-[#244B8F]">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 group-hover:text-[#0073E6]">
                     Follow-ups Due
                   </span>
                   <div className="text-2xl font-bold text-slate-900 mt-1">
                     {overviewMetrics?.metrics?.followUpNeeded ?? leads.filter(l => l.stage === 'FOLLOW_UP').length}
                   </div>
-                  <span className="text-[11px] text-[#244B8F] font-semibold flex items-center mt-1">
+                  <span className="text-[11px] text-[#0073E6] font-semibold flex items-center mt-1">
                     View Queue <ChevronRight className="w-3 h-3 ml-0.5" />
                   </span>
                 </div>
@@ -2204,15 +2207,15 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     setOfferStatusFilter('PENDING_REVIEW');
                     setActiveSection('OFFERS');
                   }}
-                  className="bg-white p-4 rounded-2xl border border-slate-200/80 hover:border-[#244B8F] transition-all cursor-pointer shadow-xs group"
+                  className="bg-white p-4 rounded-2xl border border-slate-200/80 hover:border-[#0073E6] transition-all cursor-pointer shadow-xs group"
                 >
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 group-hover:text-[#244B8F]">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 group-hover:text-[#0073E6]">
                     Pending Offers
                   </span>
                   <div className="text-2xl font-bold text-slate-900 mt-1">
                     {overviewMetrics?.metrics?.offersAwaitingAction ?? offers.filter(o => o.status === 'PENDING_REVIEW').length}
                   </div>
-                  <span className="text-[11px] text-[#244B8F] font-semibold flex items-center mt-1">
+                  <span className="text-[11px] text-[#0073E6] font-semibold flex items-center mt-1">
                     Review Offers <ChevronRight className="w-3 h-3 ml-0.5" />
                   </span>
                 </div>
@@ -2244,7 +2247,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   <button
                     type="button"
                     onClick={() => setActiveSection('LEADS')}
-                    className="text-xs font-bold text-[#244B8F] hover:underline flex items-center cursor-pointer"
+                    className="text-xs font-bold text-[#0073E6] hover:underline flex items-center cursor-pointer"
                   >
                     View All Leads ({leads.length}) <ChevronRight className="w-3.5 h-3.5 ml-1" />
                   </button>
@@ -2266,7 +2269,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                             ? 'bg-emerald-50/60 border-emerald-200 hover:border-emerald-400'
                             : stage.key === 'LOST'
                             ? 'bg-slate-50 border-slate-200 hover:border-slate-400 text-slate-500'
-                            : 'bg-white border-slate-200/80 hover:border-[#244B8F]'
+                            : 'bg-white border-slate-200/80 hover:border-[#0073E6]'
                         }`}
                       >
                         <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
@@ -2288,7 +2291,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 space-y-3">
                     <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                       <div className="flex items-center space-x-2">
-                        <CalendarCheck className="w-4 h-4 text-[#244B8F]" />
+                        <CalendarCheck className="w-4 h-4 text-[#0073E6]" />
                         <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
                           Scheduled Visits
                         </h4>
@@ -2296,7 +2299,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                       <button
                         type="button"
                         onClick={() => setActiveSection('VISITS')}
-                        className="text-[11px] font-bold text-[#244B8F] hover:underline"
+                        className="text-[11px] font-bold text-[#0073E6] hover:underline"
                       >
                         View All
                       </button>
@@ -2325,7 +2328,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                             <button
                               type="button"
                               onClick={() => handleSendWhatsAppReminder(visit.id)}
-                              className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 text-[#244B8F] font-bold text-[10px] rounded-lg shrink-0 cursor-pointer"
+                              className="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-200 text-[#0073E6] font-bold text-[10px] rounded-lg shrink-0 cursor-pointer"
                             >
                               WhatsApp
                             </button>
@@ -2388,7 +2391,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 space-y-3">
                     <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                       <div className="flex items-center space-x-2">
-                        <Tag className="w-4 h-4 text-[#244B8F]" />
+                        <Tag className="w-4 h-4 text-[#0073E6]" />
                         <h4 className="text-xs font-bold uppercase tracking-wider text-slate-800">
                           Offers Awaiting Action
                         </h4>
@@ -2396,7 +2399,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                       <button
                         type="button"
                         onClick={() => setActiveSection('OFFERS')}
-                        className="text-[11px] font-bold text-[#244B8F] hover:underline"
+                        className="text-[11px] font-bold text-[#0073E6] hover:underline"
                       >
                         View Offers
                       </button>
@@ -2425,7 +2428,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                             <button
                               type="button"
                               onClick={() => setActiveSection('OFFERS')}
-                              className="px-2.5 py-1 bg-[#244B8F] hover:bg-[#1B396E] text-white font-bold text-[10px] rounded-lg shrink-0 cursor-pointer"
+                              className="px-2.5 py-1 bg-[#0073E6] hover:bg-[#005BB5] text-white font-bold text-[10px] rounded-lg shrink-0 cursor-pointer"
                             >
                               Review
                             </button>
@@ -2447,7 +2450,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                       <button
                         type="button"
                         onClick={() => setActiveSection('LEADS')}
-                        className="text-[11px] font-bold text-[#244B8F] hover:underline"
+                        className="text-[11px] font-bold text-[#0073E6] hover:underline"
                       >
                         All Leads
                       </button>
@@ -2467,7 +2470,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                               Assigned: {lead.assignedStaffName || 'Unassigned'}
                             </p>
                           </div>
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-[#244B8F] shrink-0">
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-[#0073E6] shrink-0">
                             {lead.stage}
                           </span>
                         </div>
@@ -2495,7 +2498,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     onClick={() => handleExportCsv('leads')}
                     className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-white border border-slate-200/80 text-slate-700 hover:bg-slate-50 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
                   >
-                    <Download className="w-3.5 h-3.5 text-[#244B8F]" />
+                    <Download className="w-3.5 h-3.5 text-[#0073E6]" />
                     <span>Export Leads CSV</span>
                   </button>
                 </div>
@@ -2507,7 +2510,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   onClick={() => setLeadStatusFilter('ALL')}
                   className={`p-3.5 rounded-xl border transition-all cursor-pointer shadow-2xs ${
                     leadStatusFilter === 'ALL'
-                      ? 'bg-blue-50/50 border-[#244B8F] ring-1 ring-[#244B8F]/30'
+                      ? 'bg-blue-50/50 border-[#0073E6] ring-1 ring-[#0073E6]/30'
                       : 'bg-white border-slate-200/80 hover:border-slate-300'
                   }`}
                 >
@@ -2520,7 +2523,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   onClick={() => setLeadStatusFilter('NEW')}
                   className={`p-3.5 rounded-xl border transition-all cursor-pointer shadow-2xs ${
                     leadStatusFilter === 'NEW'
-                      ? 'bg-blue-50/50 border-[#244B8F] ring-1 ring-[#244B8F]/30'
+                      ? 'bg-blue-50/50 border-[#0073E6] ring-1 ring-[#0073E6]/30'
                       : 'bg-white border-slate-200/80 hover:border-slate-300'
                   }`}
                 >
@@ -2528,7 +2531,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   <div className="text-2xl font-bold text-slate-900 mt-0.5">
                     {leads.filter(l => l.stage === 'NEW').length}
                   </div>
-                  <span className="text-[10px] text-[#244B8F] font-semibold mt-0.5 block">Fresh inbound</span>
+                  <span className="text-[10px] text-[#0073E6] font-semibold mt-0.5 block">Fresh inbound</span>
                 </div>
 
                 <div
@@ -2602,7 +2605,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     placeholder="Search leads by client name, phone, society, locality..."
                     value={leadSearch}
                     onChange={(e) => setLeadSearch(e.target.value)}
-                    className="w-full bg-slate-50/70 border border-slate-200/80 rounded-xl pl-9 pr-8 py-2 text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:border-[#244B8F] focus:outline-hidden"
+                    className="w-full bg-slate-50/70 border border-slate-200/80 rounded-xl pl-9 pr-8 py-2 text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:border-[#0073E6] focus:outline-hidden"
                   />
                   {leadSearch && (
                     <button
@@ -2683,7 +2686,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                         setLeadFollowUpFilter('ALL');
                         setLeadSearch('');
                       }}
-                      className="text-[#244B8F] hover:underline text-xs font-bold px-2 py-1 cursor-pointer"
+                      className="text-[#0073E6] hover:underline text-xs font-bold px-2 py-1 cursor-pointer"
                     >
                       Reset Filters
                     </button>
@@ -2726,7 +2729,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                             onClick={() => setSelectedLeadId(lead.id)}
                             className={`transition-colors cursor-pointer group ${
                               isNewLead
-                                ? 'bg-blue-50/40 hover:bg-blue-50/70 border-l-4 border-l-[#244B8F]'
+                                ? 'bg-blue-50/40 hover:bg-blue-50/70 border-l-4 border-l-[#0073E6]'
                                 : 'hover:bg-slate-50/70'
                             }`}
                           >
@@ -2735,13 +2738,13 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                               <div className="flex items-center space-x-3">
                                 <div className={`w-8 h-8 rounded-full border flex items-center justify-center font-bold text-xs shrink-0 ${
                                   isNewLead
-                                    ? 'bg-[#244B8F] text-white border-[#244B8F]'
-                                    : 'bg-blue-50 border-blue-200/60 text-[#244B8F]'
+                                    ? 'bg-[#0073E6] text-white border-[#0073E6]'
+                                    : 'bg-blue-50 border-blue-200/60 text-[#0073E6]'
                                 }`}>
                                   {clientName[0] || 'L'}
                                 </div>
                                 <div className="min-w-0">
-                                  <p className="font-bold text-slate-900 group-hover:text-[#244B8F] transition-colors truncate">
+                                  <p className="font-bold text-slate-900 group-hover:text-[#0073E6] transition-colors truncate">
                                     {clientName}
                                   </p>
                                   <p className="text-[11px] text-slate-500 font-mono">
@@ -2756,7 +2759,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                               <span
                                 className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
                                   lead.type === 'SELLER'
-                                    ? 'bg-blue-50 text-[#244B8F] border border-blue-200/60'
+                                    ? 'bg-blue-50 text-[#0073E6] border border-blue-200/60'
                                     : 'bg-emerald-50 text-emerald-800 border border-emerald-200/60'
                                 }`}
                               >
@@ -2785,7 +2788,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                               <span
                                 className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
                                   isNewLead
-                                    ? 'bg-[#244B8F] text-white font-extrabold tracking-wide shadow-xs'
+                                    ? 'bg-[#0073E6] text-white font-extrabold tracking-wide shadow-xs'
                                     : lead.stage === 'CONTACTED'
                                     ? 'bg-indigo-50 text-indigo-700'
                                     : lead.stage === 'FOLLOW_UP'
@@ -2844,7 +2847,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                                 e.stopPropagation();
                                 setSelectedLeadId(lead.id);
                               }}
-                              className="px-3 py-1.5 rounded-lg bg-[#244B8F] hover:bg-[#1B396E] text-white font-semibold text-[11px] transition-colors cursor-pointer shadow-2xs inline-flex items-center space-x-1"
+                              className="px-3 py-1.5 rounded-lg bg-[#0073E6] hover:bg-[#005BB5] text-white font-semibold text-[11px] transition-colors cursor-pointer shadow-2xs inline-flex items-center space-x-1"
                             >
                               <span>Manage Lead</span>
                             </button>
@@ -2896,7 +2899,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     onClick={() => handleExportCsv('properties')}
                     className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-white border border-slate-200/80 text-slate-700 hover:bg-slate-50 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
                   >
-                    <Download className="w-3.5 h-3.5 text-[#244B8F]" />
+                    <Download className="w-3.5 h-3.5 text-[#0073E6]" />
                     <span>Export CSV</span>
                   </button>
                   <button
@@ -2905,7 +2908,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                       setEditingProperty(null);
                       setIsPropertyEditorOpen(true);
                     }}
-                    className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-[#244B8F] text-white text-xs font-bold shadow-xs hover:bg-[#1B396E] cursor-pointer"
+                    className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-[#0073E6] text-white text-xs font-bold shadow-xs hover:bg-[#005BB5] cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Add Property Listing</span>
@@ -2919,7 +2922,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   onClick={() => setPropStatusFilter('ALL')}
                   className={`p-3.5 rounded-xl border transition-all cursor-pointer shadow-2xs ${
                     propStatusFilter === 'ALL'
-                      ? 'bg-blue-50/50 border-[#244B8F] ring-1 ring-[#244B8F]/30'
+                      ? 'bg-blue-50/50 border-[#0073E6] ring-1 ring-[#0073E6]/30'
                       : 'bg-white border-slate-200/80 hover:border-slate-300'
                   }`}
                 >
@@ -2947,7 +2950,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   className="p-3.5 rounded-xl border bg-white border-slate-200/80 shadow-2xs"
                 >
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Verified Tier</span>
-                  <div className="text-2xl font-bold text-[#244B8F] mt-0.5">
+                  <div className="text-2xl font-bold text-[#0073E6] mt-0.5">
                     {properties.filter(p => p.verificationBadge && p.verificationBadge !== 'NONE').length}
                   </div>
                   <span className="text-[10px] text-blue-700 font-semibold mt-0.5 block">Level 1 & 2 audited</span>
@@ -2979,7 +2982,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     placeholder="Search properties by project, title, locality, developer..."
                     value={propSearch}
                     onChange={(e) => setPropSearch(e.target.value)}
-                    className="w-full bg-slate-50/70 border border-slate-200/80 rounded-xl pl-9 pr-8 py-2 text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:border-[#244B8F] focus:outline-hidden"
+                    className="w-full bg-slate-50/70 border border-slate-200/80 rounded-xl pl-9 pr-8 py-2 text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:border-[#0073E6] focus:outline-hidden"
                   />
                   {propSearch && (
                     <button
@@ -3033,7 +3036,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                         setPropBhkFilter('ALL');
                         setPropSearch('');
                       }}
-                      className="text-[#244B8F] hover:underline text-xs font-bold px-2 py-1 cursor-pointer"
+                      className="text-[#0073E6] hover:underline text-xs font-bold px-2 py-1 cursor-pointer"
                     >
                       Reset Filters
                     </button>
@@ -3087,7 +3090,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                                 }}
                               />
                               <div className="min-w-0">
-                                <p className="font-bold text-slate-900 group-hover:text-[#244B8F] transition-colors truncate">
+                                <p className="font-bold text-slate-900 group-hover:text-[#0073E6] transition-colors truncate">
                                   {prop.projectName}
                                 </p>
                                 <p className="text-[10px] text-slate-400 truncate">{prop.title || prop.id}</p>
@@ -3108,7 +3111,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                             </div>
                           </td>
                           <td className="py-3.5 px-4">
-                            <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-50 text-[#244B8F] border border-blue-200/60">
+                            <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-50 text-[#0073E6] border border-blue-200/60">
                               {prop.verificationBadge}
                             </span>
                           </td>
@@ -3165,7 +3168,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                                 e.stopPropagation();
                                 setSelectedPropertyId(prop.id);
                               }}
-                              className="px-2.5 py-1 bg-[#244B8F] text-white text-[11px] font-bold rounded-lg hover:bg-[#1B396E] transition-colors cursor-pointer shadow-2xs"
+                              className="px-2.5 py-1 bg-[#0073E6] text-white text-[11px] font-bold rounded-lg hover:bg-[#005BB5] transition-colors cursor-pointer shadow-2xs"
                             >
                               Details
                             </button>
@@ -3216,13 +3219,13 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     onClick={() => handleExportCsv('visits')}
                     className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-white border border-slate-200/80 text-slate-700 hover:bg-slate-50 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
                   >
-                    <Download className="w-3.5 h-3.5 text-[#244B8F]" />
+                    <Download className="w-3.5 h-3.5 text-[#0073E6]" />
                     <span>Export CSV</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setIsScheduleVisitOpen(true)}
-                    className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-[#244B8F] text-white text-xs font-bold shadow-xs hover:bg-[#1B396E] cursor-pointer"
+                    className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-[#0073E6] text-white text-xs font-bold shadow-xs hover:bg-[#005BB5] cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Schedule Visit</span>
@@ -3236,7 +3239,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   onClick={() => setVisitStatusFilter('ALL')}
                   className={`p-3.5 rounded-xl border transition-all cursor-pointer shadow-2xs ${
                     visitStatusFilter === 'ALL'
-                      ? 'bg-blue-50/50 border-[#244B8F] ring-1 ring-[#244B8F]/30'
+                      ? 'bg-blue-50/50 border-[#0073E6] ring-1 ring-[#0073E6]/30'
                       : 'bg-white border-slate-200/80 hover:border-slate-300'
                   }`}
                 >
@@ -3249,15 +3252,15 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   onClick={() => setVisitStatusFilter('SCHEDULED')}
                   className={`p-3.5 rounded-xl border transition-all cursor-pointer shadow-2xs ${
                     visitStatusFilter === 'SCHEDULED'
-                      ? 'bg-blue-50/50 border-[#244B8F] ring-1 ring-[#244B8F]/30'
+                      ? 'bg-blue-50/50 border-[#0073E6] ring-1 ring-[#0073E6]/30'
                       : 'bg-white border-slate-200/80 hover:border-slate-300'
                   }`}
                 >
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Upcoming / Active</span>
-                  <div className="text-2xl font-bold text-[#244B8F] mt-0.5">
+                  <div className="text-2xl font-bold text-[#0073E6] mt-0.5">
                     {visits.filter(v => v.status === 'SCHEDULED').length}
                   </div>
-                  <span className="text-[10px] text-[#244B8F] font-semibold mt-0.5 block">Pending execution</span>
+                  <span className="text-[10px] text-[#0073E6] font-semibold mt-0.5 block">Pending execution</span>
                 </div>
 
                 <div
@@ -3301,7 +3304,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     placeholder="Search visits by client name, phone, property title, locality..."
                     value={visitSearch}
                     onChange={(e) => setVisitSearch(e.target.value)}
-                    className="w-full bg-slate-50/70 border border-slate-200/80 rounded-xl pl-9 pr-8 py-2 text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:border-[#244B8F] focus:outline-hidden"
+                    className="w-full bg-slate-50/70 border border-slate-200/80 rounded-xl pl-9 pr-8 py-2 text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:border-[#0073E6] focus:outline-hidden"
                   />
                   {visitSearch && (
                     <button
@@ -3338,7 +3341,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                         setVisitStatusFilter('ALL');
                         setVisitSearch('');
                       }}
-                      className="text-[#244B8F] hover:underline text-xs font-bold px-2 py-1 cursor-pointer"
+                      className="text-[#0073E6] hover:underline text-xs font-bold px-2 py-1 cursor-pointer"
                     >
                       Reset Filters
                     </button>
@@ -3374,10 +3377,10 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                         <tr key={visit.id} className="hover:bg-slate-50/70 transition-colors group">
                           <td className="py-3.5 px-4">
                             <div className="flex items-center space-x-3">
-                              <div className="w-8 h-8 rounded-full bg-blue-50 border border-blue-200/60 text-[#244B8F] flex items-center justify-center font-bold text-xs shrink-0">
+                              <div className="w-8 h-8 rounded-full bg-blue-50 border border-blue-200/60 text-[#0073E6] flex items-center justify-center font-bold text-xs shrink-0">
                                 {visit.client_name ? visit.client_name[0] : 'V'}
                               </div>
-                              <span className="font-bold text-slate-900 group-hover:text-[#244B8F] transition-colors">{visit.client_name}</span>
+                              <span className="font-bold text-slate-900 group-hover:text-[#0073E6] transition-colors">{visit.client_name}</span>
                             </div>
                           </td>
                           <td className="py-3.5 px-4 font-mono text-slate-600">
@@ -3402,7 +3405,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                             <span
                               className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
                                 visit.status === 'SCHEDULED'
-                                  ? 'bg-blue-50 text-[#244B8F] border border-blue-200/60'
+                                  ? 'bg-blue-50 text-[#0073E6] border border-blue-200/60'
                                   : visit.status === 'COMPLETED'
                                   ? 'bg-emerald-50 text-emerald-800 border border-emerald-200/60'
                                   : 'bg-slate-100 text-slate-600 border border-slate-200/60'
@@ -3424,7 +3427,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                                 <button
                                   type="button"
                                   onClick={() => handleUpdateVisitStatus(visit.id, 'COMPLETED')}
-                                  className="px-2.5 py-1 bg-[#244B8F] hover:bg-[#1B396E] text-white font-bold text-[11px] rounded-lg transition-colors cursor-pointer shadow-2xs"
+                                  className="px-2.5 py-1 bg-[#0073E6] hover:bg-[#005BB5] text-white font-bold text-[11px] rounded-lg transition-colors cursor-pointer shadow-2xs"
                                 >
                                   Mark Done
                                 </button>
@@ -3482,13 +3485,13 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     onClick={() => handleExportCsv('offers')}
                     className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-white border border-slate-200/80 text-slate-700 hover:bg-slate-50 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
                   >
-                    <Download className="w-3.5 h-3.5 text-[#244B8F]" />
+                    <Download className="w-3.5 h-3.5 text-[#0073E6]" />
                     <span>Export CSV</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setIsRecordOfferOpen(true)}
-                    className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-[#244B8F] text-white text-xs font-bold shadow-xs hover:bg-[#1B396E] cursor-pointer"
+                    className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-[#0073E6] text-white text-xs font-bold shadow-xs hover:bg-[#005BB5] cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Record Offer</span>
@@ -3502,7 +3505,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   onClick={() => setOfferStatusFilter('ALL')}
                   className={`p-3.5 rounded-xl border transition-all cursor-pointer shadow-2xs ${
                     offerStatusFilter === 'ALL'
-                      ? 'bg-blue-50/50 border-[#244B8F] ring-1 ring-[#244B8F]/30'
+                      ? 'bg-blue-50/50 border-[#0073E6] ring-1 ring-[#0073E6]/30'
                       : 'bg-white border-slate-200/80 hover:border-slate-300'
                   }`}
                 >
@@ -3530,12 +3533,12 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   onClick={() => setOfferStatusFilter('COUNTER_OFFERED')}
                   className={`p-3.5 rounded-xl border transition-all cursor-pointer shadow-2xs ${
                     offerStatusFilter === 'COUNTER_OFFERED'
-                      ? 'bg-blue-50/50 border-[#244B8F] ring-1 ring-[#244B8F]/30'
+                      ? 'bg-blue-50/50 border-[#0073E6] ring-1 ring-[#0073E6]/30'
                       : 'bg-white border-slate-200/80 hover:border-slate-300'
                   }`}
                 >
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">In Negotiation</span>
-                  <div className="text-2xl font-bold text-[#244B8F] mt-0.5">
+                  <div className="text-2xl font-bold text-[#0073E6] mt-0.5">
                     {offers.filter(o => o.status === 'COUNTER_OFFERED').length}
                   </div>
                   <span className="text-[10px] text-blue-700 font-semibold mt-0.5 block">Counter-offered</span>
@@ -3567,7 +3570,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     placeholder="Search offers by buyer name, phone, property title..."
                     value={offerSearch}
                     onChange={(e) => setOfferSearch(e.target.value)}
-                    className="w-full bg-slate-50/70 border border-slate-200/80 rounded-xl pl-9 pr-8 py-2 text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:border-[#244B8F] focus:outline-hidden"
+                    className="w-full bg-slate-50/70 border border-slate-200/80 rounded-xl pl-9 pr-8 py-2 text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:border-[#0073E6] focus:outline-hidden"
                   />
                   {offerSearch && (
                     <button
@@ -3604,7 +3607,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                         setOfferStatusFilter('ALL');
                         setOfferSearch('');
                       }}
-                      className="text-[#244B8F] hover:underline text-xs font-bold px-2 py-1 cursor-pointer"
+                      className="text-[#0073E6] hover:underline text-xs font-bold px-2 py-1 cursor-pointer"
                     >
                       Reset Filters
                     </button>
@@ -3639,7 +3642,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                       filteredOffers.map((offer) => (
                         <tr key={offer.id} className="hover:bg-slate-50/70 transition-colors group">
                           <td className="py-3.5 px-4">
-                            <div className="font-bold text-slate-900 group-hover:text-[#244B8F] transition-colors truncate max-w-[200px]">
+                            <div className="font-bold text-slate-900 group-hover:text-[#0073E6] transition-colors truncate max-w-[200px]">
                               {offer.property_title || 'Apartment Unit'}
                             </div>
                             <div className="text-[10px] text-slate-400 font-mono truncate">{offer.id}</div>
@@ -3669,7 +3672,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                                 offer.status === 'ACCEPTED'
                                   ? 'bg-emerald-50 text-emerald-800 border border-emerald-200/60'
                                   : offer.status === 'COUNTER_OFFERED'
-                                  ? 'bg-blue-50 text-[#244B8F] border border-blue-200/60'
+                                  ? 'bg-blue-50 text-[#0073E6] border border-blue-200/60'
                                   : offer.status === 'REJECTED'
                                   ? 'bg-rose-50 text-rose-800 border border-rose-200/60'
                                   : 'bg-amber-50 text-amber-800 border border-amber-200/60'
@@ -3695,7 +3698,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                                     setCounterOfferAmount('');
                                     setCounterOfferNote('');
                                   }}
-                                  className="px-2.5 py-1 bg-[#244B8F] hover:bg-[#1B396E] text-white text-[11px] font-bold rounded-lg cursor-pointer shadow-2xs"
+                                  className="px-2.5 py-1 bg-[#0073E6] hover:bg-[#005BB5] text-white text-[11px] font-bold rounded-lg cursor-pointer shadow-2xs"
                                 >
                                   Counter
                                 </button>
@@ -3785,7 +3788,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 <button
                   type="button"
                   onClick={() => setIsAddUserOpen(true)}
-                  className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-[#244B8F] text-white text-xs font-bold shadow-xs hover:bg-[#1B396E] cursor-pointer"
+                  className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-[#0073E6] text-white text-xs font-bold shadow-xs hover:bg-[#005BB5] cursor-pointer"
                 >
                   <UserPlus className="w-3.5 h-3.5" />
                   <span>Add Employee</span>
@@ -3808,7 +3811,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 </div>
                 <div className="p-3.5 rounded-xl border bg-white border-slate-200/80 shadow-2xs">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Managed Leads</span>
-                  <div className="text-2xl font-bold text-[#244B8F] mt-0.5">{leads.length}</div>
+                  <div className="text-2xl font-bold text-[#0073E6] mt-0.5">{leads.length}</div>
                   <span className="text-[10px] text-slate-500 font-medium mt-0.5 block">Total pipeline leads</span>
                 </div>
                 <div className="p-3.5 rounded-xl border bg-white border-slate-200/80 shadow-2xs">
@@ -3848,7 +3851,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                               <div>
                                 <span className="font-bold text-slate-900 block">{staff.displayName}</span>
                                 {isSelf && (
-                                  <span className="text-[10px] text-[#244B8F] font-bold">
+                                  <span className="text-[10px] text-[#0073E6] font-bold">
                                     (You)
                                   </span>
                                 )}
@@ -3965,7 +3968,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     onClick={() => handleExportCsv('leads')}
                     className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200/80 text-slate-700 hover:bg-slate-50 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
                   >
-                    <Download className="w-3.5 h-3.5 text-[#244B8F]" />
+                    <Download className="w-3.5 h-3.5 text-[#0073E6]" />
                     <span>Leads CSV</span>
                   </button>
                   <button
@@ -3973,7 +3976,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     onClick={() => handleExportCsv('visits')}
                     className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200/80 text-slate-700 hover:bg-slate-50 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
                   >
-                    <Download className="w-3.5 h-3.5 text-[#244B8F]" />
+                    <Download className="w-3.5 h-3.5 text-[#0073E6]" />
                     <span>Visits CSV</span>
                   </button>
                   <button
@@ -3981,7 +3984,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     onClick={() => handleExportCsv('offers')}
                     className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200/80 text-slate-700 hover:bg-slate-50 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
                   >
-                    <Download className="w-3.5 h-3.5 text-[#244B8F]" />
+                    <Download className="w-3.5 h-3.5 text-[#0073E6]" />
                     <span>Offers CSV</span>
                   </button>
                   <button
@@ -3989,7 +3992,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     onClick={() => handleExportCsv('properties')}
                     className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200/80 text-slate-700 hover:bg-slate-50 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
                   >
-                    <Download className="w-3.5 h-3.5 text-[#244B8F]" />
+                    <Download className="w-3.5 h-3.5 text-[#0073E6]" />
                     <span>Properties CSV</span>
                   </button>
                 </div>
@@ -4036,7 +4039,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                         </div>
                         <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                           <div
-                            className="bg-[#244B8F] h-2 rounded-full transition-all duration-300"
+                            className="bg-[#0073E6] h-2 rounded-full transition-all duration-300"
                             style={{ width: `${pct}%` }}
                           />
                         </div>
@@ -4148,7 +4151,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 <button
                   type="button"
                   onClick={() => setIsAddUserOpen(true)}
-                  className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-[#244B8F] text-white text-xs font-bold shadow-xs hover:bg-[#1B396E] cursor-pointer"
+                  className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-[#0073E6] text-white text-xs font-bold shadow-xs hover:bg-[#005BB5] cursor-pointer"
                 >
                   <UserPlus className="w-3.5 h-3.5" />
                   <span>Add Employee Account</span>
@@ -4162,7 +4165,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   onClick={() => setSettingsTab('SECURITY')}
                   className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                     settingsTab === 'SECURITY'
-                      ? 'bg-[#244B8F] text-white shadow-xs'
+                      ? 'bg-[#0073E6] text-white shadow-xs'
                       : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
                   }`}
                 >
@@ -4173,7 +4176,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   onClick={() => setSettingsTab('HERO_CMS')}
                   className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                     settingsTab === 'HERO_CMS'
-                      ? 'bg-[#244B8F] text-white shadow-xs'
+                      ? 'bg-[#0073E6] text-white shadow-xs'
                       : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
                   }`}
                 >
@@ -4184,7 +4187,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   onClick={() => setSettingsTab('PARTNER_CMS')}
                   className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                     settingsTab === 'PARTNER_CMS'
-                      ? 'bg-[#244B8F] text-white shadow-xs'
+                      ? 'bg-[#0073E6] text-white shadow-xs'
                       : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
                   }`}
                 >
@@ -4192,10 +4195,21 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 </button>
                 <button
                   type="button"
+                  onClick={() => setSettingsTab('CAREERS_CMS')}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    settingsTab === 'CAREERS_CMS'
+                      ? 'bg-[#0073E6] text-white shadow-xs'
+                      : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
+                  }`}
+                >
+                  Careers & Talent CMS
+                </button>
+                <button
+                  type="button"
                   onClick={() => setSettingsTab('EMAIL_TEMPLATE')}
                   className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                     settingsTab === 'EMAIL_TEMPLATE'
-                      ? 'bg-[#244B8F] text-white shadow-xs'
+                      ? 'bg-[#0073E6] text-white shadow-xs'
                       : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
                   }`}
                 >
@@ -4206,7 +4220,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   onClick={() => setSettingsTab('SUGGESTIONS_CSV')}
                   className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                     settingsTab === 'SUGGESTIONS_CSV'
-                      ? 'bg-[#244B8F] text-white shadow-xs'
+                      ? 'bg-[#0073E6] text-white shadow-xs'
                       : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
                   }`}
                 >
@@ -4220,6 +4234,10 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
 
               {settingsTab === 'PARTNER_CMS' && (
                 <PartnerLogosManager />
+              )}
+
+              {settingsTab === 'CAREERS_CMS' && (
+                <CareerCmsManager />
               )}
 
               {settingsTab === 'EMAIL_TEMPLATE' && (
@@ -4324,7 +4342,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
             {/* Drawer Header */}
             <div className="px-6 py-4 border-b border-slate-200/80 flex items-center justify-between bg-white shrink-0">
               <div className="flex items-center space-x-3.5">
-                <div className="w-10 h-10 rounded-full bg-[#244B8F] text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
+                <div className="w-10 h-10 rounded-full bg-[#0073E6] text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
                   {((leadDetailData?.lead?.displayName || leadDetailData?.lead?.owner_name || leadDetailData?.lead?.ownerName || leadDetailData?.lead?.buyer_name || leadDetailData?.lead?.name || 'C'))[0]}
                 </div>
                 <div>
@@ -4332,11 +4350,11 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     <h3 className="text-base font-bold text-[#172033]">
                       {leadDetailData?.lead?.displayName || leadDetailData?.lead?.owner_name || leadDetailData?.lead?.ownerName || leadDetailData?.lead?.buyer_name || leadDetailData?.lead?.name || 'Customer Details'}
                     </h3>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-[#244B8F]">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-[#0073E6]">
                       {leadDetailData?.lead?.type || 'SELLER'}
                     </span>
                     {(leadDetailData?.lead?.lead_status === 'NEW' || leadDetailData?.lead?.stage === 'NEW') && (
-                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-[#244B8F] text-white shadow-xs">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-[#0073E6] text-white shadow-xs">
                         NEW
                       </span>
                     )}
@@ -4382,7 +4400,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
             <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6 text-xs">
               {leadDetailLoading ? (
                 <div className="py-20 text-center text-slate-400 flex flex-col items-center justify-center space-y-3">
-                  <RefreshCw className="w-6 h-6 animate-spin text-[#244B8F]" />
+                  <RefreshCw className="w-6 h-6 animate-spin text-[#0073E6]" />
                   <p className="text-xs font-medium">Retrieving customer record from PostgreSQL...</p>
                 </div>
               ) : leadDetailError ? (
@@ -4400,7 +4418,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                         setTimeout(() => setSelectedLeadId(lid), 50);
                       }
                     }}
-                    className="px-4 py-2 bg-[#244B8F] text-white rounded-xl font-bold text-xs shadow-xs cursor-pointer hover:bg-[#1B396E]"
+                    className="px-4 py-2 bg-[#0073E6] text-white rounded-xl font-bold text-xs shadow-xs cursor-pointer hover:bg-[#005BB5]"
                   >
                     Retry
                   </button>
@@ -4472,7 +4490,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                             setAssigneeSelect(e.target.value);
                             handleAssignLead(selectedLeadId, e.target.value);
                           }}
-                          className="w-full bg-white border border-slate-200/80 rounded-xl px-3 py-2 font-medium text-xs text-slate-800 shadow-2xs focus:border-[#244B8F]"
+                          className="w-full bg-white border border-slate-200/80 rounded-xl px-3 py-2 font-medium text-xs text-slate-800 shadow-2xs focus:border-[#0073E6]"
                         >
                           <option value="">Unassigned</option>
                           {staffList.map((s) => (
@@ -4495,7 +4513,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                         Schedule Next Follow-up
                       </h4>
                       {leadDetailData.lead.next_follow_up_at && (
-                        <span className="text-[10px] font-bold text-[#244B8F] tabular-nums">
+                        <span className="text-[10px] font-bold text-[#0073E6] tabular-nums">
                           Due: {formatReadableDate(leadDetailData.lead.next_follow_up_at)} at {formatReadableTime(leadDetailData.lead.next_follow_up_at)}
                         </span>
                       )}
@@ -4528,7 +4546,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                         disabled={!newFollowUpDate}
                         className={`w-full py-2 font-bold rounded-xl transition-colors cursor-pointer shadow-xs text-xs ${
                           newFollowUpDate
-                            ? 'bg-[#244B8F] text-white hover:bg-[#1B396E]'
+                            ? 'bg-[#0073E6] text-white hover:bg-[#005BB5]'
                             : 'bg-slate-100 text-slate-400 cursor-not-allowed'
                         }`}
                       >
@@ -4548,7 +4566,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                         placeholder="Log detailed notes from client conversation..."
                         value={newCallNote}
                         onChange={(e) => setNewCallNote(e.target.value)}
-                        className="w-full bg-white border border-slate-200/80 rounded-xl p-3 text-xs text-slate-800 shadow-2xs focus:border-[#244B8F] focus:outline-hidden"
+                        className="w-full bg-white border border-slate-200/80 rounded-xl p-3 text-xs text-slate-800 shadow-2xs focus:border-[#0073E6] focus:outline-hidden"
                       />
                       <button
                         type="button"
@@ -4584,7 +4602,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                           }));
                           setIsScheduleVisitOpen(true);
                         }}
-                        className="text-[11px] font-bold text-[#244B8F] hover:underline cursor-pointer"
+                        className="text-[11px] font-bold text-[#0073E6] hover:underline cursor-pointer"
                       >
                         + Schedule Visit
                       </button>
@@ -4622,7 +4640,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                         <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                           Property Documents ({leadDetailData.documents.length})
                         </h4>
-                        <span className="text-[10px] text-[#244B8F] font-bold">
+                        <span className="text-[10px] text-[#0073E6] font-bold">
                           Tier: {leadDetailData.property.verification_tier || 'LEVEL_1'}
                         </span>
                       </div>
@@ -4703,7 +4721,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                           }));
                           setIsRecordOfferOpen(true);
                         }}
-                        className="text-[11px] font-bold text-[#244B8F] hover:underline cursor-pointer"
+                        className="text-[11px] font-bold text-[#0073E6] hover:underline cursor-pointer"
                       >
                         + Record Offer
                       </button>
@@ -4728,7 +4746,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                                     off.status === 'ACCEPTED'
                                       ? 'bg-emerald-50 text-emerald-800 border border-emerald-200/60'
                                       : off.status === 'COUNTER_OFFERED'
-                                      ? 'bg-blue-50 text-[#244B8F] border border-blue-200/60'
+                                      ? 'bg-blue-50 text-[#0073E6] border border-blue-200/60'
                                       : off.status === 'REJECTED'
                                       ? 'bg-rose-50 text-rose-800 border border-rose-200/60'
                                       : 'bg-amber-50 text-amber-800 border border-amber-200/60'
@@ -4755,7 +4773,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                                   setActiveSection('OFFERS');
                                   setOfferSearch(off.buyer_phone || off.buyer_name || '');
                                 }}
-                                className="px-2.5 py-1 bg-[#244B8F] text-white font-bold text-[10px] rounded-lg cursor-pointer shadow-2xs"
+                                className="px-2.5 py-1 bg-[#0073E6] text-white font-bold text-[10px] rounded-lg cursor-pointer shadow-2xs"
                               >
                                 Review Offer
                               </button>
@@ -4836,7 +4854,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 <button
                   type="button"
                   onClick={() => setIsBrochureModalOpen(true)}
-                  className="px-3.5 py-1.5 bg-[#244B8F] hover:bg-[#1B396E] text-white font-bold text-xs rounded-xl flex items-center space-x-1.5 shadow-xs cursor-pointer transition-all font-['Montserrat']"
+                  className="px-3.5 py-1.5 bg-[#0073E6] hover:bg-[#005BB5] text-white font-bold text-xs rounded-xl flex items-center space-x-1.5 shadow-xs cursor-pointer transition-all font-['Montserrat']"
                   title="Generate Editorial A4 Property Presentation Brochure"
                 >
                   <FileText className="w-3.5 h-3.5" />
@@ -4856,7 +4874,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
             <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6 text-xs">
               {propertyDetailLoading ? (
                 <div className="py-20 text-center text-slate-400 flex flex-col items-center justify-center space-y-3">
-                  <RefreshCw className="w-6 h-6 animate-spin text-[#244B8F]" />
+                  <RefreshCw className="w-6 h-6 animate-spin text-[#0073E6]" />
                   <p className="text-xs font-medium">Loading property specifications...</p>
                 </div>
               ) : propertyDetailError ? (
@@ -4890,7 +4908,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                           setTimeout(() => setSelectedPropertyId(pid), 50);
                         }
                       }}
-                      className="px-4 py-2 bg-[#244B8F] text-white rounded-xl font-bold text-xs shadow-xs cursor-pointer hover:bg-[#1B396E]"
+                      className="px-4 py-2 bg-[#0073E6] text-white rounded-xl font-bold text-xs shadow-xs cursor-pointer hover:bg-[#005BB5]"
                     >
                       Authenticate &amp; Retry
                     </button>
@@ -4981,7 +4999,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                       <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                         Title Verification Documents ({(propertyDetailData.documents || []).length})
                       </h4>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-[#244B8F]">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-[#0073E6]">
                         {propertyDetailData.property.verification_tier || 'LEVEL_1_DECLARED'}
                       </span>
                     </div>
@@ -4989,7 +5007,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     {/* Verification Model Explanatory Banner */}
                     <div className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/80 text-xs space-y-1.5">
                       <div className="flex items-center space-x-1.5 text-slate-800 font-bold text-[11px]">
-                        <Info className="w-3.5 h-3.5 text-[#244B8F]" />
+                        <Info className="w-3.5 h-3.5 text-[#0073E6]" />
                         <span>Title Verification Framework</span>
                       </div>
                       <div className="grid grid-cols-3 gap-2 text-[10px] text-slate-600">
@@ -5096,7 +5114,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                                 <p className="text-[10px] text-slate-400">Assigned: {v.assigned_staff_name}</p>
                               )}
                             </div>
-                            <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-50 text-[#244B8F]">
+                            <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-50 text-[#0073E6]">
                               {v.status}
                             </span>
                           </div>
@@ -5118,7 +5136,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                           <div key={o.id} className="p-3 bg-slate-50/80 rounded-xl border border-slate-200/70 flex items-center justify-between">
                             <div>
                               <strong className="text-slate-900">{o.buyer_name}</strong>
-                              <p className="text-[10px] text-[#244B8F] font-bold">
+                              <p className="text-[10px] text-[#0073E6] font-bold">
                                 ₹{(Number(o.offer_amount_inr) / 10000000).toFixed(2)} Cr
                               </p>
                             </div>
@@ -5127,7 +5145,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                                 ? 'bg-emerald-50 text-emerald-800'
                                 : o.status === 'REJECTED'
                                 ? 'bg-rose-50 text-rose-800'
-                                : 'bg-blue-50 text-[#244B8F]'
+                                : 'bg-blue-50 text-[#0073E6]'
                             }`}>
                               {o.status}
                             </span>
@@ -5162,7 +5180,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                           .map((po: any) => (
                             <div key={po.id} className="p-3 bg-blue-50/40 rounded-xl border border-blue-200 text-xs space-y-1.5">
                               <div className="flex items-center justify-between">
-                                <span className="font-bold text-[#244B8F] text-[11px]">
+                                <span className="font-bold text-[#0073E6] text-[11px]">
                                   PO-SMG-{po.id.slice(-6).toUpperCase()}
                                 </span>
                                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
@@ -5192,7 +5210,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               <button
                 type="button"
                 onClick={() => setIsBrochureModalOpen(true)}
-                className="px-4 py-2 bg-[#244B8F] hover:bg-[#1B396E] text-white font-bold text-xs rounded-xl flex items-center space-x-1.5 cursor-pointer shadow-xs font-['Montserrat']"
+                className="px-4 py-2 bg-[#0073E6] hover:bg-[#005BB5] text-white font-bold text-xs rounded-xl flex items-center space-x-1.5 cursor-pointer shadow-xs font-['Montserrat']"
                 title="Generate Editorial A4 Property Presentation Brochure"
               >
                 <FileText className="w-3.5 h-3.5" />
@@ -5231,7 +5249,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
           <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200/80 overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-200/80 bg-slate-50/50 flex items-center justify-between">
               <h3 className="font-bold text-sm text-slate-900 flex items-center space-x-2">
-                <CalendarCheck className="w-4 h-4 text-[#244B8F]" />
+                <CalendarCheck className="w-4 h-4 text-[#0073E6]" />
                 <span>Schedule Buyer Site Visit</span>
               </h3>
               <button
@@ -5297,14 +5315,14 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 <button
                   type="button"
                   onClick={() => setIsVisitPickerOpen(true)}
-                  className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-300 hover:border-[#244B8F] rounded-xl px-3 py-2 text-xs text-left font-semibold text-slate-800 flex items-center justify-between cursor-pointer transition-colors shadow-2xs"
+                  className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-300 hover:border-[#0073E6] rounded-xl px-3 py-2 text-xs text-left font-semibold text-slate-800 flex items-center justify-between cursor-pointer transition-colors shadow-2xs"
                 >
                   <span className="tabular-nums">
                     {scheduleVisitForm.visitDate
                       ? `${formatReadableDate(scheduleVisitForm.visitDate)} ${scheduleVisitForm.visitTime ? `at ${scheduleVisitForm.visitTime}` : ''}`
                       : 'Select Slot via Calendar Grid...'}
                   </span>
-                  <Calendar className="w-4 h-4 text-[#244B8F] shrink-0" />
+                  <Calendar className="w-4 h-4 text-[#0073E6] shrink-0" />
                 </button>
                 <div className="grid grid-cols-2 gap-2">
                   <div>
@@ -5369,7 +5387,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-[#244B8F] text-white font-bold hover:bg-[#1B396E] cursor-pointer shadow-xs"
+                  className="px-5 py-2 rounded-xl bg-[#0073E6] text-white font-bold hover:bg-[#005BB5] cursor-pointer shadow-xs"
                 >
                   Confirm Site Visit
                 </button>
@@ -5387,7 +5405,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
           <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200/80 overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-200/80 bg-slate-50/50 flex items-center justify-between">
               <h3 className="font-bold text-sm text-slate-900 flex items-center space-x-2">
-                <Tag className="w-4 h-4 text-[#244B8F]" />
+                <Tag className="w-4 h-4 text-[#0073E6]" />
                 <span>Record Formal Buyer Offer</span>
               </h3>
               <button
@@ -5461,7 +5479,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-mono"
                 />
                 {recordOfferForm.offerAmountInr && (
-                  <span className="text-[11px] text-[#244B8F] font-bold mt-1 block">
+                  <span className="text-[11px] text-[#0073E6] font-bold mt-1 block">
                     = ₹{(Number(recordOfferForm.offerAmountInr) / 10000000).toFixed(2)} Cr
                   </span>
                 )}
@@ -5490,7 +5508,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-[#244B8F] text-white font-bold hover:bg-[#1B396E] cursor-pointer shadow-xs"
+                  className="px-5 py-2 rounded-xl bg-[#0073E6] text-white font-bold hover:bg-[#005BB5] cursor-pointer shadow-xs"
                 >
                   Record Offer in Ledger
                 </button>
@@ -5550,7 +5568,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               <button
                 type="button"
                 onClick={() => handleUpdateOfferStatus(counterOfferTarget.id, 'COUNTER_OFFERED', Number(counterOfferAmount) || undefined)}
-                className="px-5 py-2 rounded-xl bg-[#244B8F] text-white font-bold hover:bg-[#1B396E] cursor-pointer shadow-xs"
+                className="px-5 py-2 rounded-xl bg-[#0073E6] text-white font-bold hover:bg-[#005BB5] cursor-pointer shadow-xs"
               >
                 Submit Counter-Offer
               </button>
@@ -5568,7 +5586,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
           <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200/80 overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-200/80 bg-slate-50/50 flex items-center justify-between">
               <h3 className="font-bold text-sm text-slate-900 flex items-center space-x-2">
-                <UserPlus className="w-4 h-4 text-[#244B8F]" />
+                <UserPlus className="w-4 h-4 text-[#0073E6]" />
                 <span>Add Employee Account</span>
               </h3>
               <button
@@ -5596,7 +5614,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   placeholder="e.g. Ramesh Kumar"
                   value={addUserForm.fullName}
                   onChange={(e) => setAddUserForm({ ...addUserForm, fullName: e.target.value })}
-                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#244B8F]/20 focus:border-[#244B8F]"
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#0073E6]/20 focus:border-[#0073E6]"
                 />
               </div>
 
@@ -5610,7 +5628,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   placeholder="name@sellmyghar.in"
                   value={addUserForm.email}
                   onChange={(e) => setAddUserForm({ ...addUserForm, email: e.target.value })}
-                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#244B8F]/20 focus:border-[#244B8F]"
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#0073E6]/20 focus:border-[#0073E6]"
                 />
                 <p className="text-[10px] text-slate-400 mt-1">Must strictly belong to @sellmyghar.in domain</p>
               </div>
@@ -5625,7 +5643,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   placeholder="+91 98450 12345"
                   value={addUserForm.phone}
                   onChange={(e) => setAddUserForm({ ...addUserForm, phone: e.target.value })}
-                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#244B8F]/20 focus:border-[#244B8F]"
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#0073E6]/20 focus:border-[#0073E6]"
                 />
               </div>
 
@@ -5640,7 +5658,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   placeholder="••••••••••••"
                   value={addUserForm.initialPassword}
                   onChange={(e) => setAddUserForm({ ...addUserForm, initialPassword: e.target.value })}
-                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#244B8F]/20 focus:border-[#244B8F]"
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#0073E6]/20 focus:border-[#0073E6]"
                 />
               </div>
 
@@ -5655,7 +5673,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 <button
                   type="submit"
                   disabled={isCreatingUser}
-                  className="px-5 py-2 rounded-xl bg-[#244B8F] text-white font-bold hover:bg-[#1B396E] disabled:opacity-50 cursor-pointer shadow-xs"
+                  className="px-5 py-2 rounded-xl bg-[#0073E6] text-white font-bold hover:bg-[#005BB5] disabled:opacity-50 cursor-pointer shadow-xs"
                 >
                   {isCreatingUser ? 'Creating Account...' : 'Provision Employee'}
                 </button>
@@ -5673,7 +5691,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
           <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200/80 overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-200/80 bg-slate-50/50 flex items-center justify-between">
               <h3 className="font-bold text-sm text-slate-900 flex items-center space-x-2">
-                <Edit className="w-4 h-4 text-[#244B8F]" />
+                <Edit className="w-4 h-4 text-[#0073E6]" />
                 <span>Edit Employee: {editingStaffUser.displayName || editingStaffUser.email}</span>
               </h3>
               <button
@@ -5707,7 +5725,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   required
                   value={editUserForm.displayName}
                   onChange={(e) => setEditUserForm({ ...editUserForm, displayName: e.target.value })}
-                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#244B8F]/20 focus:border-[#244B8F]"
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#0073E6]/20 focus:border-[#0073E6]"
                 />
               </div>
 
@@ -5719,7 +5737,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   type="tel"
                   value={editUserForm.phone}
                   onChange={(e) => setEditUserForm({ ...editUserForm, phone: e.target.value })}
-                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#244B8F]/20 focus:border-[#244B8F]"
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#0073E6]/20 focus:border-[#0073E6]"
                 />
               </div>
 
@@ -5738,7 +5756,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     onChange={(e) => setEditUserForm({ ...editUserForm, isActive: e.target.checked })}
                     className="sr-only peer"
                   />
-                  <div className="w-9 h-5 bg-slate-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#244B8F]"></div>
+                  <div className="w-9 h-5 bg-slate-200 peer-focus:outline-hidden rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-[#0073E6]"></div>
                 </label>
               </div>
 
@@ -5753,7 +5771,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 <button
                   type="submit"
                   disabled={isUpdatingUser}
-                  className="px-5 py-2 rounded-xl bg-[#244B8F] text-white font-bold hover:bg-[#1B396E] disabled:opacity-50 cursor-pointer shadow-xs"
+                  className="px-5 py-2 rounded-xl bg-[#0073E6] text-white font-bold hover:bg-[#005BB5] disabled:opacity-50 cursor-pointer shadow-xs"
                 >
                   {isUpdatingUser ? 'Saving Changes...' : 'Save Details'}
                 </button>
@@ -5837,7 +5855,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     ? 'bg-rose-600 hover:bg-rose-700'
                     : confirmDialog.type === 'DEACTIVATE'
                     ? 'bg-amber-600 hover:bg-amber-700'
-                    : 'bg-[#244B8F] hover:bg-[#1B396E]'
+                    : 'bg-[#0073E6] hover:bg-[#005BB5]'
                 }`}
               >
                 {isProcessingAction

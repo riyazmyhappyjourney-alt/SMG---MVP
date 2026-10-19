@@ -10,7 +10,10 @@ export type StaffRole =
   | 'STAFF_VERIFICATION_AGENT'
   | 'STAFF_LISTING_MANAGER'
   | 'STAFF_DEAL_CLOSER'
-  | 'STAFF_SUPER_ADMIN';
+  | 'STAFF_SUPER_ADMIN'
+  | 'STAFF'
+  | 'EMPLOYEE'
+  | 'STAFF_MEMBER';
 
 export type CustomerRole = 'OWNER' | 'BUYER';
 
@@ -136,6 +139,7 @@ export interface AuthenticatedUser {
   phone: string;
   email: string | null;
   roles: AppRole[];
-  permissions: Permission[];
+  permissions?: Permission[];
+  tokenVersion?: number;
   module_permissions?: CrmModule[];
 }

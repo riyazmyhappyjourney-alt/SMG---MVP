@@ -280,7 +280,7 @@ export const Hero: React.FC<HeroProps> = ({
           
           {/* Eyebrow */}
           <div className="flex items-center space-x-2 text-slate-300">
-            <span className="w-6 h-0.5 bg-[#244B8F] rounded-full" />
+            <span className="w-6 h-0.5 bg-[#0073E6] rounded-full" />
             <span className="text-[11px] sm:text-xs font-bold tracking-widest uppercase text-blue-200">
               BENGALURU RESIDENTIAL RESALE
             </span>
@@ -306,7 +306,7 @@ export const Hero: React.FC<HeroProps> = ({
                 trackEvent('HERO_CTA_PRIMARY_CLICK', { action: 'SELL_MY_FLAT' });
                 onSellClick();
               }}
-              className="px-6 py-3 rounded-xl bg-[#244B8F] hover:bg-[#1B396E] text-white text-xs sm:text-sm font-bold shadow-lg hover:shadow-xl transition-all cursor-pointer inline-flex items-center space-x-2 group"
+              className="px-6 py-3 rounded-xl bg-[#0073E6] hover:bg-[#005BB5] text-white text-xs sm:text-sm font-bold shadow-lg hover:shadow-xl transition-all cursor-pointer inline-flex items-center space-x-2 group"
             >
               <span>Sell My Flat</span>
               <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
@@ -361,10 +361,10 @@ export const Hero: React.FC<HeroProps> = ({
               <div className="flex items-center space-x-3 text-xs font-semibold">
                 
                 {/* Sell Flat Tab (Active) */}
-                <div className="flex items-center space-x-2 text-[#244B8F] font-bold pb-2 relative">
-                  <Building2 className="w-4 h-4 text-[#244B8F]" />
+                <div className="flex items-center space-x-2 text-[#0073E6] font-bold pb-2 relative">
+                  <Building2 className="w-4 h-4 text-[#0073E6]" />
                   <span>Sell / Resale Flat</span>
-                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#244B8F] rounded-full" />
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#0073E6] rounded-full" />
                 </div>
 
                 {/* Vertical Divider */}
@@ -373,7 +373,7 @@ export const Hero: React.FC<HeroProps> = ({
                 {/* Post Property FREE badge */}
                 <div className="flex items-center space-x-1.5 pb-2">
                   <span className="text-slate-700 text-xs font-bold">Post Property</span>
-                  <span className="px-1.5 py-0.5 text-[9px] font-black uppercase bg-emerald-600 text-white rounded shadow-2xs">
+                  <span className="px-1.5 py-0.5 text-[9px] font-black uppercase bg-[#059669] text-white rounded shadow-2xs">
                     FREE
                   </span>
                 </div>
@@ -392,9 +392,12 @@ export const Hero: React.FC<HeroProps> = ({
                 <div className="md:col-span-3 relative">
                   <div className="relative">
                     <select
+                      id="hero-bhk-select"
+                      name="bhk"
+                      aria-label="Select BHK Configuration"
                       value={bhk}
                       onChange={(e) => setBhk(e.target.value)}
-                      className="w-full pl-3 pr-8 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#244B8F] transition-all cursor-pointer appearance-none"
+                      className="w-full pl-3 pr-8 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0073E6] transition-all cursor-pointer appearance-none"
                     >
                       <option value="1 BHK">1 BHK Apartment</option>
                       <option value="2 BHK">2 BHK Apartment</option>
@@ -411,14 +414,18 @@ export const Hero: React.FC<HeroProps> = ({
                 <div className="md:col-span-6 relative">
                   <div className="relative">
                     <input
+                      id="hero-society-input"
+                      name="societyQuery"
+                      aria-label="Search Apartment Society or Complex"
                       type="text"
                       value={societyQuery}
                       onChange={(e) => handleSocietyInput(e.target.value)}
                       placeholder='Search society (e.g. Prestige Shantiniketan, Sobha Dream Acres...)'
-                      className="w-full pl-9 pr-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#244B8F] transition-all shadow-2xs"
+                      className="w-full pl-9 pr-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0073E6] transition-all shadow-2xs"
                     />
                     <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3.5 pointer-events-none" />
                   </div>
+
 
                   {/* Autocomplete Dropdown List */}
                   {showSuggestions && suggestions.length > 0 && (
@@ -433,7 +440,7 @@ export const Hero: React.FC<HeroProps> = ({
                             <p className="font-bold text-slate-900">{item.name}</p>
                             <p className="text-[11px] text-slate-500">{item.locality} • {item.builder}</p>
                           </div>
-                          <span className="text-[10px] text-[#244B8F] font-bold">Select</span>
+                          <span className="text-[10px] text-[#0073E6] font-bold">Select</span>
                         </div>
                       ))}
                     </div>
@@ -444,9 +451,12 @@ export const Hero: React.FC<HeroProps> = ({
                 <div className="md:col-span-3">
                   <button
                     type="submit"
-                    className="w-full py-2.5 px-4 bg-[#244B8F] hover:bg-[#1B396E] text-white text-xs font-bold rounded-xl shadow-md hover:shadow-lg transition-all cursor-pointer flex items-center justify-center space-x-1.5 group animate-sell-cta relative"
+                    className="w-full py-2.5 px-4 bg-[#0073E6] hover:bg-[#005BB5] text-white text-xs font-bold rounded-xl shadow-md hover:shadow-lg transition-all cursor-pointer flex items-center justify-center space-x-1.5 group relative"
                   >
-                    <span>Sell Your Flat Now</span>
+                    <span>Post Property</span>
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-[#059669] text-white">
+                      FREE
+                    </span>
                     <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
                   </button>
                 </div>
@@ -470,7 +480,7 @@ export const Hero: React.FC<HeroProps> = ({
                         setSocietyQuery(soc);
                         setShowSuggestions(false);
                       }}
-                      className="px-2 py-0.5 bg-slate-50 hover:bg-blue-50 hover:text-[#244B8F] rounded-md text-[11px] font-medium transition-colors cursor-pointer border border-slate-200/60"
+                      className="px-2 py-0.5 bg-slate-50 hover:bg-blue-50 hover:text-[#0073E6] rounded-md text-[11px] font-medium transition-colors cursor-pointer border border-slate-200/60"
                     >
                       {soc}
                     </button>
@@ -481,7 +491,7 @@ export const Hero: React.FC<HeroProps> = ({
                   <button
                     type="button"
                     onClick={onExploreClick}
-                    className="inline-flex items-center text-[11px] font-bold text-[#244B8F] hover:underline cursor-pointer group"
+                    className="inline-flex items-center text-[11px] font-bold text-[#0073E6] hover:underline cursor-pointer group"
                   >
                     <span>Looking to buy instead? Browse verified homes</span>
                     <ArrowRight className="w-3 h-3 ml-1 group-hover:translate-x-0.5 transition-transform" />
@@ -499,3 +509,4 @@ export const Hero: React.FC<HeroProps> = ({
     </div>
   );
 };
+

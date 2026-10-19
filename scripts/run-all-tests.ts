@@ -20,6 +20,7 @@ import { runGroup2RlsAndStorageTests } from './test-group2-rls-storage-hardening
 import { runGroup3PrivacyAnalyticsTests } from './test-group3-privacy-analytics';
 import { runGroup4SeoMetadataTests } from './test-group4-seo-metadata';
 import { runPropertySubmissionFixTests } from './test-property-submission-fix';
+import { runSellMyGharEnhancementTests } from './test-sellmyghar-enhancements';
 
 async function runAll() {
   console.log('====================================================');
@@ -221,6 +222,15 @@ async function runAll() {
   totalFailed += submissionFixRes.failed;
   suiteResults.push({ name: 'Seller Property Submission & Database Transaction Fix', passed: submissionFixRes.passed, failed: submissionFixRes.failed, tests: submissionFixRes.results });
   console.log(`Subtotal: ${submissionFixRes.passed} passed, ${submissionFixRes.failed} failed\n`);
+
+  // Suite 23: AiSensy WhatsApp, Two-Domain & Verification Badge Tests
+  console.log('--- 23. AiSensy WhatsApp, Two-Domain & Verification Badge Suite ---');
+  const enhancementRes = await runSellMyGharEnhancementTests();
+  enhancementRes.results.forEach(r => console.log(' ', r));
+  totalPassed += enhancementRes.passed;
+  totalFailed += enhancementRes.failed;
+  suiteResults.push({ name: 'AiSensy WhatsApp & Enhancements', passed: enhancementRes.passed, failed: enhancementRes.failed, tests: enhancementRes.results });
+  console.log(`Subtotal: ${enhancementRes.passed} passed, ${enhancementRes.failed} failed\n`);
 
   console.log('====================================================');
   console.log(`FINAL RESULTS: ${totalPassed} PASSED, ${totalFailed} FAILED (TOTAL: ${totalPassed + totalFailed}/${totalPassed + totalFailed})`);

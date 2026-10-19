@@ -28,6 +28,7 @@ export type AnalyticsEventType =
   | 'PROPERTY_SEARCH'
   | 'PROPERTY_VIEW'
   | 'ENQUIRY_SUBMIT'
+  | 'HOW_IT_WORKS_CTA_CLICK'
   | 'AUTH_EVENT';
 
 export interface AnalyticsEvent {

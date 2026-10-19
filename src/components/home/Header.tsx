@@ -152,8 +152,8 @@ export const Header: React.FC<HeaderProps> = ({
       {/* =========================================================================
           1. PRIMARY HEADER (Royal Blue Design matching Reference Header)
          ========================================================================= */}
-      <header className="relative z-40 bg-[#244B8F] text-white border-b border-blue-900/60 shadow-md font-['Montserrat']">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <header className="relative z-40 bg-[#244B8F] text-white border-b border-blue-900/60 shadow-md font-['Montserrat'] w-full max-w-full overflow-hidden">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 sm:h-18">
             
             {/* Brand Title (Text-only as requested, reliable home link) */}
@@ -311,7 +311,7 @@ export const Header: React.FC<HeaderProps> = ({
                 onClick={onPostPropertyClick}
                 className="inline-flex items-center px-4 py-2 rounded-xl text-xs font-bold text-slate-900 bg-white hover:bg-slate-100 shadow-sm hover:shadow-md transition-all cursor-pointer group animate-post-property-attention relative"
               >
-                <Home className="w-3.5 h-3.5 mr-1.5 text-[#244B8F] group-hover:scale-110 transition-transform" />
+                <Home className="w-3.5 h-3.5 mr-1.5 text-[#0073E6] group-hover:scale-110 transition-transform" />
                 <span>Post property</span>
                 <span className="ml-2 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-wider bg-emerald-600 text-white rounded">
                   FREE
@@ -340,12 +340,12 @@ export const Header: React.FC<HeaderProps> = ({
               )}
             </div>
 
-            {/* Mobile Hamburger Toggle & Favorite Badge */}
-            <div className="flex md:hidden items-center space-x-2">
+            {/* Mobile Actions: Favorites, Login/Profile & Hamburger Menu */}
+            <div className="flex md:hidden items-center space-x-2 shrink-0">
               <button
                 type="button"
                 onClick={onFavoritesClick}
-                className="p-1.5 text-white relative"
+                className="p-1.5 text-white relative shrink-0"
                 aria-label="View Favorites"
               >
                 <Heart className={`w-5 h-5 ${favoritesCount > 0 ? 'fill-rose-400 text-rose-400' : 'text-white'}`} />
@@ -356,10 +356,33 @@ export const Header: React.FC<HeaderProps> = ({
                 )}
               </button>
 
+              {/* Direct Login / User Avatar Button on Mobile */}
+              {user ? (
+                <button
+                  type="button"
+                  onClick={onDashboardClick}
+                  className="w-8 h-8 rounded-full border border-white/30 bg-white/15 hover:bg-white/25 flex items-center justify-center text-white transition-all cursor-pointer shrink-0"
+                  title="My Dashboard"
+                  aria-label="My Dashboard"
+                >
+                  <LayoutDashboard className="w-4 h-4" />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onLoginClick}
+                  className="w-8 h-8 rounded-full border border-white/30 bg-white/15 hover:bg-white/25 flex items-center justify-center text-white transition-all cursor-pointer shrink-0"
+                  title="Sign In"
+                  aria-label="Sign In"
+                >
+                  <User className="w-4 h-4" />
+                </button>
+              )}
+
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-                className="p-1.5 text-white hover:text-white/80 focus:outline-hidden cursor-pointer"
+                className="p-1.5 text-white hover:text-white/80 focus:outline-hidden cursor-pointer shrink-0"
                 aria-label="Toggle Menu"
               >
                 {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
@@ -397,7 +420,7 @@ export const Header: React.FC<HeaderProps> = ({
                         onClick={() => setBuyerMode('BUY')}
                         className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                           buyerMode === 'BUY'
-                            ? 'bg-[#244B8F] text-white shadow-xs'
+                            ? 'bg-[#0073E6] text-white shadow-xs'
                             : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                         }`}
                       >
@@ -408,7 +431,7 @@ export const Header: React.FC<HeaderProps> = ({
                         onClick={() => setBuyerMode('RENT')}
                         className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                           buyerMode === 'RENT'
-                            ? 'bg-[#244B8F] text-white shadow-xs'
+                            ? 'bg-[#0073E6] text-white shadow-xs'
                             : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                         }`}
                       >
@@ -445,11 +468,11 @@ export const Header: React.FC<HeaderProps> = ({
                                 }}
                                 className="w-full text-left p-2.5 rounded-xl hover:bg-slate-50 transition-colors flex items-start space-x-3 group cursor-pointer"
                               >
-                                <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#244B8F] flex items-center justify-center shrink-0 group-hover:bg-[#244B8F] group-hover:text-white transition-colors">
+                                <div className="w-8 h-8 rounded-lg bg-blue-50 text-[#0073E6] flex items-center justify-center shrink-0 group-hover:bg-[#0073E6] group-hover:text-white transition-colors">
                                   <Icon className="w-4 h-4" />
                                 </div>
                                 <div>
-                                  <div className="text-xs font-bold text-slate-800 group-hover:text-[#244B8F] transition-colors">
+                                  <div className="text-xs font-bold text-slate-800 group-hover:text-[#0073E6] transition-colors">
                                     {item.title}
                                   </div>
                                   <div className="text-[10px] text-slate-400 font-['Poppins']">
@@ -489,7 +512,7 @@ export const Header: React.FC<HeaderProps> = ({
                                 const el = document.getElementById('listings');
                                 if (el) el.scrollIntoView({ behavior: 'smooth' });
                               }}
-                              className="text-left py-1.5 px-2 rounded-lg hover:bg-blue-50 hover:text-[#244B8F] text-slate-700 transition-colors cursor-pointer text-xs"
+                              className="text-left py-1.5 px-2 rounded-lg hover:bg-blue-50 hover:text-[#0073E6] text-slate-700 transition-colors cursor-pointer text-xs"
                             >
                               {area}
                             </button>
@@ -519,7 +542,7 @@ export const Header: React.FC<HeaderProps> = ({
                                 const el = document.getElementById('listings');
                                 if (el) el.scrollIntoView({ behavior: 'smooth' });
                               }}
-                              className="w-full text-left py-1.5 px-2.5 rounded-lg hover:bg-blue-50 hover:text-[#244B8F] text-slate-700 transition-colors cursor-pointer flex items-center justify-between"
+                              className="w-full text-left py-1.5 px-2.5 rounded-lg hover:bg-blue-50 hover:text-[#0073E6] text-slate-700 transition-colors cursor-pointer flex items-center justify-between"
                             >
                               <span>{item.label}</span>
                               <ArrowRight className="w-3 h-3 text-slate-300" />
@@ -555,9 +578,9 @@ export const Header: React.FC<HeaderProps> = ({
                                 const el = document.getElementById('listings');
                                 if (el) el.scrollIntoView({ behavior: 'smooth' });
                               }}
-                              className="w-full text-left py-1 px-1.5 text-slate-600 hover:text-[#244B8F] transition-colors cursor-pointer flex items-center space-x-1.5 font-medium"
+                              className="w-full text-left py-1 px-1.5 text-slate-600 hover:text-[#0073E6] transition-colors cursor-pointer flex items-center space-x-1.5 font-medium"
                             >
-                              <span className="w-1.5 h-1.5 rounded-full bg-[#244B8F]" />
+                              <span className="w-1.5 h-1.5 rounded-full bg-[#0073E6]" />
                               <span>{search}</span>
                             </button>
                           ))}
@@ -572,7 +595,7 @@ export const Header: React.FC<HeaderProps> = ({
                 {openMegaMenu === 'SELL' && (
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="p-4 rounded-xl bg-blue-50/70 border border-blue-100 space-y-2">
-                      <h4 className="text-sm font-bold text-[#244B8F]">Sell Your Flat in 45 Days</h4>
+                      <h4 className="text-sm font-bold text-[#0073E6]">Sell Your Flat in 45 Days</h4>
                       <p className="text-xs text-slate-600 leading-relaxed font-['Poppins']">
                         Assisted residential resale with official deed valuation benchmarks and verified buyers across Bengaluru.
                       </p>
@@ -582,7 +605,7 @@ export const Header: React.FC<HeaderProps> = ({
                           setOpenMegaMenu(null);
                           onTabClick('SELL');
                         }}
-                        className="mt-2 px-4 py-2 bg-[#244B8F] text-white text-xs font-bold rounded-lg hover:bg-[#1B396E] transition-colors cursor-pointer inline-flex items-center space-x-1"
+                        className="mt-2 px-4 py-2 bg-[#0073E6] text-white text-xs font-bold rounded-lg hover:bg-[#005BB5] transition-colors cursor-pointer inline-flex items-center space-x-1"
                       >
                         <span>Start Selling</span>
                         <ArrowRight className="w-3.5 h-3.5" />
@@ -600,7 +623,7 @@ export const Header: React.FC<HeaderProps> = ({
                           setOpenMegaMenu(null);
                           onTabClick('SELL');
                         }}
-                        className="text-xs font-bold text-[#244B8F] hover:underline cursor-pointer"
+                        className="text-xs font-bold text-[#0073E6] hover:underline cursor-pointer"
                       >
                         Request Society Valuation →
                       </button>
@@ -622,7 +645,7 @@ export const Header: React.FC<HeaderProps> = ({
                             window.location.hash = '#/holding-calculator';
                           }
                         }}
-                        className="text-xs font-bold text-[#244B8F] hover:underline cursor-pointer"
+                        className="text-xs font-bold text-[#0073E6] hover:underline cursor-pointer"
                       >
                         Open Holding Calculator →
                       </button>
@@ -660,7 +683,7 @@ export const Header: React.FC<HeaderProps> = ({
                   className="w-full text-left py-2 px-3 rounded-lg hover:bg-slate-50 text-slate-800 flex items-center justify-between"
                 >
                   <span>For Owners</span>
-                  <span className="text-[10px] font-bold bg-blue-100 text-[#244B8F] px-2 py-0.5 rounded-full">
+                  <span className="text-[10px] font-bold bg-blue-100 text-[#0073E6] px-2 py-0.5 rounded-full">
                     Sell Flat
                   </span>
                 </button>
@@ -705,7 +728,7 @@ export const Header: React.FC<HeaderProps> = ({
                     setMobileMenuOpen(false);
                     onPostPropertyClick();
                   }}
-                  className="w-full py-2.5 px-3 rounded-xl bg-[#244B8F] text-white text-xs font-bold flex items-center justify-center space-x-1.5"
+                  className="w-full py-2.5 px-3 rounded-xl bg-[#0073E6] text-white text-xs font-bold flex items-center justify-center space-x-1.5"
                 >
                   <Home className="w-4 h-4" />
                   <span>Post Property FREE</span>
@@ -750,9 +773,9 @@ export const Header: React.FC<HeaderProps> = ({
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: -70, opacity: 0 }}
             transition={{ duration: 0.25, ease: 'easeOut' }}
-            className="fixed top-0 inset-x-0 z-50 bg-[#244B8F] text-white shadow-xl border-b border-blue-900/60 font-['Montserrat']"
+            className="fixed top-0 inset-x-0 z-50 bg-[#244B8F] text-white shadow-xl border-b border-blue-900/60 font-['Montserrat'] w-full max-w-full overflow-hidden"
           >
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between gap-3 sm:gap-6">
+            <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between gap-2 sm:gap-6">
               
               {/* Logo & Locality Dropdown */}
               <div className="flex items-center space-x-4 shrink-0">
@@ -786,8 +809,15 @@ export const Header: React.FC<HeaderProps> = ({
                           onClick={() => {
                             setSelectedCorridor(corridor);
                             setIsCorridorDropdownOpen(false);
+                            if (onSelectLocality) {
+                              onSelectLocality(corridor);
+                            }
+                            const el = document.getElementById('listings');
+                            if (el) {
+                              el.scrollIntoView({ behavior: 'smooth' });
+                            }
                           }}
-                          className="w-full text-left px-3.5 py-2 hover:bg-blue-50 hover:text-[#244B8F] font-medium"
+                          className="w-full text-left px-3.5 py-2 hover:bg-blue-50 hover:text-[#0073E6] font-medium"
                         >
                           Buy in {corridor}
                         </button>
@@ -808,12 +838,16 @@ export const Header: React.FC<HeaderProps> = ({
                 </span>
 
                 <input
+                  id="scrolled-header-search"
+                  name="localitySearch"
+                  aria-label="Search Locality or Project"
                   type="text"
                   value={scrolledQuery}
                   onChange={(e) => setScrolledQuery(e.target.value)}
                   placeholder="Whitefield"
                   className="w-full px-3 py-1 text-xs text-slate-800 placeholder-slate-400 focus:outline-hidden font-medium"
                 />
+
 
                 <button
                   type="button"
@@ -826,7 +860,7 @@ export const Header: React.FC<HeaderProps> = ({
 
                 <button
                   type="submit"
-                  className="p-1.5 bg-[#244B8F] hover:bg-[#1B396E] text-white rounded-md transition-colors ml-1 cursor-pointer shrink-0"
+                  className="p-1.5 bg-[#0073E6] hover:bg-[#005BB5] text-white rounded-md transition-colors ml-1 cursor-pointer shrink-0"
                   aria-label="Submit search"
                 >
                   <Search className="w-3.5 h-3.5" />
@@ -839,24 +873,25 @@ export const Header: React.FC<HeaderProps> = ({
                 <button
                   type="button"
                   onClick={onFavoritesClick}
-                  className="p-2 rounded-lg text-white hover:bg-white/10 transition-colors relative cursor-pointer"
+                  className="p-1.5 sm:p-2 rounded-lg text-white hover:bg-white/10 transition-colors relative cursor-pointer shrink-0"
                   title="Saved Properties"
+                  aria-label="Saved Properties"
                 >
                   <Heart className={`w-4 h-4 ${favoritesCount > 0 ? 'fill-rose-400 text-rose-400' : 'text-white'}`} />
                   {favoritesCount > 0 && (
-                    <span className="absolute 0 top-0.5 right-0.5 w-3.5 h-3.5 bg-rose-500 text-white rounded-full text-[9px] font-bold flex items-center justify-center">
+                    <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 bg-rose-500 text-white rounded-full text-[9px] font-bold flex items-center justify-center">
                       {favoritesCount}
                     </span>
                   )}
                 </button>
 
-                {/* Post Property FREE Button */}
+                {/* Post Property FREE Button (Hidden on mobile to preserve screen width & prevent layout breakage) */}
                 <button
                   type="button"
                   onClick={onPostPropertyClick}
-                  className="inline-flex items-center px-3.5 py-1.5 rounded-lg text-xs font-bold text-slate-900 bg-white hover:bg-slate-100 shadow-md transition-all cursor-pointer animate-post-property-attention"
+                  className="hidden sm:inline-flex items-center px-3.5 py-1.5 rounded-lg text-xs font-bold text-slate-900 bg-white hover:bg-slate-100 shadow-md transition-all cursor-pointer shrink-0 animate-post-property-attention"
                 >
-                  <Home className="w-3.5 h-3.5 mr-1 text-[#244B8F]" />
+                  <Home className="w-3.5 h-3.5 mr-1 text-[#0073E6]" />
                   <span>Post property</span>
                   <span className="ml-1.5 px-1 py-0.2 text-[8px] font-black uppercase bg-emerald-600 text-white rounded">
                     FREE
@@ -868,8 +903,9 @@ export const Header: React.FC<HeaderProps> = ({
                   <button
                     type="button"
                     onClick={onDashboardClick}
-                    className="w-8 h-8 rounded-full border border-white/30 bg-white/15 hover:bg-white/25 flex items-center justify-center text-white transition-all cursor-pointer"
+                    className="w-8 h-8 rounded-full border border-white/30 bg-white/15 hover:bg-white/25 flex items-center justify-center text-white transition-all cursor-pointer shrink-0"
                     title="My Dashboard"
+                    aria-label="My Dashboard"
                   >
                     <LayoutDashboard className="w-4 h-4" />
                   </button>
@@ -877,12 +913,23 @@ export const Header: React.FC<HeaderProps> = ({
                   <button
                     type="button"
                     onClick={onLoginClick}
-                    className="w-8 h-8 rounded-full border border-white/30 bg-white/15 hover:bg-white/25 flex items-center justify-center text-white transition-all cursor-pointer"
+                    className="w-8 h-8 rounded-full border border-white/30 bg-white/15 hover:bg-white/25 flex items-center justify-center text-white transition-all cursor-pointer shrink-0"
                     title="Sign In"
+                    aria-label="Sign In"
                   >
                     <User className="w-4 h-4" />
                   </button>
                 )}
+
+                {/* Mobile Menu Toggle in Scrolled Sticky Header */}
+                <button
+                  type="button"
+                  onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                  className="md:hidden p-1.5 text-white hover:text-white/80 focus:outline-hidden cursor-pointer shrink-0"
+                  aria-label="Toggle Menu"
+                >
+                  {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+                </button>
               </div>
 
             </div>

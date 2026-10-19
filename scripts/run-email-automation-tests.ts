@@ -211,7 +211,7 @@ export async function runEmailAutomationTests() {
       asking_price_inr: 16500000,
       super_built_up_sqft: 1800,
     }, [
-      { url: 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00', is_featured: true }
+      { url: 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2', is_featured: true }
     ]);
 
     assert(

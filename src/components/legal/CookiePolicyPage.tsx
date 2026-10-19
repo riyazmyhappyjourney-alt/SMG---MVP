@@ -30,7 +30,7 @@ export const CookiePolicyPage: React.FC<CookiePolicyPageProps> = ({
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F4F6F9] selection:bg-[#244B8F] selection:text-white font-['Montserrat'] text-slate-800">
+    <div className="min-h-screen flex flex-col bg-[#F4F6F9] selection:bg-[#0073E6] selection:text-white font-['Montserrat'] text-slate-800">
       <Header
         onPostPropertyClick={() => {
           if (onNavigateToSellerAssisted) onNavigateToSellerAssisted();
@@ -132,7 +132,7 @@ export const CookiePolicyPage: React.FC<CookiePolicyPageProps> = ({
                   if (onBackToHome) onBackToHome();
                   else window.location.hash = '#/';
                 }}
-                className="inline-flex items-center space-x-2 text-xs font-bold text-[#244B8F] hover:underline cursor-pointer"
+                className="inline-flex items-center space-x-2 text-xs font-bold text-[#0073E6] hover:underline cursor-pointer"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
                 <span>Return to Home</span>

@@ -351,6 +351,7 @@ CREATE TABLE IF NOT EXISTS property_media (
   display_order INTEGER NOT NULL DEFAULT 0,
   checksum VARCHAR(64) NOT NULL,
   storage_path VARCHAR(512),
+  title VARCHAR(255),
   mime_type VARCHAR(64),
   file_size_bytes BIGINT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -403,6 +404,38 @@ CREATE TABLE IF NOT EXISTS publication_notifications (
 
 CREATE INDEX IF NOT EXISTS idx_pub_notif_status ON publication_notifications (status);
 CREATE INDEX IF NOT EXISTS idx_pub_notif_property ON publication_notifications (property_id);
+
+-- 20. Career Positions Table (Careers CMS)
+CREATE TABLE IF NOT EXISTS career_positions (
+  id VARCHAR(64) PRIMARY KEY,
+  title VARCHAR(255) NOT NULL,
+  department VARCHAR(120) NOT NULL,
+  location VARCHAR(120) NOT NULL DEFAULT 'Bengaluru, India (On-site / Hybrid)',
+  employment_type VARCHAR(64) NOT NULL DEFAULT 'Full-time',
+  description TEXT NOT NULL,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_career_positions_active ON career_positions (is_active);
+
+-- 21. Career Applications Table (Candidate Form Submissions)
+CREATE TABLE IF NOT EXISTS career_applications (
+  id VARCHAR(64) PRIMARY KEY,
+  position_id VARCHAR(64) REFERENCES career_positions(id) ON DELETE SET NULL,
+  position_title VARCHAR(255) NOT NULL,
+  applicant_name VARCHAR(120) NOT NULL,
+  email VARCHAR(255) NOT NULL,
+  phone VARCHAR(64) NOT NULL,
+  experience_years VARCHAR(32) NOT NULL,
+  resume_url TEXT NOT NULL,
+  cover_note TEXT,
+  status VARCHAR(32) NOT NULL DEFAULT 'NEW',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_career_applications_created ON career_applications (created_at DESC);
 
 -- ====================================================================
 -- IDEMPOTENT INITIAL CMS SEEDS (VERIFIED REPOSITORY ASSETS)

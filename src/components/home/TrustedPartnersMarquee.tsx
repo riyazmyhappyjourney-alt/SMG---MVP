@@ -88,7 +88,7 @@ export const TrustedPartnersMarquee: React.FC = () => {
   const durationClass = scrollSpeed === 'slow' ? '28s' : scrollSpeed === 'fast' ? '16s' : '22s';
 
   return (
-    <section className="bg-white border-y border-slate-200 py-6 sm:py-7 overflow-hidden relative font-['Poppins',sans-serif] select-none">
+    <section className="bg-white border-y border-slate-200 py-6 sm:py-7 overflow-hidden relative font-['Poppins',sans-serif] select-none w-full max-w-full">
       
       {/* Clean Minimal Section Heading */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-5 text-center">
@@ -102,7 +102,7 @@ export const TrustedPartnersMarquee: React.FC = () => {
       <div className="absolute right-0 top-0 bottom-0 w-16 sm:w-32 bg-gradient-to-l from-white via-white/90 to-transparent z-10 pointer-events-none" />
 
       {/* Seamless Continuous Rolling Loop of Builder Logos */}
-      <div className="flex overflow-hidden">
+      <div className="flex overflow-hidden w-full max-w-full">
         <div 
           className={`flex items-center space-x-6 sm:space-x-10 py-2 animate-partner-marquee ${
             pauseOnHover ? 'hover:[animation-play-state:paused]' : ''

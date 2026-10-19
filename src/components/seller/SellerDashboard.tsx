@@ -205,7 +205,7 @@ export const PropertyProgressTracker: React.FC<{
       {/* Tracker Header */}
       <div className="flex items-center justify-between text-xs mb-4">
         <div className="flex items-center space-x-2">
-          <Activity className="w-4 h-4 text-[#244B8F]" />
+          <Activity className="w-4 h-4 text-[#0073E6]" />
           <span className="font-extrabold text-slate-800 uppercase tracking-wider text-[11px]">
             Property Progress
           </span>
@@ -233,7 +233,7 @@ export const PropertyProgressTracker: React.FC<{
           {/* Active Progress Fill Rail */}
           {!isLost && (
             <div
-              className="absolute top-[18px] left-8 h-1 bg-gradient-to-r from-emerald-500 via-emerald-600 to-[#244B8F] z-0 rounded-full transition-all duration-500"
+              className="absolute top-[18px] left-8 h-1 bg-gradient-to-r from-[#0073E6] via-[#1E3A8A] to-[#B68A4A] z-0 rounded-full transition-all duration-500"
               style={{
                 width: `${Math.min(100, Math.max(0, (activeIdx / (CRM_MILESTONES.length - 1)) * 100))}%`
               }}
@@ -260,9 +260,9 @@ export const PropertyProgressTracker: React.FC<{
                   <div
                     className={`w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 ${
                       isCompleted
-                        ? 'bg-emerald-600 text-white shadow-sm ring-3 ring-emerald-100'
+                        ? 'bg-[#0073E6] text-white shadow-sm ring-3 ring-blue-100'
                         : isCurrent
-                        ? 'bg-[#244B8F] text-white shadow-md ring-4 ring-blue-200 scale-105'
+                        ? 'bg-[#B68A4A] text-white shadow-md ring-4 ring-amber-200 scale-105'
                         : isThisLost
                         ? 'bg-rose-600 text-white shadow-sm ring-3 ring-rose-100'
                         : 'bg-white text-slate-400 border-2 border-slate-300'
@@ -272,7 +272,7 @@ export const PropertyProgressTracker: React.FC<{
                       <Check className="w-4 h-4 stroke-[3]" />
                     ) : isCurrent ? (
                       <div className="relative flex items-center justify-center">
-                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping absolute" />
+                        <span className="w-2.5 h-2.5 rounded-full bg-[#B68A4A] animate-ping absolute" />
                         <span className="w-2.5 h-2.5 rounded-full bg-white relative" />
                       </div>
                     ) : isThisLost ? (
@@ -286,7 +286,7 @@ export const PropertyProgressTracker: React.FC<{
                   <span
                     className={`text-[10px] sm:text-[11px] font-black uppercase mt-2.5 tracking-tight leading-tight block text-center ${
                       isCurrent
-                        ? 'text-[#244B8F]'
+                        ? 'text-[#0073E6]'
                         : isCompleted
                         ? 'text-slate-800'
                         : isThisLost
@@ -324,7 +324,7 @@ export const PropertyProgressTracker: React.FC<{
           <button
             type="button"
             onClick={onViewDetailed}
-            className="text-xs font-bold text-[#244B8F] hover:underline flex items-center space-x-1 cursor-pointer"
+            className="text-xs font-bold text-[#0073E6] hover:underline flex items-center space-x-1 cursor-pointer"
           >
             <span>View Property Progress Details</span>
             <ArrowRight className="w-3.5 h-3.5 ml-0.5" />
@@ -405,7 +405,10 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
       if (!res.ok || !data.success) {
         throw new Error(data.error || 'Failed to load properties');
       }
-      setProperties(data.properties || []);
+      const rawList = Array.isArray(data.properties) ? (data.properties as SellerPropertyItem[]) : [];
+      const uniqueList = Array.from(new Map(rawList.map((p) => [p.id, p])).values());
+      setProperties(uniqueList);
+
     } catch (err: any) {
       const msg = err?.message || 'Error connecting to database';
       if (!msg.includes('UNAUTHORIZED')) {
@@ -429,8 +432,12 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
       if (res.ok) {
         const data = await res.json();
         if (data.success && Array.isArray(data.properties)) {
-          setProperties(data.properties);
+          const rawItems = data.properties as SellerPropertyItem[];
+          const uniqueList = Array.from(new Map(rawItems.map((p) => [p.id, p])).values());
+          setProperties(uniqueList);
         }
+
+
       }
     } catch {
       // Keep existing properties on transient network drop
@@ -560,7 +567,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
       )}
 
       {/* TOP NAVBAR */}
-      <header className="bg-[#244B8F] text-white sticky top-0 z-40 shadow-md">
+      <header className="bg-[#0073E6] text-white sticky top-0 z-40 shadow-md">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             
@@ -572,11 +579,11 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                 className="flex items-center space-x-2 text-white hover:opacity-90 transition-opacity cursor-pointer focus:outline-none"
               >
                 <div className="bg-white p-1 rounded-md">
-                  <Building2 className="w-6 h-6 text-[#244B8F]" />
+                  <Building2 className="w-6 h-6 text-[#0073E6]" />
                 </div>
                 <div className="text-left">
                   <span className="text-lg font-black tracking-tight block leading-tight">
-                    SellMy<span className="text-emerald-400">Ghar</span>
+                    SellMy<span className="text-[#B68A4A]">Ghar</span>
                   </span>
                   <span className="text-[10px] tracking-widest uppercase font-extrabold text-blue-200 block -mt-0.5">
                     Owner Portal • Resale & Rentals
@@ -588,11 +595,11 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
             {/* Middle: Support & RM helpline with updated number */}
             <div className="hidden md:flex items-center space-x-6 text-xs text-blue-100">
               <div className="flex items-center space-x-2">
-                <Activity className="w-4 h-4 text-emerald-400" />
+                <Activity className="w-4 h-4 text-sky-300" />
                 <span>Live Status: <strong>Property Progress Tracking Active</strong></span>
               </div>
               <div className="flex items-center space-x-2 border-l border-blue-400/40 pl-6">
-                <Phone className="w-3.5 h-3.5 text-emerald-400" />
+                <Phone className="w-3.5 h-3.5 text-[#B68A4A]" />
                 <span>Dedicated RM Desk: <strong className="text-white">+91 8217873708</strong></span>
               </div>
             </div>
@@ -604,7 +611,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
               <button
                 type="button"
                 onClick={onPostPropertyClick}
-                className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-extrabold shadow-sm hover:shadow transition-all cursor-pointer"
+                className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-[#0073E6] hover:bg-[#005BB5] text-white rounded-lg text-xs font-extrabold shadow-sm hover:shadow transition-all cursor-pointer border border-white/20"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Post Flat / Rent</span>
@@ -613,7 +620,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
 
               {/* User Dropdown / Profile Badge (Truthful Owner Label) */}
               <div className="flex items-center space-x-2 bg-white/10 hover:bg-white/15 px-3 py-1.5 rounded-xl border border-white/20 transition-colors">
-                <div className="w-7 h-7 rounded-full bg-emerald-500 text-white font-black text-xs flex items-center justify-center">
+                <div className="w-7 h-7 rounded-full bg-[#0073E6] text-white font-black text-xs flex items-center justify-center border border-white/30">
                   {(currentUser || user)?.name ? (currentUser || user)!.name.charAt(0).toUpperCase() : 'H'}
                 </div>
                 <div className="hidden sm:block text-left text-xs leading-tight">
@@ -645,14 +652,14 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
             <button
               type="button"
               onClick={onBackToHome}
-              className="hover:text-[#244B8F] flex items-center space-x-1 font-medium cursor-pointer"
+              className="hover:text-[#0073E6] flex items-center space-x-1 font-medium cursor-pointer"
             >
               <span>Home</span>
             </button>
             <span>/</span>
             <span className="text-slate-800 font-bold">Owner Dashboard</span>
             <span>/</span>
-            <span className="text-[#244B8F] font-bold">Resale & Rental Listings</span>
+            <span className="text-[#0073E6] font-bold">Resale & Rental Listings</span>
           </div>
 
           <div className="text-slate-400 font-medium text-[11px] hidden sm:block">
@@ -671,7 +678,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
             onClick={() => setActiveTab('LISTINGS')}
             className={`flex-1 py-2 px-2 rounded-xl text-xs font-bold transition-all text-center flex items-center justify-center space-x-1.5 cursor-pointer ${
               activeTab === 'LISTINGS'
-                ? 'bg-[#244B8F] text-white shadow-xs'
+                ? 'bg-[#0073E6] text-white shadow-xs'
                 : 'text-slate-600 hover:bg-slate-50'
             }`}
           >
@@ -683,7 +690,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
             onClick={() => setActiveTab('TIMELINE')}
             className={`flex-1 py-2 px-2 rounded-xl text-xs font-bold transition-all text-center flex items-center justify-center space-x-1.5 cursor-pointer ${
               activeTab === 'TIMELINE'
-                ? 'bg-[#244B8F] text-white shadow-xs'
+                ? 'bg-[#0073E6] text-white shadow-xs'
                 : 'text-slate-600 hover:bg-slate-50'
             }`}
           >
@@ -695,7 +702,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
             onClick={() => setActiveTab('VISITS')}
             className={`flex-1 py-2 px-2 rounded-xl text-xs font-bold transition-all text-center flex items-center justify-center space-x-1.5 cursor-pointer ${
               activeTab === 'VISITS'
-                ? 'bg-[#244B8F] text-white shadow-xs'
+                ? 'bg-[#0073E6] text-white shadow-xs'
                 : 'text-slate-600 hover:bg-slate-50'
             }`}
           >
@@ -711,10 +718,10 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
             
             {/* Owner Profile Card (Truthful Account Badge) */}
             <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs text-center relative overflow-hidden">
-              <div className="absolute top-0 left-0 right-0 h-16 bg-gradient-to-r from-[#244B8F] to-[#1B396E]" />
+              <div className="absolute top-0 left-0 right-0 h-16 bg-gradient-to-r from-[#0073E6] to-[#005BB5]" />
               
               <div className="relative pt-4">
-                <div className="w-16 h-16 rounded-full bg-white border-3 border-white shadow-md mx-auto flex items-center justify-center text-xl font-extrabold text-[#244B8F]">
+                <div className="w-16 h-16 rounded-full bg-white border-3 border-white shadow-md mx-auto flex items-center justify-center text-xl font-extrabold text-[#0073E6]">
                   {(currentUser || user)?.name ? (currentUser || user)!.name.slice(0, 2).toUpperCase() : 'PO'}
                 </div>
                 
@@ -735,7 +742,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
               <div className="mt-4 pt-4 border-t border-slate-100 grid grid-cols-2 gap-2 text-center text-xs">
                 <div className="bg-slate-50 p-2 rounded-lg">
                   <span className="text-[10px] text-slate-400 block uppercase font-bold">For Sale</span>
-                  <span className="text-base font-extrabold text-[#244B8F]">{kpiStats.saleCount}</span>
+                  <span className="text-base font-extrabold text-[#0073E6]">{kpiStats.saleCount}</span>
                 </div>
                 <div className="bg-slate-50 p-2 rounded-lg">
                   <span className="text-[10px] text-slate-400 block uppercase font-bold">For Rent</span>
@@ -759,15 +766,15 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                   onClick={() => setActiveTab('LISTINGS')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all cursor-pointer ${
                     activeTab === 'LISTINGS'
-                      ? 'bg-blue-50 text-[#244B8F] border border-blue-200/60 shadow-2xs'
+                      ? 'bg-blue-50 text-[#0073E6] border border-blue-200/60 shadow-2xs'
                       : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                   }`}
                 >
                   <div className="flex items-center space-x-2.5">
-                    <Building2 className="w-4 h-4 text-[#244B8F]" />
+                    <Building2 className="w-4 h-4 text-[#0073E6]" />
                     <span>My Listings (Sale & Rent)</span>
                   </div>
-                  <span className="bg-[#244B8F] text-white px-2 py-0.2 rounded-full text-[10px]">
+                  <span className="bg-[#0073E6] text-white px-2 py-0.2 rounded-full text-[10px]">
                     {properties.length}
                   </span>
                 </button>
@@ -778,7 +785,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                   onClick={() => setActiveTab('TIMELINE')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all cursor-pointer ${
                     activeTab === 'TIMELINE'
-                      ? 'bg-blue-50 text-[#244B8F] border border-blue-200/60 shadow-2xs'
+                      ? 'bg-blue-50 text-[#0073E6] border border-blue-200/60 shadow-2xs'
                       : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                   }`}
                 >
@@ -797,7 +804,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                   onClick={() => setActiveTab('VISITS')}
                   className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition-all cursor-pointer ${
                     activeTab === 'VISITS'
-                      ? 'bg-blue-50 text-[#244B8F] border border-blue-200/60 shadow-2xs'
+                      ? 'bg-blue-50 text-[#0073E6] border border-blue-200/60 shadow-2xs'
                       : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                   }`}
                 >
@@ -832,7 +839,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
               </p>
               <a
                 href="tel:+918217873708"
-                className="inline-flex items-center justify-center w-full py-2 bg-[#244B8F] hover:bg-[#1B396E] text-white rounded-lg text-xs font-bold transition-colors space-x-1.5"
+                className="inline-flex items-center justify-center w-full py-2 bg-[#0073E6] hover:bg-[#005BB5] text-white rounded-lg text-xs font-bold transition-colors space-x-1.5"
               >
                 <Phone className="w-3.5 h-3.5" />
                 <span>Call RM: +91 8217873708</span>
@@ -869,7 +876,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                   <button
                     type="button"
                     onClick={onPostPropertyClick}
-                    className="inline-flex items-center space-x-1.5 px-4 py-2.5 bg-[#244B8F] hover:bg-[#1B396E] text-white text-xs font-extrabold rounded-xl shadow-xs transition-all cursor-pointer"
+                    className="inline-flex items-center space-x-1.5 px-4 py-2.5 bg-[#0073E6] hover:bg-[#005BB5] text-white text-xs font-extrabold rounded-xl shadow-xs transition-all cursor-pointer"
                   >
                     <Plus className="w-4 h-4" />
                     <span>Post New Property</span>
@@ -896,8 +903,8 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                   onClick={() => setIntentFilter('SELL')}
                   className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center space-x-1.5 ${
                     intentFilter === 'SELL'
-                      ? 'bg-[#244B8F] text-white shadow-2xs'
-                      : 'bg-blue-50 text-[#244B8F] hover:bg-blue-100'
+                      ? 'bg-[#0073E6] text-white shadow-2xs'
+                      : 'bg-blue-50 text-[#0073E6] hover:bg-blue-100'
                   }`}
                 >
                   <Building2 className="w-3.5 h-3.5" />
@@ -926,7 +933,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
               <div 
                 onClick={() => setStatusFilter('ACTIVE')}
                 className={`bg-white p-3.5 rounded-xl border transition-all cursor-pointer shadow-2xs hover:shadow-xs ${
-                  statusFilter === 'ACTIVE' ? 'border-[#244B8F] ring-2 ring-[#244B8F]/20' : 'border-slate-200'
+                  statusFilter === 'ACTIVE' ? 'border-[#0073E6] ring-2 ring-[#0073E6]/20' : 'border-slate-200'
                 }`}
               >
                 <div className="flex items-center justify-between">
@@ -943,7 +950,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
               <div 
                 onClick={() => setStatusFilter('REVIEW')}
                 className={`bg-white p-3.5 rounded-xl border transition-all cursor-pointer shadow-2xs hover:shadow-xs ${
-                  statusFilter === 'REVIEW' ? 'border-[#244B8F] ring-2 ring-[#244B8F]/20' : 'border-slate-200'
+                  statusFilter === 'REVIEW' ? 'border-[#0073E6] ring-2 ring-[#0073E6]/20' : 'border-slate-200'
                 }`}
               >
                 <div className="flex items-center justify-between">
@@ -1000,7 +1007,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder="Search by society, locality, or SMG ID..."
-                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#244B8F] focus:bg-white transition-all"
+                      className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0073E6] focus:bg-white transition-all"
                     />
                   </div>
 
@@ -1009,7 +1016,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                     <select
                       value={statusFilter}
                       onChange={(e: any) => setStatusFilter(e.target.value)}
-                      className="flex-1 min-w-[130px] px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#244B8F] cursor-pointer"
+                      className="flex-1 min-w-[130px] px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0073E6] cursor-pointer"
                     >
                       <option value="ALL">Status: All</option>
                       <option value="ACTIVE">Status: Live</option>
@@ -1021,7 +1028,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                     <select
                       value={bhkFilter}
                       onChange={(e) => setBhkFilter(e.target.value)}
-                      className="flex-1 min-w-[100px] px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#244B8F] cursor-pointer"
+                      className="flex-1 min-w-[100px] px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0073E6] cursor-pointer"
                     >
                       <option value="ALL">All BHK</option>
                       <option value="2 BHK">2 BHK</option>
@@ -1032,7 +1039,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                     <select
                       value={sortBy}
                       onChange={(e: any) => setSortBy(e.target.value)}
-                      className="flex-1 min-w-[130px] px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#244B8F] cursor-pointer"
+                      className="flex-1 min-w-[130px] px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0073E6] cursor-pointer"
                     >
                       <option value="NEWEST">Newest First</option>
                       <option value="PRICE_DESC">Price: High to Low</option>
@@ -1067,7 +1074,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                 {/* LISTING CARDS */}
                 {loading ? (
                   <div className="bg-white rounded-2xl p-12 text-center border border-slate-200">
-                    <RefreshCw className="w-8 h-8 text-[#244B8F] animate-spin mx-auto mb-3" />
+                    <RefreshCw className="w-8 h-8 text-[#0073E6] animate-spin mx-auto mb-3" />
                     <p className="text-sm font-bold text-slate-700">Loading your properties...</p>
                   </div>
                 ) : filteredProperties.length === 0 ? (
@@ -1080,7 +1087,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                     <button
                       type="button"
                       onClick={onPostPropertyClick}
-                      className="inline-flex items-center space-x-1.5 px-4 py-2 bg-[#244B8F] text-white text-xs font-bold rounded-lg cursor-pointer"
+                      className="inline-flex items-center space-x-1.5 px-4 py-2 bg-[#0073E6] text-white text-xs font-bold rounded-lg cursor-pointer"
                     >
                       <Plus className="w-4 h-4" />
                       <span>Post Property Now</span>
@@ -1114,7 +1121,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                               <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
                                 isRent 
                                   ? 'bg-purple-100 text-purple-800 border border-purple-200' 
-                                  : 'bg-blue-100 text-[#244B8F] border border-blue-200'
+                                  : 'bg-blue-100 text-[#0073E6] border border-blue-200'
                               }`}>
                                 {isRent ? '🔑 FOR RENT' : '🏠 FOR RESALE'}
                               </span>
@@ -1146,7 +1153,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                                   <span>UNDER DILIGENCE</span>
                                 </span>
                               ) : property.status === 'VERIFIED' ? (
-                                <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase bg-blue-100 text-[#244B8F] border border-blue-300">
+                                <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase bg-blue-100 text-[#0073E6] border border-blue-300">
                                   <CheckCircle2 className="w-3 h-3" />
                                   <span>TITLE VERIFIED</span>
                                 </span>
@@ -1190,7 +1197,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                               </div>
 
                               {/* Diligence Tag on top left */}
-                              <div className="absolute top-2.5 left-2.5 bg-[#244B8F] text-white text-[10px] font-extrabold px-2 py-0.5 rounded shadow-sm flex items-center space-x-1">
+                              <div className="absolute top-2.5 left-2.5 bg-[#0073E6] text-white text-[10px] font-extrabold px-2 py-0.5 rounded shadow-sm flex items-center space-x-1">
                                 <ShieldCheck className="w-3 h-3 text-emerald-400" />
                                 <span>{isRent ? 'TENANCY ASSISTED' : 'TITLE CHECKED'}</span>
                               </div>
@@ -1205,12 +1212,12 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                                   rel="noopener noreferrer"
                                   className="group/title block hover:underline"
                                 >
-                                  <h3 className="text-base sm:text-lg font-extrabold text-slate-900 group-hover/title:text-[#244B8F] transition-colors leading-tight flex items-center space-x-1.5">
+                                  <h3 className="text-base sm:text-lg font-extrabold text-slate-900 group-hover/title:text-[#0073E6] transition-colors leading-tight flex items-center space-x-1.5">
                                     <span>{property.bhkType} Flat {isRent ? 'for Rent' : 'for Resale'}</span>
-                                    <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover/title:text-[#244B8F]" />
+                                    <ExternalLink className="w-3.5 h-3.5 text-slate-400 group-hover/title:text-[#0073E6]" />
                                   </h3>
                                 </a>
-                                <p className="text-xs font-bold text-[#244B8F] mt-0.5">
+                                <p className="text-xs font-bold text-[#0073E6] mt-0.5">
                                   {property.societyName}
                                 </p>
                                 <p className="text-xs text-slate-500 flex items-center mt-0.5">
@@ -1268,7 +1275,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                               
                               <div className="grid grid-cols-3 gap-1 text-center">
                                 <div>
-                                  <span className="text-base font-black text-[#244B8F] block">
+                                  <span className="text-base font-black text-[#0073E6] block">
                                     {property.visibilityScore}%
                                   </span>
                                   <span className="text-[9px] text-slate-500 uppercase font-bold block leading-tight">
@@ -1355,7 +1362,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                                 href={`/property/${property.id}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-[#244B8F] hover:text-[#1B396E] flex items-center space-x-1 text-xs font-bold"
+                                className="text-[#0073E6] hover:text-[#005BB5] flex items-center space-x-1 text-xs font-bold"
                               >
                                 <ExternalLink className="w-3.5 h-3.5" />
                                 <span>View Live Listing</span>
@@ -1367,7 +1374,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                                   navigator.clipboard?.writeText(url);
                                   showToast(`Shareable direct link copied for ${property.referenceId}`);
                                 }}
-                                className="text-slate-500 hover:text-[#244B8F] flex items-center space-x-1 text-xs font-semibold cursor-pointer"
+                                className="text-slate-500 hover:text-[#0073E6] flex items-center space-x-1 text-xs font-semibold cursor-pointer"
                               >
                                 <Share2 className="w-3.5 h-3.5" />
                                 <span>Share Listing</span>
@@ -1410,7 +1417,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                   return (
                     <>
                       {/* Property Progress Header Banner */}
-                      <div className="bg-gradient-to-r from-[#172033] to-[#244B8F] text-white p-5 rounded-xl shadow-sm flex flex-wrap items-center justify-between gap-4">
+                      <div className="bg-gradient-to-r from-[#172033] to-[#0073E6] text-white p-5 rounded-xl shadow-sm flex flex-wrap items-center justify-between gap-4">
                         <div className="space-y-1">
                           <div className="flex items-center space-x-2 text-emerald-400 text-xs font-extrabold uppercase tracking-wider">
                             <Activity className="w-4 h-4" />
@@ -1483,7 +1490,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                                   isCompleted
                                     ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-100'
                                     : isCurrent
-                                    ? 'bg-[#244B8F] text-white shadow-md ring-3 ring-blue-200 scale-110'
+                                    ? 'bg-[#0073E6] text-white shadow-md ring-3 ring-blue-200 scale-110'
                                     : 'bg-white border-2 border-slate-300 text-slate-400'
                                 }`}>
                                   {isCompleted ? (
@@ -1512,7 +1519,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                                         isCompleted
                                           ? 'bg-emerald-100 text-emerald-800'
                                           : isCurrent
-                                          ? 'bg-blue-100 text-[#244B8F]'
+                                          ? 'bg-blue-100 text-[#0073E6]'
                                           : 'bg-slate-100 text-slate-600'
                                       }`}>
                                         {isCompleted ? 'COMPLETED' : isCurrent ? 'CURRENT MILESTONE' : 'PENDING'}
@@ -1571,7 +1578,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
 
                 {kpiStats.totalSiteVisits === 0 ? (
                   <div className="text-center py-12 px-4 bg-slate-50 rounded-2xl border border-dashed border-slate-200 space-y-3">
-                    <div className="w-12 h-12 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center mx-auto text-[#244B8F]">
+                    <div className="w-12 h-12 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center mx-auto text-[#0073E6]">
                       <Users className="w-6 h-6" />
                     </div>
                     <h3 className="text-sm font-bold text-slate-800">No Site Visits Scheduled Yet</h3>
@@ -1605,7 +1612,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                           </div>
 
                           <div className="text-xs text-slate-700 bg-white p-3 rounded-xl border border-slate-200 space-y-1">
-                            <span className="font-bold text-[#244B8F] block">
+                            <span className="font-bold text-[#0073E6] block">
                               RM Field Notes ({visit.rmEscort}):
                             </span>
                             <p className="text-slate-600 italic">

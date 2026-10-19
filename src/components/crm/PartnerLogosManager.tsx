@@ -290,7 +290,7 @@ export const PartnerLogosManager: React.FC = () => {
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-5">
         <div>
           <div className="flex items-center space-x-2">
-            <Building2 className="w-5 h-5 text-[#244B8F]" />
+            <Building2 className="w-5 h-5 text-[#0073E6]" />
             <h3 className="text-base font-extrabold text-[#172033]">
               "Trusted Channel Partners of" Section CMS
             </h3>
@@ -312,7 +312,7 @@ export const PartnerLogosManager: React.FC = () => {
           <button
             type="button"
             onClick={() => setIsAdding(!isAdding)}
-            className="px-3.5 py-2 rounded-xl bg-[#244B8F] text-white text-xs font-bold hover:bg-[#1B396E] transition-colors cursor-pointer flex items-center space-x-1.5 shadow-xs"
+            className="px-3.5 py-2 rounded-xl bg-[#0073E6] text-white text-xs font-bold hover:bg-[#005BB5] transition-colors cursor-pointer flex items-center space-x-1.5 shadow-xs"
           >
             <Plus className="w-4 h-4" />
             <span>{isAdding ? 'Cancel' : 'Add Partner Logo'}</span>
@@ -338,7 +338,7 @@ export const PartnerLogosManager: React.FC = () => {
       <div className="p-4 sm:p-5 bg-slate-50 rounded-2xl border border-slate-200/90 space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <Sliders className="w-4 h-4 text-[#244B8F]" />
+            <Sliders className="w-4 h-4 text-[#0073E6]" />
             <h4 className="text-xs font-extrabold text-slate-900 uppercase tracking-wider">
               Marquee Display &amp; Copy Settings
             </h4>
@@ -353,7 +353,7 @@ export const PartnerLogosManager: React.FC = () => {
               type="text"
               value={settings.heading}
               onChange={(e) => setSettings({ ...settings, heading: e.target.value })}
-              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#244B8F]"
+              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0073E6]"
               placeholder="e.g. Trusted Channel Partners of"
             />
           </div>
@@ -363,7 +363,7 @@ export const PartnerLogosManager: React.FC = () => {
             <select
               value={settings.scroll_speed}
               onChange={(e) => setSettings({ ...settings, scroll_speed: e.target.value as any })}
-              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#244B8F]"
+              className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0073E6]"
             >
               <option value="slow">Slow &amp; Subtle (32s)</option>
               <option value="normal">Normal Pace (24s)</option>
@@ -377,7 +377,7 @@ export const PartnerLogosManager: React.FC = () => {
                 type="checkbox"
                 checked={settings.pause_on_hover}
                 onChange={(e) => setSettings({ ...settings, pause_on_hover: e.target.checked })}
-                className="w-4 h-4 rounded text-[#244B8F] focus:ring-[#244B8F] border-slate-300"
+                className="w-4 h-4 rounded text-[#0073E6] focus:ring-[#0073E6] border-slate-300"
               />
               <span className="text-[11px]">Pause on Hover</span>
             </label>
@@ -397,7 +397,7 @@ export const PartnerLogosManager: React.FC = () => {
       {isAdding && (
         <form onSubmit={handleCreateLogo} className="p-5 bg-blue-50/50 rounded-2xl border border-blue-200/80 space-y-4">
           <div className="flex items-center justify-between">
-            <h4 className="text-xs font-extrabold uppercase tracking-wider text-[#244B8F]">
+            <h4 className="text-xs font-extrabold uppercase tracking-wider text-[#0073E6]">
               Add New Premier Developer Logo
             </h4>
             <span className="text-[11px] text-slate-500">Supports SVG vector or transparent PNG</span>
@@ -411,7 +411,7 @@ export const PartnerLogosManager: React.FC = () => {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Puravankara, Total Environment, Birla Estates"
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#244B8F]"
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0073E6]"
                 required
               />
             </div>
@@ -423,7 +423,7 @@ export const PartnerLogosManager: React.FC = () => {
                 value={altText}
                 onChange={(e) => setAltText(e.target.value)}
                 placeholder="e.g. Puravankara Official Channel Partner"
-                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#244B8F]"
+                className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0073E6]"
               />
             </div>
           </div>
@@ -432,7 +432,7 @@ export const PartnerLogosManager: React.FC = () => {
           <div className="space-y-2">
             <label className="block text-[11px] font-bold text-slate-700">Logo Graphic File or URL</label>
             <div className="flex flex-wrap items-center gap-3">
-              <label className="px-3.5 py-2 rounded-xl bg-white border border-slate-300 hover:border-[#244B8F] text-xs font-bold text-[#244B8F] cursor-pointer flex items-center space-x-1.5 shadow-2xs">
+              <label className="px-3.5 py-2 rounded-xl bg-white border border-slate-300 hover:border-[#0073E6] text-xs font-bold text-[#0073E6] cursor-pointer flex items-center space-x-1.5 shadow-2xs">
                 <Upload className="w-3.5 h-3.5" />
                 <span>Upload Logo File (SVG / PNG)</span>
                 <input
@@ -448,7 +448,7 @@ export const PartnerLogosManager: React.FC = () => {
                 value={logoUrl}
                 onChange={(e) => setLogoUrl(e.target.value)}
                 placeholder="/images/partners/example.svg"
-                className="flex-1 min-w-[200px] px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#244B8F]"
+                className="flex-1 min-w-[200px] px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#0073E6]"
               />
             </div>
 
@@ -469,7 +469,7 @@ export const PartnerLogosManager: React.FC = () => {
                 type="checkbox"
                 checked={isActive}
                 onChange={(e) => setIsActive(e.target.checked)}
-                className="w-4 h-4 rounded text-[#244B8F] focus:ring-[#244B8F] border-slate-300"
+                className="w-4 h-4 rounded text-[#0073E6] focus:ring-[#0073E6] border-slate-300"
               />
               <span>Active in Public Marquee</span>
             </label>
@@ -485,7 +485,7 @@ export const PartnerLogosManager: React.FC = () => {
               <button
                 type="submit"
                 disabled={submitting}
-                className="px-4 py-1.5 rounded-xl bg-[#244B8F] hover:bg-[#1B396E] text-white text-xs font-bold transition-colors cursor-pointer shadow-xs"
+                className="px-4 py-1.5 rounded-xl bg-[#0073E6] hover:bg-[#005BB5] text-white text-xs font-bold transition-colors cursor-pointer shadow-xs"
               >
                 {submitting ? 'Saving...' : 'Add Logo'}
               </button>
@@ -497,7 +497,7 @@ export const PartnerLogosManager: React.FC = () => {
       {/* Upload Helper Panel (Standard Specifications) */}
       <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 space-y-2">
         <div className="font-bold text-slate-800 flex items-center space-x-1.5">
-          <Info className="w-4 h-4 text-[#244B8F]" />
+          <Info className="w-4 h-4 text-[#0073E6]" />
           <span>Recommended Partner Logo Specifications</span>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-[11px] text-slate-500 pt-1">

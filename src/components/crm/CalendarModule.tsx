@@ -288,7 +288,7 @@ export const CalendarModule: React.FC<CalendarModuleProps> = ({
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-2xs p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         {/* Title & Date Navigation */}
         <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 rounded-xl bg-[#244B8F]/10 text-[#244B8F] flex items-center justify-center shrink-0">
+          <div className="w-10 h-10 rounded-xl bg-[#0073E6]/10 text-[#0073E6] flex items-center justify-center shrink-0">
             <CalendarIcon className="w-5 h-5" />
           </div>
           <div>
@@ -343,7 +343,7 @@ export const CalendarModule: React.FC<CalendarModuleProps> = ({
               type="button"
               onClick={() => setViewMode('month')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-                viewMode === 'month' ? 'bg-white text-[#244B8F] shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                viewMode === 'month' ? 'bg-white text-[#0073E6] shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               Month
@@ -352,7 +352,7 @@ export const CalendarModule: React.FC<CalendarModuleProps> = ({
               type="button"
               onClick={() => setViewMode('week')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-                viewMode === 'week' ? 'bg-white text-[#244B8F] shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                viewMode === 'week' ? 'bg-white text-[#0073E6] shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               Week
@@ -364,7 +364,7 @@ export const CalendarModule: React.FC<CalendarModuleProps> = ({
                 setSelectedDayDate(todayStr);
               }}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-                viewMode === 'day' ? 'bg-white text-[#244B8F] shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                viewMode === 'day' ? 'bg-white text-[#0073E6] shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               Day
@@ -373,7 +373,7 @@ export const CalendarModule: React.FC<CalendarModuleProps> = ({
               type="button"
               onClick={() => setViewMode('agenda')}
               className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
-                viewMode === 'agenda' ? 'bg-white text-[#244B8F] shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                viewMode === 'agenda' ? 'bg-white text-[#0073E6] shadow-xs' : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               Agenda
@@ -384,7 +384,7 @@ export const CalendarModule: React.FC<CalendarModuleProps> = ({
           <select
             value={filterType}
             onChange={(e) => setFilterType(e.target.value as any)}
-            className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:bg-white focus:outline-hidden focus:border-[#244B8F] cursor-pointer"
+            className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:bg-white focus:outline-hidden focus:border-[#0073E6] cursor-pointer"
           >
             <option value="ALL">All Event Types</option>
             <option value="VISIT">Site Visits Only</option>
@@ -396,7 +396,7 @@ export const CalendarModule: React.FC<CalendarModuleProps> = ({
             <select
               value={filterStaff}
               onChange={(e) => setFilterStaff(e.target.value)}
-              className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:bg-white focus:outline-hidden focus:border-[#244B8F] cursor-pointer max-w-[160px] truncate"
+              className="px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-700 focus:bg-white focus:outline-hidden focus:border-[#0073E6] cursor-pointer max-w-[160px] truncate"
             >
               <option value="ALL">All Staff RMs</option>
               {staffList.map((s) => (
@@ -411,7 +411,7 @@ export const CalendarModule: React.FC<CalendarModuleProps> = ({
           <button
             type="button"
             onClick={onScheduleVisit}
-            className="px-3.5 py-1.5 bg-[#244B8F] hover:bg-[#1B396E] text-white rounded-xl text-xs font-bold transition-colors cursor-pointer shadow-xs flex items-center space-x-1.5"
+            className="px-3.5 py-1.5 bg-[#0073E6] hover:bg-[#005BB5] text-white rounded-xl text-xs font-bold transition-colors cursor-pointer shadow-xs flex items-center space-x-1.5"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Schedule Visit</span>
@@ -456,7 +456,7 @@ export const CalendarModule: React.FC<CalendarModuleProps> = ({
                     <span
                       className={`text-xs font-bold tabular-nums inline-flex items-center justify-center w-6 h-6 rounded-full ${
                         isToday
-                          ? 'bg-[#244B8F] text-white'
+                          ? 'bg-[#0073E6] text-white'
                           : cell.isCurrentMonth
                           ? 'text-slate-800'
                           : 'text-slate-300'
@@ -490,7 +490,7 @@ export const CalendarModule: React.FC<CalendarModuleProps> = ({
                         >
                           <span
                             className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                              isVisit ? 'bg-[#244B8F]' : 'bg-amber-600'
+                              isVisit ? 'bg-[#0073E6]' : 'bg-amber-600'
                             }`}
                           />
                           <span className="tabular-nums font-semibold shrink-0">{ev.timeStr.split(' ')[0]}</span>
@@ -540,7 +540,7 @@ export const CalendarModule: React.FC<CalendarModuleProps> = ({
                     </div>
                     <span
                       className={`text-xs font-bold tabular-nums w-6 h-6 rounded-full flex items-center justify-center ${
-                        isToday ? 'bg-[#244B8F] text-white' : 'text-slate-800'
+                        isToday ? 'bg-[#0073E6] text-white' : 'text-slate-800'
                       }`}
                     >
                       {wd.dayNum}
@@ -567,7 +567,7 @@ export const CalendarModule: React.FC<CalendarModuleProps> = ({
                             <div className="flex items-center justify-between mb-1">
                               <span
                                 className={`text-[10px] font-bold px-1.5 py-0.2 rounded-md ${
-                                  isVisit ? 'bg-[#244B8F] text-white' : 'bg-amber-600 text-white'
+                                  isVisit ? 'bg-[#0073E6] text-white' : 'bg-amber-600 text-white'
                                 }`}
                               >
                                 {isVisit ? 'VISIT' : 'FOLLOW-UP'}
@@ -606,7 +606,7 @@ export const CalendarModule: React.FC<CalendarModuleProps> = ({
             <button
               type="button"
               onClick={() => setViewMode('month')}
-              className="text-xs font-semibold text-[#244B8F] hover:underline cursor-pointer"
+              className="text-xs font-semibold text-[#0073E6] hover:underline cursor-pointer"
             >
               Back to Month View
             </button>
@@ -620,7 +620,7 @@ export const CalendarModule: React.FC<CalendarModuleProps> = ({
                 <button
                   type="button"
                   onClick={onScheduleVisit}
-                  className="mt-3 px-3.5 py-1.5 bg-[#244B8F] text-white text-xs font-bold rounded-xl hover:bg-[#1B396E] cursor-pointer"
+                  className="mt-3 px-3.5 py-1.5 bg-[#0073E6] text-white text-xs font-bold rounded-xl hover:bg-[#005BB5] cursor-pointer"
                 >
                   Schedule a Visit for this Date
                 </button>
@@ -639,7 +639,7 @@ export const CalendarModule: React.FC<CalendarModuleProps> = ({
                     <div className="flex items-start space-x-3.5">
                       <div
                         className={`w-10 h-10 rounded-xl text-white flex flex-col items-center justify-center font-bold text-[10px] shrink-0 ${
-                          isVisit ? 'bg-[#244B8F]' : 'bg-amber-600'
+                          isVisit ? 'bg-[#0073E6]' : 'bg-amber-600'
                         }`}
                       >
                         <span>{isVisit ? 'VISIT' : 'CALL'}</span>
@@ -676,7 +676,7 @@ export const CalendarModule: React.FC<CalendarModuleProps> = ({
                             e.stopPropagation();
                             onSendWhatsAppReminder(ev.rawItem.id);
                           }}
-                          className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-[#244B8F] text-xs font-bold rounded-xl cursor-pointer shadow-2xs flex items-center space-x-1"
+                          className="px-3 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-[#0073E6] text-xs font-bold rounded-xl cursor-pointer shadow-2xs flex items-center space-x-1"
                         >
                           <Send className="w-3 h-3" />
                           <span>WhatsApp</span>
@@ -733,7 +733,7 @@ export const CalendarModule: React.FC<CalendarModuleProps> = ({
                     <div className="flex items-center space-x-3.5">
                       <div
                         className={`w-10 h-10 rounded-xl text-white flex flex-col items-center justify-center font-bold text-[10px] shrink-0 ${
-                          isVisit ? 'bg-[#244B8F]' : 'bg-amber-600'
+                          isVisit ? 'bg-[#0073E6]' : 'bg-amber-600'
                         }`}
                       >
                         <span>{isVisit ? 'VISIT' : 'CALL'}</span>
@@ -762,7 +762,7 @@ export const CalendarModule: React.FC<CalendarModuleProps> = ({
                             e.stopPropagation();
                             onSendWhatsAppReminder(ev.rawItem.id);
                           }}
-                          className="px-3 py-1.5 bg-white border border-slate-200 text-[#244B8F] font-bold text-xs rounded-xl hover:bg-slate-50 cursor-pointer shadow-2xs flex items-center space-x-1"
+                          className="px-3 py-1.5 bg-white border border-slate-200 text-[#0073E6] font-bold text-xs rounded-xl hover:bg-slate-50 cursor-pointer shadow-2xs flex items-center space-x-1"
                         >
                           <Send className="w-3 h-3" />
                           <span>WhatsApp</span>
@@ -803,7 +803,7 @@ export const CalendarModule: React.FC<CalendarModuleProps> = ({
               <div className="flex items-center space-x-2.5">
                 <div
                   className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-xs text-white ${
-                    activeModalEvent.sourceType === 'VISIT' ? 'bg-[#244B8F]' : 'bg-amber-600'
+                    activeModalEvent.sourceType === 'VISIT' ? 'bg-[#0073E6]' : 'bg-amber-600'
                   }`}
                 >
                   {activeModalEvent.sourceType === 'VISIT' ? 'V' : 'C'}
@@ -884,7 +884,7 @@ export const CalendarModule: React.FC<CalendarModuleProps> = ({
                       onSendWhatsAppReminder(activeModalEvent.rawItem.id);
                       setActiveModalEvent(null);
                     }}
-                    className="px-3 py-1.5 bg-[#244B8F] text-white font-bold rounded-xl text-xs hover:bg-[#1B396E] cursor-pointer flex items-center space-x-1"
+                    className="px-3 py-1.5 bg-[#0073E6] text-white font-bold rounded-xl text-xs hover:bg-[#005BB5] cursor-pointer flex items-center space-x-1"
                   >
                     <Send className="w-3 h-3" />
                     <span>WhatsApp Reminder</span>
@@ -910,7 +910,7 @@ export const CalendarModule: React.FC<CalendarModuleProps> = ({
                     onOpenLead(activeModalEvent.rawItem.id);
                     setActiveModalEvent(null);
                   }}
-                  className="px-3.5 py-1.5 bg-[#244B8F] text-white font-bold rounded-xl text-xs hover:bg-[#1B396E] cursor-pointer"
+                  className="px-3.5 py-1.5 bg-[#0073E6] text-white font-bold rounded-xl text-xs hover:bg-[#005BB5] cursor-pointer"
                 >
                   Open Lead Details
                 </button>

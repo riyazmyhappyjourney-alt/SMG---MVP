@@ -273,7 +273,7 @@ export async function runCrmPropertyManagementTests(): Promise<{ passed: number;
       method: 'POST',
       headers: { authorization: `Bearer ${staffToken}` },
       body: {
-        url: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80',
+        url: 'https://images.unsplash.com/photo-1567496898669-ee935f5f647a?auto=format&fit=crop&w=800&q=80',
         isFeatured: true,
       },
     });

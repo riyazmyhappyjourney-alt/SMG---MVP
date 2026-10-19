@@ -59,6 +59,7 @@ import {
   DEFAULT_SUBMISSION_EMAIL_HTML,
   DEFAULT_EMAIL_SAMPLE_VARS
 } from './src/server/notifications/email-service';
+import { AiSensyNotificationService } from './src/server/notifications/aisensy-service';
 import { getDistinctCommunityPhoto } from './src/utils/propertyImages';
 export { getDistinctCommunityPhoto };
 import { PropertySuggestionsService } from './src/server/inventory/property-suggestions-service';
@@ -91,6 +92,11 @@ export function isOriginAllowed(origin?: string): boolean {
     
     // Allow primary domain and all subdomains (e.g. crm.sellmyghar.in, www.sellmyghar.in)
     if (host === 'sellmyghar.in' || host.endsWith('.sellmyghar.in')) {
+      return true;
+    }
+
+    // Allow BuyMyGhar domains (*.buymyghar.in)
+    if (host === 'buymyghar.in' || host.endsWith('.buymyghar.in')) {
       return true;
     }
 
@@ -169,10 +175,25 @@ export function getClientIp(req: Request): string {
   return req.socket?.remoteAddress || '127.0.0.1';
 }
 
-app.use((_req, res, next) => {
+app.use((req, res, next) => {
+  // Free-Tier Cloudflare Origin Shield:
+  // If CLOUDFLARE_ORIGIN_SECRET is configured, require x-cf-secret or x-origin-secret header
+  const originSecret = process.env.CLOUDFLARE_ORIGIN_SECRET;
+  if (isProd && originSecret) {
+    const providedSecret = req.headers['x-cf-secret'] || req.headers['x-origin-secret'];
+    if (providedSecret !== originSecret) {
+      return res.status(403).json({
+        error: 'ORIGIN_DIRECT_ACCESS_BLOCKED',
+        message: 'Direct access to origin server is blocked. Traffic must pass through Cloudflare edge proxy.'
+      });
+    }
+  }
+
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('X-Permitted-Cross-Domain-Policies', 'none');
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
   res.setHeader(
     'Content-Security-Policy',
     "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: blob:; connect-src 'self' https:; frame-ancestors 'none';"
@@ -182,7 +203,7 @@ app.use((_req, res, next) => {
     'camera=(), microphone=(), geolocation=(), payment=()'
   );
   if (isProd) {
-    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
   }
   next();
 });
@@ -398,6 +419,7 @@ async function initSchemaColumns() {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
       ALTER TABLE property_media ADD COLUMN IF NOT EXISTS display_order INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE property_media ADD COLUMN IF NOT EXISTS title VARCHAR(255);
       CREATE INDEX IF NOT EXISTS idx_property_media_property ON property_media (property_id);
 
       CREATE TABLE IF NOT EXISTS buyer_enquiries (
@@ -487,6 +509,34 @@ async function initSchemaColumns() {
       );
       CREATE INDEX IF NOT EXISTS idx_pwd_reset_user_active ON password_reset_tokens (user_id, is_consumed, expires_at);
       CREATE INDEX IF NOT EXISTS idx_pwd_reset_expiry ON password_reset_tokens (expires_at) WHERE is_consumed = false;
+
+      CREATE TABLE IF NOT EXISTS career_positions (
+        id VARCHAR(64) PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        department VARCHAR(120) NOT NULL,
+        location VARCHAR(120) NOT NULL DEFAULT 'Bengaluru, India (On-site / Hybrid)',
+        employment_type VARCHAR(64) NOT NULL DEFAULT 'Full-time',
+        description TEXT NOT NULL,
+        is_active BOOLEAN NOT NULL DEFAULT true,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_career_positions_active ON career_positions (is_active);
+
+      CREATE TABLE IF NOT EXISTS career_applications (
+        id VARCHAR(64) PRIMARY KEY,
+        position_id VARCHAR(64) REFERENCES career_positions(id) ON DELETE SET NULL,
+        position_title VARCHAR(255) NOT NULL,
+        applicant_name VARCHAR(120) NOT NULL,
+        email VARCHAR(255) NOT NULL,
+        phone VARCHAR(64) NOT NULL,
+        experience_years VARCHAR(32) NOT NULL,
+        resume_url TEXT NOT NULL,
+        cover_note TEXT,
+        status VARCHAR(32) NOT NULL DEFAULT 'NEW',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_career_applications_created ON career_applications (created_at DESC);
     `);
 
     // 2. Initialize Seed Staff with Real scrypt Password Hash (Zero hardcoded fallbacks)
@@ -1491,9 +1541,15 @@ app.post('/api/dev/switch-role', jsonDefault, async (req, res) => {
 // API: Contact Us Form Submission (Rate limited; records DPDP consent & enters buyer_enquiries)
 app.post('/api/contact', jsonDefault, rateLimit('contact-submit', 5, 900), async (req, res) => {
   try {
-    const rawName = (req.body.name || req.body.fullName || '').trim();
+    let rawName = String(req.body.name || req.body.fullName || '').replace(/<[^>]*>/g, '').trim();
     if (!rawName || rawName.length < 2) {
       return res.status(400).json({ error: 'Name is required (minimum 2 characters).' });
+    }
+    if (rawName.length > 60) {
+      return res.status(400).json({ error: 'Name cannot exceed 60 characters.' });
+    }
+    if (!/[a-zA-Z]/.test(rawName) || /(.)\1{4,}/.test(rawName)) {
+      return res.status(400).json({ error: 'Please enter a valid full name containing alphabetic letters.' });
     }
 
     const cleanPhone = String(req.body.phone || '').replace(/\D/g, '').slice(-10);
@@ -1501,11 +1557,20 @@ app.post('/api/contact', jsonDefault, rateLimit('contact-submit', 5, 900), async
       return res.status(400).json({ error: 'Please enter a valid 10-digit Indian mobile number.' });
     }
 
-    const email = (req.body.email || '').trim().toLowerCase();
-    const subject = (req.body.subject || 'General Enquiry').trim();
-    const message = (req.body.message || '').trim();
+    const email = String(req.body.email || '').replace(/<[^>]*>/g, '').trim().toLowerCase();
+    if (email && (email.length > 100 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
+      return res.status(400).json({ error: 'Please enter a valid email address (max 100 characters).' });
+    }
+
+    const subject = String(req.body.subject || 'General Enquiry').replace(/<[^>]*>/g, '').trim();
+    const rawMessage = String(req.body.message || '').replace(/<[^>]*>/g, '').trim();
+    if (rawMessage.length > 1000) {
+      return res.status(400).json({ error: 'Message cannot exceed 1,000 characters.' });
+    }
+    const message = rawMessage;
     const normalizedPhone = `+91${cleanPhone}`;
     const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+
 
     const consentId = `cst-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
     await executeQuery(
@@ -1775,13 +1840,14 @@ app.post('/api/leads', jsonDefault, rateLimit('leads-submit', 5, 900), async (re
 
 // Curated Showcase Communities Master
 const SAMPLE_SOCIETIES = [
-  { name: 'Prestige Shantiniketan', locality: 'Whitefield, East Bengaluru', image: 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80' },
+  { name: 'Prestige Shantiniketan', locality: 'Whitefield, East Bengaluru', image: 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=800&q=80' },
   { name: 'Sobha Dream Acres', locality: 'Panathur / Balagere, East Bengaluru', image: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80' },
-  { name: 'Salarpuria Sattva Greenage', locality: 'Hosur Road / Bommanahalli', image: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80' },
+  { name: 'Salarpuria Sattva Greenage', locality: 'Hosur Road / Bommanahalli', image: 'https://images.unsplash.com/photo-1567496898669-ee935f5f647a?auto=format&fit=crop&w=800&q=80' },
   { name: 'Brigade Metropolis', locality: 'Mahadevapura / Whitefield Road', image: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=800&q=80' },
   { name: 'Godrej Palm Retreat', locality: 'Sarjapur Road, South-East Bengaluru', image: 'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?auto=format&fit=crop&w=800&q=80' },
   { name: 'Puravankara Windermere', locality: 'Pallavaram - ORR Corridor', image: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=800&q=80' }
 ];
+
 
 // API: Verified Listings (Sanitized public projection)
 app.get('/api/listings', async (_req, res) => {
@@ -1808,8 +1874,15 @@ app.get('/api/listings', async (_req, res) => {
       ORDER BY created_at DESC;
     `);
 
-    const listings = await Promise.all(dbResult.rows.map(async (row: any, idx: number) => {
-      const society = SAMPLE_SOCIETIES[idx % SAMPLE_SOCIETIES.length];
+    const listings = await Promise.all(dbResult.rows.map(async (row: any) => {
+      // Deterministic society mapping based on property ID so images never dynamically swap when listings are added/removed
+      let idHash = 0;
+      const strId = String(row.id || '');
+      for (let i = 0; i < strId.length; i++) {
+        idHash = (idHash << 5) - idHash + strId.charCodeAt(i);
+        idHash |= 0;
+      }
+      const society = SAMPLE_SOCIETIES[Math.abs(idHash) % SAMPLE_SOCIETIES.length];
       const priceNum = parseInt(row.asking_price_inr, 10) || 12500000;
       const sqft = row.super_built_up_sqft || 1350;
 
@@ -2093,7 +2166,7 @@ app.get('/api/listings/:id', rateLimit('listing-detail', 60, 60), async (req, re
     const baseCover = mediaRows.find((m: any) => m.is_featured)?.url || 
                      mediaRows[0]?.url || 
                      matchedSample?.image || 
-                     'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80';
+                     'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=1200&q=80';
 
     const galleryPhotos = mediaRows.length > 0
       ? mediaRows.map((m: any, idx: number) => ({
@@ -2105,11 +2178,12 @@ app.get('/api/listings/:id', rateLimit('listing-detail', 60, 60), async (req, re
         }))
       : [
           { id: 'img-1', url: baseCover, caption: 'Spacious Living Hall with Balcony Deck', isCover: true, displayOrder: 0 },
-          { id: 'img-2', url: 'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=80', caption: 'Master Bedroom with Wooden Laminate Flooring', isCover: false, displayOrder: 1 },
+          { id: 'img-2', url: 'https://images.unsplash.com/photo-1567496898669-ee935f5f647a?auto=format&fit=crop&w=1200&q=80', caption: 'Master Bedroom with Wooden Laminate Flooring', isCover: false, displayOrder: 1 },
           { id: 'img-3', url: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1200&q=80', caption: 'Modular Kitchen with Granite Countertops & Utility', isCover: false, displayOrder: 2 },
           { id: 'img-4', url: 'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=1200&q=80', caption: 'Panoramic Balcony Corridor View', isCover: false, displayOrder: 3 },
           { id: 'img-5', url: 'https://images.unsplash.com/photo-1580587771525-78b9dba3b914?auto=format&fit=crop&w=1200&q=80', caption: 'Society Clubhouse, Olympic Pool & Landscaped Courts', isCover: false, displayOrder: 4 },
         ];
+
 
     // Query real candidates for deterministic Similar Properties ranking
     const candidateResult = await executeQuery(
@@ -2332,8 +2406,9 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
       ownerPhone,
     } = req.body;
 
-    if (!ownerName || typeof ownerName !== 'string' || ownerName.trim().length < 2) {
-      return res.status(400).json({ error: 'Owner Name is required (minimum 2 characters).' });
+    const sanitizedOwnerName = String(ownerName || '').replace(/<[^>]+>/g, '').trim();
+    if (!sanitizedOwnerName || sanitizedOwnerName.length < 2 || sanitizedOwnerName.length > 50) {
+      return res.status(400).json({ error: 'Owner Name is required (between 2 and 50 characters).' });
     }
 
     const cleanPhone = String(ownerPhone || '').replace(/\D/g, '').slice(-10);
@@ -2342,11 +2417,13 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
     }
     const normalizedPhone = `+91${cleanPhone}`;
 
-    if (!societyName || societyName.trim().length < 2) {
+    const sanitizedSociety = String(societyName || '').replace(/<[^>]+>/g, '').trim().slice(0, 100);
+    if (!sanitizedSociety || sanitizedSociety.length < 2) {
       return res.status(400).json({ error: 'Apartment complex / Society name is required.' });
     }
 
-    if (!locality || locality.trim().length < 2) {
+    const sanitizedLocality = String(locality || '').replace(/<[^>]+>/g, '').trim().slice(0, 80);
+    if (!sanitizedLocality || sanitizedLocality.length < 2) {
       return res.status(400).json({ error: 'Bengaluru locality is required.' });
     }
 
@@ -2508,9 +2585,18 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
         moveInAvailability: isRental ? (moveInAvailability || 'Immediate') : null,
         moveInDate: isRental ? (moveInDate || null) : null,
         isNegotiable: Boolean(isNegotiable),
-        photos: Array.isArray(photos) ? photos.slice(0, 10) : [],
+        allInclusivePrice: Boolean(req.body.allInclusivePrice),
+        taxChargesExcluded: Boolean(req.body.taxChargesExcluded),
+        builtUpAreaSqft: req.body.builtUpAreaSqft ? parseInt(req.body.builtUpAreaSqft, 10) : null,
+        otherRooms: Array.isArray(req.body.otherRooms) ? req.body.otherRooms : [],
+        furnishingItems: Array.isArray(req.body.furnishingItems) ? req.body.furnishingItems : [],
+        openParkingCount: parseInt(req.body.openParkingCount, 10) || 0,
+        videoProvider: req.body.videoProvider || null,
+        isDuplex: Boolean(req.body.isDuplex),
+        zone: req.body.zone || null,
+        photos: Array.isArray(photos) ? photos.slice(0, 15) : [],
         videoUrl: videoUrl || null,
-        description: description || null,
+        description: description ? String(description).slice(0, 1000) : null,
         ownerName: ownerName.trim(),
         ownerPhone: normalizedPhone,
         ownerEmail: declaredEmail,
@@ -2706,6 +2792,20 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
       console.warn('[PropertyListedEmail] Dispatch note:', listedEmailErr.message);
     }
 
+    // 9b. Dispatch AiSensy WhatsApp confirmation to property owner (non-blocking, idempotent)
+    try {
+      void AiSensyNotificationService.handlePropertyListed({
+        ownerName: ownerName.trim(),
+        ownerPhone: normalizedPhone,
+        referenceId,
+        societyName: societyName.trim(),
+        locality: locality.trim(),
+        propertyId,
+      }).catch((aisErr) => console.warn('[AiSensyPropertyListed] Dispatch note:', aisErr.message));
+    } catch (aisensyErr: any) {
+      console.warn('[AiSensyPropertyListed] Dispatch note:', aisensyErr.message);
+    }
+
     if (declaredEmail) {
       try {
         await EmailNotificationService.handleUserOnboarding({
@@ -2802,9 +2902,19 @@ app.get('/api/properties', authenticateUser, async (req, res) => {
         p.updated_at,
         COALESCE(p.listing_status, 'DRAFT') AS listing_status
       FROM properties p
-      LEFT JOIN seller_leads sl ON (sl.property_id = p.id OR sl.phone = (SELECT phone FROM users WHERE id = p.owner_id LIMIT 1))
+      LEFT JOIN users u ON u.id = p.owner_id
+      LEFT JOIN LATERAL (
+        SELECT sl.id AS lead_id, sl.lead_status, sl.assigned_staff_id, sl.next_follow_up_at, sl.follow_up_notes, sl.created_at
+        FROM seller_leads sl
+
+        WHERE sl.property_id = p.id
+           OR (sl.property_id IS NULL AND sl.phone IS NOT NULL AND u.phone IS NOT NULL AND sl.phone = u.phone)
+        ORDER BY (CASE WHEN sl.property_id = p.id THEN 0 ELSE 1 END), sl.created_at DESC
+        LIMIT 1
+      ) sl ON true
       LEFT JOIN users staff ON staff.id = sl.assigned_staff_id
     `;
+
     const params: any[] = [];
 
     // IDOR Protection: Non-staff authenticated users can ONLY query their own properties
@@ -2838,8 +2948,13 @@ app.get('/api/properties', authenticateUser, async (req, res) => {
 
     const result = await executeQuery(query, params);
 
-    // Confidentiality Protection: Sanitize reserve_minimum_price_inr for unauthorized callers
-    const sanitizedRows = result.rows.map((row: any) => {
+    // Confidentiality Protection: Sanitize reserve_minimum_price_inr for unauthorized callers and ensure unique property rows
+    const seenPropIds = new Set<string>();
+    const sanitizedRows = result.rows.filter((r: any) => {
+      if (!r || !r.id || seenPropIds.has(r.id)) return false;
+      seenPropIds.add(r.id);
+      return true;
+    }).map((row: any) => {
       const copy = { ...row };
       const isSuperAdmin = req.user!.roles.includes('STAFF_SUPER_ADMIN');
       const isRecordOwner = row.owner_id === req.user!.uid;
@@ -2848,6 +2963,7 @@ app.get('/api/properties', authenticateUser, async (req, res) => {
       }
       return copy;
     });
+
 
     if (format === 'raw') {
       return res.json({
@@ -2858,11 +2974,12 @@ app.get('/api/properties', authenticateUser, async (req, res) => {
     }
 
     const curatedPhotos = [
-      'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=800&q=80',
       'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=800&q=80',
-      'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1567496898669-ee935f5f647a?auto=format&fit=crop&w=800&q=80',
       'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?auto=format&fit=crop&w=800&q=80',
     ];
+
 
     const propertyIds = sanitizedRows.map((row: any) => row.id);
     const docsByPropId: Record<string, any> = {};
@@ -3112,6 +3229,57 @@ app.get('/api/properties', authenticateUser, async (req, res) => {
     return res.status(500).json({ error: 'Failed to query properties table' });
   }
 });
+
+// API: Update Property Record (Strict Server-Side Authentication & Resource Ownership Guard)
+const customerPropertyUpdateHandler = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const caller = req.user!;
+
+    // 1. Fetch existing property record
+    const propCheck = await executeQuery(`SELECT * FROM properties WHERE id = $1 LIMIT 1;`, [id]);
+    if (!propCheck.rows || propCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'NOT_FOUND', message: 'Property not found.' });
+    }
+    const property = propCheck.rows[0];
+
+    // 2. Validate Ownership (IDOR Defense)
+    try {
+      assertCanAccessProperty(caller, property, 'WRITE');
+    } catch (authErr: any) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: authErr.message || 'You do not have permission to edit this property record.' });
+    }
+
+    // 3. Update permitted mutable fields
+    const { asking_price_inr, expectedPrice, isNegotiable, description, title } = req.body || {};
+    const newPrice = asking_price_inr !== undefined ? Number(asking_price_inr) : (expectedPrice !== undefined ? Number(expectedPrice) : undefined);
+    const cleanDesc = description !== undefined ? String(description).slice(0, 1000).replace(/<[^>]+>/g, '').trim() : undefined;
+    const cleanTitle = title !== undefined ? String(title).slice(0, 150).replace(/<[^>]+>/g, '').trim() : undefined;
+
+    const updateRes = await executeQuery(`
+      UPDATE properties
+      SET 
+        asking_price_inr = COALESCE($1, asking_price_inr),
+        description = COALESCE($2, description),
+        title = COALESCE($3, title),
+        updated_at = NOW()
+      WHERE id = $4
+      RETURNING *;
+    `, [newPrice !== undefined && !isNaN(newPrice) ? newPrice : null, cleanDesc !== undefined ? cleanDesc : null, cleanTitle !== undefined ? cleanTitle : null, id]);
+
+    return res.json({
+      success: true,
+      message: 'Property updated successfully.',
+      property: updateRes.rows[0],
+    });
+  } catch (err: any) {
+    console.error('[PropertyUpdate] Error:', err);
+    return res.status(500).json({ error: 'Failed to update property' });
+  }
+};
+
+app.put('/api/properties/:id', jsonUpload, authenticateUser, customerPropertyUpdateHandler);
+app.patch('/api/properties/:id', jsonUpload, authenticateUser, customerPropertyUpdateHandler);
 
 // ====================================================================
 // 6. DOCUMENT VAULT & STORAGE ENDPOINTS (Protected with RBAC & IDOR Guards)
@@ -3808,6 +3976,227 @@ app.post(
     }
   }
 );
+
+// ====================================================================
+// Career CMS & Candidate Application Endpoints
+// ====================================================================
+
+// 1. List Active Career Positions (Public)
+app.get('/api/careers/positions', async (_req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'application/json');
+  try {
+    const result = await executeQuery(
+      `SELECT id, title, department, location, employment_type, description, is_active, created_at, updated_at
+       FROM career_positions
+       WHERE is_active = true
+       ORDER BY created_at DESC;`
+    );
+    return res.json({
+      success: true,
+      positions: result.rows || []
+    });
+  } catch (err: any) {
+    console.error('[CareersPositionsPublic] Error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to retrieve active job openings.' });
+  }
+});
+
+// 2. Submit Candidate Job Application (Public - Dispatches to Talent Inbox sellmyghar1@gmail.com)
+app.post('/api/careers/apply', jsonDefault, async (req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'application/json');
+  try {
+    const { position_id, position_title, applicant_name, email, phone, experience_years, resume_url, cover_note } = req.body || {};
+    
+    if (!applicant_name || !String(applicant_name).trim()) {
+      return res.status(400).json({ success: false, error: 'Candidate name is required.' });
+    }
+    if (!email || !String(email).includes('@')) {
+      return res.status(400).json({ success: false, error: 'Valid candidate email is required.' });
+    }
+    if (!phone || !String(phone).trim()) {
+      return res.status(400).json({ success: false, error: 'Contact phone number is required.' });
+    }
+
+    const id = `app-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const effectiveTitle = position_title ? String(position_title).trim() : 'General Application';
+
+    await executeQuery(
+      `INSERT INTO career_applications (id, position_id, position_title, applicant_name, email, phone, experience_years, resume_url, cover_note)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9);`,
+      [
+        id,
+        position_id ? String(position_id).trim() : null,
+        effectiveTitle,
+        String(applicant_name).trim(),
+        String(email).trim().toLowerCase(),
+        String(phone).trim(),
+        String(experience_years || 'Not specified'),
+        String(resume_url || ''),
+        String(cover_note || '')
+      ]
+    );
+
+    // Asynchronously notify talent acquisition inbox (sellmyghar1@gmail.com)
+    EmailNotificationService.sendJobApplicationNotification({
+      applicantName: String(applicant_name).trim(),
+      positionTitle: effectiveTitle,
+      email: String(email).trim().toLowerCase(),
+      phone: String(phone).trim(),
+      experienceYears: String(experience_years || 'Not specified'),
+      coverNote: String(cover_note || ''),
+      resumeUrl: String(resume_url || '')
+    }).catch(err => {
+      console.error('[CareerApplyNotification] Failed to dispatch email notification:', err);
+    });
+
+    return res.status(201).json({
+      success: true,
+      message: 'Your application has been received successfully. Our talent team will review your profile.',
+      application_id: id
+    });
+  } catch (err: any) {
+    console.error('[CareersApplyPost] Error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to submit application. Please try again later.' });
+  }
+});
+
+// 3. List All Career Positions for CMS (CRM Staff Gated)
+app.get('/api/crm/careers/positions', authenticateUser, requireStaffMember, async (_req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'application/json');
+  try {
+    const result = await executeQuery(
+      `SELECT id, title, department, location, employment_type, description, is_active, created_at, updated_at
+       FROM career_positions
+       ORDER BY created_at DESC;`
+    );
+    return res.json({
+      success: true,
+      positions: result.rows || []
+    });
+  } catch (err: any) {
+    console.error('[CrmCareersPositionsGet] Error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to retrieve career positions.' });
+  }
+});
+
+// 4. Create Career Position (CRM Staff Gated)
+app.post('/api/crm/careers/positions', jsonDefault, authenticateUser, requireStaffMember, async (req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'application/json');
+  try {
+    const { title, department, location, employment_type, description, is_active } = req.body || {};
+    if (!title || !String(title).trim()) {
+      return res.status(400).json({ success: false, error: 'Role title is required.' });
+    }
+    if (!department || !String(department).trim()) {
+      return res.status(400).json({ success: false, error: 'Department is required.' });
+    }
+    if (!description || !String(description).trim()) {
+      return res.status(400).json({ success: false, error: 'Job description is required.' });
+    }
+
+    const id = `pos-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const result = await executeQuery(
+      `INSERT INTO career_positions (id, title, department, location, employment_type, description, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING *;`,
+      [
+        id,
+        String(title).trim(),
+        String(department).trim(),
+        String(location || 'Bengaluru, India (On-site / Hybrid)').trim(),
+        String(employment_type || 'Full-time').trim(),
+        String(description).trim(),
+        is_active !== undefined ? Boolean(is_active) : true
+      ]
+    );
+
+    return res.status(201).json({
+      success: true,
+      message: 'Position created successfully',
+      position: result.rows[0]
+    });
+  } catch (err: any) {
+    console.error('[CrmCareersPositionCreate] Error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to create career position.' });
+  }
+});
+
+// 5. Update Career Position (CRM Staff Gated)
+app.patch('/api/crm/careers/positions/:id', jsonDefault, authenticateUser, requireStaffMember, async (req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'application/json');
+  try {
+    const { id } = req.params;
+    const { title, department, location, employment_type, description, is_active } = req.body || {};
+
+    const existingRes = await executeQuery(`SELECT * FROM career_positions WHERE id = $1 LIMIT 1;`, [id]);
+    if (!existingRes.rows || existingRes.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Career position not found.' });
+    }
+    const curr = existingRes.rows[0];
+
+    const updatedTitle = title !== undefined ? String(title).trim() : curr.title;
+    const updatedDept = department !== undefined ? String(department).trim() : curr.department;
+    const updatedLoc = location !== undefined ? String(location).trim() : curr.location;
+    const updatedType = employment_type !== undefined ? String(employment_type).trim() : curr.employment_type;
+    const updatedDesc = description !== undefined ? String(description).trim() : curr.description;
+    const updatedActive = is_active !== undefined ? Boolean(is_active) : curr.is_active;
+
+    const result = await executeQuery(
+      `UPDATE career_positions
+       SET title = $1, department = $2, location = $3, employment_type = $4, description = $5, is_active = $6, updated_at = NOW()
+       WHERE id = $7
+       RETURNING *;`,
+      [updatedTitle, updatedDept, updatedLoc, updatedType, updatedDesc, updatedActive, id]
+    );
+
+    return res.json({
+      success: true,
+      message: 'Position updated successfully',
+      position: result.rows[0]
+    });
+  } catch (err: any) {
+    console.error('[CrmCareersPositionUpdate] Error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to update career position.' });
+  }
+});
+
+// 6. Delete Career Position (CRM Staff Gated)
+app.delete('/api/crm/careers/positions/:id', authenticateUser, requireStaffMember, async (req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'application/json');
+  try {
+    const { id } = req.params;
+    const result = await executeQuery(`DELETE FROM career_positions WHERE id = $1 RETURNING id;`, [id]);
+    if (!result.rows || result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Career position not found.' });
+    }
+    return res.json({
+      success: true,
+      message: 'Position deleted successfully'
+    });
+  } catch (err: any) {
+    console.error('[CrmCareersPositionDelete] Error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to delete career position.' });
+  }
+});
+
+// 7. List Candidate Applications (CRM Staff Gated)
+app.get('/api/crm/careers/applications', authenticateUser, requireStaffMember, async (_req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'application/json');
+  try {
+    const result = await executeQuery(
+      `SELECT id, position_id, position_title, applicant_name, email, phone, experience_years, resume_url, cover_note, status, created_at
+       FROM career_applications
+       ORDER BY created_at DESC;`
+    );
+    return res.json({
+      success: true,
+      applications: result.rows || []
+    });
+  } catch (err: any) {
+    console.error('[CrmCareersApplicationsGet] Error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to retrieve applications.' });
+  }
+});
 
 // API: Respond to Buyer Offer (Accept / Counter / Request RM - Enforces Authentication & Property Ownership)
 app.post('/api/properties/:id/inquiries/:inquiryId/action', jsonDefault, authenticateUser, async (req, res) => {
@@ -6560,7 +6949,7 @@ app.post(
         `SELECT id, url, is_featured, display_order FROM property_media WHERE property_id = $1 ORDER BY is_featured DESC, display_order ASC LIMIT 1;`,
         [id]
       );
-      const coverPhoto = mediaRes.rows?.[0]?.url || 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80';
+      const coverPhoto = mediaRes.rows?.[0]?.url || 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=1200&q=80';
 
       const askingPriceInr = Number(property.asking_price_inr || property.askingPriceInr || 0);
       const askingPriceCr = (askingPriceInr / 10000000).toFixed(2);
@@ -6771,13 +7160,23 @@ export function validatePropertyForPublish(property: any, images: any[] = []): {
   if (!price || isNaN(price) || price <= 0) {
     missingFields.push('asking_price');
     errors.asking_price = 'Asking price is required';
+  } else if (price < 5000) {
+    missingFields.push('asking_price');
+    errors.asking_price = 'Asking price must be at least ₹5,000';
+  } else if (price > 1000000000) {
+    missingFields.push('asking_price');
+    errors.asking_price = 'Asking price cannot exceed ₹100 Crores';
   }
 
   const area = Number(property.super_built_up_sqft || property.superBuiltUpSqft);
   if (!area || isNaN(area) || area <= 0) {
     missingFields.push('area');
     errors.area = 'Super built-up area is required';
+  } else if (area < 100 || area > 30000) {
+    missingFields.push('area');
+    errors.area = 'Super built-up area must be between 100 and 30,000 sq.ft.';
   }
+
 
   let description = property.description;
   if (!description || typeof description !== 'string' || !description.trim()) {
@@ -6868,14 +7267,30 @@ app.get(
         staff.phone AS rm_phone
       FROM properties p
       LEFT JOIN users u ON u.id = p.owner_id
-      LEFT JOIN seller_leads sl ON (sl.property_id = p.id OR sl.phone = u.phone)
+      LEFT JOIN LATERAL (
+        SELECT sl.id, sl.assigned_staff_id, sl.lead_status, sl.created_at
+        FROM seller_leads sl
+        WHERE sl.property_id = p.id
+           OR (sl.property_id IS NULL AND sl.phone IS NOT NULL AND u.phone IS NOT NULL AND sl.phone = u.phone)
+        ORDER BY (CASE WHEN sl.property_id = p.id THEN 0 ELSE 1 END), sl.created_at DESC
+        LIMIT 1
+      ) sl ON true
       LEFT JOIN users staff ON staff.id = sl.assigned_staff_id
       ORDER BY p.created_at DESC;
     `);
 
+    // Ensure absolute uniqueness of properties by ID
+    const seenIds = new Set<string>();
+    const uniqueRows = (result.rows || []).filter((row: any) => {
+      if (!row || !row.id || seenIds.has(row.id)) return false;
+      seenIds.add(row.id);
+      return true;
+    });
+
     // Fetch images for each property
     const propertiesWithImages = await Promise.all(
-      (result.rows || []).map(async (row: any) => {
+      uniqueRows.map(async (row: any) => {
+
         const mediaRes = await executeQuery(
           `SELECT id, url, is_featured, display_order, created_at FROM property_media WHERE property_id = $1 ORDER BY is_featured DESC, display_order ASC, created_at ASC;`,
           [row.id]
@@ -6962,10 +7377,18 @@ app.get(
         staff.phone AS rm_phone
       FROM properties p
       LEFT JOIN users u ON u.id = p.owner_id
-      LEFT JOIN seller_leads sl ON (sl.property_id = p.id OR sl.phone = u.phone)
+      LEFT JOIN LATERAL (
+        SELECT sl.id, sl.assigned_staff_id, sl.created_at
+        FROM seller_leads sl
+        WHERE sl.property_id = p.id
+           OR (sl.property_id IS NULL AND sl.phone IS NOT NULL AND u.phone IS NOT NULL AND sl.phone = u.phone)
+        ORDER BY (CASE WHEN sl.property_id = p.id THEN 0 ELSE 1 END), sl.created_at DESC
+        LIMIT 1
+      ) sl ON true
       LEFT JOIN users staff ON staff.id = sl.assigned_staff_id
       WHERE p.id = $1
       LIMIT 1;
+
     `, [id]);
 
     if (!propRes.rows || propRes.rows.length === 0) {
@@ -7166,6 +7589,16 @@ const updatePropertyHandler = async (req: Request, res: Response) => {
       floor_plan_url,
       floorPlans,
       floor_plans,
+      unitFloor,
+      unit_floor,
+      totalFloors,
+      total_floors,
+      bathroomsCount,
+      bathrooms_count,
+      balconiesCount,
+      balconies_count,
+      carParksCount,
+      car_parks_count,
     } = req.body;
 
     const resolvedCrmStatus = crm_status || crmStatus || null;
@@ -7176,6 +7609,42 @@ const updatePropertyHandler = async (req: Request, res: Response) => {
     const resolvedDeveloperLogoUrl = developerLogoUrl || developer_logo_url || null;
     const resolvedDeveloperReraId = developerReraId || developer_rera_id || null;
     const resolvedDeveloperLaunchYear = (developerLaunchYear || developer_launch_year) ? Number(developerLaunchYear || developer_launch_year) : null;
+
+    const resolvedMaintenance = (monthlyMaintenanceInr !== undefined && monthlyMaintenanceInr !== null && !isNaN(Number(monthlyMaintenanceInr)))
+      ? Number(monthlyMaintenanceInr)
+      : (req.body.monthly_maintenance_inr !== undefined && req.body.monthly_maintenance_inr !== null && !isNaN(Number(req.body.monthly_maintenance_inr)))
+      ? Number(req.body.monthly_maintenance_inr)
+      : null;
+
+    const resolvedUnitFloor = (unitFloor !== undefined && unitFloor !== null && !isNaN(Number(unitFloor)))
+      ? Number(unitFloor)
+      : (unit_floor !== undefined && unit_floor !== null && !isNaN(Number(unit_floor)))
+      ? Number(unit_floor)
+      : null;
+
+    const resolvedTotalFloors = (totalFloors !== undefined && totalFloors !== null && !isNaN(Number(totalFloors)))
+      ? Number(totalFloors)
+      : (total_floors !== undefined && total_floors !== null && !isNaN(Number(total_floors)))
+      ? Number(total_floors)
+      : null;
+
+    const resolvedBathrooms = (bathroomsCount !== undefined && !isNaN(Number(bathroomsCount)))
+      ? Number(bathroomsCount)
+      : (bathrooms_count !== undefined && !isNaN(Number(bathrooms_count)))
+      ? Number(bathrooms_count)
+      : null;
+
+    const resolvedBalconies = (balconiesCount !== undefined && !isNaN(Number(balconiesCount)))
+      ? Number(balconiesCount)
+      : (balconies_count !== undefined && !isNaN(Number(balconies_count)))
+      ? Number(balconies_count)
+      : null;
+
+    const resolvedCarParks = (carParksCount !== undefined && !isNaN(Number(carParksCount)))
+      ? Number(carParksCount)
+      : (car_parks_count !== undefined && !isNaN(Number(car_parks_count)))
+      ? Number(car_parks_count)
+      : null;
 
     const projectLocality = (projectName && locality) ? `${projectName}, ${locality}` : (req.body.project_locality_id || existing.project_locality_id);
 
@@ -7192,7 +7661,7 @@ const updatePropertyHandler = async (req: Request, res: Response) => {
           super_built_up_sqft = COALESCE($9, super_built_up_sqft),
           carpet_area_sqft = COALESCE($10, carpet_area_sqft),
           asking_price_inr = COALESCE($11, asking_price_inr),
-          monthly_maintenance_inr = COALESCE($12, monthly_maintenance_inr),
+          monthly_maintenance_inr = CASE WHEN $12::numeric IS NOT NULL THEN $12 ELSE monthly_maintenance_inr END,
           amenities = COALESCE($13, amenities),
           developer_name = COALESCE($14, developer_name),
           landmarks = COALESCE($15, landmarks),
@@ -7205,8 +7674,13 @@ const updatePropertyHandler = async (req: Request, res: Response) => {
           developer_logo_url = COALESCE($22, developer_logo_url),
           developer_rera_id = COALESCE($23, developer_rera_id),
           developer_launch_year = COALESCE($24, developer_launch_year),
+          unit_floor = COALESCE($25, unit_floor),
+          total_floors = COALESCE($26, total_floors),
+          bathrooms_count = COALESCE($27, bathrooms_count),
+          balconies_count = COALESCE($28, balconies_count),
+          car_parks_count = COALESCE($29, car_parks_count),
           updated_at = NOW()
-      WHERE id = $25
+      WHERE id = $30
       RETURNING *;
     `, [
       title || null,
@@ -7220,7 +7694,7 @@ const updatePropertyHandler = async (req: Request, res: Response) => {
       superBuiltUpSqft || null,
       carpetAreaSqft || null,
       askingPriceInr || null,
-      monthlyMaintenanceInr || null,
+      resolvedMaintenance,
       amenities ? JSON.stringify(amenities) : null,
       developerName || null,
       landmarks ? JSON.stringify(landmarks) : null,
@@ -7233,6 +7707,11 @@ const updatePropertyHandler = async (req: Request, res: Response) => {
       resolvedDeveloperLogoUrl,
       resolvedDeveloperReraId,
       resolvedDeveloperLaunchYear,
+      resolvedUnitFloor,
+      resolvedTotalFloors,
+      resolvedBathrooms,
+      resolvedBalconies,
+      resolvedCarParks,
       id,
     ]);
 
@@ -7321,6 +7800,18 @@ app.post(
       }
       const existing = existingCheck.rows[0];
 
+      // Data sanitization and boundary check before approving
+      const askingPrice = Number(existing.asking_price_inr);
+      if (isNaN(askingPrice) || askingPrice < 5000) {
+        return res.status(422).json({ error: 'VALIDATION_FAILED', message: 'Cannot approve property: Asking price must be at least ₹5,000.' });
+      }
+      if (askingPrice > 1000000000) {
+        return res.status(422).json({ error: 'VALIDATION_FAILED', message: 'Cannot approve property: Asking price exceeds ₹100 Crores limit.' });
+      }
+
+      const cleanTitle = String(existing.title || '').replace(/<[^>]*>/g, '').trim();
+      const cleanDesc = String(existing.description || '').replace(/<[^>]*>/g, '').trim();
+
       const targetTier = existing.verification_tier === 'LEVEL_3_PHYSICALLY_INSPECTED'
         ? 'LEVEL_3_PHYSICALLY_INSPECTED'
         : 'LEVEL_2_DOCS_REVIEWED';
@@ -7329,10 +7820,13 @@ app.post(
         UPDATE properties
         SET crm_status = 'APPROVED',
             verification_tier = $1,
+            title = COALESCE(NULLIF($2, ''), title),
+            description = COALESCE(NULLIF($3, ''), description),
             updated_at = NOW()
-        WHERE id = $2
+        WHERE id = $4
         RETURNING *;
-      `, [targetTier, id]);
+      `, [targetTier, cleanTitle, cleanDesc, id]);
+
 
       await recordAuditEvent({
         actor: req.user!,
@@ -7352,6 +7846,30 @@ app.post(
         emailResult = await EmailNotificationService.handlePropertyApproved(updateRes.rows[0], req.user);
       } catch (apprErr: any) {
         console.warn('[CrmPropertyApprove] Email dispatch note:', apprErr.message);
+      }
+
+      // Dispatch AiSensy WhatsApp verified notification (non-blocking, idempotent)
+      try {
+        let ownerPhone = existing.owner_phone || existing.contact_phone;
+        let ownerName = existing.owner_name;
+        if (!ownerPhone && existing.internal_verification_notes) {
+          try {
+            const parsedNotes = JSON.parse(existing.internal_verification_notes);
+            ownerPhone = parsedNotes.ownerPhone || parsedNotes.contactPhone;
+            ownerName = ownerName || parsedNotes.ownerName;
+          } catch {}
+        }
+        if (ownerPhone) {
+          void AiSensyNotificationService.handlePropertyVerified({
+            ownerName: ownerName || 'Homeowner',
+            ownerPhone,
+            title: cleanTitle || existing.title || 'Bengaluru Apartment',
+            locality: existing.project_locality_id || 'Bengaluru',
+            propertyId: id,
+          }).catch((aisErr) => console.warn('[AiSensyPropertyVerified] Dispatch note:', aisErr.message));
+        }
+      } catch (aisensyApprErr: any) {
+        console.warn('[AiSensyPropertyVerified] Dispatch note:', aisensyApprErr.message);
       }
 
       return res.json({
@@ -7407,6 +7925,61 @@ const updatePropertyStatusHandler = async (req: Request, res: Response) => {
         emailResult = await EmailNotificationService.handlePropertyApproved(updateRes.rows[0], req.user);
       } catch (apprErr: any) {
         console.warn('[CrmStatusApproved] Email dispatch note:', apprErr.message);
+      }
+
+      // Dispatch AiSensy WhatsApp verified notification (non-blocking, idempotent)
+      try {
+        let ownerPhone = existing.owner_phone || existing.contact_phone;
+        let ownerName = existing.owner_name;
+        if (!ownerPhone && existing.internal_verification_notes) {
+          try {
+            const parsedNotes = JSON.parse(existing.internal_verification_notes);
+            ownerPhone = parsedNotes.ownerPhone || parsedNotes.contactPhone;
+            ownerName = ownerName || parsedNotes.ownerName;
+          } catch {}
+        }
+        if (ownerPhone) {
+          void AiSensyNotificationService.handlePropertyVerified({
+            ownerName: ownerName || 'Homeowner',
+            ownerPhone,
+            title: existing.title || 'Bengaluru Apartment',
+            locality: existing.project_locality_id || 'Bengaluru',
+            propertyId: id,
+          }).catch((aisErr) => console.warn('[AiSensyPropertyVerified] Dispatch note:', aisErr.message));
+        }
+      } catch (aisensyErr: any) {
+        console.warn('[AiSensyPropertyVerified] Dispatch note:', aisensyErr.message);
+      }
+    } else if (targetStatus === 'ACTION_REQUIRED' || targetStatus === 'DOCS_REQUESTED') {
+      updateRes = await executeQuery(`
+        UPDATE properties
+        SET crm_status = $1, updated_at = NOW()
+        WHERE id = $2
+        RETURNING *;
+      `, [targetStatus, id]);
+
+      try {
+        let ownerPhone = existing.owner_phone || existing.contact_phone;
+        let ownerName = existing.owner_name;
+        if (!ownerPhone && existing.internal_verification_notes) {
+          try {
+            const parsedNotes = JSON.parse(existing.internal_verification_notes);
+            ownerPhone = parsedNotes.ownerPhone || parsedNotes.contactPhone;
+            ownerName = ownerName || parsedNotes.ownerName;
+          } catch {}
+        }
+        if (ownerPhone) {
+          const actionText = String(req.body.actionRequiredText || req.body.reason || 'Additional property documentation or clarification requested by relationship manager');
+          void AiSensyNotificationService.handlePropertyActionRequired({
+            ownerName: ownerName || 'Homeowner',
+            ownerPhone,
+            title: existing.title || 'Bengaluru Apartment',
+            actionRequiredText: actionText,
+            propertyId: id,
+          }).catch((aisErr) => console.warn('[AiSensyPropertyActionRequired] Dispatch note:', aisErr.message));
+        }
+      } catch (aisensyErr: any) {
+        console.warn('[AiSensyPropertyActionRequired] Dispatch note:', aisensyErr.message);
       }
     } else if (targetStatus === 'PUBLISHED') {
       updateRes = await executeQuery(`
@@ -8081,7 +8654,7 @@ app.post(
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
-      const { url, fileName, fileBase64, isFeatured = false } = req.body;
+      const { url, fileName, fileBase64, isFeatured = false, title } = req.body;
       const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
 
       // Verify target property exists
@@ -8323,10 +8896,10 @@ app.post(
       }
 
       const insertRes = await executeQuery(`
-        INSERT INTO property_media (id, property_id, url, is_featured, display_order, checksum, storage_path, mime_type, file_size_bytes, created_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+        INSERT INTO property_media (id, property_id, url, is_featured, display_order, checksum, storage_path, mime_type, file_size_bytes, title, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
         RETURNING *;
-      `, [mediaId, id, finalUrl, Boolean(isFeatured), nextDisplayOrder, checksum, storagePath, mimeType, fileSize]);
+      `, [mediaId, id, finalUrl, Boolean(isFeatured), nextDisplayOrder, checksum, storagePath, mimeType, fileSize, title || null]);
 
       await recordAuditEvent({
         actor: req.user!,
@@ -8385,6 +8958,32 @@ app.delete(
     } catch (err: any) {
       console.error('[CrmPropertyDeleteImage] Error:', err);
       return res.status(500).json({ error: 'Failed to delete image' });
+    }
+  }
+);
+
+// 10b. Update Image Title / Caption
+app.patch(
+  '/api/crm/properties/:id/images/:imageId',
+  jsonDefault,
+  authenticateUser,
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER', 'STAFF_DEAL_CLOSER'),
+  async (req: Request, res: Response) => {
+    try {
+      const { id, imageId } = req.params;
+      const { title } = req.body;
+      const cleanTitle = typeof title === 'string' ? title.trim().slice(0, 255) : null;
+      await executeQuery(
+        `UPDATE property_media SET title = $1 WHERE id = $2 AND property_id = $3;`,
+        [cleanTitle, imageId, id]
+      );
+      return res.json({
+        success: true,
+        message: 'Image title updated successfully',
+      });
+    } catch (err: any) {
+      console.error('[CrmPropertyUpdateImageTitle] Error:', err);
+      return res.status(500).json({ error: 'Failed to update image title' });
     }
   }
 );
@@ -8610,11 +9209,26 @@ async function startServer() {
   await executeQuery(`
     DELETE FROM publication_notifications WHERE LOWER(recipient_email) IN ('yashwantkeyan@gmail.com', 'socialmedia@myhappyjourney.com');
   `).catch(() => {});
-  await executeQuery(`
-    DELETE FROM users WHERE LOWER(email) IN ('yashwantkeyan@gmail.com', 'socialmedia@myhappyjourney.com');
-  `).catch(() => {});
+  // Dedicated API 404 fallback (guarantees JSON response, prevents returning HTML index.html for API requests)
+  app.all('/api/*', (_req: Request, res: Response) => {
+    return res.status(404).json({
+      error: 'NOT_FOUND',
+      message: 'API endpoint not found.'
+    });
+  });
+
+  // Dedicated API Error Handler (guarantees unhandled exceptions in /api return structured JSON)
+  app.use('/api', (err: any, _req: Request, res: Response, _next: NextFunction) => {
+    console.error('[SellMyGhar API Error Handler]:', err);
+    const status = typeof err.status === 'number' && err.status >= 400 && err.status < 600 ? err.status : 500;
+    return res.status(status).json({
+      error: err.code || err.name || 'INTERNAL_SERVER_ERROR',
+      message: err.message || 'An unexpected server error occurred.'
+    });
+  });
 
   if (!isProd) {
+
     const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },

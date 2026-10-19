@@ -141,14 +141,14 @@ export const PUBLISHED_TEMPLATE_DEFAULT = `<!DOCTYPE html>
   <style>
     body { font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #F4F6F9; margin: 0; padding: 24px 12px; color: #172033; }
     .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #E2E8F0; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.05); }
-    .header { background: #172033; padding: 24px 32px; text-align: left; border-bottom: 3px solid #244B8F; }
+    .header { background: #172033; padding: 24px 32px; text-align: left; border-bottom: 3px solid #0073E6; }
     .brand { font-size: 22px; font-weight: 800; color: #ffffff; letter-spacing: -0.5px; }
     .brand span { color: #38BDF8; }
     .sub-brand { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #94A3B8; margin-top: 4px; }
     .cover-wrap { width: 100%; height: 260px; background-color: #0F172A; position: relative; overflow: hidden; }
     .cover-img { width: 100%; height: 100%; object-fit: cover; }
     .body { padding: 32px; }
-    .badge-pill { display: inline-block; padding: 4px 12px; background: #EFF6FF; border: 1px solid #BFDBFE; color: #244B8F; font-size: 11px; font-weight: 700; border-radius: 20px; text-transform: uppercase; margin-bottom: 12px; }
+    .badge-pill { display: inline-block; padding: 4px 12px; background: #EFF6FF; border: 1px solid #BFDBFE; color: #0073E6; font-size: 11px; font-weight: 700; border-radius: 20px; text-transform: uppercase; margin-bottom: 12px; }
     h1 { font-size: 22px; font-weight: 800; color: #172033; margin: 0 0 16px 0; line-height: 1.3; }
     .spec-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 20px 0; padding: 16px; background: #F8FAFC; border-radius: 12px; border: 1px solid #EDF2F7; }
     .spec-item { font-size: 13px; color: #64748B; }
@@ -158,9 +158,9 @@ export const PUBLISHED_TEMPLATE_DEFAULT = `<!DOCTYPE html>
     .price-value { font-size: 24px; font-weight: 800; color: #15803D; }
     .desc { font-size: 14px; line-height: 1.6; color: #475569; margin-bottom: 28px; }
     .btn-wrap { text-align: center; margin: 30px 0 10px 0; }
-    .btn { display: inline-block; background: #244B8F; color: #ffffff !important; text-decoration: none; font-size: 14px; font-weight: 700; padding: 14px 36px; border-radius: 10px; box-shadow: 0 4px 12px rgba(36,75,143,0.3); }
+    .btn { display: inline-block; background: #0073E6; color: #ffffff !important; text-decoration: none; font-size: 14px; font-weight: 700; padding: 14px 36px; border-radius: 10px; box-shadow: 0 4px 12px rgba(36,75,143,0.3); }
     .footer { background: #F8FAFC; padding: 24px 32px; border-top: 1px solid #E2E8F0; text-align: center; font-size: 12px; color: #94A3B8; line-height: 1.5; }
-    .footer a { color: #244B8F; text-decoration: underline; }
+    .footer a { color: #0073E6; text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -224,12 +224,12 @@ export const MEETING_TEMPLATE_DEFAULT = `<!DOCTYPE html>
   <style>
     body { font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #F4F6F9; margin: 0; padding: 24px 12px; color: #172033; }
     .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #E2E8F0; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.05); }
-    .header { background: #172033; padding: 24px 32px; text-align: left; border-bottom: 3px solid #244B8F; }
+    .header { background: #172033; padding: 24px 32px; text-align: left; border-bottom: 3px solid #0073E6; }
     .brand { font-size: 22px; font-weight: 800; color: #ffffff; letter-spacing: -0.5px; }
     .brand span { color: #38BDF8; }
     .sub-brand { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #94A3B8; margin-top: 4px; }
     .body { padding: 32px; }
-    .badge-pill { display: inline-block; padding: 4px 12px; background: #EFF6FF; border: 1px solid #BFDBFE; color: #244B8F; font-size: 11px; font-weight: 700; border-radius: 20px; text-transform: uppercase; margin-bottom: 12px; }
+    .badge-pill { display: inline-block; padding: 4px 12px; background: #EFF6FF; border: 1px solid #BFDBFE; color: #0073E6; font-size: 11px; font-weight: 700; border-radius: 20px; text-transform: uppercase; margin-bottom: 12px; }
     h1 { font-size: 22px; font-weight: 800; color: #172033; margin: 0 0 16px 0; line-height: 1.3; }
     .meeting-card { background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 12px; padding: 20px; margin: 20px 0; }
     .meeting-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #EDF2F7; font-size: 13px; }
@@ -238,7 +238,7 @@ export const MEETING_TEMPLATE_DEFAULT = `<!DOCTYPE html>
     .meeting-val { color: #0F172A; font-weight: 700; text-align: right; }
     .ics-banner { background: #EFF6FF; border: 1px dashed #93C5FD; border-radius: 8px; padding: 12px 16px; font-size: 12px; color: #1E40AF; margin: 20px 0; line-height: 1.5; }
     .btn-wrap { text-align: center; margin: 24px 0 10px 0; }
-    .btn { display: inline-block; background: #244B8F; color: #ffffff !important; text-decoration: none; font-size: 14px; font-weight: 700; padding: 12px 28px; border-radius: 8px; }
+    .btn { display: inline-block; background: #0073E6; color: #ffffff !important; text-decoration: none; font-size: 14px; font-weight: 700; padding: 12px 28px; border-radius: 8px; }
     .footer { background: #F8FAFC; padding: 24px 32px; border-top: 1px solid #E2E8F0; text-align: center; font-size: 12px; color: #94A3B8; line-height: 1.5; }
   </style>
 </head>
@@ -299,7 +299,7 @@ export const APPROVED_TEMPLATE_DEFAULT = `<!DOCTYPE html>
   <style>
     body { font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #F4F6F9; margin: 0; padding: 24px 12px; color: #172033; }
     .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #E2E8F0; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.05); }
-    .header { background: #172033; padding: 24px 32px; text-align: left; border-bottom: 3px solid #244B8F; }
+    .header { background: #172033; padding: 24px 32px; text-align: left; border-bottom: 3px solid #0073E6; }
     .brand { font-size: 22px; font-weight: 800; color: #ffffff; letter-spacing: -0.5px; }
     .brand span { color: #38BDF8; }
     .sub-brand { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #94A3B8; margin-top: 4px; }
@@ -311,7 +311,7 @@ export const APPROVED_TEMPLATE_DEFAULT = `<!DOCTYPE html>
     .spec-item strong { display: block; font-size: 15px; color: #0F172A; margin-top: 2px; }
     .highlight-box { background: #F0FDF4; border: 1px solid #BBF7D0; border-radius: 12px; padding: 16px 20px; margin: 20px 0; }
     .btn-wrap { text-align: center; margin: 24px 0 10px 0; }
-    .btn { display: inline-block; background: #244B8F; color: #ffffff !important; text-decoration: none; font-size: 14px; font-weight: 700; padding: 12px 28px; border-radius: 8px; }
+    .btn { display: inline-block; background: #0073E6; color: #ffffff !important; text-decoration: none; font-size: 14px; font-weight: 700; padding: 12px 28px; border-radius: 8px; }
     .footer { background: #F8FAFC; padding: 24px 32px; border-top: 1px solid #E2E8F0; text-align: center; font-size: 12px; color: #94A3B8; line-height: 1.5; }
   </style>
 </head>
@@ -388,12 +388,12 @@ export const ONBOARDING_TEMPLATE_DEFAULT = `<!DOCTYPE html>
   <style>
     body { font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #F4F6F9; margin: 0; padding: 24px 12px; color: #172033; }
     .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #E2E8F0; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.05); }
-    .header { background: #172033; padding: 24px 32px; text-align: left; border-bottom: 3px solid #244B8F; }
+    .header { background: #172033; padding: 24px 32px; text-align: left; border-bottom: 3px solid #0073E6; }
     .brand { font-size: 22px; font-weight: 800; color: #ffffff; letter-spacing: -0.5px; }
     .brand span { color: #38BDF8; }
     .sub-brand { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #94A3B8; margin-top: 4px; }
     .body { padding: 32px; }
-    .badge-pill { display: inline-block; padding: 4px 12px; background: #EFF6FF; border: 1px solid #BFDBFE; color: #244B8F; font-size: 11px; font-weight: 700; border-radius: 20px; text-transform: uppercase; margin-bottom: 12px; }
+    .badge-pill { display: inline-block; padding: 4px 12px; background: #EFF6FF; border: 1px solid #BFDBFE; color: #0073E6; font-size: 11px; font-weight: 700; border-radius: 20px; text-transform: uppercase; margin-bottom: 12px; }
     h1 { font-size: 22px; font-weight: 800; color: #172033; margin: 0 0 16px 0; line-height: 1.3; }
     .feature-list { margin: 24px 0; padding: 0; list-style: none; }
     .feature-item { display: flex; align-items: flex-start; margin-bottom: 16px; }
@@ -401,9 +401,9 @@ export const ONBOARDING_TEMPLATE_DEFAULT = `<!DOCTYPE html>
     .feature-title { font-weight: 700; color: #172033; font-size: 14px; margin-bottom: 2px; }
     .feature-desc { color: #64748B; font-size: 12px; line-height: 1.5; }
     .btn-wrap { text-align: center; margin: 32px 0 16px 0; }
-    .btn { display: inline-block; background: #244B8F; color: #ffffff !important; text-decoration: none; font-size: 14px; font-weight: 700; padding: 14px 36px; border-radius: 10px; box-shadow: 0 4px 12px rgba(36,75,143,0.3); }
+    .btn { display: inline-block; background: #0073E6; color: #ffffff !important; text-decoration: none; font-size: 14px; font-weight: 700; padding: 14px 36px; border-radius: 10px; box-shadow: 0 4px 12px rgba(36,75,143,0.3); }
     .footer { background: #F8FAFC; padding: 24px 32px; border-top: 1px solid #E2E8F0; text-align: center; font-size: 12px; color: #94A3B8; line-height: 1.5; }
-    .footer a { color: #244B8F; text-decoration: underline; }
+    .footer a { color: #0073E6; text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -445,7 +445,7 @@ export const ONBOARDING_TEMPLATE_DEFAULT = `<!DOCTYPE html>
         <a href="{{dashboard_url}}" class="btn" target="_blank">Access Your Dashboard &rarr;</a>
       </div>
       <p style="font-size: 13px; color: #64748B; text-align: center; margin: 24px 0 0 0;">
-        Have questions or need assistance? Reply directly to this message or contact our onboarding team at <a href="mailto:onboarding@sellmyghar.in" style="color: #244B8F; font-weight: 700; text-decoration: none;">onboarding@sellmyghar.in</a>.
+        Have questions or need assistance? Reply directly to this message or contact our onboarding team at <a href="mailto:onboarding@sellmyghar.in" style="color: #0073E6; font-weight: 700; text-decoration: none;">onboarding@sellmyghar.in</a>.
       </p>
     </div>
     <div class="footer">
@@ -833,7 +833,7 @@ export const PublicationEmailManager: React.FC = () => {
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-5">
         <div>
           <div className="flex items-center space-x-2">
-            <Mail className="w-5 h-5 text-[#244B8F]" />
+            <Mail className="w-5 h-5 text-[#0073E6]" />
             <h3 className="text-base font-extrabold text-[#172033]">
               Transactional Email Notification Manager
             </h3>
@@ -867,7 +867,7 @@ export const PublicationEmailManager: React.FC = () => {
             onClick={() => setSelectedTemplateKey('PROPERTY_SUBMISSION_RECEIVED')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
               selectedTemplateKey === 'PROPERTY_SUBMISSION_RECEIVED'
-                ? 'bg-[#244B8F] text-white shadow-xs'
+                ? 'bg-[#0073E6] text-white shadow-xs'
                 : 'bg-transparent text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
             }`}
           >
@@ -880,7 +880,7 @@ export const PublicationEmailManager: React.FC = () => {
             onClick={() => setSelectedTemplateKey('MEETING_SCHEDULED')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
               selectedTemplateKey === 'MEETING_SCHEDULED'
-                ? 'bg-[#244B8F] text-white shadow-xs'
+                ? 'bg-[#0073E6] text-white shadow-xs'
                 : 'bg-transparent text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
             }`}
           >
@@ -893,7 +893,7 @@ export const PublicationEmailManager: React.FC = () => {
             onClick={() => setSelectedTemplateKey('PROPERTY_APPROVED')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
               selectedTemplateKey === 'PROPERTY_APPROVED'
-                ? 'bg-[#244B8F] text-white shadow-xs'
+                ? 'bg-[#0073E6] text-white shadow-xs'
                 : 'bg-transparent text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
             }`}
           >
@@ -906,7 +906,7 @@ export const PublicationEmailManager: React.FC = () => {
             onClick={() => setSelectedTemplateKey('PROPERTY_PUBLISHED')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
               selectedTemplateKey === 'PROPERTY_PUBLISHED'
-                ? 'bg-[#244B8F] text-white shadow-xs'
+                ? 'bg-[#0073E6] text-white shadow-xs'
                 : 'bg-transparent text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
             }`}
           >
@@ -919,7 +919,7 @@ export const PublicationEmailManager: React.FC = () => {
             onClick={() => setSelectedTemplateKey('USER_ONBOARDING_WELCOME')}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center space-x-1.5 ${
               selectedTemplateKey === 'USER_ONBOARDING_WELCOME'
-                ? 'bg-[#244B8F] text-white shadow-xs'
+                ? 'bg-[#0073E6] text-white shadow-xs'
                 : 'bg-transparent text-slate-600 hover:bg-slate-200/70 hover:text-slate-900'
             }`}
           >
@@ -940,7 +940,7 @@ export const PublicationEmailManager: React.FC = () => {
       {/* Truthful SMTP Disclosure Banner */}
       <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-600 space-y-1">
         <div className="font-bold text-slate-800 flex items-center space-x-1.5">
-          <Info className="w-4 h-4 text-[#244B8F]" />
+          <Info className="w-4 h-4 text-[#0073E6]" />
           <span>Email Subsystem Status</span>
         </div>
         <p className="text-[11px] text-slate-500">
@@ -976,7 +976,7 @@ export const PublicationEmailManager: React.FC = () => {
               type="text"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm font-medium focus:ring-2 focus:ring-[#244B8F] focus:outline-none"
+              className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs sm:text-sm font-medium focus:ring-2 focus:ring-[#0073E6] focus:outline-none"
               placeholder="e.g. Your property has been submitted | SellMyGhar.in"
             />
           </div>
@@ -992,7 +992,7 @@ export const PublicationEmailManager: React.FC = () => {
                   key={t.tag}
                   type="button"
                   onClick={() => insertPlaceholder(t.tag)}
-                  className="px-2.5 py-1 rounded bg-slate-100 hover:bg-blue-50 hover:text-[#244B8F] border border-slate-200/80 font-mono text-[11px] transition-colors cursor-pointer"
+                  className="px-2.5 py-1 rounded bg-slate-100 hover:bg-blue-50 hover:text-[#0073E6] border border-slate-200/80 font-mono text-[11px] transition-colors cursor-pointer"
                   title={t.desc}
                 >
                   {t.tag}
@@ -1011,7 +1011,7 @@ export const PublicationEmailManager: React.FC = () => {
               rows={14}
               value={htmlBody}
               onChange={(e) => setHtmlBody(e.target.value)}
-              className="w-full p-3.5 font-mono text-xs bg-slate-900 text-slate-100 rounded-xl border border-slate-700 focus:outline-none focus:ring-2 focus:ring-[#244B8F] leading-relaxed shadow-inner"
+              className="w-full p-3.5 font-mono text-xs bg-slate-900 text-slate-100 rounded-xl border border-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0073E6] leading-relaxed shadow-inner"
               placeholder="Paste or edit responsive HTML email markup..."
             />
           </div>
@@ -1023,7 +1023,7 @@ export const PublicationEmailManager: React.FC = () => {
               <button
                 type="submit"
                 disabled={saving}
-                className="px-4 py-2.5 rounded-xl bg-[#244B8F] hover:bg-[#1B396E] text-white font-bold transition-colors cursor-pointer flex items-center space-x-1.5 shadow-xs"
+                className="px-4 py-2.5 rounded-xl bg-[#0073E6] hover:bg-[#005BB5] text-white font-bold transition-colors cursor-pointer flex items-center space-x-1.5 shadow-xs"
               >
                 <Save className="w-3.5 h-3.5" />
                 <span>{saving ? 'Saving...' : 'Save Template'}</span>
@@ -1032,7 +1032,7 @@ export const PublicationEmailManager: React.FC = () => {
               <button
                 type="button"
                 onClick={handlePreview}
-                className="px-4 py-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-[#244B8F] border border-blue-200 font-bold transition-colors cursor-pointer flex items-center space-x-1.5 shadow-xs"
+                className="px-4 py-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-[#0073E6] border border-blue-200 font-bold transition-colors cursor-pointer flex items-center space-x-1.5 shadow-xs"
               >
                 <Eye className="w-3.5 h-3.5" />
                 <span>Live Preview</span>
@@ -1057,7 +1057,7 @@ export const PublicationEmailManager: React.FC = () => {
                 value={testEmail}
                 onChange={(e) => setTestEmail(e.target.value)}
                 placeholder="test@example.com"
-                className="px-3 py-2 border border-slate-300 rounded-lg text-xs w-48 focus:outline-none focus:ring-1 focus:ring-[#244B8F]"
+                className="px-3 py-2 border border-slate-300 rounded-lg text-xs w-48 focus:outline-none focus:ring-1 focus:ring-[#0073E6]"
               />
               <button
                 type="button"
@@ -1100,7 +1100,7 @@ export const PublicationEmailManager: React.FC = () => {
                     type="button"
                     onClick={() => setPreviewViewport('desktop')}
                     className={`px-2 py-1 rounded text-[11px] font-semibold flex items-center space-x-1 cursor-pointer transition-colors ${
-                      previewViewport === 'desktop' ? 'bg-[#244B8F] text-white' : 'text-slate-400 hover:text-white'
+                      previewViewport === 'desktop' ? 'bg-[#0073E6] text-white' : 'text-slate-400 hover:text-white'
                     }`}
                     title="Desktop Email Client Canvas (600px)"
                   >
@@ -1112,7 +1112,7 @@ export const PublicationEmailManager: React.FC = () => {
                     type="button"
                     onClick={() => setPreviewViewport('mobile')}
                     className={`px-2 py-1 rounded text-[11px] font-semibold flex items-center space-x-1 cursor-pointer transition-colors ${
-                      previewViewport === 'mobile' ? 'bg-[#244B8F] text-white' : 'text-slate-400 hover:text-white'
+                      previewViewport === 'mobile' ? 'bg-[#0073E6] text-white' : 'text-slate-400 hover:text-white'
                     }`}
                     title="Mobile View (375px)"
                   >
@@ -1124,7 +1124,7 @@ export const PublicationEmailManager: React.FC = () => {
                     type="button"
                     onClick={() => setPreviewViewport('full')}
                     className={`px-2 py-1 rounded text-[11px] font-semibold flex items-center space-x-1 cursor-pointer transition-colors ${
-                      previewViewport === 'full' ? 'bg-[#244B8F] text-white' : 'text-slate-400 hover:text-white'
+                      previewViewport === 'full' ? 'bg-[#0073E6] text-white' : 'text-slate-400 hover:text-white'
                     }`}
                     title="Full Width"
                   >
@@ -1247,7 +1247,7 @@ export const PublicationEmailManager: React.FC = () => {
                   type="button"
                   disabled={sendingTest}
                   onClick={handleSendTest}
-                  className="px-3.5 py-1.5 rounded-lg bg-[#244B8F] hover:bg-[#1B396E] text-white font-bold transition-colors cursor-pointer flex items-center space-x-1"
+                  className="px-3.5 py-1.5 rounded-lg bg-[#0073E6] hover:bg-[#005BB5] text-white font-bold transition-colors cursor-pointer flex items-center space-x-1"
                 >
                   <Send className="w-3 h-3" />
                   <span>{sendingTest ? 'Sending...' : 'Send Test'}</span>

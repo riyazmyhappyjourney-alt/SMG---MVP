@@ -475,8 +475,9 @@ export class SellerWorkflowService {
       [
         {
           id: 'photo-1',
-          cdn_url: 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80',
+          cdn_url: 'https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?auto=format&fit=crop&w=1200&q=80',
           caption: 'Spacious Living Room',
+
           is_cover: true,
           order: 1,
         },

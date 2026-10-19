@@ -202,9 +202,9 @@ export const LeadCapture: React.FC<LeadCaptureProps> = ({
         
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-10">
-          <div className="inline-flex items-center space-x-1.5 bg-[#244B8F]/10 text-[#244B8F] px-3.5 py-1 rounded-full text-xs font-bold tracking-wide uppercase font-['Montserrat'] mb-3">
-            <Award className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Karnataka RERA Approved • Verified Bengaluru Resale Desk</span>
+          <div className="inline-flex items-center space-x-1.5 bg-[#0073E6]/10 text-[#0073E6] px-3.5 py-1 rounded-full text-xs font-bold tracking-wide uppercase font-['Montserrat'] mb-3">
+            <Award className="w-3.5 h-3.5 text-[#0073E6]" />
+            <span>Karnataka RERA Registered • Verified Bengaluru Resale Desk</span>
           </div>
           <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold text-[#172033] tracking-tight font-['Montserrat']">
             {intent === 'SELL' ? 'Sell Your Apartment Direct to Verified Buyers' : 'Find Your Ideal Verified Resale Apartment'}
@@ -231,7 +231,7 @@ export const LeadCapture: React.FC<LeadCaptureProps> = ({
                   onClick={() => setIntent('SELL')}
                   className={`py-2.5 px-4 rounded text-xs font-bold transition-colors flex items-center justify-center space-x-2 cursor-pointer font-['Montserrat'] ${
                     intent === 'SELL'
-                      ? 'bg-[#244B8F] text-white'
+                      ? 'bg-[#0073E6] text-white'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
@@ -243,7 +243,7 @@ export const LeadCapture: React.FC<LeadCaptureProps> = ({
                   onClick={() => setIntent('BUY')}
                   className={`py-2.5 px-4 rounded text-xs font-bold transition-colors flex items-center justify-center space-x-2 cursor-pointer font-['Montserrat'] ${
                     intent === 'BUY'
-                      ? 'bg-[#244B8F] text-white'
+                      ? 'bg-[#0073E6] text-white'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
@@ -283,7 +283,7 @@ export const LeadCapture: React.FC<LeadCaptureProps> = ({
                       <span className="text-[11px] uppercase tracking-wider font-semibold text-slate-400 block font-['Montserrat']">
                         Your Official Reference ID
                       </span>
-                      <span className="text-xl font-extrabold text-[#244B8F] font-mono tracking-wider">
+                      <span className="text-xl font-extrabold text-[#0073E6] font-mono tracking-wider">
                         {confirmationData.referenceId}
                       </span>
                     </div>
@@ -331,8 +331,8 @@ export const LeadCapture: React.FC<LeadCaptureProps> = ({
                 </div>
 
                 {/* Human Advisor Next Steps Promise */}
-                <div className="bg-[#244B8F]/5 border border-[#244B8F]/15 p-4 rounded-xl text-xs text-slate-700 flex items-start space-x-3 font-['Poppins']">
-                  <Clock className="w-5 h-5 text-[#244B8F] shrink-0 mt-0.5" />
+                <div className="bg-[#0073E6]/5 border border-[#0073E6]/15 p-4 rounded-xl text-xs text-slate-700 flex items-start space-x-3 font-['Poppins']">
+                  <Clock className="w-5 h-5 text-[#0073E6] shrink-0 mt-0.5" />
                   <div className="leading-relaxed">
                     <p className="font-bold text-[#172033] font-['Montserrat']">
                       Personal Advisor Assigned
@@ -386,19 +386,23 @@ export const LeadCapture: React.FC<LeadCaptureProps> = ({
                       <User className="w-4 h-4" />
                     </div>
                     <input
+                      id="lead-full-name"
+                      name="fullName"
+                      aria-label="Owner Full Name"
                       type="text"
                       required
+                      maxLength={60}
                       placeholder="e.g. Riyaz Ahmed"
                       value={fullName}
                       onChange={(e) => setFullName(e.target.value)}
-                      className="w-full pl-10 pr-3.5 py-2.5 sm:py-3 rounded-lg border border-slate-300 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#244B8F]/30 focus:border-[#244B8F] bg-white text-slate-800 font-['Poppins']"
+                      className="w-full pl-10 pr-3.5 py-2.5 sm:py-3 rounded-lg border border-slate-300 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#0073E6]/30 focus:border-[#0073E6] bg-white text-slate-800 font-['Poppins']"
                     />
                   </div>
                 </div>
 
                 {/* 2. Phone Number */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1 font-['Montserrat']">
+                  <label htmlFor="lead-phone" className="block text-xs font-bold text-slate-700 mb-1 font-['Montserrat']">
                     2. Phone Number <span className="text-rose-500">*</span>
                   </label>
                   <div className="relative">
@@ -406,13 +410,16 @@ export const LeadCapture: React.FC<LeadCaptureProps> = ({
                       +91
                     </div>
                     <input
+                      id="lead-phone"
+                      name="phone"
+                      aria-label="Owner Phone Number"
                       type="tel"
                       required
                       maxLength={10}
                       placeholder="9845012345"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
-                      className="w-full pl-12 pr-3.5 py-2.5 sm:py-3 rounded-lg border border-slate-300 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#244B8F]/30 focus:border-[#244B8F] bg-white text-slate-800 font-['Poppins'] tracking-wider"
+                      className="w-full pl-12 pr-3.5 py-2.5 sm:py-3 rounded-lg border border-slate-300 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#0073E6]/30 focus:border-[#0073E6] bg-white text-slate-800 font-['Poppins'] tracking-wider"
                     />
                   </div>
                   <p className="text-[11px] text-slate-400 mt-1 flex items-center">
@@ -423,7 +430,7 @@ export const LeadCapture: React.FC<LeadCaptureProps> = ({
 
                 {/* 3. Apartment / Society Name (Pure Typing Input - No Dropdown) */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1 font-['Montserrat']">
+                  <label htmlFor="lead-society-name" className="block text-xs font-bold text-slate-700 mb-1 font-['Montserrat']">
                     3. Apartment / Society Name <span className="text-rose-500">*</span>
                   </label>
                   <div className="relative">
@@ -431,19 +438,23 @@ export const LeadCapture: React.FC<LeadCaptureProps> = ({
                       <Building2 className="w-4 h-4" />
                     </div>
                     <input
+                      id="lead-society-name"
+                      name="societyName"
+                      aria-label="Apartment Society Name"
                       type="text"
                       required
+                      maxLength={100}
                       placeholder="Type society name (e.g. Sobha Dream Acres, Prestige Shantiniketan)"
                       value={societyName}
                       onChange={(e) => setSocietyName(e.target.value)}
-                      className="w-full pl-10 pr-3.5 py-2.5 sm:py-3 rounded-lg border border-slate-300 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#244B8F]/30 focus:border-[#244B8F] bg-white text-slate-800 font-['Poppins']"
+                      className="w-full pl-10 pr-3.5 py-2.5 sm:py-3 rounded-lg border border-slate-300 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#0073E6]/30 focus:border-[#0073E6] bg-white text-slate-800 font-['Poppins']"
                     />
                   </div>
                 </div>
 
                 {/* 4. Locality in Bengaluru (Pure Typing Input - No Dropdown) */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1 font-['Montserrat']">
+                  <label htmlFor="lead-locality" className="block text-xs font-bold text-slate-700 mb-1 font-['Montserrat']">
                     4. Locality in Bengaluru <span className="text-rose-500">*</span>
                   </label>
                   <div className="relative">
@@ -451,12 +462,16 @@ export const LeadCapture: React.FC<LeadCaptureProps> = ({
                       <MapPin className="w-4 h-4" />
                     </div>
                     <input
+                      id="lead-locality"
+                      name="locality"
+                      aria-label="Bengaluru Locality"
                       type="text"
                       required
+                      maxLength={100}
                       placeholder="Type locality (e.g. Whitefield, Sarjapur Road, Bellandur)"
                       value={locality}
                       onChange={(e) => setLocality(e.target.value)}
-                      className="w-full pl-10 pr-3.5 py-2.5 sm:py-3 rounded-lg border border-slate-300 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#244B8F]/30 focus:border-[#244B8F] bg-white text-slate-800 font-['Poppins']"
+                      className="w-full pl-10 pr-3.5 py-2.5 sm:py-3 rounded-lg border border-slate-300 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#0073E6]/30 focus:border-[#0073E6] bg-white text-slate-800 font-['Poppins']"
                     />
                   </div>
                 </div>
@@ -466,13 +481,16 @@ export const LeadCapture: React.FC<LeadCaptureProps> = ({
                   
                   {/* BHK Configuration Options */}
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1 font-['Montserrat']">
+                    <label htmlFor="lead-bhk-select" className="block text-xs font-bold text-slate-700 mb-1 font-['Montserrat']">
                       5. BHK Configuration <span className="text-rose-500">*</span>
                     </label>
                     <select
+                      id="lead-bhk-select"
+                      name="bhkType"
+                      aria-label="BHK Configuration"
                       value={bhkType}
                       onChange={(e) => setBhkType(e.target.value as BHKOption)}
-                      className="w-full px-3.5 py-2.5 sm:py-3 rounded-lg border border-slate-300 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#244B8F]/30 focus:border-[#244B8F] bg-white text-slate-800 font-['Poppins'] font-semibold"
+                      className="w-full px-3.5 py-2.5 sm:py-3 rounded-lg border border-slate-300 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#0073E6]/30 focus:border-[#0073E6] bg-white text-slate-800 font-['Poppins'] font-semibold"
                     >
                       <option value="1BHK">1 BHK</option>
                       <option value="2BHK">2 BHK</option>
@@ -485,7 +503,7 @@ export const LeadCapture: React.FC<LeadCaptureProps> = ({
 
                   {/* Super Built-Up Area (SBUA) typing option */}
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1 font-['Montserrat']">
+                    <label htmlFor="lead-built-up-sqft" className="block text-xs font-bold text-slate-700 mb-1 font-['Montserrat']">
                       6. Super Built-Up Area (Sq.Ft)
                     </label>
                     <div className="relative">
@@ -493,13 +511,16 @@ export const LeadCapture: React.FC<LeadCaptureProps> = ({
                         <Maximize2 className="w-4 h-4" />
                       </div>
                       <input
+                        id="lead-built-up-sqft"
+                        name="builtUpSqft"
+                        aria-label="Super Built-Up Area in Sq Ft"
                         type="number"
                         min={350}
                         max={15000}
                         placeholder="e.g. 1450"
                         value={builtUpSqft}
                         onChange={(e) => setBuiltUpSqft(e.target.value)}
-                        className="w-full pl-10 pr-12 py-2.5 sm:py-3 rounded-lg border border-slate-300 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#244B8F]/30 focus:border-[#244B8F] bg-white text-slate-800 font-['Poppins']"
+                        className="w-full pl-10 pr-12 py-2.5 sm:py-3 rounded-lg border border-slate-300 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#0073E6]/30 focus:border-[#0073E6] bg-white text-slate-800 font-['Poppins']"
                       />
                       <span className="absolute right-3 top-3 text-xs text-slate-400 font-medium pointer-events-none">
                         sq.ft
@@ -509,12 +530,13 @@ export const LeadCapture: React.FC<LeadCaptureProps> = ({
 
                 </div>
 
+
                 {/* Submit Action */}
                 <div className="pt-2">
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full py-3.5 px-6 rounded-md text-sm font-bold text-white bg-[#244B8F] hover:bg-[#1B396E] transition-colors cursor-pointer font-['Montserrat'] tracking-wide flex items-center justify-center space-x-2 disabled:opacity-60"
+                    className="w-full py-3.5 px-6 rounded-md text-sm font-bold text-white bg-[#0073E6] hover:bg-[#005BB5] transition-colors cursor-pointer font-['Montserrat'] tracking-wide flex items-center justify-center space-x-2 disabled:opacity-60"
                   >
                     {loading ? (
                       <>
@@ -533,8 +555,8 @@ export const LeadCapture: React.FC<LeadCaptureProps> = ({
                 </div>
 
                 <div className="flex items-center justify-center space-x-1.5 text-[11px] text-slate-500 text-center font-['Poppins'] pt-1">
-                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Karnataka RERA Approved • Senior Advisor Callback within 24h</span>
+                  <ShieldCheck className="w-3.5 h-3.5 text-[#0073E6]" />
+                  <span>Karnataka RERA Registered • Senior Advisor Callback within 24h</span>
                 </div>
 
               </form>
@@ -550,7 +572,7 @@ export const LeadCapture: React.FC<LeadCaptureProps> = ({
                   The SellMyGhar Commitment
                 </span>
                 <h3 className="text-xl sm:text-2xl font-bold font-['Montserrat'] mt-1 text-white">
-                  RERA Approved Resales
+                  RERA Registered Resale Desk
                 </h3>
               </div>
 
@@ -565,8 +587,8 @@ export const LeadCapture: React.FC<LeadCaptureProps> = ({
                   </p>
                 </div>
 
-                <div className="p-3 bg-white/5 border-l-2 border-emerald-500 rounded-r">
-                  <div className="flex items-center space-x-2 text-emerald-400 mb-0.5">
+                <div className="p-3 bg-white/5 border-l-2 border-[#0073E6] rounded-r">
+                  <div className="flex items-center space-x-2 text-blue-300 mb-0.5">
                     <Award className="w-4 h-4 shrink-0" />
                     <h4 className="font-bold text-white font-['Montserrat'] text-xs">RERA Legal Due Diligence</h4>
                   </div>
