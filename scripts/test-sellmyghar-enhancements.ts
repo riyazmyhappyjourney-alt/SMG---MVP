@@ -48,6 +48,33 @@ export async function runSellMyGharEnhancementTests(): Promise<{ passed: number;
     assert.strictEqual(normalized, '918217873708');
   });
 
+  await test('AiSensy validates valid Indian mobile numbers correctly', () => {
+    assert.strictEqual(AiSensyNotificationService.isValidPhoneNumber('9845012345'), true);
+    assert.strictEqual(AiSensyNotificationService.isValidPhoneNumber('+91 82178 73708'), true);
+    assert.strictEqual(AiSensyNotificationService.isValidPhoneNumber('6234567890'), true);
+    assert.strictEqual(AiSensyNotificationService.isValidPhoneNumber('7012345678'), true);
+  });
+
+  await test('AiSensy safely rejects invalid or non-Indian phone numbers', async () => {
+    assert.strictEqual(AiSensyNotificationService.isValidPhoneNumber('12345'), false);
+    assert.strictEqual(AiSensyNotificationService.isValidPhoneNumber('abcdefghij'), false);
+    assert.strictEqual(AiSensyNotificationService.isValidPhoneNumber('1800123456'), false); // Toll-free not valid mobile
+    assert.strictEqual(AiSensyNotificationService.isValidPhoneNumber(''), false);
+
+    AiSensyNotificationService.clearDispatchedMessages();
+    const record = await AiSensyNotificationService.handlePropertyListed({
+      ownerName: 'Test Owner',
+      ownerPhone: '12345',
+      referenceId: 'SMG-INV-01',
+      societyName: 'Test Apt',
+      locality: 'Koramangala',
+      propertyId: 'prop-inv-01',
+    });
+
+    assert.strictEqual(record.status, 'SKIPPED_INVALID_PHONE');
+    assert.strictEqual(record.attempts, 0);
+  });
+
   // 2. AiSensy Property Listed Campaign Dispatch
   await test('AiSensy handlePropertyListed dispatches campaign with correct parameters', async () => {
     AiSensyNotificationService.clearDispatchedMessages();
@@ -88,7 +115,46 @@ export async function runSellMyGharEnhancementTests(): Promise<{ passed: number;
     }
   });
 
-  // 3. AiSensy Idempotency Deduplication
+  // 3. AiSensy Property Published Campaign Dispatch
+  await test('AiSensy handlePropertyPublished dispatches live listing campaign with correct parameters', async () => {
+    AiSensyNotificationService.clearDispatchedMessages();
+    let capturedPayload: any = null;
+
+    AiSensyNotificationService.setMockDispatcher(async (payload) => {
+      capturedPayload = payload;
+      return { success: true, data: { status: 'submitted', messageId: 'msg-pub-01' } };
+    });
+
+    const origKey = process.env.AISENSY_API_KEY;
+    process.env.AISENSY_API_KEY = 'test-aisensy-key-xyz';
+
+    try {
+      const record = await AiSensyNotificationService.handlePropertyPublished({
+        ownerName: 'Sunil Rao',
+        ownerPhone: '+91 82178 73708',
+        title: 'Sobha Dream Acres - 2BHK',
+        locality: 'Panathur',
+        propertyId: 'prop-test-pub-01',
+        referenceId: 'SMG-2026-PUB01',
+      });
+
+      assert.strictEqual(record.status, 'DELIVERED');
+      assert.strictEqual(record.destination, '918217873708');
+      assert.ok(capturedPayload);
+      assert.strictEqual(capturedPayload.campaignName, 'property_published');
+      assert.deepStrictEqual(capturedPayload.templateParams, [
+        'Sunil Rao',
+        'Sobha Dream Acres - 2BHK',
+        'Panathur',
+        'SMG-2026-PUB01',
+      ]);
+    } finally {
+      process.env.AISENSY_API_KEY = origKey;
+      AiSensyNotificationService.setMockDispatcher(null);
+    }
+  });
+
+  // 4. AiSensy Idempotency Deduplication
   await test('AiSensy idempotency prevents duplicate campaign dispatch for same property', async () => {
     AiSensyNotificationService.clearDispatchedMessages();
     let dispatchCallCount = 0;
@@ -130,7 +196,7 @@ export async function runSellMyGharEnhancementTests(): Promise<{ passed: number;
     }
   });
 
-  // 4. AiSensy Bounded Retries on Network Failure
+  // 5. AiSensy Bounded Retries on Network Failure
   await test('AiSensy attempts bounded retries on transient network errors', async () => {
     AiSensyNotificationService.clearDispatchedMessages();
     let callAttempts = 0;
@@ -164,7 +230,71 @@ export async function runSellMyGharEnhancementTests(): Promise<{ passed: number;
     }
   });
 
-  // 5. Two-domain discovery exploration helper
+  // 6. Provider Status & Secret Masking
+  await test('AiSensy getProviderStatus truthfully reports status without exposing secret key', () => {
+    const origKey = process.env.AISENSY_API_KEY;
+    try {
+      process.env.AISENSY_API_KEY = 'super-secret-aisensy-key-12345';
+      const status = AiSensyNotificationService.getProviderStatus();
+      assert.strictEqual(status.configured, true);
+      assert.strictEqual(status.endpoint, 'https://backend.aisensy.com/campaign/t1/api/v2');
+      assert.strictEqual(status.campaigns.propertyListed, 'property_listed');
+      assert.strictEqual(status.campaigns.propertyPublished, 'property_published');
+      assert.strictEqual(status.campaigns.propertyVerified, 'property_verified');
+      assert.strictEqual(status.campaigns.propertyActionRequired, 'property_action_required');
+      assert.strictEqual('apiKey' in (status as any), false);
+      assert.strictEqual('AISENSY_API_KEY' in (status as any), false);
+    } finally {
+      process.env.AISENSY_API_KEY = origKey;
+    }
+  });
+
+  // 7. Webhook delivery status update
+  await test('AiSensy handleWebhookCallback processes delivery receipts', async () => {
+    const callbackResult = await AiSensyNotificationService.handleWebhookCallback({
+      messageId: 'msg-test-webhook-01',
+      status: 'DELIVERED',
+      destination: '918217873708',
+    });
+
+    assert.strictEqual(callbackResult.handled, true);
+    assert.strictEqual(callbackResult.status, 'DELIVERED');
+    assert.strictEqual(callbackResult.messageId, 'msg-test-webhook-01');
+  });
+
+  // 8. Missing credentials in production produces clear unconfigured status without throwing
+  await test('AiSensy missing API key in production mode produces SKIPPED_UNCONFIGURED', async () => {
+    const origEnv = process.env.NODE_ENV;
+    const origKey = process.env.AISENSY_API_KEY;
+    const origAllow = process.env.ALLOW_DEV_FALLBACKS;
+    const origTest = process.env.RUNNING_TESTS;
+
+    try {
+      process.env.NODE_ENV = 'production';
+      process.env.AISENSY_API_KEY = '';
+      process.env.ALLOW_DEV_FALLBACKS = 'false';
+      process.env.RUNNING_TESTS = 'false';
+
+      AiSensyNotificationService.clearDispatchedMessages();
+      const record = await AiSensyNotificationService.handlePropertyVerified({
+        ownerName: 'Ramesh Patel',
+        ownerPhone: '9845012345',
+        title: 'Godrej Woodsman',
+        locality: 'Hebbal',
+        propertyId: 'prop-unconf-01',
+      });
+
+      assert.strictEqual(record.status, 'SKIPPED_UNCONFIGURED');
+      assert.strictEqual(record.attempts, 0);
+    } finally {
+      process.env.NODE_ENV = origEnv;
+      process.env.AISENSY_API_KEY = origKey;
+      process.env.ALLOW_DEV_FALLBACKS = origAllow;
+      process.env.RUNNING_TESTS = origTest;
+    }
+  });
+
+  // 9. Two-domain discovery exploration helper
   await test('Two-domain explore URL correctly formats locality filter', () => {
     const url = getBuyMyGharExploreUrl('Whitefield');
     assert.ok(url.includes('locality=Whitefield'));
@@ -175,7 +305,7 @@ export async function runSellMyGharEnhancementTests(): Promise<{ passed: number;
     assert.ok(!url.includes('locality=ALL'));
   });
 
-  // 6. Property verification badge condition
+  // 10. Property verification badge condition
   await test('Property verification badge only activates on verified tiers', () => {
     const verifiedTiers = ['VERIFIED', 'DOCS_CHECKED', 'INSPECTED', 'LEVEL_2_DOCS_REVIEWED', 'LEVEL_3_PHYSICALLY_INSPECTED'];
     for (const tier of verifiedTiers) {

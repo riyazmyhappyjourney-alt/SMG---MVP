@@ -5064,11 +5064,46 @@ const updateDocStatusHandler = async (req: Request, res: Response) => {
       `, [resolvedPropertyId]);
 
       if (pUpdate.rows && pUpdate.rows.length > 0) {
+        const p = pUpdate.rows[0];
         try {
-          await EmailNotificationService.handlePropertyApproved(pUpdate.rows[0], req.user);
+          await EmailNotificationService.handlePropertyApproved(p, req.user);
         } catch (apprErr: any) {
           console.warn('[DocVerifyPropertyApproved] Dispatch note:', apprErr.message);
         }
+
+        try {
+          const ownerPhone = p.owner_phone || p.contact_phone;
+          if (ownerPhone) {
+            void AiSensyNotificationService.handlePropertyVerified({
+              ownerName: p.owner_name || 'Homeowner',
+              ownerPhone,
+              title: p.title || 'Bengaluru Apartment',
+              locality: p.project_locality_id || p.locality || 'Bengaluru',
+              propertyId: resolvedPropertyId,
+            }).catch((aisErr) => console.warn('[DocVerifyWhatsApp] Dispatch note:', aisErr.message));
+          }
+        } catch (aisErr: any) {
+          console.warn('[DocVerifyWhatsApp] Note:', aisErr.message);
+        }
+      }
+    } else if (targetStatus === 'REJECTED' && note) {
+      try {
+        const propRow = await executeQuery(`SELECT * FROM properties WHERE id = $1;`, [resolvedPropertyId]);
+        if (propRow.rows && propRow.rows.length > 0) {
+          const p = propRow.rows[0];
+          const ownerPhone = p.owner_phone || p.contact_phone;
+          if (ownerPhone) {
+            void AiSensyNotificationService.handlePropertyActionRequired({
+              ownerName: p.owner_name || 'Homeowner',
+              ownerPhone,
+              title: p.title || 'Bengaluru Apartment',
+              actionRequiredText: String(note),
+              propertyId: resolvedPropertyId,
+            }).catch((aisErr) => console.warn('[DocRejectWhatsApp] Dispatch note:', aisErr.message));
+          }
+        }
+      } catch (docRejErr: any) {
+        console.warn('[DocRejectWhatsApp] Note:', docRejErr.message);
       }
     }
 
@@ -7994,6 +8029,31 @@ const updatePropertyStatusHandler = async (req: Request, res: Response) => {
       } catch (pubErr: any) {
         console.warn('[CrmStatusPublished] Email dispatch note:', pubErr.message);
       }
+
+      // Dispatch AiSensy WhatsApp publication confirmation to owner (non-blocking, idempotent)
+      try {
+        let ownerPhone = existing.owner_phone || existing.contact_phone;
+        let ownerName = existing.owner_name;
+        if (!ownerPhone && existing.internal_verification_notes) {
+          try {
+            const parsedNotes = JSON.parse(existing.internal_verification_notes);
+            ownerPhone = parsedNotes.ownerPhone || parsedNotes.contactPhone;
+            ownerName = ownerName || parsedNotes.ownerName;
+          } catch {}
+        }
+        if (ownerPhone) {
+          void AiSensyNotificationService.handlePropertyPublished({
+            ownerName: ownerName || 'Homeowner',
+            ownerPhone,
+            title: existing.title || 'Bengaluru Apartment',
+            locality: existing.project_locality_id || existing.locality || 'Bengaluru',
+            propertyId: id,
+            referenceId: existing.reference_id,
+          }).catch((aisErr) => console.warn('[AiSensyPropertyPublished] Dispatch note:', aisErr.message));
+        }
+      } catch (aisPubErr: any) {
+        console.warn('[AiSensyPropertyPublished] Dispatch note:', aisPubErr.message);
+      }
     } else if (['PAUSED', 'SOLD', 'ARCHIVED', 'DRAFT'].includes(targetStatus)) {
       updateRes = await executeQuery(`
         UPDATE properties
@@ -8541,6 +8601,34 @@ app.get(
   authenticateUser,
   async (_req: Request, res: Response) => {
     return res.json(EmailNotificationService.getProviderStatus());
+  }
+);
+
+// 8. Get Truthful AiSensy WhatsApp Provider Status
+app.get(
+  '/api/crm/aisensy-status',
+  authenticateUser,
+  requireRole('STAFF_SUPER_ADMIN', 'STAFF_LISTING_MANAGER', 'STAFF_INTAKE_AGENT'),
+  async (_req: Request, res: Response) => {
+    return res.json({
+      success: true,
+      ...AiSensyNotificationService.getProviderStatus(),
+    });
+  }
+);
+
+// 9. AiSensy WhatsApp Webhook Callback (Delivery & Read Receipts)
+app.post(
+  '/api/webhooks/aisensy',
+  jsonDefault,
+  async (req: Request, res: Response) => {
+    try {
+      const result = await AiSensyNotificationService.handleWebhookCallback(req.body);
+      return res.json({ success: true, ...result });
+    } catch (err: any) {
+      console.warn('[AiSensyWebhook] Error processing callback:', err.message);
+      return res.status(200).json({ success: false, error: err.message });
+    }
   }
 );
 
