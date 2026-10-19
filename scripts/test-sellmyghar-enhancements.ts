@@ -106,8 +106,7 @@ export async function runSellMyGharEnhancementTests(): Promise<{ passed: number;
       assert.deepStrictEqual(capturedPayload.templateParams, [
         'Sunil Rao',
         'SMG-2026-9901',
-        'Sobha Dream Acres',
-        'Panathur',
+        'Sobha Dream Acres, Panathur',
       ]);
     } finally {
       process.env.AISENSY_API_KEY = origKey;
@@ -238,7 +237,7 @@ export async function runSellMyGharEnhancementTests(): Promise<{ passed: number;
       const status = AiSensyNotificationService.getProviderStatus();
       assert.strictEqual(status.configured, true);
       assert.strictEqual(status.endpoint, 'https://backend.aisensy.com/campaign/t1/api/v2');
-      assert.strictEqual(status.campaigns.propertyListed, 'property_listed');
+      assert.strictEqual(status.campaigns.propertyListed, 'SMG_Property_Submitted');
       assert.strictEqual(status.campaigns.propertyPublished, 'property_published');
       assert.strictEqual(status.campaigns.propertyVerified, 'property_verified');
       assert.strictEqual(status.campaigns.propertyActionRequired, 'property_action_required');

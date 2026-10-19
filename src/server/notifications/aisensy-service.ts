@@ -119,7 +119,7 @@ export class AiSensyNotificationService {
       provider: 'AiSensy WhatsApp Business API',
       endpoint: this.ENDPOINT,
       campaigns: {
-        propertyListed: process.env.AISENSY_CAMPAIGN_PROPERTY_LISTED || 'property_listed',
+        propertyListed: process.env.AISENSY_CAMPAIGN_PROPERTY_LISTED || 'SMG_Property_Submitted',
         propertyPublished: process.env.AISENSY_CAMPAIGN_PROPERTY_PUBLISHED || 'property_published',
         propertyVerified: process.env.AISENSY_CAMPAIGN_PROPERTY_VERIFIED || 'property_verified',
         propertyActionRequired: process.env.AISENSY_CAMPAIGN_PROPERTY_ACTION_REQUIRED || 'property_action_required',
@@ -377,8 +377,9 @@ export class AiSensyNotificationService {
 
   /**
    * 1. Triggered on successful Property Submission
-   * Campaign: AISENSY_CAMPAIGN_PROPERTY_LISTED (default: "property_listed")
-   * Params: [userName, referenceId, societyName, locality]
+   * Campaign: AISENSY_CAMPAIGN_PROPERTY_LISTED (default: "SMG_Property_Submitted")
+   * Params (3-param template): [userName, referenceId, societyWithLocality]
+   * Params (4-param template): [userName, referenceId, societyName, locality]
    */
   public static async handlePropertyListed(data: {
     ownerName: string;
@@ -389,13 +390,23 @@ export class AiSensyNotificationService {
     propertyId: string;
     listingStatus?: string;
   }): Promise<DispatchedAiSensyRecord> {
-    const campaignName = process.env.AISENSY_CAMPAIGN_PROPERTY_LISTED || 'property_listed';
-    const params = [
-      data.ownerName || 'Homeowner',
-      data.referenceId || 'SMG-PENDING',
-      data.societyName || 'Bengaluru Apartment',
-      data.locality || 'Bengaluru',
-    ];
+    const campaignName = process.env.AISENSY_CAMPAIGN_PROPERTY_LISTED || 'SMG_Property_Submitted';
+    const use3Params = campaignName === 'SMG_Property_Submitted' || process.env.AISENSY_PROPERTY_LISTED_PARAM_COUNT === '3';
+    
+    const params = use3Params
+      ? [
+          data.ownerName || 'Homeowner',
+          data.referenceId || 'SMG-PENDING',
+          data.societyName && data.locality
+            ? `${data.societyName}, ${data.locality}`
+            : (data.societyName || data.locality || 'Bengaluru Apartment'),
+        ]
+      : [
+          data.ownerName || 'Homeowner',
+          data.referenceId || 'SMG-PENDING',
+          data.societyName || 'Bengaluru Apartment',
+          data.locality || 'Bengaluru',
+        ];
 
     return this.sendCampaignWithRetry(
       campaignName,
