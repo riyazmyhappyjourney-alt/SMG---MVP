@@ -2453,10 +2453,9 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
     try {
       await client.query('BEGIN');
 
-      // 1. Resolve Authenticated User (Strict Server-Side Identity Binding)
-      // Condition 1: Never trust client-supplied userId, owner_id, or phone verification flags
       const caller = req.user!;
       resolvedUserId = caller.uid;
+
       const declaredEmail = (req.body.ownerEmail || req.body.email || req.body.sellerEmail || caller.email || '').trim().toLowerCase() || null;
 
       // Ensure user account possesses OWNER role for property ownership
@@ -2619,12 +2618,12 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
           carpet_area_sqft, balconies_count, bathrooms_count, facing,
           car_parks_count, is_covered_parking, khata_type, encumbrance_status,
           loan_bank_name, occupancy_status, monthly_maintenance_inr,
-          asking_price_inr, reserve_minimum_price_inr, listing_intent, crm_status, verification_tier,
+          asking_price_inr, reserve_minimum_price_inr, listing_intent, listing_status, crm_status, verification_tier,
           internal_verification_notes, title, property_type, public_address, description,
           created_at, updated_at
         ) VALUES (
           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
-          $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, 'NEW', $24,
+          $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, 'PUBLISHED', 'NEW', $24,
           $25, $26, $27, $28, $29,
           NOW(), NOW()
         )

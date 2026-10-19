@@ -134,6 +134,7 @@ export interface CrmProperty {
   image: string;
   images?: Array<{ id: string; url: string; is_featured?: boolean; created_at?: string }>;
   verificationBadge: string;
+  verificationTier?: string;
   assignedRm?: string;
   assignedRmPhone?: string | null;
   ownerId?: string;
@@ -1472,7 +1473,16 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
         if (!match) return false;
       }
 
-      if (propStatusFilter !== 'ALL' && prop.status !== propStatusFilter) {
+      if (propStatusFilter === 'VERIFIED') {
+        const isVerified = Boolean(
+          (prop.verificationBadge && prop.verificationBadge !== 'NONE') ||
+          prop.verificationTier === 'LEVEL_2_DOCS_REVIEWED' ||
+          prop.verificationTier === 'LEVEL_3_PHYSICALLY_INSPECTED' ||
+          (prop as any).verification_tier === 'LEVEL_2_DOCS_REVIEWED' ||
+          (prop as any).verification_tier === 'LEVEL_3_PHYSICALLY_INSPECTED'
+        );
+        if (!isVerified) return false;
+      } else if (propStatusFilter !== 'ALL' && prop.status !== propStatusFilter) {
         return false;
       }
 
@@ -2947,11 +2957,16 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 </div>
 
                 <div
-                  className="p-3.5 rounded-xl border bg-white border-slate-200/80 shadow-2xs"
+                  onClick={() => setPropStatusFilter(propStatusFilter === 'VERIFIED' ? 'ALL' : 'VERIFIED')}
+                  className={`p-3.5 rounded-xl border transition-all cursor-pointer shadow-2xs ${
+                    propStatusFilter === 'VERIFIED'
+                      ? 'bg-blue-50/50 border-[#0073E6] ring-1 ring-[#0073E6]/30'
+                      : 'bg-white border-slate-200/80 hover:border-slate-300'
+                  }`}
                 >
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Verified Tier</span>
                   <div className="text-2xl font-bold text-[#0073E6] mt-0.5">
-                    {properties.filter(p => p.verificationBadge && p.verificationBadge !== 'NONE').length}
+                    {properties.filter(p => (p.verificationBadge && p.verificationBadge !== 'NONE') || p.verificationTier === 'LEVEL_2_DOCS_REVIEWED' || p.verificationTier === 'LEVEL_3_PHYSICALLY_INSPECTED').length}
                   </div>
                   <span className="text-[10px] text-blue-700 font-semibold mt-0.5 block">Level 1 & 2 audited</span>
                 </div>
@@ -3006,6 +3021,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     >
                       <option value="ALL">All Statuses</option>
                       <option value="PUBLISHED">Published</option>
+                      <option value="VERIFIED">Verified Tier</option>
                       <option value="DRAFT">Draft</option>
                       <option value="PAUSED">Paused</option>
                       <option value="SOLD">Sold</option>
@@ -4999,9 +5015,42 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                       <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                         Title Verification Documents ({(propertyDetailData.documents || []).length})
                       </h4>
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-[#0073E6]">
-                        {propertyDetailData.property.verification_tier || 'LEVEL_1_DECLARED'}
-                      </span>
+                      <div className="flex items-center space-x-2">
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-[#0073E6]">
+                          {propertyDetailData.property.verification_tier || 'LEVEL_1_DECLARED'}
+                        </span>
+                        {propertyDetailData.property.verification_tier !== 'LEVEL_2_DOCS_REVIEWED' && propertyDetailData.property.verification_tier !== 'LEVEL_3_PHYSICALLY_INSPECTED' && (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              try {
+                                const res = await crmFetch(`/api/crm/properties/${selectedPropertyId}/status`, {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ status: 'VERIFIED' })
+                                });
+                                const data = await res.json();
+                                if (res.ok && data.success) {
+                                  showToast('Property advanced to Verified Tier (Level 2 Due Diligence)', 'success');
+                                  setPropertyDetailData((prev: any) => prev ? {
+                                    ...prev,
+                                    property: { ...prev.property, verification_tier: 'LEVEL_2_DOCS_REVIEWED', crm_status: 'APPROVED' }
+                                  } : prev);
+                                  refreshAll();
+                                } else {
+                                  showToast(data.message || 'Verification update failed', 'error');
+                                }
+                              } catch {
+                                showToast('Network error during verification', 'error');
+                              }
+                            }}
+                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] rounded-lg cursor-pointer flex items-center space-x-1"
+                          >
+                            <ShieldCheck className="w-3 h-3" />
+                            <span>Verify Property</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
 
                     {/* Verification Model Explanatory Banner */}

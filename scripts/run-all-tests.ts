@@ -21,6 +21,7 @@ import { runGroup3PrivacyAnalyticsTests } from './test-group3-privacy-analytics'
 import { runGroup4SeoMetadataTests } from './test-group4-seo-metadata';
 import { runPropertySubmissionFixTests } from './test-property-submission-fix';
 import { runSellMyGharEnhancementTests } from './test-sellmyghar-enhancements';
+import { runMasterBugfixRegressionTests } from './test-master-bugfix-regression';
 
 async function runAll() {
   console.log('====================================================');
@@ -231,6 +232,15 @@ async function runAll() {
   totalFailed += enhancementRes.failed;
   suiteResults.push({ name: 'AiSensy WhatsApp & Enhancements', passed: enhancementRes.passed, failed: enhancementRes.failed, tests: enhancementRes.results });
   console.log(`Subtotal: ${enhancementRes.passed} passed, ${enhancementRes.failed} failed\n`);
+
+  // Suite 24: Master Bug Fix Regression Suite
+  console.log('--- 24. Master Bug Fix Regression Suite ---');
+  const masterRes = await runMasterBugfixRegressionTests();
+  masterRes.results.forEach(r => console.log(' ', r));
+  totalPassed += masterRes.passed;
+  totalFailed += masterRes.failed;
+  suiteResults.push({ name: 'Master Bug Fix Regressions', passed: masterRes.passed, failed: masterRes.failed, tests: masterRes.results });
+  console.log(`Subtotal: ${masterRes.passed} passed, ${masterRes.failed} failed\n`);
 
   console.log('====================================================');
   console.log(`FINAL RESULTS: ${totalPassed} PASSED, ${totalFailed} FAILED (TOTAL: ${totalPassed + totalFailed}/${totalPassed + totalFailed})`);

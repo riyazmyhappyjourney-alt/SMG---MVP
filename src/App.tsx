@@ -565,6 +565,10 @@ export default function App() {
     return (
       <SellerFunnel
         onBackToHome={() => navigateTo('HOME')}
+        onViewProperty={(pid) => {
+          setSelectedPropertyId(pid);
+          navigateTo('PROPERTY_DETAIL');
+        }}
         onViewDashboard={async () => {
           try {
             const res = await fetch('/api/auth/me', { credentials: 'include' });

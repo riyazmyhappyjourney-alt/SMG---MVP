@@ -13,6 +13,7 @@ import { MobileBottomNav } from '../common/MobileBottomNav';
 import { UserAuthProfile } from '../../types/user';
 import { trackEvent } from '../../utils/analytics';
 import { redirectToBuyMyGhar } from '../../utils/domainConfig';
+import { MessageCircle } from 'lucide-react';
 
 interface HomePageProps {
   activeUser?: UserAuthProfile | null;
@@ -221,6 +222,17 @@ export const HomePage: React.FC<HomePageProps> = ({
         isOpen={isFavoritesModalOpen}
         onClose={() => setIsFavoritesModalOpen(false)}
       />
+
+      {/* Floating WhatsApp Action for Mobile View */}
+      <a
+        href="https://wa.me/918217873708?text=Hello%20SellMyGhar%20Desk,%20I%20have%20an%20enquiry%20regarding%20Bengaluru%20apartment%20resales."
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Chat with SellMyGhar Concierge on WhatsApp"
+        className="fixed right-4 bottom-20 z-40 md:hidden w-12 h-12 bg-[#25D366] hover:bg-[#20bd5a] text-white rounded-full shadow-lg flex items-center justify-center transition-transform hover:scale-110 active:scale-95 cursor-pointer ring-2 ring-white/80"
+      >
+        <MessageCircle className="w-6 h-6 fill-current" />
+      </a>
 
       {/* Mobile Bottom Navigation Bar */}
       <MobileBottomNav

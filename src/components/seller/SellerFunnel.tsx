@@ -20,7 +20,9 @@ import {
   ShieldCheck,
   Users,
   ChevronDown,
-  MessageCircle
+  MessageCircle,
+  ExternalLink,
+  AlertCircle
 } from 'lucide-react';
 import { 
   BENGALURU_LOCALITIES, 
@@ -61,6 +63,7 @@ export interface PhotoItem {
 interface SellerFunnelProps {
   onBackToHome?: () => void;
   onViewDashboard?: () => void;
+  onViewProperty?: (propertyId: string) => void;
 }
 
 // Indian currency formatters
@@ -142,10 +145,12 @@ const DRAFT_STORAGE_KEY = 'sellmyghar_seller_draft_v3';
 export function SellerFunnel({
   onBackToHome,
   onViewDashboard,
+  onViewProperty,
 }: SellerFunnelProps) {
   // Wizard active step 1 to 5
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [submittedPropertyId, setSubmittedPropertyId] = useState<string | null>(null);
 
   // Field-level inline errors (Matching Image 2 Reference)
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -305,6 +310,53 @@ export function SellerFunnel({
     trackFunnelStep('SELLER_WIZARD_V3', currentStep, s ? s.name : `Step ${currentStep}`);
   }, [currentStep]);
 
+  // Auto-scroll smoothly to first error field below sticky header
+  const scrollToFirstError = (errorKeys: string[]) => {
+    if (!errorKeys || errorKeys.length === 0) return;
+    setTimeout(() => {
+      const fieldSelectorMap: Record<string, string> = {
+        propertyKind: '#field-propertyKind, [data-field="propertyKind"]',
+        locality: '#field-locality, [name="locality"], input[placeholder*="locality"]',
+        society: '#field-society, [name="society"], input[placeholder*="society"]',
+        bhkConfig: '#field-bhkConfig, [data-field="bhkConfig"]',
+        superBuiltUpSqft: '#sbuaMainInput, #field-superBuiltUpSqft',
+        carpetAreaSqft: '#carpetAreaInput, #field-carpetAreaSqft',
+        unitFloor: '#floorInput, #field-unitFloor',
+        videoUrl: '#field-videoUrl, [name="videoUrl"]',
+        expectedPrice: '#expPriceCleanInput, #field-expectedPrice',
+        ownerName: '#ownerFullNameInput, #field-ownerName',
+        ownerPhone: '#ownerMobileInput, #field-ownerPhone',
+        ownerEmail: '#ownerListingEmailInput, #field-ownerEmail',
+      };
+
+      for (const key of errorKeys) {
+        const selector = fieldSelectorMap[key] || `#field-${key}, #${key}, [name="${key}"], [data-field="${key}"]`;
+        const el = document.querySelector(selector) as HTMLElement | null;
+        if (el) {
+          const headerOffset = 90;
+          const elementPosition = el.getBoundingClientRect().top;
+          const offsetPosition = elementPosition + window.pageYOffset - headerOffset;
+
+          window.scrollTo({
+            top: Math.max(0, offsetPosition),
+            behavior: 'smooth'
+          });
+
+          // Focus first interactable element
+          if (typeof el.focus === 'function' && el.tagName !== 'DIV') {
+            el.focus({ preventScroll: true });
+          } else {
+            const focusable = el.querySelector('input, select, textarea, button') as HTMLElement | null;
+            if (focusable && typeof focusable.focus === 'function') {
+              focusable.focus({ preventScroll: true });
+            }
+          }
+          break;
+        }
+      }
+    }, 60);
+  };
+
   // ====================================================================
   // STEP VALIDATION (Field-level errors under fields)
   // ====================================================================
@@ -372,8 +424,10 @@ export function SellerFunnel({
     }
 
     setFieldErrors(errors);
-    if (Object.keys(errors).length > 0) {
+    const errKeys = Object.keys(errors);
+    if (errKeys.length > 0) {
       setErrorMessage(Object.values(errors)[0]);
+      scrollToFirstError(errKeys);
       return false;
     }
 
@@ -466,10 +520,19 @@ export function SellerFunnel({
   };
 
   // ====================================================================
-  // FINAL SUBMISSION (OTP API pending from vendor: Direct Submission)
+  // FINAL SUBMISSION (Transactional Onboarding Wizard)
   // ====================================================================
   const handleSubmitProperty = async () => {
-    if (!validateStep(5)) return;
+    // Validate each wizard step in sequence
+    for (const stepNum of [1, 2, 3, 4, 5]) {
+      if (!validateStep(stepNum)) {
+        if (currentStep !== stepNum) {
+          setCurrentStep(stepNum);
+        }
+        return;
+      }
+    }
+
     if (isSubmitting) return;
 
     setIsSubmitting(true);
@@ -578,6 +641,8 @@ export function SellerFunnel({
         localStorage.removeItem(DRAFT_STORAGE_KEY);
       } catch {}
 
+      const createdPid = propData.propertyId || propData.property?.id || null;
+      setSubmittedPropertyId(createdPid);
       setServerReferenceId(propData.referenceId || `SMG-${Date.now().toString(36).toUpperCase()}`);
       setSubmissionSuccess(true);
       trackFunnelCompleted('SELLER_WIZARD_V3', {
@@ -587,7 +652,10 @@ export function SellerFunnel({
       });
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err: any) {
-      setFieldErrors(prev => ({ ...prev, expectedPrice: err.message || 'Submission failed. Please check your network connection.' }));
+      const msg = err.message || 'Submission failed. Please check your network connection and try again.';
+      setErrorMessage(msg);
+      setFieldErrors(prev => ({ ...prev, submit: msg }));
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setIsSubmitting(false);
     }
@@ -635,11 +703,27 @@ export function SellerFunnel({
           </div>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+            {submittedPropertyId && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (onViewProperty) {
+                    onViewProperty(submittedPropertyId);
+                  } else {
+                    window.location.href = `/property/${submittedPropertyId}`;
+                  }
+                }}
+                className="w-full sm:w-auto px-6 py-3 bg-[#0073E6] hover:bg-[#005BB5] text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer flex items-center justify-center space-x-1.5"
+              >
+                <span>View Submitted Property</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </button>
+            )}
             {onViewDashboard && (
               <button
                 type="button"
                 onClick={onViewDashboard}
-                className="w-full sm:w-auto px-6 py-3 bg-[#0073E6] hover:bg-[#005BB5] text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
+                className="w-full sm:w-auto px-6 py-3 bg-white border border-[#0073E6] hover:bg-blue-50 text-[#0073E6] font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
               >
                 Go to Seller Dashboard
               </button>
@@ -956,6 +1040,25 @@ export function SellerFunnel({
               </div>
             </div>
 
+            {/* Global Validation & Server Error Alert Banner */}
+            {errorMessage && (
+              <div className="mb-6 p-4 bg-rose-50 border border-rose-200 rounded-xl flex items-start space-x-3 text-xs text-rose-800 animate-fadeIn font-['Poppins']">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <strong className="font-bold block">Please address the following error:</strong>
+                  <span>{errorMessage}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setErrorMessage(null)}
+                  className="text-rose-500 hover:text-rose-700 p-0.5 cursor-pointer"
+                  aria-label="Dismiss error"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+
             {/* ======================================================== */}
             {/* STEP 1: BASIC DETAILS (Sell Only, Property Type)        */}
             {/* ======================================================== */}
@@ -975,7 +1078,7 @@ export function SellerFunnel({
                     What kind of property do you have? <span className="text-rose-500">*</span>
                   </label>
                   
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 max-w-lg">
+                  <div id="field-propertyKind" data-field="propertyKind" className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 max-w-lg">
                     <button
                       type="button"
                       onClick={() => setPropertyKind('Flat / Apartment')}
@@ -1034,6 +1137,7 @@ export function SellerFunnel({
                 {/* Locality Autocomplete (Starts clean) */}
                 <div>
                   <AutocompleteInput
+                    id="field-locality"
                     label="Locality"
                     required
                     placeholder="Type locality (e.g. Whitefield, Sarjapur Road, Hebbal, HSR Layout...)"
@@ -1108,6 +1212,7 @@ export function SellerFunnel({
                 {/* Apartment / Society / Project Name (Starts clean) */}
                 <div>
                   <AutocompleteInput
+                    id="field-society"
                     label={propertyKind === 'Gated Community Villa' ? 'Villa Community / Project Name' : 'Apartment / Society / Project Name'}
                     required
                     placeholder="Type project name (e.g. Prestige Shantiniketan, Sobha Dream Acres, Brigade Gateway...)"
@@ -1170,7 +1275,7 @@ export function SellerFunnel({
                   <label className="block text-xs font-bold text-slate-900 font-['Montserrat'] tracking-wide">
                     Your apartment is a
                   </label>
-                  <div className="flex flex-wrap gap-2">
+                  <div id="field-bhkConfig" data-field="bhkConfig" className="flex flex-wrap gap-2">
                     {['1 BHK', '2 BHK', '3 BHK', '4 BHK', 'Other'].map(cfg => (
                       <button
                         key={cfg}

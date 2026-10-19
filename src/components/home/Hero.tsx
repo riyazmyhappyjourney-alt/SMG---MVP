@@ -255,21 +255,41 @@ export const Hero: React.FC<HeroProps> = ({
 
       {/* 4. Slide Indicator Dots */}
       {slideCount > 1 && (
-        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex items-center space-x-2">
-          {slides.map((_, idx) => (
-            <button
-              key={idx}
-              type="button"
-              onClick={() => handleSelectSlide(idx)}
-              aria-label={`Go to slide ${idx + 1}`}
-              className={`h-1.5 rounded-full transition-all cursor-pointer ${
-                idx === activeSlide
-                  ? 'w-6 bg-white shadow-xs'
-                  : 'w-1.5 bg-white/40 hover:bg-white/70'
-              }`}
-            />
-          ))}
-        </div>
+        <>
+          {/* Mobile Only: Horizontal Bottom Dots */}
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex md:hidden items-center space-x-2">
+            {slides.map((_, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => handleSelectSlide(idx)}
+                aria-label={`Go to slide ${idx + 1}`}
+                className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                  idx === activeSlide
+                    ? 'w-6 bg-white shadow-xs'
+                    : 'w-1.5 bg-white/40 hover:bg-white/70'
+                }`}
+              />
+            ))}
+          </div>
+
+          {/* Desktop Only: Vertical Pagination Dots (retaining only vertical indicator on desktop) */}
+          <div className="absolute right-5 top-1/2 -translate-y-1/2 z-20 hidden md:flex flex-col space-y-2.5 items-center">
+            {slides.map((_, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => handleSelectSlide(idx)}
+                aria-label={`Go to slide ${idx + 1}`}
+                className={`w-1.5 rounded-full transition-all cursor-pointer ${
+                  idx === activeSlide
+                    ? 'h-6 bg-white shadow-xs'
+                    : 'h-1.5 bg-white/40 hover:bg-white/70'
+                }`}
+              />
+            ))}
+          </div>
+        </>
       )}
 
       {/* 5. Main Hero Container */}

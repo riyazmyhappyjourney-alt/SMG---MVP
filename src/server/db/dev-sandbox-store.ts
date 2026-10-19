@@ -2160,8 +2160,12 @@ class DevSandboxStore {
     // 21. PROPERTIES: Insert
     if (cleanSql.includes('INSERT INTO properties')) {
       // Determine if listing_status is provided
-      let listingStatus: 'DRAFT' | 'PUBLISHED' | 'PAUSED' | 'SOLD' | 'ARCHIVED' = 'DRAFT';
-      if (cleanSql.includes('listing_status')) {
+      let listingStatus: 'DRAFT' | 'PUBLISHED' | 'PAUSED' | 'SOLD' | 'ARCHIVED' = 'PUBLISHED';
+      if (cleanSql.includes("'PUBLISHED'") || cleanSql.includes('"PUBLISHED"')) {
+        listingStatus = 'PUBLISHED';
+      } else if (cleanSql.includes("'DRAFT'") || cleanSql.includes('"DRAFT"')) {
+        listingStatus = 'DRAFT';
+      } else if (cleanSql.includes('listing_status')) {
         const found = params.find(p => ['DRAFT', 'PUBLISHED', 'PAUSED', 'SOLD', 'ARCHIVED'].includes(p));
         if (found) listingStatus = found as any;
       }
@@ -2200,7 +2204,7 @@ class DevSandboxStore {
           reserve_minimum_price_inr: Number(params[16]) || 9500000,
           listing_intent: 'SELL',
           crm_status: 'NEW',
-          listing_status: 'DRAFT',
+          listing_status: listingStatus,
           title: params[17] || 'Property',
           description: params[18] || '',
           amenities: amenitiesParsed,

@@ -1276,9 +1276,12 @@ export class EmailNotificationService {
     const idempotencyKey = `listed-${propId}`;
 
     const refId = propertyData.referenceId || `SMG-${new Date().getFullYear()}-${propId.slice(-4)}`;
-    const recipient = (propertyData.ownerEmail && propertyData.ownerEmail.includes('@'))
-      ? propertyData.ownerEmail.trim()
-      : (process.env.OPERATIONS_EMAIL || 'notifications@sellmyghar.in');
+    const rawEmail = (propertyData.ownerEmail || '').trim().toLowerCase();
+    if (!rawEmail || !rawEmail.includes('@')) {
+      console.info(`[EmailNotificationService] Skipped PROPERTY_LISTED email for property ${propId}: no valid owner email address provided.`);
+      return { dispatched: false, status: 'SKIPPED', reason: 'NO_VALID_OWNER_EMAIL' };
+    }
+    const recipient = rawEmail;
 
     const baseUrl = process.env.APP_BASE_URL || 'https://sellmyghar.in';
     const vars: Record<string, string> = {

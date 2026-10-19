@@ -56,6 +56,29 @@ export const Header: React.FC<HeaderProps> = ({
   // Housing.com inspired Mega-Menu open state
   const [openMegaMenu, setOpenMegaMenu] = useState<'BUY' | 'SELL' | null>(null);
   const megaMenuTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const headerRef = useRef<HTMLElement | null>(null);
+
+  // Close mega-menu on outside click or Escape key
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      if (headerRef.current && !headerRef.current.contains(e.target as Node)) {
+        setOpenMegaMenu(null);
+        setHoveredTab(null);
+      }
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setOpenMegaMenu(null);
+        setHoveredTab(null);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideClick);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, []);
 
   // Favorites count from client store
   const [favoritesCount, setFavoritesCount] = useState<number>(0);
@@ -133,7 +156,7 @@ export const Header: React.FC<HeaderProps> = ({
     megaMenuTimeoutRef.current = setTimeout(() => {
       setHoveredTab(null);
       setOpenMegaMenu(null);
-    }, 200);
+    }, 350);
   };
 
   const handleScrolledSearch = (e: React.FormEvent) => {
@@ -152,7 +175,7 @@ export const Header: React.FC<HeaderProps> = ({
       {/* =========================================================================
           1. PRIMARY HEADER (Royal Blue Design matching Reference Header)
          ========================================================================= */}
-      <header className="relative z-40 bg-[#244B8F] text-white border-b border-blue-900/60 shadow-md font-['Montserrat'] w-full max-w-full overflow-hidden">
+      <header ref={headerRef} className="relative z-40 bg-[#244B8F] text-white border-b border-blue-900/60 shadow-md font-['Montserrat'] w-full max-w-full">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 sm:h-18">
             
