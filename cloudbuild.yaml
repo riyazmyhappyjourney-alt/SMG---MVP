@@ -3,6 +3,9 @@
 # Builds container and deploys to Google Cloud Run in asia-south1
 # ==============================================================================
 
+substitutions:
+  COMMIT_SHA: 'latest'
+
 steps:
   # 1. Build container image using Dockerfile
   - name: 'gcr.io/cloud-builders/docker'
@@ -29,7 +32,7 @@ steps:
       - 'deploy'
       - 'sellmyghar-prod'
       - '--image'
-      - 'asia-south1-docker.pkg.dev/$PROJECT_ID/sellmyghar/app:$COMMIT_SHA'
+      - 'asia-south1-docker.pkg.dev/$PROJECT_ID/sellmyghar/app:latest'
       - '--region'
       - 'asia-south1'
       - '--platform'
@@ -49,7 +52,6 @@ steps:
       - 'NODE_ENV=production,APP_URL=https://sellmyghar.in,DATABASE_URL=postgresql://postgres.jtawqvseigeslgbrphfl:[REDACTED_DB_PASSWORD]@aws-0-ap-south-1.pooler.supabase.com:5432/postgres,PG_SSL_ALLOW_INSECURE=true,JWT_SECRET=[REDACTED_JWT_SECRET],AUTH_JWT_ISSUER=https://sellmyghar.in,AUTH_JWT_AUDIENCE=https://sellmyghar.in,INITIAL_STAFF_PASSWORD=[REDACTED_BOOTSTRAP_PASSWORD],INITIAL_ADMIN_PASSWORD=[REDACTED_BOOTSTRAP_PASSWORD],SUPABASE_URL=https://jtawqvseigeslgbrphfl.supabase.co,SUPABASE_ANON_KEY=sb_publishable_8ZaeejigTE9QoQWhNsBn9w_cVuSupIM,VITE_SUPABASE_URL=https://jtawqvseigeslgbrphfl.supabase.co,VITE_SUPABASE_ANON_KEY=sb_publishable_8ZaeejigTE9QoQWhNsBn9w_cVuSupIM,ALLOW_DEV_FALLBACKS=true'
 
 images:
-  - 'asia-south1-docker.pkg.dev/$PROJECT_ID/sellmyghar/app:$COMMIT_SHA'
   - 'asia-south1-docker.pkg.dev/$PROJECT_ID/sellmyghar/app:latest'
 
 options:
