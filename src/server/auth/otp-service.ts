@@ -113,7 +113,7 @@ export class OtpService {
     enteredOtp: string,
     clientIp: string,
     providedName?: string
-  ): Promise<{ authenticatedUser: AuthenticatedUser; userRecord: any }> {
+  ): Promise<{ authenticatedUser: AuthenticatedUser; userRecord: any; isNewUser: boolean }> {
     const cleanDigits = phone.replace(/\D/g, '').slice(-10);
     if (!/^[6-9]\d{9}$/.test(cleanDigits)) {
       throw new Error('Valid 10-digit Indian mobile number is required.');
@@ -241,6 +241,7 @@ export class OtpService {
     );
 
     let userRecord: any = null;
+    let isNewUser = false;
 
     if (identityRes.rows && identityRes.rows.length > 0) {
       // Identity exists -> fetch linked user
@@ -272,6 +273,7 @@ export class OtpService {
         );
       } else {
         // Create new customer user with strictly OWNER role
+        isNewUser = true;
         const newUserId = `usr-c-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`;
         const displayName = providedName?.trim() || `Owner ${normalizedPhone.slice(-4)}`;
 
@@ -354,6 +356,6 @@ export class OtpService {
       diffSummary: { authMethod: 'PHONE_OTP', phone: normalizedPhone },
     });
 
-    return { authenticatedUser, userRecord };
+    return { authenticatedUser, userRecord, isNewUser };
   }
 }

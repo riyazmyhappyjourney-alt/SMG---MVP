@@ -541,33 +541,31 @@ export function generateIcsCalendar(params: {
   return lines.join('\r\n') + '\r\n';
 }
 
-export const DEFAULT_ONBOARDING_EMAIL_SUBJECT = 'Welcome to SellMyGhar.in - Bangalore\'s Verified Residential Resale Platform';
+export const DEFAULT_ONBOARDING_EMAIL_SUBJECT = 'Welcome to SellMyGhar.in';
 
 export const DEFAULT_ONBOARDING_EMAIL_HTML = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Welcome to SellMyGhar</title>
+  <title>Welcome to SellMyGhar.in</title>
   <style>
     body { font-family: 'Poppins', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #F4F6F9; margin: 0; padding: 24px 12px; color: #172033; }
     .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 16px; border: 1px solid #E2E8F0; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.05); }
-    .header { background: #172033; padding: 24px 32px; text-align: left; border-bottom: 3px solid #244B8F; }
+    .header { background: #172033; padding: 24px 32px; text-align: left; border-bottom: 3px solid #0073E6; }
     .brand { font-size: 22px; font-weight: 800; color: #ffffff; letter-spacing: -0.5px; }
     .brand span { color: #38BDF8; }
     .sub-brand { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #94A3B8; margin-top: 4px; }
     .body { padding: 32px; }
-    .badge-pill { display: inline-block; padding: 4px 12px; background: #EFF6FF; border: 1px solid #BFDBFE; color: #244B8F; font-size: 11px; font-weight: 700; border-radius: 20px; text-transform: uppercase; margin-bottom: 12px; }
-    h1 { font-size: 22px; font-weight: 800; color: #172033; margin: 0 0 16px 0; line-height: 1.3; }
-    .feature-list { margin: 24px 0; padding: 0; list-style: none; }
-    .feature-item { display: flex; align-items: flex-start; margin-bottom: 16px; }
-    .feature-icon { font-size: 18px; margin-right: 12px; line-height: 1.4; }
-    .feature-title { font-weight: 700; color: #172033; font-size: 14px; margin-bottom: 2px; }
-    .feature-desc { color: #64748B; font-size: 12px; line-height: 1.5; }
-    .btn-wrap { text-align: center; margin: 32px 0 16px 0; }
-    .btn { display: inline-block; background: #244B8F; color: #ffffff !important; text-decoration: none; font-size: 14px; font-weight: 700; padding: 14px 36px; border-radius: 10px; box-shadow: 0 4px 12px rgba(36,75,143,0.3); }
-    .footer { background: #F8FAFC; padding: 24px 32px; border-top: 1px solid #E2E8F0; text-align: center; font-size: 12px; color: #94A3B8; line-height: 1.5; }
-    .footer a { color: #244B8F; text-decoration: underline; }
+    .badge-pill { display: inline-block; padding: 4px 12px; background: #EFF6FF; border: 1px solid #BFDBFE; color: #0073E6; font-size: 11px; font-weight: 700; border-radius: 20px; text-transform: uppercase; margin-bottom: 12px; }
+    h1 { font-size: 20px; font-weight: 800; color: #172033; margin: 0 0 16px 0; line-height: 1.3; }
+    p { font-size: 14px; color: #475569; line-height: 1.6; margin: 0 0 16px 0; }
+    .btn-wrap { text-align: left; margin: 24px 0 24px 0; }
+    .btn { display: inline-block; background: #0073E6; color: #ffffff !important; text-decoration: none; font-size: 14px; font-weight: 700; padding: 12px 28px; border-radius: 8px; }
+    .sign-off { margin-top: 24px; font-size: 14px; color: #172033; line-height: 1.5; }
+    .sign-off a { color: #0073E6; text-decoration: none; }
+    .footer { background: #F8FAFC; padding: 20px 32px; border-top: 1px solid #E2E8F0; text-align: left; font-size: 12px; color: #94A3B8; line-height: 1.5; }
+    .footer a { color: #0073E6; text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -577,45 +575,25 @@ export const DEFAULT_ONBOARDING_EMAIL_HTML = `<!DOCTYPE html>
       <div class="sub-brand">Bengaluru Residential Resale Advisory</div>
     </div>
     <div class="body">
-      <div class="badge-pill">Welcome to SellMyGhar</div>
-      <h1>Welcome to SellMyGhar, {{customer_name}}!</h1>
-      <p style="font-size: 14px; color: #475569; line-height: 1.6;">
-        Thank you for joining SellMyGhar.in — Bengaluru's verified residential resale platform. Whether you are selling your high-rise apartment or searching for verified resale homes, our dedicated team is at your service.
-      </p>
-      <div class="feature-list">
-        <div class="feature-item">
-          <div class="feature-icon">🛡️</div>
-          <div>
-            <div class="feature-title">100% Title-Vetted Resale Flats</div>
-            <div class="feature-desc">BBMP A-Khata authentication and Form 15 Sub-Registrar 30-year continuous title diligence.</div>
-          </div>
-        </div>
-        <div class="feature-item">
-          <div class="feature-icon">🚫</div>
-          <div>
-            <div class="feature-title">Zero Broker Spam & Privacy First</div>
-            <div class="feature-desc">Your contact details and flat identity remain protected under the DPDP Act 2023 until physical escorted viewing.</div>
-          </div>
-        </div>
-        <div class="feature-item">
-          <div class="feature-icon">🤝</div>
-          <div>
-            <div class="feature-title">Dedicated Relationship Desk</div>
-            <div class="feature-desc">Assisted end-to-end showings, price negotiation, token escrow, and Sub-Registrar deed closing.</div>
-          </div>
-        </div>
-      </div>
+      <div class="badge-pill">Account Created</div>
+      <h1>Welcome to SellMyGhar, {{name}}!</h1>
+      <p>Hello {{name}},</p>
+      <p>Welcome to SellMyGhar.in.</p>
+      <p>We're here to make your home buying or selling journey in Bengaluru clearer and easier.</p>
+      <p>You can now access your account and continue with your intended action on SellMyGhar.in.</p>
       <div class="btn-wrap">
-        <a href="{{dashboard_url}}" class="btn" target="_blank">Access Your Dashboard &rarr;</a>
+        <a href="{{dashboard_url}}" class="btn" target="_blank">Access Your Account &rarr;</a>
       </div>
-      <p style="font-size: 13px; color: #64748B; text-align: center; margin: 24px 0 0 0;">
-        Have questions or need assistance? Reply directly to this message or contact our onboarding team at <a href="mailto:onboarding@sellmyghar.in" style="color: #244B8F; font-weight: 700; text-decoration: none;">onboarding@sellmyghar.in</a>.
-      </p>
+      <p>Thank you for joining us.</p>
+      <div class="sign-off">
+        Regards,<br>
+        <strong>Team SellMyGhar.in</strong><br>
+        <a href="mailto:contact@sellmyghar.in">contact@sellmyghar.in</a> &bull; <a href="mailto:onboarding@sellmyghar.in">onboarding@sellmyghar.in</a>
+      </div>
     </div>
     <div class="footer">
-      <p>This welcome notification was dispatched by SellMyGhar Onboarding (<strong>onboarding@sellmyghar.in</strong>).</p>
-      <p>100% RERA compliant &bull; Form 15 EC Title Diligence &bull; Bengaluru, Karnataka</p>
-      <p style="margin-top: 12px;">
+      <p style="margin: 0;">This email was sent to {{email}}. 100% RERA compliant &bull; Bengaluru, Karnataka</p>
+      <p style="margin: 8px 0 0 0;">
         <a href="{{consent_url}}">Manage Communication Preferences</a>
       </p>
     </div>
@@ -733,15 +711,19 @@ export class EmailNotificationService {
         'USER_ONBOARDING_WELCOME',
         DEFAULT_ONBOARDING_EMAIL_SUBJECT,
         DEFAULT_ONBOARDING_EMAIL_HTML,
-        'Welcome to SellMyGhar.in - Bangalore\'s Verified Residential Resale Platform.'
+        'Hello {{name}},\n\nWelcome to SellMyGhar.in.\nWe\'re here to make your home buying or selling journey in Bengaluru clearer and easier.\n\nYou can now access your account and continue with your intended action on SellMyGhar.in: {{dashboard_url}}\n\nThank you for joining us.\n\nRegards,\nTeam SellMyGhar.in\ncontact@sellmyghar.in'
       );
 
-      // Upgrade existing rows if present with outdated notification sender
+      // Upgrade existing rows if present with outdated notification sender or previous template
       await executeQuery(`
         UPDATE email_templates 
-        SET html_template = $1, subject_template = $2, updated_at = NOW() 
-        WHERE template_key = 'USER_ONBOARDING_WELCOME' AND html_template LIKE '%notifications@sellmyghar.in%';
-      `, [DEFAULT_ONBOARDING_EMAIL_HTML, DEFAULT_ONBOARDING_EMAIL_SUBJECT]).catch(() => {});
+        SET html_template = $1, subject_template = $2, plain_text_template = $3, updated_at = NOW() 
+        WHERE template_key = 'USER_ONBOARDING_WELCOME';
+      `, [
+        DEFAULT_ONBOARDING_EMAIL_HTML, 
+        DEFAULT_ONBOARDING_EMAIL_SUBJECT,
+        'Hello {{name}},\n\nWelcome to SellMyGhar.in.\nWe\'re here to make your home buying or selling journey in Bengaluru clearer and easier.\n\nYou can now access your account and continue with your intended action on SellMyGhar.in: {{dashboard_url}}\n\nThank you for joining us.\n\nRegards,\nTeam SellMyGhar.in\ncontact@sellmyghar.in'
+      ]).catch(() => {});
     } catch (err: any) {
       console.warn('[EmailNotificationService] initTables note:', err.message);
     }
@@ -861,7 +843,7 @@ export class EmailNotificationService {
           template_key: key,
           subject_template: DEFAULT_ONBOARDING_EMAIL_SUBJECT,
           html_template: DEFAULT_ONBOARDING_EMAIL_HTML,
-          plain_text_template: 'Welcome to SellMyGhar.in - Bangalore\'s Verified Residential Resale Platform.',
+          plain_text_template: 'Hello {{name}},\n\nWelcome to SellMyGhar.in.\nWe\'re here to make your home buying or selling journey in Bengaluru clearer and easier.\n\nYou can now access your account and continue with your intended action on SellMyGhar.in: {{dashboard_url}}\n\nThank you for joining us.\n\nRegards,\nTeam SellMyGhar.in\ncontact@sellmyghar.in',
           is_active: true,
           updated_at: new Date().toISOString(),
         };
@@ -935,7 +917,7 @@ export class EmailNotificationService {
         return this.updateTemplate(key, {
           subject_template: DEFAULT_ONBOARDING_EMAIL_SUBJECT,
           html_template: DEFAULT_ONBOARDING_EMAIL_HTML,
-          plain_text_template: 'Welcome to SellMyGhar.in - Bangalore\'s Verified Residential Resale Platform.',
+          plain_text_template: 'Hello {{name}},\n\nWelcome to SellMyGhar.in.\nWe\'re here to make your home buying or selling journey in Bengaluru clearer and easier.\n\nYou can now access your account and continue with your intended action on SellMyGhar.in: {{dashboard_url}}\n\nThank you for joining us.\n\nRegards,\nTeam SellMyGhar.in\ncontact@sellmyghar.in',
         });
       case 'PROPERTY_PUBLISHED':
       default:
@@ -1336,7 +1318,9 @@ export class EmailNotificationService {
 
     const baseUrl = process.env.APP_BASE_URL || 'https://sellmyghar.in';
     const vars: Record<string, string> = {
+      name: userData.name || 'Homeowner',
       customer_name: userData.name || 'Homeowner',
+      email: recipient,
       dashboard_url: `${baseUrl}/#/dashboard`,
       consent_url: `${baseUrl}/#/consent`,
       year: new Date().getFullYear().toString(),

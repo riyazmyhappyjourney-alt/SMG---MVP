@@ -986,7 +986,7 @@ app.post('/api/auth/otp/verify', jsonDefault, rateLimit('otp-verify', 10, 900), 
     const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
     const normalizedPhone = `+91${cleanPhone}`;
 
-    const { authenticatedUser, userRecord } = await OtpService.verifyOtp(
+    const { authenticatedUser, userRecord, isNewUser } = await OtpService.verifyOtp(
       normalizedPhone,
       otp.trim(),
       clientIp,
@@ -1004,17 +1004,49 @@ app.post('/api/auth/otp/verify', jsonDefault, rateLimit('otp-verify', 10, 900), 
       if (userRecord) userRecord.email = userEmail;
     }
 
-    if (userEmail) {
+    // Only dispatch registration notifications upon genuine new user creation (never on repeat logins)
+    if (isNewUser) {
+      // 1. Record statutory communication consent
       try {
-        const onboardRes = await EmailNotificationService.handleUserOnboarding({
+        const consentId = `cst-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
+        await executeQuery(
+          `INSERT INTO consents (
+            id, phone, user_id, purpose, notice_version,
+            is_consented, consented_at, is_withdrawn,
+            ip_hash, user_agent_hash
+          ) VALUES ($1, $2, $3, 'COMMUNICATION', 'v1.0', true, NOW(), false, $4, $5)
+          ON CONFLICT DO NOTHING;`,
+          [consentId, normalizedPhone, authenticatedUser.uid, clientIp, String(req.headers['user-agent'] || 'unknown').slice(0, 64)]
+        );
+      } catch (cstErr: any) {
+        console.warn('[OtpRegistrationConsent] Note:', cstErr.message);
+      }
+
+      // 2. Dispatch automated registration welcome email (if email was provided)
+      if (userEmail) {
+        try {
+          const onboardRes = await EmailNotificationService.handleUserOnboarding({
+            userId: authenticatedUser.uid,
+            name: userRecord?.display_name || name || `User ${normalizedPhone.slice(-4)}`,
+            email: userEmail,
+            role: authenticatedUser.roles[0] || 'OWNER',
+          });
+          console.info(`[OtpOnboardingEmail] Dispatched welcome onboarding for ${userEmail}: ${onboardRes.status}`);
+        } catch (onboardErr: any) {
+          console.warn('[OtpOnboardingEmail] Dispatch note:', onboardErr.message);
+        }
+      }
+
+      // 3. Dispatch automated registration WhatsApp confirmation via AiSensy
+      try {
+        const waRes = await AiSensyNotificationService.handleUserRegistered({
           userId: authenticatedUser.uid,
-          name: userRecord?.display_name || name || `User ${normalizedPhone.slice(-4)}`,
-          email: userEmail,
-          role: authenticatedUser.roles[0] || 'OWNER',
+          userName: userRecord?.display_name || name || 'Homeowner',
+          userPhone: normalizedPhone,
         });
-        console.info(`[OtpOnboardingEmail] Dispatched welcome onboarding for ${userEmail}: ${onboardRes.status}`);
-      } catch (onboardErr: any) {
-        console.warn('[OtpOnboardingEmail] Dispatch note:', onboardErr.message);
+        console.info(`[OtpRegistrationWhatsApp] Dispatched welcome WhatsApp for ${normalizedPhone}: ${waRes.status}`);
+      } catch (waErr: any) {
+        console.warn('[OtpRegistrationWhatsApp] Dispatch note:', waErr.message);
       }
     }
 
@@ -1178,6 +1210,7 @@ app.post('/api/auth/google/session', jsonDefault, rateLimit('google-session', 10
     );
 
     let userRecord: any = null;
+    let isNewGoogleUser = false;
 
     if (identityRes.rows && identityRes.rows.length > 0) {
       // Identity link exists -> retrieve user record
@@ -1244,6 +1277,7 @@ app.post('/api/auth/google/session', jsonDefault, rateLimit('google-session', 10
       } else {
         // Security Requirement 2: Never assign OWNER, ADMIN, or staff roles to a new public Google signup.
         // Assign strictly least-privileged customer role: 'BUYER'
+        isNewGoogleUser = true;
         const newUserId = `usr-g-${Date.now().toString(36)}-${randomBytes(3).toString('hex')}`;
         const displayName =
           supaUser.user_metadata?.full_name?.trim() ||
@@ -1302,15 +1336,16 @@ app.post('/api/auth/google/session', jsonDefault, rateLimit('google-session', 10
       });
     }
 
-    // Dispatch automated onboarding welcome email (idempotent, safe against duplicate sends)
-    if (rawEmail) {
-      try {
-        const welcomeDisplayName =
-          userRecord.display_name ||
-          supaUser.user_metadata?.full_name?.trim() ||
-          supaUser.user_metadata?.name?.trim() ||
-          rawEmail.split('@')[0];
+    // Dispatch automated registration notifications strictly upon new user registration (never on repeat logins)
+    if (isNewGoogleUser && rawEmail) {
+      const welcomeDisplayName =
+        userRecord.display_name ||
+        supaUser.user_metadata?.full_name?.trim() ||
+        supaUser.user_metadata?.name?.trim() ||
+        rawEmail.split('@')[0];
 
+      // 1. Welcome Email
+      try {
         const onboardRes = await EmailNotificationService.handleUserOnboarding({
           userId: userRecord.id,
           name: welcomeDisplayName,
@@ -1320,6 +1355,23 @@ app.post('/api/auth/google/session', jsonDefault, rateLimit('google-session', 10
         console.info(`[GoogleOnboardingEmail] Dispatched welcome onboarding for ${rawEmail}: ${onboardRes.status}`);
       } catch (onboardErr: any) {
         console.warn('[GoogleOnboardingEmail] Dispatch note:', onboardErr.message);
+      }
+
+      // 2. Welcome WhatsApp (Only if phone number was supplied; never invent missing phone)
+      const googleUserPhone = userRecord.phone || supaUser.phone || supaUser.user_metadata?.phone;
+      if (googleUserPhone && AiSensyNotificationService.isValidPhoneNumber(googleUserPhone)) {
+        try {
+          const waRes = await AiSensyNotificationService.handleUserRegistered({
+            userId: userRecord.id,
+            userName: welcomeDisplayName,
+            userPhone: googleUserPhone,
+          });
+          console.info(`[GoogleOnboardingWhatsApp] Dispatched welcome WhatsApp for ${googleUserPhone}: ${waRes.status}`);
+        } catch (waErr: any) {
+          console.warn('[GoogleOnboardingWhatsApp] Dispatch note:', waErr.message);
+        }
+      } else {
+        console.info(`[GoogleOnboardingWhatsApp] Skipped: No verified phone number associated with Google account ${rawEmail}`);
       }
     }
 

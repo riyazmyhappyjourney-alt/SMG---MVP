@@ -396,8 +396,12 @@ export default function App() {
 
   // Dedicated Login / Register Page (Matching user reference design)
   if (currentRoute === 'LOGIN') {
+    const isPostPropertyIntent =
+      loginReturnRoute === 'SELLER_ASSISTED' ||
+      (typeof window !== 'undefined' && sessionStorage.getItem('sellmyghar_auth_redirect') === 'SELLER_ASSISTED');
     return (
       <AuthPage
+        intent={isPostPropertyIntent ? 'POST_PROPERTY' : 'GENERAL'}
         initialMode="SIGNIN"
         onBackToHome={() => {
           let dest = loginReturnRoute && loginReturnRoute !== 'LOGIN' ? loginReturnRoute : 'HOME';
@@ -558,6 +562,7 @@ export default function App() {
     if (!activeUser) {
       return (
         <AuthPage
+          intent="POST_PROPERTY"
           initialMode="SIGNIN"
           onBackToHome={() => navigateTo('HOME')}
           onSuccess={(user) => {

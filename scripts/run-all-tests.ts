@@ -22,6 +22,7 @@ import { runGroup4SeoMetadataTests } from './test-group4-seo-metadata';
 import { runPropertySubmissionFixTests } from './test-property-submission-fix';
 import { runSellMyGharEnhancementTests } from './test-sellmyghar-enhancements';
 import { runMasterBugfixRegressionTests } from './test-master-bugfix-regression';
+import { runAuthAndNotificationTests } from './test-auth-registration-and-notifications';
 
 async function runAll() {
   console.log('====================================================');
@@ -240,7 +241,14 @@ async function runAll() {
   totalPassed += masterRes.passed;
   totalFailed += masterRes.failed;
   suiteResults.push({ name: 'Master Bug Fix Regressions', passed: masterRes.passed, failed: masterRes.failed, tests: masterRes.results });
-  console.log(`Subtotal: ${masterRes.passed} passed, ${masterRes.failed} failed\n`);
+  // Suite 25: Auth UX, Registration Email & WhatsApp Suite
+  console.log('--- 25. Auth UX, Registration Email & WhatsApp Suite ---');
+  const authUxRes = await runAuthAndNotificationTests();
+  authUxRes.results.forEach(r => console.log(' ', r));
+  totalPassed += authUxRes.passed;
+  totalFailed += authUxRes.failed;
+  suiteResults.push({ name: 'Auth UX, Registration Email & WhatsApp', passed: authUxRes.passed, failed: authUxRes.failed, tests: authUxRes.results });
+  console.log(`Subtotal: ${authUxRes.passed} passed, ${authUxRes.failed} failed\n`);
 
   console.log('====================================================');
   console.log(`FINAL RESULTS: ${totalPassed} PASSED, ${totalFailed} FAILED (TOTAL: ${totalPassed + totalFailed}/${totalPassed + totalFailed})`);

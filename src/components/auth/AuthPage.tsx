@@ -7,6 +7,7 @@ import { Logo } from '../brand/Logo';
 
 interface AuthPageProps {
   initialMode?: 'SIGNIN' | 'SIGNUP';
+  intent?: 'POST_PROPERTY' | 'GENERAL';
   onSuccess: (user: UserAuthProfile) => void;
   onBackToHome: () => void;
   showSplashOnInit?: boolean;
@@ -60,6 +61,7 @@ export const BrandedSplashScreen: React.FC<{ message?: string }> = ({ message })
 
 export const AuthPage: React.FC<AuthPageProps> = ({
   initialMode = 'SIGNIN',
+  intent = 'GENERAL',
   onSuccess,
   onBackToHome,
   showSplashOnInit = false,
@@ -67,6 +69,17 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   const [step, setStep] = useState<AuthStep>('WELCOME');
   const [mode, setMode] = useState<'SIGNIN' | 'SIGNUP'>(initialMode);
   const [isSplash, setIsSplash] = useState(showSplashOnInit);
+
+  const isPostProperty = intent === 'POST_PROPERTY';
+
+  // Ensure intended destination is preserved across page refreshes and Google OAuth round-trips
+  useEffect(() => {
+    if (isPostProperty) {
+      try {
+        sessionStorage.setItem('sellmyghar_auth_redirect', 'SELLER_ASSISTED');
+      } catch {}
+    }
+  }, [isPostProperty]);
 
   // Phone OTP state
   const [phone, setPhone] = useState('');
@@ -318,10 +331,18 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                 {/* Headings */}
                 <div className="text-center mb-6">
                   <h1 className="text-2xl font-black text-[#172033] tracking-tight">
-                    {mode === 'SIGNUP' ? 'Create an Account' : 'Welcome to SellMyGhar'}
+                    {isPostProperty
+                      ? mode === 'SIGNUP'
+                        ? 'Create an Account to Post Your Property'
+                        : 'Login to Post Your Property'
+                      : mode === 'SIGNUP'
+                      ? 'Create an Account'
+                      : 'Welcome to SellMyGhar.in'}
                   </h1>
-                  <p className="text-xs text-slate-500 font-medium mt-1.5">
-                    Bengaluru's verified residential resale advisory.
+                  <p className="text-xs text-slate-500 font-medium mt-1.5 leading-relaxed">
+                    {isPostProperty
+                      ? 'Authentication is required to submit and manage your property on SellMyGhar.in.'
+                      : 'Your trusted starting point for buying or selling a home in Bengaluru.'}
                   </p>
                 </div>
 
@@ -409,7 +430,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                       }}
                       className="font-bold text-[#0073E6] hover:underline cursor-pointer ml-1"
                     >
-                      Sign up
+                      {isPostProperty ? 'Sign up to Post Property' : 'Sign up'}
                     </button>
                   </span>
                 ) : (
@@ -459,10 +480,18 @@ export const AuthPage: React.FC<AuthPageProps> = ({
 
               {/* Title & Subtitle */}
               <h1 className="text-2xl font-black text-[#172033] tracking-tight">
-                {mode === 'SIGNUP' ? 'Sign Up with Phone' : 'Login with Phone Number'}
+                {isPostProperty
+                  ? mode === 'SIGNUP'
+                    ? 'Register to Post Your Property'
+                    : 'Login to Post Your Property'
+                  : mode === 'SIGNUP'
+                  ? 'Sign Up with Phone'
+                  : 'Login with Phone Number'}
               </h1>
               <p className="text-xs text-slate-500 font-medium mt-1.5">
-                We'll send a 6-digit verification code to your phone number.
+                {isPostProperty
+                  ? 'Enter your mobile number to receive a 6-digit OTP and continue to the property wizard.'
+                  : "We'll send a 6-digit verification code to your phone number."}
               </p>
 
               {/* Error Message */}

@@ -112,6 +112,7 @@ export class AiSensyNotificationService {
       propertyPublished: string;
       propertyVerified: string;
       propertyActionRequired: string;
+      userWelcome: string;
     };
   } {
     const apiKey = process.env.AISENSY_API_KEY;
@@ -124,6 +125,7 @@ export class AiSensyNotificationService {
         propertyPublished: process.env.AISENSY_CAMPAIGN_PROPERTY_PUBLISHED || 'property_published',
         propertyVerified: process.env.AISENSY_CAMPAIGN_PROPERTY_VERIFIED || 'SMG_Property_verified',
         propertyActionRequired: process.env.AISENSY_CAMPAIGN_PROPERTY_ACTION_REQUIRED || 'property_action_required',
+        userWelcome: process.env.AISENSY_CAMPAIGN_USER_WELCOME || 'SMG_User_Registered',
       },
     };
   }
@@ -575,6 +577,59 @@ export class AiSensyNotificationService {
       params,
       data.propertyId,
       `action_req:${data.propertyId}:${data.ownerPhone}:${Date.now().toString(36).slice(0, 5)}`
+    );
+  }
+
+  /**
+   * 5. Triggered on successful new user account registration
+   * Campaign: AISENSY_CAMPAIGN_USER_WELCOME (default: "SMG_User_Registered")
+   * Template:
+   *   Hello {{1}},
+   *   Welcome to SellMyGhar.in.
+   *   We're glad you're here. You can now continue your home buying or selling journey through your SellMyGhar account.
+   *   Thank you for joining us.
+   *   Team SellMyGhar.in
+   * Params: [userName]
+   */
+  public static async handleUserRegistered(data: {
+    userId: string;
+    userName: string;
+    userPhone?: string | null;
+  }): Promise<DispatchedAiSensyRecord> {
+    const rawPhone = String(data.userPhone || '').trim();
+    if (!rawPhone || !this.isValidPhoneNumber(rawPhone)) {
+      const skipRecord: DispatchedAiSensyRecord = {
+        id: `skip-no-phone-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        campaignName: process.env.AISENSY_CAMPAIGN_USER_WELCOME || 'SMG_User_Registered',
+        destination: rawPhone || 'none',
+        userName: data.userName || 'Homeowner',
+        templateParams: [data.userName || 'Homeowner'],
+        status: 'SKIPPED_INVALID_PHONE',
+        attempts: 0,
+        error: !rawPhone
+          ? 'No phone number supplied for user (e.g. Google auth without phone number)'
+          : `Invalid Indian mobile number: "${rawPhone}". Expected 10 digits starting with 6-9.`,
+        timestamp: new Date().toISOString(),
+      };
+      this.dispatchedLedger.push(skipRecord);
+      return skipRecord;
+    }
+
+    const campaignName = process.env.AISENSY_CAMPAIGN_USER_WELCOME || 'SMG_User_Registered';
+    const params = [
+      data.userName || 'Homeowner',
+    ];
+
+    const destination = this.normalizePhoneNumber(rawPhone);
+    const idempotencyKey = `welcome-reg-wa:${data.userId}:${destination}`;
+
+    return this.sendCampaignWithRetry(
+      campaignName,
+      destination,
+      data.userName,
+      params,
+      undefined,
+      idempotencyKey
     );
   }
 }
