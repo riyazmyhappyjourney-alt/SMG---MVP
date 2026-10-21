@@ -5056,6 +5056,9 @@ const updateDocStatusHandler = async (req: Request, res: Response) => {
 
     // If verified, advance property verification tier and trigger approval notification
     if (targetStatus === 'VERIFIED') {
+      const pRowBefore = await executeQuery(`SELECT crm_status FROM properties WHERE id = $1;`, [resolvedPropertyId]);
+      const wasApproved = pRowBefore.rows?.[0]?.crm_status === 'APPROVED';
+
       const pUpdate = await executeQuery(`
         UPDATE properties
         SET verification_tier = 'LEVEL_2_DOCS_REVIEWED', crm_status = 'APPROVED', updated_at = NOW()
@@ -5071,19 +5074,22 @@ const updateDocStatusHandler = async (req: Request, res: Response) => {
           console.warn('[DocVerifyPropertyApproved] Dispatch note:', apprErr.message);
         }
 
-        try {
-          const ownerPhone = p.owner_phone || p.contact_phone;
-          if (ownerPhone) {
-            void AiSensyNotificationService.handlePropertyVerified({
-              ownerName: p.owner_name || 'Homeowner',
-              ownerPhone,
-              title: p.title || 'Bengaluru Apartment',
-              locality: p.project_locality_id || p.locality || 'Bengaluru',
-              propertyId: resolvedPropertyId,
-            }).catch((aisErr) => console.warn('[DocVerifyWhatsApp] Dispatch note:', aisErr.message));
+        if (!wasApproved) {
+          try {
+            const ownerPhone = p.owner_phone || p.contact_phone;
+            if (ownerPhone) {
+              void AiSensyNotificationService.handlePropertyVerified({
+                ownerName: p.owner_name || 'Homeowner',
+                ownerPhone,
+                title: p.title || 'Bengaluru Apartment',
+                locality: p.project_locality_id || p.locality || 'Bengaluru',
+                propertyId: resolvedPropertyId,
+                referenceId: p.reference_id,
+              }).catch((aisErr) => console.warn('[DocVerifyWhatsApp] Dispatch note:', aisErr.message));
+            }
+          } catch (aisErr: any) {
+            console.warn('[DocVerifyWhatsApp] Note:', aisErr.message);
           }
-        } catch (aisErr: any) {
-          console.warn('[DocVerifyWhatsApp] Note:', aisErr.message);
         }
       }
     } else if (targetStatus === 'REJECTED' && note) {
@@ -7883,27 +7889,30 @@ app.post(
       }
 
       // Dispatch AiSensy WhatsApp verified notification (non-blocking, idempotent)
-      try {
-        let ownerPhone = existing.owner_phone || existing.contact_phone;
-        let ownerName = existing.owner_name;
-        if (!ownerPhone && existing.internal_verification_notes) {
-          try {
-            const parsedNotes = JSON.parse(existing.internal_verification_notes);
-            ownerPhone = parsedNotes.ownerPhone || parsedNotes.contactPhone;
-            ownerName = ownerName || parsedNotes.ownerName;
-          } catch {}
+      if (existing.crm_status !== 'APPROVED') {
+        try {
+          let ownerPhone = existing.owner_phone || existing.contact_phone;
+          let ownerName = existing.owner_name;
+          if (!ownerPhone && existing.internal_verification_notes) {
+            try {
+              const parsedNotes = JSON.parse(existing.internal_verification_notes);
+              ownerPhone = parsedNotes.ownerPhone || parsedNotes.contactPhone;
+              ownerName = ownerName || parsedNotes.ownerName;
+            } catch {}
+          }
+          if (ownerPhone) {
+            void AiSensyNotificationService.handlePropertyVerified({
+              ownerName: ownerName || 'Homeowner',
+              ownerPhone,
+              title: cleanTitle || existing.title || 'Bengaluru Apartment',
+              locality: existing.project_locality_id || 'Bengaluru',
+              propertyId: id,
+              referenceId: existing.reference_id,
+            }).catch((aisErr) => console.warn('[AiSensyPropertyVerified] Dispatch note:', aisErr.message));
+          }
+        } catch (aisensyApprErr: any) {
+          console.warn('[AiSensyPropertyVerified] Dispatch note:', aisensyApprErr.message);
         }
-        if (ownerPhone) {
-          void AiSensyNotificationService.handlePropertyVerified({
-            ownerName: ownerName || 'Homeowner',
-            ownerPhone,
-            title: cleanTitle || existing.title || 'Bengaluru Apartment',
-            locality: existing.project_locality_id || 'Bengaluru',
-            propertyId: id,
-          }).catch((aisErr) => console.warn('[AiSensyPropertyVerified] Dispatch note:', aisErr.message));
-        }
-      } catch (aisensyApprErr: any) {
-        console.warn('[AiSensyPropertyVerified] Dispatch note:', aisensyApprErr.message);
       }
 
       return res.json({
@@ -7962,27 +7971,30 @@ const updatePropertyStatusHandler = async (req: Request, res: Response) => {
       }
 
       // Dispatch AiSensy WhatsApp verified notification (non-blocking, idempotent)
-      try {
-        let ownerPhone = existing.owner_phone || existing.contact_phone;
-        let ownerName = existing.owner_name;
-        if (!ownerPhone && existing.internal_verification_notes) {
-          try {
-            const parsedNotes = JSON.parse(existing.internal_verification_notes);
-            ownerPhone = parsedNotes.ownerPhone || parsedNotes.contactPhone;
-            ownerName = ownerName || parsedNotes.ownerName;
-          } catch {}
+      if (existing.crm_status !== 'APPROVED') {
+        try {
+          let ownerPhone = existing.owner_phone || existing.contact_phone;
+          let ownerName = existing.owner_name;
+          if (!ownerPhone && existing.internal_verification_notes) {
+            try {
+              const parsedNotes = JSON.parse(existing.internal_verification_notes);
+              ownerPhone = parsedNotes.ownerPhone || parsedNotes.contactPhone;
+              ownerName = ownerName || parsedNotes.ownerName;
+            } catch {}
+          }
+          if (ownerPhone) {
+            void AiSensyNotificationService.handlePropertyVerified({
+              ownerName: ownerName || 'Homeowner',
+              ownerPhone,
+              title: existing.title || 'Bengaluru Apartment',
+              locality: existing.project_locality_id || 'Bengaluru',
+              propertyId: id,
+              referenceId: existing.reference_id,
+            }).catch((aisErr) => console.warn('[AiSensyPropertyVerified] Dispatch note:', aisErr.message));
+          }
+        } catch (aisensyErr: any) {
+          console.warn('[AiSensyPropertyVerified] Dispatch note:', aisensyErr.message);
         }
-        if (ownerPhone) {
-          void AiSensyNotificationService.handlePropertyVerified({
-            ownerName: ownerName || 'Homeowner',
-            ownerPhone,
-            title: existing.title || 'Bengaluru Apartment',
-            locality: existing.project_locality_id || 'Bengaluru',
-            propertyId: id,
-          }).catch((aisErr) => console.warn('[AiSensyPropertyVerified] Dispatch note:', aisErr.message));
-        }
-      } catch (aisensyErr: any) {
-        console.warn('[AiSensyPropertyVerified] Dispatch note:', aisensyErr.message);
       }
     } else if (targetStatus === 'ACTION_REQUIRED' || targetStatus === 'DOCS_REQUESTED') {
       updateRes = await executeQuery(`

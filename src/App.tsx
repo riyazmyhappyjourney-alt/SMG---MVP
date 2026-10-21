@@ -117,10 +117,14 @@ export default function App() {
     const path = window.location.pathname;
     const hash = window.location.hash;
     if (path.startsWith('/property/')) {
-      return path.replace('/property/', '').split('/')[0] || null;
+      const parts = path.split('?')[0].split('/').filter(Boolean);
+      const last = parts[parts.length - 1];
+      return (last && last !== 'property') ? last : null;
     }
     if (hash.startsWith('#/property/')) {
-      return hash.replace('#/property/', '').split('?')[0] || null;
+      const parts = hash.replace(/^#\/?/, '').split('?')[0].split('/').filter(Boolean);
+      const last = parts[parts.length - 1];
+      return (last && last !== 'property') ? last : null;
     }
     return null;
   };
@@ -197,10 +201,12 @@ export default function App() {
       const path = window.location.pathname;
       const host = window.location.hostname;
 
+      const pathParts = path.split('?')[0].split('/').filter(Boolean);
+      const hashParts = hash.replace(/^#\/?/, '').split('?')[0].split('/').filter(Boolean);
       const propId = path.startsWith('/property/')
-        ? path.replace('/property/', '').split('/')[0]
+        ? (pathParts[pathParts.length - 1] !== 'property' ? pathParts[pathParts.length - 1] : null)
         : hash.startsWith('#/property/')
-        ? hash.replace('#/property/', '').split('?')[0]
+        ? (hashParts[hashParts.length - 1] !== 'property' ? hashParts[hashParts.length - 1] : null)
         : null;
       if (propId) setSelectedPropertyId(propId);
 

@@ -102,12 +102,16 @@ export async function runSellMyGharEnhancementTests(): Promise<{ passed: number;
       assert.strictEqual(record.destination, '918217873708');
       assert.ok(capturedPayload);
       assert.strictEqual(capturedPayload.apiKey, 'test-aisensy-key-xyz');
+      assert.strictEqual(capturedPayload.campaignName, 'SMG_Property_Submitted2');
       assert.strictEqual(capturedPayload.userName, 'Sunil Rao');
       assert.deepStrictEqual(capturedPayload.templateParams, [
         'Sunil Rao',
         'SMG-2026-9901',
         'Sobha Dream Acres, Panathur',
+        'property/prop-test-listed-01',
       ]);
+      assert.ok(Array.isArray(capturedPayload.buttons));
+      assert.strictEqual(capturedPayload.buttons[0].parameters[0].text, 'property/prop-test-listed-01');
     } finally {
       process.env.AISENSY_API_KEY = origKey;
       AiSensyNotificationService.setMockDispatcher(null);
@@ -153,13 +157,15 @@ export async function runSellMyGharEnhancementTests(): Promise<{ passed: number;
     }
   });
 
-  // 4. AiSensy Idempotency Deduplication
+  // 4. AiSensy Idempotency Deduplication & Verified Campaign
   await test('AiSensy idempotency prevents duplicate campaign dispatch for same property', async () => {
     AiSensyNotificationService.clearDispatchedMessages();
     let dispatchCallCount = 0;
+    let capturedVerifiedPayload: any = null;
 
-    AiSensyNotificationService.setMockDispatcher(async () => {
+    AiSensyNotificationService.setMockDispatcher(async (payload) => {
       dispatchCallCount++;
+      capturedVerifiedPayload = payload;
       return { success: true, data: { status: 'submitted' } };
     });
 
@@ -176,6 +182,16 @@ export async function runSellMyGharEnhancementTests(): Promise<{ passed: number;
       });
 
       assert.strictEqual(dispatchCallCount, 1);
+      assert.ok(capturedVerifiedPayload);
+      assert.strictEqual(capturedVerifiedPayload.campaignName, 'SMG_Property_verfied');
+      assert.deepStrictEqual(capturedVerifiedPayload.templateParams, [
+        'Priya Sharma',
+        'Prestige Lakeside Habitat - 3BHK',
+        'Varthur',
+        'property/prop-verified-dup-01',
+      ]);
+      assert.ok(Array.isArray(capturedVerifiedPayload.buttons));
+      assert.strictEqual(capturedVerifiedPayload.buttons[0].parameters[0].text, 'property/prop-verified-dup-01');
 
       // Subsequent identical dispatch
       const dupRecord = await AiSensyNotificationService.handlePropertyVerified({
@@ -200,12 +216,15 @@ export async function runSellMyGharEnhancementTests(): Promise<{ passed: number;
     AiSensyNotificationService.clearDispatchedMessages();
     let callAttempts = 0;
 
-    AiSensyNotificationService.setMockDispatcher(async () => {
-      callAttempts++;
-      if (callAttempts < 3) {
-        return { success: false, error: 'Transient network failure' };
+    AiSensyNotificationService.setMockDispatcher(async (payload) => {
+      if (payload.campaignName === 'property_action_required') {
+        callAttempts++;
+        if (callAttempts < 3) {
+          return { success: false, error: 'Transient network failure' };
+        }
+        return { success: true, data: { status: 'recovered' } };
       }
-      return { success: true, data: { status: 'recovered' } };
+      return { success: true, data: { status: 'ok' } };
     });
 
     const origKey = process.env.AISENSY_API_KEY;
@@ -237,9 +256,9 @@ export async function runSellMyGharEnhancementTests(): Promise<{ passed: number;
       const status = AiSensyNotificationService.getProviderStatus();
       assert.strictEqual(status.configured, true);
       assert.strictEqual(status.endpoint, 'https://backend.aisensy.com/campaign/t1/api/v2');
-      assert.strictEqual(status.campaigns.propertyListed, 'SMG_Property_Submitted');
+      assert.strictEqual(status.campaigns.propertyListed, 'SMG_Property_Submitted2');
       assert.strictEqual(status.campaigns.propertyPublished, 'property_published');
-      assert.strictEqual(status.campaigns.propertyVerified, 'property_verified');
+      assert.strictEqual(status.campaigns.propertyVerified, 'SMG_Property_verfied');
       assert.strictEqual(status.campaigns.propertyActionRequired, 'property_action_required');
       assert.strictEqual('apiKey' in (status as any), false);
       assert.strictEqual('AISENSY_API_KEY' in (status as any), false);

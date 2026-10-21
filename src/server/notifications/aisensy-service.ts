@@ -37,6 +37,7 @@ export interface DispatchedAiSensyRecord {
   destination: string;
   userName: string;
   templateParams: string[];
+  buttons?: any[];
   propertyId?: string;
   status: 'DELIVERED' | 'FAILED' | 'SIMULATED' | 'SKIPPED_UNCONFIGURED' | 'SKIPPED_INVALID_PHONE';
   attempts: number;
@@ -119,12 +120,28 @@ export class AiSensyNotificationService {
       provider: 'AiSensy WhatsApp Business API',
       endpoint: this.ENDPOINT,
       campaigns: {
-        propertyListed: process.env.AISENSY_CAMPAIGN_PROPERTY_LISTED || 'SMG_Property_Submitted',
+        propertyListed: process.env.AISENSY_CAMPAIGN_PROPERTY_LISTED || 'SMG_Property_Submitted2',
         propertyPublished: process.env.AISENSY_CAMPAIGN_PROPERTY_PUBLISHED || 'property_published',
-        propertyVerified: process.env.AISENSY_CAMPAIGN_PROPERTY_VERIFIED || 'property_verified',
+        propertyVerified: process.env.AISENSY_CAMPAIGN_PROPERTY_VERIFIED || 'SMG_Property_verfied',
         propertyActionRequired: process.env.AISENSY_CAMPAIGN_PROPERTY_ACTION_REQUIRED || 'property_action_required',
       },
     };
+  }
+
+  /**
+   * Helper to build public property detail URL and dynamic CTA button parameter
+   */
+  public static buildPropertyUrl(propertyId: string): { fullUrl: string; urlSuffix: string } {
+    const rawId = String(propertyId || '').trim();
+    const baseUrl = (process.env.PUBLIC_APP_URL || 'https://sellmyghar.in').replace(/\/+$/, '');
+    const fullUrl = `${baseUrl}/property/${rawId}`;
+    // Dynamic URL suffix for WhatsApp CTA button:
+    // If template base URL is "https://sellmyghar.in/", suffix is "property/{propertyId}"
+    // If AISENSY_BUTTON_URL_SUFFIX_MODE === 'id_only' (e.g. base URL already includes "/property/"), suffix is "{propertyId}"
+    const urlSuffix = process.env.AISENSY_BUTTON_URL_SUFFIX_MODE === 'id_only'
+      ? rawId
+      : `property/${rawId}`;
+    return { fullUrl, urlSuffix };
   }
 
   /**
@@ -181,7 +198,8 @@ export class AiSensyNotificationService {
     userName: string,
     templateParams: string[],
     propertyId?: string,
-    idempotencyKey?: string
+    idempotencyKey?: string,
+    buttons?: any[]
   ): Promise<DispatchedAiSensyRecord> {
     // 1. Recipient Phone Validation Guard
     if (!this.isValidPhoneNumber(phone)) {
@@ -192,6 +210,7 @@ export class AiSensyNotificationService {
         destination: phone,
         userName,
         templateParams,
+        buttons: buttons && buttons.length > 0 ? buttons : undefined,
         propertyId,
         status: 'SKIPPED_INVALID_PHONE',
         attempts: 0,
@@ -213,6 +232,7 @@ export class AiSensyNotificationService {
         destination,
         userName,
         templateParams,
+        buttons: buttons && buttons.length > 0 ? buttons : undefined,
         propertyId,
         status: 'SIMULATED',
         attempts: 0,
@@ -239,6 +259,7 @@ export class AiSensyNotificationService {
           destination,
           userName,
           templateParams,
+          buttons: buttons && buttons.length > 0 ? buttons : undefined,
           propertyId,
           status: 'SIMULATED',
           attempts: 1,
@@ -256,6 +277,7 @@ export class AiSensyNotificationService {
         destination,
         userName,
         templateParams,
+        buttons: buttons && buttons.length > 0 ? buttons : undefined,
         propertyId,
         status: 'SKIPPED_UNCONFIGURED',
         attempts: 0,
@@ -273,6 +295,7 @@ export class AiSensyNotificationService {
       userName: userName || 'Customer',
       templateParams,
       source: 'sellmyghar-backend',
+      ...(buttons && buttons.length > 0 ? { buttons } : {}),
     };
 
     let lastError: string | null = null;
@@ -340,6 +363,7 @@ export class AiSensyNotificationService {
       destination,
       userName,
       templateParams,
+      buttons: buttons && buttons.length > 0 ? buttons : undefined,
       propertyId,
       status: isSuccess ? 'DELIVERED' : 'FAILED',
       attempts,
@@ -377,9 +401,9 @@ export class AiSensyNotificationService {
 
   /**
    * 1. Triggered on successful Property Submission
-   * Campaign: AISENSY_CAMPAIGN_PROPERTY_LISTED (default: "SMG_Property_Submitted")
+   * Campaign: AISENSY_CAMPAIGN_PROPERTY_LISTED (default: "SMG_Property_Submitted2")
+   * Params (4-param template): [userName, referenceId, societyWithLocality, urlSuffix]
    * Params (3-param template): [userName, referenceId, societyWithLocality]
-   * Params (4-param template): [userName, referenceId, societyName, locality]
    */
   public static async handlePropertyListed(data: {
     ownerName: string;
@@ -390,23 +414,40 @@ export class AiSensyNotificationService {
     propertyId: string;
     listingStatus?: string;
   }): Promise<DispatchedAiSensyRecord> {
-    const campaignName = process.env.AISENSY_CAMPAIGN_PROPERTY_LISTED || 'SMG_Property_Submitted';
+    const campaignName = process.env.AISENSY_CAMPAIGN_PROPERTY_LISTED || 'SMG_Property_Submitted2';
+    const { urlSuffix } = this.buildPropertyUrl(data.propertyId);
     const use3Params = campaignName === 'SMG_Property_Submitted' || process.env.AISENSY_PROPERTY_LISTED_PARAM_COUNT === '3';
     
+    const localityText = data.societyName && data.locality
+      ? `${data.societyName}, ${data.locality}`
+      : (data.societyName || data.locality || 'Bengaluru Apartment');
+
     const params = use3Params
       ? [
           data.ownerName || 'Homeowner',
           data.referenceId || 'SMG-PENDING',
-          data.societyName && data.locality
-            ? `${data.societyName}, ${data.locality}`
-            : (data.societyName || data.locality || 'Bengaluru Apartment'),
+          localityText,
         ]
       : [
           data.ownerName || 'Homeowner',
           data.referenceId || 'SMG-PENDING',
-          data.societyName || 'Bengaluru Apartment',
-          data.locality || 'Bengaluru',
+          localityText,
+          urlSuffix,
         ];
+
+    const buttons = [
+      {
+        type: 'button',
+        sub_type: 'url',
+        index: '0',
+        parameters: [
+          {
+            type: 'text',
+            text: urlSuffix,
+          },
+        ],
+      },
+    ];
 
     return this.sendCampaignWithRetry(
       campaignName,
@@ -414,7 +455,8 @@ export class AiSensyNotificationService {
       data.ownerName,
       params,
       data.propertyId,
-      `listed:${data.propertyId}:${data.ownerPhone}`
+      `listed:${data.propertyId}:${data.ownerPhone}`,
+      buttons
     );
   }
 
@@ -451,8 +493,9 @@ export class AiSensyNotificationService {
 
   /**
    * 3. Triggered on CRM Staff Verification Approval
-   * Campaign: AISENSY_CAMPAIGN_PROPERTY_VERIFIED (default: "property_verified")
-   * Params: [userName, propertyTitle, locality]
+   * Campaign: AISENSY_CAMPAIGN_PROPERTY_VERIFIED (default: "SMG_Property_verfied")
+   * Params (4-param template): [userName, propertyTitle, locality, urlSuffix]
+   * Params (3-param template): [userName, propertyTitle, locality]
    */
   public static async handlePropertyVerified(data: {
     ownerName: string;
@@ -460,12 +503,37 @@ export class AiSensyNotificationService {
     title: string;
     locality: string;
     propertyId: string;
+    referenceId?: string;
   }): Promise<DispatchedAiSensyRecord> {
-    const campaignName = process.env.AISENSY_CAMPAIGN_PROPERTY_VERIFIED || 'property_verified';
-    const params = [
-      data.ownerName || 'Homeowner',
-      data.title || 'Your Property',
-      data.locality || 'Bengaluru',
+    const campaignName = process.env.AISENSY_CAMPAIGN_PROPERTY_VERIFIED || 'SMG_Property_verfied';
+    const { urlSuffix } = this.buildPropertyUrl(data.propertyId);
+    const use3Params = process.env.AISENSY_PROPERTY_VERIFIED_PARAM_COUNT === '3';
+
+    const params = use3Params
+      ? [
+          data.ownerName || 'Homeowner',
+          data.title || 'Your Property',
+          data.locality || 'Bengaluru',
+        ]
+      : [
+          data.ownerName || 'Homeowner',
+          data.title || 'Your Property',
+          data.locality || 'Bengaluru',
+          urlSuffix,
+        ];
+
+    const buttons = [
+      {
+        type: 'button',
+        sub_type: 'url',
+        index: '0',
+        parameters: [
+          {
+            type: 'text',
+            text: urlSuffix,
+          },
+        ],
+      },
     ];
 
     return this.sendCampaignWithRetry(
@@ -474,7 +542,8 @@ export class AiSensyNotificationService {
       data.ownerName,
       params,
       data.propertyId,
-      `verified:${data.propertyId}:${data.ownerPhone}`
+      `verified:${data.propertyId}:${data.ownerPhone}`,
+      buttons
     );
   }
 
