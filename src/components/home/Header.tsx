@@ -809,7 +809,7 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between gap-2 sm:gap-6">
               
               {/* Logo & Locality Dropdown */}
-              <div className="flex items-center space-x-2 sm:space-x-4 shrink-0">
+              <div className="flex items-center space-x-4 shrink-0">
                 <a 
                   href="/" 
                   onClick={handleBrandHomeClick}
@@ -820,53 +820,37 @@ export const Header: React.FC<HeaderProps> = ({
                   <span className="text-white/70 font-semibold text-xs ml-0.5">.in</span>
                 </a>
 
-                {/* Corridor Selector Pill (Responsive: visible on desktop and mobile) */}
-                <div ref={corridorDropdownRef} className="relative">
+                {/* Corridor Selector Pill */}
+                <div ref={corridorDropdownRef} className="relative hidden md:block">
                   <button
                     type="button"
                     onClick={() => setIsCorridorDropdownOpen(!isCorridorDropdownOpen)}
-                    className="text-xs font-semibold text-white/95 hover:text-white flex items-center space-x-1 py-1.5 px-2 sm:px-2.5 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 transition-all cursor-pointer whitespace-nowrap"
-                    aria-label="Select Bengaluru Zone"
+                    className="text-xs font-semibold text-white/90 hover:text-white flex items-center space-x-1 py-1 px-2 rounded-md hover:bg-white/10 transition-colors cursor-pointer"
                   >
-                    <MapPin className="w-3.5 h-3.5 text-blue-300 shrink-0" />
-                    <span className="hidden sm:inline">Buy in</span>
-                    <span>{selectedCorridor.replace('Bengaluru ', '')}</span>
-                    <ChevronDown className={`w-3.5 h-3.5 text-white/80 transition-transform ${isCorridorDropdownOpen ? 'rotate-180' : ''}`} />
+                    <span>Buy in {selectedCorridor}</span>
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isCorridorDropdownOpen ? 'rotate-180' : ''}`} />
                   </button>
 
                   {isCorridorDropdownOpen && (
-                    <div className="absolute top-full left-0 mt-2 w-56 sm:w-64 bg-white text-slate-800 rounded-xl shadow-2xl border border-slate-200 py-2 z-50 text-xs">
-                      <div className="px-3.5 py-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400 border-b border-slate-100 mb-1">
-                        Select Bengaluru Zone
-                      </div>
-                      {[
-                        { name: 'All Bengaluru', sub: 'City-wide resale inventory' },
-                        { name: 'Bengaluru East', sub: 'Whitefield, Sarjapur, Marathahalli, Bellandur, Varthur' },
-                        { name: 'Bengaluru North', sub: 'Hebbal, Thanisandra, Yelahanka, Hennur, Jakkur' },
-                        { name: 'Bengaluru South', sub: 'HSR, JP Nagar, Electronic City, Kanakapura, BTM' },
-                        { name: 'Bengaluru West', sub: 'Malleshwaram, Rajajinagar, Vijayanagar, Yeshwanthpur' },
-                        { name: 'Bengaluru Central', sub: 'Indiranagar, Koramangala, CBD, Richmond Town' },
-                      ].map((item) => (
+                    <div className="absolute top-full left-0 mt-1.5 w-48 bg-white text-slate-800 rounded-xl shadow-2xl border border-slate-200 py-1.5 z-50 text-xs">
+                      {['Bengaluru East', 'Bengaluru West', 'Bengaluru North', 'Bengaluru South', 'Bengaluru Central', 'All Bengaluru'].map((corridor) => (
                         <button
-                          key={item.name}
+                          key={corridor}
                           type="button"
                           onClick={() => {
-                            setSelectedCorridor(item.name);
+                            setSelectedCorridor(corridor);
                             setIsCorridorDropdownOpen(false);
                             if (onSelectLocality) {
-                              onSelectLocality(item.name);
+                              onSelectLocality(corridor);
                             }
                             const el = document.getElementById('listings');
                             if (el) {
                               el.scrollIntoView({ behavior: 'smooth' });
                             }
                           }}
-                          className={`w-full text-left px-3.5 py-2 hover:bg-blue-50 hover:text-[#0073E6] transition-colors flex flex-col ${
-                            selectedCorridor === item.name ? 'bg-blue-50 text-[#0073E6] font-bold' : 'text-slate-700 font-medium'
-                          }`}
+                          className="w-full text-left px-3.5 py-2 hover:bg-blue-50 hover:text-[#0073E6] font-medium"
                         >
-                          <span className="text-xs">{item.name}</span>
-                          <span className="text-[10px] text-slate-400 font-normal font-['Poppins']">{item.sub}</span>
+                          Buy in {corridor}
                         </button>
                       ))}
                     </div>
@@ -877,7 +861,7 @@ export const Header: React.FC<HeaderProps> = ({
               {/* Central Search Bar */}
               <form 
                 onSubmit={handleScrolledSearch}
-                className="flex-1 max-w-xl hidden sm:flex items-center bg-white rounded-lg shadow-inner pl-2 pr-1 py-1 text-slate-800"
+                className="flex-1 max-w-xl hidden sm:flex items-center bg-white rounded-lg shadow-inner overflow-hidden pl-2 pr-1 py-1 text-slate-800"
               >
                 <span className="text-xs font-bold text-slate-600 px-2 border-r border-slate-200 flex items-center gap-1 shrink-0">
                   <span>Buy</span>
@@ -891,7 +875,7 @@ export const Header: React.FC<HeaderProps> = ({
                   type="text"
                   value={scrolledQuery}
                   onChange={(e) => setScrolledQuery(e.target.value)}
-                  placeholder="Whitefield, Sarjapur, Hebbal..."
+                  placeholder="Whitefield"
                   className="w-full px-3 py-1 text-xs text-slate-800 placeholder-slate-400 focus:outline-hidden font-medium"
                 />
 
@@ -931,7 +915,7 @@ export const Header: React.FC<HeaderProps> = ({
                   )}
                 </button>
 
-                {/* Post Property FREE Button */}
+                {/* Post Property FREE Button (Hidden on mobile to preserve screen width & prevent layout breakage) */}
                 <button
                   type="button"
                   onClick={onPostPropertyClick}
@@ -979,108 +963,6 @@ export const Header: React.FC<HeaderProps> = ({
               </div>
 
             </div>
-
-            {/* Mobile Menu Drawer when scrolled */}
-            <AnimatePresence>
-              {mobileMenuOpen && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  className="md:hidden border-t border-blue-900/40 bg-white text-slate-800 px-4 py-4 space-y-3 font-['Montserrat'] shadow-2xl"
-                >
-                  <div className="space-y-1 font-semibold text-sm">
-                    <button
-                      type="button"
-                      onClick={() => handleNav('BUY')}
-                      className="w-full text-left py-2 px-3 rounded-lg hover:bg-slate-50 text-slate-800"
-                    >
-                      For Buyers
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleNav('SELL')}
-                      className="w-full text-left py-2 px-3 rounded-lg hover:bg-slate-50 text-slate-800 flex items-center justify-between"
-                    >
-                      <span>For Owners</span>
-                      <span className="text-[10px] font-bold bg-blue-100 text-[#0073E6] px-2 py-0.5 rounded-full">
-                        Sell Flat
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleNav('ABOUT')}
-                      className="w-full text-left py-2 px-3 rounded-lg hover:bg-slate-50 text-slate-800"
-                    >
-                      About Us
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleNav('CONTACT')}
-                      className="w-full text-left py-2 px-3 rounded-lg hover:bg-slate-50 text-slate-800"
-                    >
-                      Contact Us
-                    </button>
-                    {onFavoritesClick && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setMobileMenuOpen(false);
-                          onFavoritesClick();
-                        }}
-                        className="w-full text-left py-2 px-3 rounded-lg hover:bg-slate-50 text-slate-800 flex items-center justify-between"
-                      >
-                        <span className="flex items-center space-x-2">
-                          <Heart className="w-4 h-4 text-rose-500" />
-                          <span>My Saved Properties</span>
-                        </span>
-                        <span className="text-xs font-bold bg-rose-100 text-rose-700 px-2 py-0.5 rounded-full">
-                          {favoritesCount}
-                        </span>
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="pt-3 border-t border-slate-100 space-y-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMobileMenuOpen(false);
-                        onPostPropertyClick();
-                      }}
-                      className="w-full py-2.5 px-3 rounded-xl bg-[#0073E6] text-white text-xs font-bold flex items-center justify-center space-x-1.5"
-                    >
-                      <Home className="w-4 h-4" />
-                      <span>Post Property FREE</span>
-                    </button>
-
-                    {user ? (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setMobileMenuOpen(false);
-                          if (onDashboardClick) onDashboardClick();
-                        }}
-                        className="w-full py-2 px-3 rounded-xl bg-slate-100 text-slate-800 text-xs font-bold"
-                      >
-                        My Dashboard
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setMobileMenuOpen(false);
-                          onLoginClick();
-                        }}
-                        className="w-full py-2 px-3 rounded-xl border border-slate-300 text-slate-700 text-xs font-bold"
-                      >
-                        Login / Register
-                      </button>
-                    )}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
           </motion.div>
         )}
       </AnimatePresence>
