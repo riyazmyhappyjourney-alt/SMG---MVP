@@ -51,8 +51,8 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
             id="footer-skyline-backdrop"
             src="/images/bengaluru-skyline-footer.png"
             alt="Bengaluru Vidhana Soudha, Metro and Resale Infrastructure Panorama"
-            className="w-full h-full object-cover object-bottom"
-            loading="lazy"
+            className="w-full h-full object-cover object-bottom opacity-25 select-none pointer-events-none"
+            loading="eager"
             decoding="async"
           />
           {/* Subtle translucent light overlay over the illustration for text contrast & readability without hiding illustration */}
@@ -75,16 +75,16 @@ export const Footer: React.FC<FooterProps> = ({ onNavClick, onConsentPortalOpen 
               {/* Unified Karnataka RERA Registered Block with Full Number Visible on Desktop & Mobile */}
               <div className="pt-1">
                 <div 
-                  className="relative overflow-hidden flex flex-col gap-1.5 text-xs bg-emerald-50/95 backdrop-blur-xs p-3 rounded-xl border border-emerald-400 font-['Montserrat'] shadow-2xs max-w-sm w-full"
+                  className="relative overflow-hidden flex flex-col gap-1.5 text-xs bg-slate-50/90 backdrop-blur-xs p-3 rounded-xl border border-slate-200 font-['Montserrat'] shadow-2xs max-w-sm w-full"
                   title="Karnataka Real Estate Regulatory Authority Registered Platform"
                 >
-                  <div className="flex items-center space-x-2 font-bold text-emerald-900">
+                  <div className="flex items-center space-x-2 font-bold text-slate-800">
                     <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
                     <span className="text-[11px] sm:text-xs leading-snug">
                       Karnataka RERA Registered Real Estate Platform
                     </span>
                   </div>
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-2 bg-white/95 border border-emerald-200 rounded-lg px-2.5 py-1.5 gap-0.5 sm:gap-0">
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-2 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 gap-0.5 sm:gap-0">
                     <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-500 shrink-0">
                       RERA No:
                     </span>

@@ -2300,17 +2300,19 @@ app.get('/api/listings/:id', rateLimit('listing-detail', 60, 60), async (req, re
       isVerified: Boolean(row.crm_status === 'APPROVED' || row.verification_tier === 'LEVEL_3_PHYSICALLY_INSPECTED' || row.verification_tier === 'LEVEL_2_DOCS_REVIEWED'),
       superBuiltUpSqft: sqft,
       carpetAreaSqft: carpet,
-      floorBand: row.unit_floor ? `Floor ${row.unit_floor} of ${row.total_floors || 14}` : (row.floor_band || 'Floor 5 of 14'),
-      unitFloor: row.unit_floor || 5,
-      totalFloors: row.total_floors || 14,
+      floorBand: row.unit_floor !== null && row.unit_floor !== undefined
+        ? (Number(row.unit_floor) === 0 ? `Ground Floor of ${row.total_floors || 14}` : `Floor ${row.unit_floor} of ${row.total_floors || row.unit_floor}`)
+        : (row.floor_band || 'Floor 5 of 14'),
+      unitFloor: row.unit_floor !== null && row.unit_floor !== undefined ? Number(row.unit_floor) : 5,
+      totalFloors: row.total_floors !== null && row.total_floors !== undefined ? Number(row.total_floors) : 14,
       facing: row.facing || 'EAST',
-      bathroomsCount: row.bathrooms_count || 2,
-      balconiesCount: row.balconies_count || 2,
-      carParksCount: row.car_parks_count || 1,
+      bathroomsCount: row.bathrooms_count !== null && row.bathrooms_count !== undefined ? Number(row.bathrooms_count) : 2,
+      balconiesCount: row.balconies_count !== null && row.balconies_count !== undefined ? Number(row.balconies_count) : 0,
+      carParksCount: row.car_parks_count !== null && row.car_parks_count !== undefined ? Number(row.car_parks_count) : 0,
       isCoveredParking: row.is_covered_parking !== false,
       askingPriceInr: priceNum,
       pricePerSqft,
-      monthlyMaintenanceInr: row.monthly_maintenance_inr || 4500,
+      monthlyMaintenanceInr: row.monthly_maintenance_inr !== null && row.monthly_maintenance_inr !== undefined ? Number(row.monthly_maintenance_inr) : 0,
       amenities: (Array.isArray(row.amenities) && row.amenities.length > 0) ? row.amenities : defaultAmenities,
       description: row.description || `RERA-compliant ${row.bhk_type || '3BHK'} resale flat in the prestigious ${projectName} community. Featuring ${sqft} sq.ft. of super built-up area and an expansive ${carpet} sq.ft. carpet layout, this ${row.facing || 'East'}-facing home boasts cross-ventilation, zero wasted space, and abundant natural sunlight. Form 15 Encumbrance Certificate verified with clear title. Private viewing escorted by SellMyGhar relationship manager.`,
       developer: {
@@ -3250,10 +3252,32 @@ const customerPropertyUpdateHandler = async (req: Request, res: Response) => {
     }
 
     // 3. Update permitted mutable fields
-    const { asking_price_inr, expectedPrice, isNegotiable, description, title } = req.body || {};
+    const {
+      asking_price_inr, expectedPrice, isNegotiable, description, title,
+      superBuiltUpSqft, super_built_up_sqft,
+      carpetAreaSqft, carpet_area_sqft,
+      unitFloor, unit_floor,
+      totalFloors, total_floors,
+      bathroomsCount, bathrooms_count,
+      balconiesCount, balconies_count,
+      carParksCount, car_parks_count,
+      facing,
+      monthlyMaintenanceInr, monthly_maintenance_inr
+    } = req.body || {};
+
     const newPrice = asking_price_inr !== undefined ? Number(asking_price_inr) : (expectedPrice !== undefined ? Number(expectedPrice) : undefined);
     const cleanDesc = description !== undefined ? String(description).slice(0, 1000).replace(/<[^>]+>/g, '').trim() : undefined;
     const cleanTitle = title !== undefined ? String(title).slice(0, 150).replace(/<[^>]+>/g, '').trim() : undefined;
+
+    const resolvedSbua = (superBuiltUpSqft !== undefined && !isNaN(Number(superBuiltUpSqft))) ? Number(superBuiltUpSqft) : (super_built_up_sqft !== undefined && !isNaN(Number(super_built_up_sqft))) ? Number(super_built_up_sqft) : null;
+    const resolvedCarpet = (carpetAreaSqft !== undefined && !isNaN(Number(carpetAreaSqft))) ? Number(carpetAreaSqft) : (carpet_area_sqft !== undefined && !isNaN(Number(carpet_area_sqft))) ? Number(carpet_area_sqft) : null;
+    const resolvedFloor = (unitFloor !== undefined && unitFloor !== null && !isNaN(Number(unitFloor))) ? Number(unitFloor) : (unit_floor !== undefined && unit_floor !== null && !isNaN(Number(unit_floor))) ? Number(unit_floor) : null;
+    const resolvedTotalFloors = (totalFloors !== undefined && totalFloors !== null && !isNaN(Number(totalFloors))) ? Number(totalFloors) : (total_floors !== undefined && total_floors !== null && !isNaN(Number(total_floors))) ? Number(total_floors) : null;
+    const resolvedBaths = (bathroomsCount !== undefined && !isNaN(Number(bathroomsCount))) ? Number(bathroomsCount) : (bathrooms_count !== undefined && !isNaN(Number(bathrooms_count))) ? Number(bathrooms_count) : null;
+    const resolvedBalconies = (balconiesCount !== undefined && !isNaN(Number(balconiesCount))) ? Number(balconiesCount) : (balconies_count !== undefined && !isNaN(Number(balconies_count))) ? Number(balconies_count) : null;
+    const resolvedParks = (carParksCount !== undefined && !isNaN(Number(carParksCount))) ? Number(carParksCount) : (car_parks_count !== undefined && !isNaN(Number(car_parks_count))) ? Number(car_parks_count) : null;
+    const resolvedMaintenance = (monthlyMaintenanceInr !== undefined && monthlyMaintenanceInr !== null && !isNaN(Number(monthlyMaintenanceInr))) ? Number(monthlyMaintenanceInr) : (monthly_maintenance_inr !== undefined && monthly_maintenance_inr !== null && !isNaN(Number(monthly_maintenance_inr))) ? Number(monthly_maintenance_inr) : null;
+    const resolvedFacing = facing !== undefined && typeof facing === 'string' && facing.trim() ? facing.trim().toUpperCase() : null;
 
     const updateRes = await executeQuery(`
       UPDATE properties
@@ -3261,10 +3285,33 @@ const customerPropertyUpdateHandler = async (req: Request, res: Response) => {
         asking_price_inr = COALESCE($1, asking_price_inr),
         description = COALESCE($2, description),
         title = COALESCE($3, title),
+        super_built_up_sqft = COALESCE($4, super_built_up_sqft),
+        carpet_area_sqft = COALESCE($5, carpet_area_sqft),
+        unit_floor = COALESCE($6, unit_floor),
+        total_floors = COALESCE($7, total_floors),
+        bathrooms_count = COALESCE($8, bathrooms_count),
+        balconies_count = COALESCE($9, balconies_count),
+        car_parks_count = COALESCE($10, car_parks_count),
+        monthly_maintenance_inr = COALESCE($11, monthly_maintenance_inr),
+        facing = COALESCE($12, facing),
         updated_at = NOW()
-      WHERE id = $4
+      WHERE id = $13
       RETURNING *;
-    `, [newPrice !== undefined && !isNaN(newPrice) ? newPrice : null, cleanDesc !== undefined ? cleanDesc : null, cleanTitle !== undefined ? cleanTitle : null, id]);
+    `, [
+      newPrice !== undefined && !isNaN(newPrice) ? newPrice : null,
+      cleanDesc !== undefined ? cleanDesc : null,
+      cleanTitle !== undefined ? cleanTitle : null,
+      resolvedSbua,
+      resolvedCarpet,
+      resolvedFloor,
+      resolvedTotalFloors,
+      resolvedBaths,
+      resolvedBalconies,
+      resolvedParks,
+      resolvedMaintenance,
+      resolvedFacing,
+      id
+    ]);
 
     return res.json({
       success: true,

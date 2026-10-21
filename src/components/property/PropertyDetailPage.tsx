@@ -49,6 +49,36 @@ import { isFavoriteProperty, toggleFavoriteProperty } from '../../utils/favorite
 import { getDistinctCommunityPhoto } from '../../utils/propertyImages';
 import { AdaptivePropertyImage } from '../common/AdaptivePropertyImage';
 import { FullImageViewerModal } from '../common/FullImageViewerModal';
+import {
+  SuperBuiltUpAreaIcon,
+  CarpetAreaIcon,
+  FloorLevelIcon,
+  OrientationFacingIcon,
+  BathroomsIcon,
+  BalconiesIcon,
+  CoveredParkingIcon,
+  MaintenanceLedgerIcon,
+  SwimmingPoolIcon,
+  GymnasiumIcon,
+  ClubhouseIcon,
+  SportsCourtIcon,
+  PowerBackupIcon,
+  SecurityCctvIcon,
+  LandscapedGardensIcon,
+  PlayAreaIcon,
+  WaterSupplyIcon,
+  EvChargingIcon,
+  PipedGasIcon,
+  ElevatorIcon,
+  GenericAmenityCheckIcon,
+  MetroTransitIcon,
+  TechParkWorkplaceIcon,
+  HealthcareHospitalIcon,
+  EducationSchoolIcon,
+  RetailShoppingMallIcon,
+  LandmarkPinIcon,
+  DeveloperArchitecturalEmblem
+} from '../common/RealEstateIcons';
 
 export interface PublicPropertyDetail {
   id: string;
@@ -326,37 +356,43 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
   // Helper to resolve clean, authentic icons for society amenities
   const getAmenityIcon = (name: string) => {
     const lower = name.toLowerCase();
-    if (lower.includes('pool') || lower.includes('swimming')) return <Waves className="w-5 h-5 text-[#0073E6] shrink-0" />;
-    if (lower.includes('gym') || lower.includes('fitness')) return <Dumbbell className="w-5 h-5 text-[#0073E6] shrink-0" />;
-    if (lower.includes('club') || lower.includes('hall')) return <Building className="w-5 h-5 text-[#0073E6] shrink-0" />;
-    if (lower.includes('tennis') || lower.includes('court') || lower.includes('badminton') || lower.includes('squash')) {
-      return <Activity className="w-5 h-5 text-[#0073E6] shrink-0" />;
+    if (lower.includes('pool') || lower.includes('swimming')) return <SwimmingPoolIcon className="w-5 h-5 text-[#0073E6] shrink-0" />;
+    if (lower.includes('gym') || lower.includes('fitness')) return <GymnasiumIcon className="w-5 h-5 text-[#0073E6] shrink-0" />;
+    if (lower.includes('club') || lower.includes('hall') || lower.includes('community')) return <ClubhouseIcon className="w-5 h-5 text-[#0073E6] shrink-0" />;
+    if (lower.includes('tennis') || lower.includes('court') || lower.includes('badminton') || lower.includes('squash') || lower.includes('sports')) {
+      return <SportsCourtIcon className="w-5 h-5 text-[#0073E6] shrink-0" />;
     }
-    if (lower.includes('power') || lower.includes('backup') || lower.includes('generator')) return <Zap className="w-5 h-5 text-amber-600 shrink-0" />;
-    if (lower.includes('security') || lower.includes('cctv') || lower.includes('guard')) return <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0" />;
-    if (lower.includes('garden') || lower.includes('park') || lower.includes('lawn')) return <Trees className="w-5 h-5 text-emerald-600 shrink-0" />;
-    if (lower.includes('play') || lower.includes('kids') || lower.includes('children')) return <Smile className="w-5 h-5 text-orange-500 shrink-0" />;
-    if (lower.includes('parking') || lower.includes('car')) return <Car className="w-5 h-5 text-[#0073E6] shrink-0" />;
-    if (lower.includes('water') || lower.includes('rainwater')) return <Droplets className="w-5 h-5 text-sky-500 shrink-0" />;
-    return <CheckCircle2 className="w-5 h-5 text-[#0073E6] shrink-0" />;
+    if (lower.includes('power') || lower.includes('backup') || lower.includes('generator') || lower.includes('dg')) return <PowerBackupIcon className="w-5 h-5 text-[#0073E6] shrink-0" />;
+    if (lower.includes('security') || lower.includes('cctv') || lower.includes('guard')) return <SecurityCctvIcon className="w-5 h-5 text-[#0073E6] shrink-0" />;
+    if (lower.includes('garden') || lower.includes('park') || lower.includes('lawn') || lower.includes('landscape')) return <LandscapedGardensIcon className="w-5 h-5 text-[#0073E6] shrink-0" />;
+    if (lower.includes('play') || lower.includes('kids') || lower.includes('children')) return <PlayAreaIcon className="w-5 h-5 text-[#0073E6] shrink-0" />;
+    if (lower.includes('parking') || lower.includes('car')) return <CoveredParkingIcon className="w-5 h-5 text-[#0073E6] shrink-0" />;
+    if (lower.includes('water') || lower.includes('rainwater') || lower.includes('stp')) return <WaterSupplyIcon className="w-5 h-5 text-[#0073E6] shrink-0" />;
+    if (lower.includes('ev') || lower.includes('charging') || lower.includes('electric')) return <EvChargingIcon className="w-5 h-5 text-[#0073E6] shrink-0" />;
+    if (lower.includes('gas') || lower.includes('piped') || lower.includes('png')) return <PipedGasIcon className="w-5 h-5 text-[#0073E6] shrink-0" />;
+    if (lower.includes('lift') || lower.includes('elevator')) return <ElevatorIcon className="w-5 h-5 text-[#0073E6] shrink-0" />;
+    return <GenericAmenityCheckIcon className="w-5 h-5 text-[#0073E6] shrink-0" />;
   };
 
   // Helper to resolve authentic icons for nearby landmarks
-  const getLandmarkIcon = (name: string) => {
-    const lower = name.toLowerCase();
-    if (lower.includes('metro') || lower.includes('station') || lower.includes('transit')) {
-      return <TrainFront className="w-5 h-5 text-[#0073E6] shrink-0" />;
+  const getLandmarkIcon = (name: string, type?: string) => {
+    const lower = `${name} ${type || ''}`.toLowerCase();
+    if (lower.includes('metro') || lower.includes('station') || lower.includes('transit') || lower.includes('train')) {
+      return <MetroTransitIcon className="w-5 h-5 text-[#0073E6] shrink-0" />;
     }
-    if (lower.includes('tech') || lower.includes('prestige') || lower.includes('cisco') || lower.includes('park') || lower.includes('office')) {
-      return <Briefcase className="w-5 h-5 text-[#0073E6] shrink-0" />;
+    if (lower.includes('tech') || lower.includes('prestige') || lower.includes('cisco') || lower.includes('park') || lower.includes('office') || lower.includes('workplace') || lower.includes('sez')) {
+      return <TechParkWorkplaceIcon className="w-5 h-5 text-[#0073E6] shrink-0" />;
     }
-    if (lower.includes('hospital') || lower.includes('medical') || lower.includes('manipal') || lower.includes('columbia') || lower.includes('clinic')) {
-      return <Stethoscope className="w-5 h-5 text-rose-600 shrink-0" />;
+    if (lower.includes('hospital') || lower.includes('medical') || lower.includes('manipal') || lower.includes('columbia') || lower.includes('clinic') || lower.includes('healthcare')) {
+      return <HealthcareHospitalIcon className="w-5 h-5 text-[#0073E6] shrink-0" />;
     }
-    if (lower.includes('school') || lower.includes('dps') || lower.includes('academy') || lower.includes('greenwood') || lower.includes('college')) {
-      return <GraduationCap className="w-5 h-5 text-indigo-600 shrink-0" />;
+    if (lower.includes('school') || lower.includes('dps') || lower.includes('academy') || lower.includes('greenwood') || lower.includes('college') || lower.includes('university') || lower.includes('education')) {
+      return <EducationSchoolIcon className="w-5 h-5 text-[#0073E6] shrink-0" />;
     }
-    return <MapPin className="w-5 h-5 text-slate-500 shrink-0" />;
+    if (lower.includes('mall') || lower.includes('retail') || lower.includes('shopping') || lower.includes('market') || lower.includes('forum') || lower.includes('phoenix')) {
+      return <RetailShoppingMallIcon className="w-5 h-5 text-[#0073E6] shrink-0" />;
+    }
+    return <LandmarkPinIcon className="w-5 h-5 text-[#0073E6] shrink-0" />;
   };
 
   const handleHeaderTabClick = (tab: 'BUY' | 'SELL' | 'ABOUT' | 'CONTACT') => {
@@ -710,80 +746,96 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
 
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 font-['Poppins']">
                 
-                {/* Super Built-Up Sqft */}
+                {/* 1. Super Built-Up Sqft */}
                 <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80">
                   <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1.5 font-medium">
-                    <Maximize2 className="w-5 h-5 text-[#0073E6] shrink-0" />
+                    <SuperBuiltUpAreaIcon className="w-5 h-5 text-[#0073E6] shrink-0" />
                     <span>Super Built-up</span>
                   </div>
-                  <span className="text-base font-bold text-slate-900 font-['Montserrat'] block">{property.superBuiltUpSqft} sq.ft</span>
-                </div>
-
-                {/* Carpet Area Sqft */}
-                <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80">
-                  <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1.5 font-medium">
-                    <Maximize2 className="w-5 h-5 text-emerald-600 shrink-0" />
-                    <span>Carpet Area</span>
-                  </div>
-                  <span className="text-base font-bold text-slate-900 font-['Montserrat'] block">{property.carpetAreaSqft} sq.ft</span>
-                  <span className="text-[10px] text-slate-400 block mt-0.5 font-medium">~{Math.round((property.carpetAreaSqft / property.superBuiltUpSqft) * 100)}% usable</span>
-                </div>
-
-                {/* Floor Level */}
-                <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80">
-                  <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1.5 font-medium">
-                    <Building2 className="w-5 h-5 text-[#0073E6] shrink-0" />
-                    <span>Floor Level</span>
-                  </div>
-                  <span className="text-sm font-bold text-slate-900 font-['Montserrat'] block">{property.floorBand}</span>
-                </div>
-
-                {/* Facing */}
-                <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80">
-                  <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1.5 font-medium">
-                    <Compass className="w-5 h-5 text-[#0073E6] shrink-0" />
-                    <span>Facing</span>
-                  </div>
-                  <span className="text-base font-bold text-slate-900 font-['Montserrat'] block">{property.facing}</span>
-                </div>
-
-                {/* Bathrooms */}
-                <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80">
-                  <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1.5 font-medium">
-                    <Bath className="w-5 h-5 text-[#0073E6] shrink-0" />
-                    <span>Bathrooms</span>
-                  </div>
-                  <span className="text-base font-bold text-slate-900 font-['Montserrat'] block">{property.bathroomsCount} Baths</span>
-                </div>
-
-                {/* Parking */}
-                <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80">
-                  <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1.5 font-medium">
-                    <Car className="w-5 h-5 text-[#0073E6] shrink-0" />
-                    <span>Parking</span>
-                  </div>
                   <span className="text-base font-bold text-slate-900 font-['Montserrat'] block">
-                    {property.carParksCount} {property.isCoveredParking ? 'Covered' : 'Open'}
+                    {property.superBuiltUpSqft.toLocaleString('en-IN')} sq.ft
                   </span>
                 </div>
 
-                {/* Occupancy Status */}
+                {/* 2. Carpet Area Sqft */}
                 <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80">
                   <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1.5 font-medium">
-                    <Clock className="w-5 h-5 text-emerald-600 shrink-0" />
-                    <span>Occupancy</span>
+                    <CarpetAreaIcon className="w-5 h-5 text-[#0073E6] shrink-0" />
+                    <span>Carpet Area</span>
                   </div>
-                  <span className="text-sm font-bold text-slate-900 font-['Montserrat'] block">Ready to Move</span>
+                  <span className="text-base font-bold text-slate-900 font-['Montserrat'] block">
+                    {property.carpetAreaSqft.toLocaleString('en-IN')} sq.ft
+                  </span>
+                  <span className="text-[10px] text-slate-400 block mt-0.5 font-medium">
+                    ~{Math.round((property.carpetAreaSqft / (property.superBuiltUpSqft || 1)) * 100)}% usable
+                  </span>
                 </div>
 
-                {/* Monthly Maintenance */}
+                {/* 3. Floor Level */}
                 <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80">
                   <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1.5 font-medium">
-                    <IndianRupee className="w-5 h-5 text-blue-600 shrink-0" />
+                    <FloorLevelIcon className="w-5 h-5 text-[#0073E6] shrink-0" />
+                    <span>Floor Level</span>
+                  </div>
+                  <span className="text-sm font-bold text-slate-900 font-['Montserrat'] block truncate" title={property.floorBand}>
+                    {property.floorBand}
+                  </span>
+                </div>
+
+                {/* 4. Facing */}
+                <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80">
+                  <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1.5 font-medium">
+                    <OrientationFacingIcon className="w-5 h-5 text-[#0073E6] shrink-0" />
+                    <span>Facing</span>
+                  </div>
+                  <span className="text-base font-bold text-slate-900 font-['Montserrat'] block">
+                    {property.facing}
+                  </span>
+                </div>
+
+                {/* 5. Bathrooms */}
+                <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80">
+                  <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1.5 font-medium">
+                    <BathroomsIcon className="w-5 h-5 text-[#0073E6] shrink-0" />
+                    <span>Bathrooms</span>
+                  </div>
+                  <span className="text-base font-bold text-slate-900 font-['Montserrat'] block">
+                    {property.bathroomsCount != null ? property.bathroomsCount : 2} Baths
+                  </span>
+                </div>
+
+                {/* 6. Balconies */}
+                <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80">
+                  <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1.5 font-medium">
+                    <BalconiesIcon className="w-5 h-5 text-[#0073E6] shrink-0" />
+                    <span>Balconies</span>
+                  </div>
+                  <span className="text-base font-bold text-slate-900 font-['Montserrat'] block">
+                    {property.balconiesCount != null ? property.balconiesCount : 0} Balconies
+                  </span>
+                </div>
+
+                {/* 7. Parking */}
+                <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80">
+                  <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1.5 font-medium">
+                    <CoveredParkingIcon className="w-5 h-5 text-[#0073E6] shrink-0" />
+                    <span>Parking</span>
+                  </div>
+                  <span className="text-base font-bold text-slate-900 font-['Montserrat'] block">
+                    {property.carParksCount != null ? property.carParksCount : 0} {property.isCoveredParking ? 'Covered' : 'Open'}
+                  </span>
+                </div>
+
+                {/* 8. Monthly Maintenance */}
+                <div className="p-4 bg-slate-50/80 rounded-xl border border-slate-200/80">
+                  <div className="flex items-center space-x-2 text-slate-500 text-xs mb-1.5 font-medium">
+                    <MaintenanceLedgerIcon className="w-5 h-5 text-[#0073E6] shrink-0" />
                     <span>Est. Maintenance</span>
                   </div>
                   <span className="text-sm font-bold text-slate-900 font-['Montserrat'] block font-mono">
-                    ₹{(property.monthlyMaintenanceInr || 4500).toLocaleString('en-IN')}/mo
+                    {property.monthlyMaintenanceInr != null && property.monthlyMaintenanceInr > 0
+                      ? `₹${property.monthlyMaintenanceInr.toLocaleString('en-IN')}/mo`
+                      : '₹0 (Included)'}
                   </span>
                 </div>
 
@@ -866,63 +918,6 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
               </div>
             </div>
 
-            {/* 5. SellMyGhar Advocate Legal Diligence Card (MOVED AFTER FLOOR PLAN - Premium Redesign without AI look) */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-7 shadow-xs space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <div className="flex items-center space-x-2">
-                  <ShieldCheck className="w-5 h-5 text-[#0073E6]" />
-                  <h2 className="text-base font-bold text-[#172033] font-['Montserrat']">
-                    SellMyGhar Advocate Legal Diligence
-                  </h2>
-                </div>
-                <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full font-['Montserrat']">
-                  100% Verified Title
-                </span>
-              </div>
-
-              <p className="text-xs text-slate-600 leading-relaxed font-['Poppins']">
-                This property has been vetted by our legal diligence panel. All statutory title deeds, BBMP khata certificates, and Sub-Registrar encumbrance records have been reviewed.
-              </p>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1 font-['Poppins']">
-                <div className="flex items-start space-x-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200/80">
-                  <Check className="w-4 h-4 text-[#0073E6] shrink-0 mt-0.5" />
-                  <div>
-                    <span className="text-xs font-bold text-slate-900 block font-['Montserrat']">{property.verification.khata || 'BBMP A-Khata Authenticated'}</span>
-                    <span className="text-[11px] text-slate-500">BBMP A-Khata with valid SAS tax challan</span>
-                  </div>
-                </div>
-
-                <div className="flex items-start space-x-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200/80">
-                  <Check className="w-4 h-4 text-[#0073E6] shrink-0 mt-0.5" />
-                  <div>
-                    <span className="text-xs font-bold text-slate-900 block font-['Montserrat']">{property.verification.encumbrance || 'Form 15 Encumbrance NIL'}</span>
-                    <span className="text-[11px] text-slate-500">Form 15 Sub-Registrar search zero encumbrances</span>
-                  </div>
-                </div>
-
-                <div className="flex items-start space-x-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200/80">
-                  <Check className="w-4 h-4 text-[#0073E6] shrink-0 mt-0.5" />
-                  <div>
-                    <span className="text-xs font-bold text-slate-900 block font-['Montserrat']">{property.verification.titleDeed || '30-Year Continuous Parent Title'}</span>
-                    <span className="text-[11px] text-slate-500">Complete registered sale deed & mother deed chain</span>
-                  </div>
-                </div>
-
-                <div className="flex items-start space-x-2.5 p-3 rounded-xl bg-slate-50 border border-slate-200/80">
-                  <Check className="w-4 h-4 text-[#0073E6] shrink-0 mt-0.5" />
-                  <div>
-                    <span className="text-xs font-bold text-slate-900 block font-['Montserrat']">{property.verification.fieldInspection || 'Physical Inspection Completed'}</span>
-                    <span className="text-[11px] text-slate-500">Physical field verification completed by relationship desk</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="text-[11px] text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-200/80 flex items-center space-x-2 font-['Poppins']">
-                <ShieldCheck className="w-4 h-4 text-[#0073E6] shrink-0" />
-                <span>Private owner deeds and flat identity remain protected under the Digital Personal Data Protection (DPDP) Act until escorted private viewing.</span>
-              </div>
-            </div>
 
             {/* 6. Township & Society Amenities (Authentic Non-AI Icons) */}
             <div className="bg-white rounded-2xl border border-slate-200 p-6 sm:p-7 shadow-xs space-y-4">
@@ -977,7 +972,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                         />
                       ) : null}
                       <div className={`developer-logo-fallback items-center justify-center text-[#0073E6] ${property.developer.logoUrl ? 'hidden' : 'flex'}`}>
-                        <Building2 className="w-7 h-7 text-[#0073E6]" />
+                        <DeveloperArchitecturalEmblem className="w-8 h-8 text-[#0073E6]" />
                       </div>
                     </div>
                     <div>
@@ -1023,7 +1018,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                   {property.landmarks.map((lm, idx) => (
                     <div key={idx} className="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs">
                       <div className="flex items-center space-x-2.5 pr-2">
-                        {getLandmarkIcon(lm.name)}
+                        {getLandmarkIcon(lm.name, lm.type)}
                         <span className="font-medium text-slate-800">{lm.name}</span>
                       </div>
                       <span className="text-slate-600 font-bold bg-white px-2.5 py-1 rounded-md border border-slate-200 text-[11px] shrink-0 font-mono">
@@ -1186,12 +1181,16 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
               </span>
               
               <div className="flex items-center space-x-3.5">
-                <div className="w-10 h-10 rounded-full bg-[#172033] text-white font-bold text-xs flex items-center justify-center font-['Montserrat']">
-                  KR
+                <div className="w-10 h-10 rounded-full bg-[#172033] text-white font-bold text-xs flex items-center justify-center font-['Montserrat'] shrink-0">
+                  {property.relationshipManager?.name
+                    ? property.relationshipManager.name.split(' ').map(n => n[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
+                    : 'RM'}
                 </div>
-                <div>
-                  <h4 className="text-sm font-bold text-slate-900 font-['Montserrat']">{property.relationshipManager.name}</h4>
-                  <p className="text-xs text-slate-500">{property.relationshipManager.role}</p>
+                <div className="min-w-0">
+                  <h4 className="text-sm font-bold text-slate-900 font-['Montserrat'] truncate">
+                    {property.relationshipManager.name}
+                  </h4>
+                  <p className="text-xs text-slate-500 truncate">{property.relationshipManager.role}</p>
                 </div>
               </div>
 

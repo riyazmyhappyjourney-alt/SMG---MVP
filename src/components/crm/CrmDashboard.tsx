@@ -381,6 +381,8 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
     upcoming: []
   });
   const [staffList, setStaffList] = useState<CrmStaff[]>([]);
+  const [staffSearchQuery, setStaffSearchQuery] = useState<string>('');
+  const [staffStatusFilter, setStaffStatusFilter] = useState<'ALL' | 'ACTIVE' | 'DEACTIVATED'>('ALL');
   const [auditLogs, setAuditLogs] = useState<CrmAuditLog[]>([]);
   const [overviewMetrics, setOverviewMetrics] = useState<any>(null);
   const [reportsData, setReportsData] = useState<any>(null);
@@ -3794,180 +3796,279 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
           {/* ============================================================== */}
           {/* VIEW 8: EMPLOYEE DIRECTORY & ADMINISTRATION                    */}
           {/* ============================================================== */}
-          {activeSection === 'TEAM' && canSeeTeam && (
-            <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-xl font-bold tracking-tight text-[#172033]">Employee Directory & Administration</h2>
-                  <p className="text-xs text-slate-500 mt-0.5">Strict employee-only access. All authorized staff have standard operational permissions.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setIsAddUserOpen(true)}
-                  className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-[#0073E6] text-white text-xs font-bold shadow-xs hover:bg-[#005BB5] cursor-pointer"
-                >
-                  <UserPlus className="w-3.5 h-3.5" />
-                  <span>Add Employee</span>
-                </button>
-              </div>
+          {/* ============================================================== */}
+          {/* VIEW 8: RELATIONSHIP MANAGERS & OPERATIONS DIRECTORY           */}
+          {/* ============================================================== */}
+          {activeSection === 'TEAM' && canSeeTeam && (() => {
+            const activeStaffCount = staffList.filter(s => s.isActive !== false).length;
+            const scheduledVisitsCount = visits.filter(v => v.status === 'SCHEDULED').length;
+            const filteredStaff = staffList.filter((staff) => {
+              if (staffStatusFilter === 'ACTIVE' && staff.isActive === false) return false;
+              if (staffStatusFilter === 'DEACTIVATED' && staff.isActive !== false) return false;
+              if (staffSearchQuery.trim()) {
+                const q = staffSearchQuery.toLowerCase();
+                const nameMatches = (staff.displayName || '').toLowerCase().includes(q);
+                const emailMatches = (staff.email || '').toLowerCase().includes(q);
+                const phoneMatches = (staff.phone || '').toLowerCase().includes(q);
+                return nameMatches || emailMatches || phoneMatches;
+              }
+              return true;
+            });
 
-              {/* Operational KPI Summary Strip */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="p-3.5 rounded-xl border bg-white border-slate-200/80 shadow-2xs">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Total Employees</span>
-                  <div className="text-2xl font-bold text-slate-900 mt-0.5">{staffList.length}</div>
-                  <span className="text-[10px] text-slate-500 font-medium mt-0.5 block">Registered staff</span>
-                </div>
-                <div className="p-3.5 rounded-xl border bg-white border-slate-200/80 shadow-2xs">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Active Employees</span>
-                  <div className="text-2xl font-bold text-emerald-800 mt-0.5">
-                    {staffList.filter(s => s.isActive !== false).length}
+            return (
+              <div className="space-y-4">
+                {/* Header Strip */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200/80 pb-4">
+                  <div>
+                    <h2 className="text-lg font-bold tracking-tight text-[#172033] font-['Montserrat']">
+                      Relationship Managers & Staff Directory
+                    </h2>
+                    <p className="text-xs text-slate-500 font-['Poppins'] mt-0.5">
+                      Institutional directory, operational assignments, and account authorization desk.
+                    </p>
                   </div>
-                  <span className="text-[10px] text-emerald-700 font-semibold mt-0.5 block">Authorized for CRM</span>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddUserOpen(true)}
+                    className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-[#0073E6] text-white text-xs font-bold shadow-xs hover:bg-[#005BB5] transition-colors cursor-pointer shrink-0 font-['Montserrat']"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    <span>Add Staff Member</span>
+                  </button>
                 </div>
-                <div className="p-3.5 rounded-xl border bg-white border-slate-200/80 shadow-2xs">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Managed Leads</span>
-                  <div className="text-2xl font-bold text-[#0073E6] mt-0.5">{leads.length}</div>
-                  <span className="text-[10px] text-slate-500 font-medium mt-0.5 block">Total pipeline leads</span>
+
+                {/* Institutional KPI Metrics Bar */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="p-3.5 rounded-xl border border-slate-200/80 bg-white shadow-2xs">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block font-['Montserrat']">
+                      Registered Staff
+                    </span>
+                    <div className="text-xl font-extrabold text-slate-900 mt-0.5 tabular-nums font-['Montserrat']">
+                      {staffList.length}
+                    </div>
+                    <span className="text-[10px] text-slate-500 font-medium mt-0.5 block">Total operations team</span>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl border border-slate-200/80 bg-white shadow-2xs">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block font-['Montserrat']">
+                      Active RMs
+                    </span>
+                    <div className="text-xl font-extrabold text-slate-900 mt-0.5 tabular-nums font-['Montserrat']">
+                      {activeStaffCount}
+                    </div>
+                    <span className="text-[10px] text-slate-500 font-medium mt-0.5 block">Authorized for CRM</span>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl border border-slate-200/80 bg-white shadow-2xs">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block font-['Montserrat']">
+                      Managed Leads
+                    </span>
+                    <div className="text-xl font-extrabold text-[#0073E6] mt-0.5 tabular-nums font-['Montserrat']">
+                      {leads.length}
+                    </div>
+                    <span className="text-[10px] text-slate-500 font-medium mt-0.5 block">Active client pipelines</span>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl border border-slate-200/80 bg-white shadow-2xs">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block font-['Montserrat']">
+                      Scheduled Tours
+                    </span>
+                    <div className="text-xl font-extrabold text-slate-900 mt-0.5 tabular-nums font-['Montserrat']">
+                      {scheduledVisitsCount}
+                    </div>
+                    <span className="text-[10px] text-slate-500 font-medium mt-0.5 block">Escorted site visits</span>
+                  </div>
                 </div>
-                <div className="p-3.5 rounded-xl border bg-white border-slate-200/80 shadow-2xs">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Scheduled Visits</span>
-                  <div className="text-2xl font-bold text-slate-800 mt-0.5">{visits.length}</div>
-                  <span className="text-[10px] text-slate-500 font-medium mt-0.5 block">Site inspections</span>
+
+                {/* Operations Filter & Search Bar */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-2xs">
+                  <div className="relative flex-1 min-w-0">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-2.5" />
+                    <input
+                      type="text"
+                      value={staffSearchQuery}
+                      onChange={(e) => setStaffSearchQuery(e.target.value)}
+                      placeholder="Filter by name, corporate email, or mobile..."
+                      className="w-full pl-9 pr-3 py-1.5 bg-slate-50/70 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 placeholder-slate-400 focus:outline-hidden focus:ring-1 focus:ring-[#0073E6] focus:border-[#0073E6]"
+                    />
+                  </div>
+                  <div className="flex items-center space-x-1 shrink-0 text-xs font-['Montserrat']">
+                    <button
+                      type="button"
+                      onClick={() => setStaffStatusFilter('ALL')}
+                      className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-colors cursor-pointer ${
+                        staffStatusFilter === 'ALL'
+                          ? 'bg-[#172033] text-white shadow-2xs'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      All ({staffList.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStaffStatusFilter('ACTIVE')}
+                      className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-colors cursor-pointer ${
+                        staffStatusFilter === 'ACTIVE'
+                          ? 'bg-[#0073E6] text-white shadow-2xs'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      Active ({activeStaffCount})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStaffStatusFilter('DEACTIVATED')}
+                      className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-colors cursor-pointer ${
+                        staffStatusFilter === 'DEACTIVATED'
+                          ? 'bg-rose-700 text-white shadow-2xs'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      Deactivated ({staffList.length - activeStaffCount})
+                    </button>
+                  </div>
                 </div>
-              </div>
 
-              {/* High-density Employee Table */}
-              <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-x-auto">
-                <table className="w-full min-w-[700px] text-left text-xs divide-y divide-slate-100">
-                  <thead className="bg-slate-50/70 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                    <tr>
-                      <th className="py-3.5 px-4">Employee</th>
-                      <th className="py-3.5 px-4">Corporate Email</th>
-                      <th className="py-3.5 px-4">Phone</th>
-                      <th className="py-3.5 px-4">Account Status</th>
-                      <th className="py-3.5 px-4">Active Leads</th>
-                      <th className="py-3.5 px-4 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {staffList.map((staff) => {
-                      const currentUserId = staffUser?.id || staffUser?.uid;
-                      const isSelf = staff.id === currentUserId;
-                      const activeStaffCount = staffList.filter(s => s.isActive !== false).length;
-                      const isLastActive = activeStaffCount <= 1 && staff.isActive !== false;
-
-                      return (
-                        <tr key={staff.id} className="hover:bg-slate-50/70 transition-colors">
-                          <td className="py-3.5 px-4">
-                            <div className="flex items-center space-x-3">
-                              <div className="w-8 h-8 rounded-full bg-[#172033] text-white flex items-center justify-center font-bold text-xs shrink-0">
-                                {staff.displayName[0]}
-                              </div>
-                              <div>
-                                <span className="font-bold text-slate-900 block">{staff.displayName}</span>
-                                {isSelf && (
-                                  <span className="text-[10px] text-[#0073E6] font-bold">
-                                    (You)
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </td>
-                          <td className="py-3.5 px-4 text-slate-500 font-mono">
-                            {staff.email}
-                          </td>
-                          <td className="py-3.5 px-4 text-slate-500 font-mono">
-                            {staff.phone || '—'}
-                          </td>
-                          <td className="py-3.5 px-4">
-                            {staff.isActive !== false ? (
-                              <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                                <span>Active</span>
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
-                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
-                                <span>Deactivated</span>
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-3.5 px-4 font-bold text-slate-900">
-                            {leads.filter(l => l.assignedStaffId === staff.id).length}
-                          </td>
-                          <td className="py-3.5 px-4 text-right">
-                            <div className="flex items-center justify-end space-x-1.5">
-                              <button
-                                type="button"
-                                onClick={() => handleOpenEditUser(staff)}
-                                className="px-2.5 py-1 text-[11px] font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors cursor-pointer border border-slate-200"
-                                title="Edit employee details"
-                              >
-                                Edit
-                              </button>
-
-                              {staff.isActive !== false ? (
-                                <button
-                                  type="button"
-                                  disabled={isSelf || isLastActive}
-                                  onClick={() => setConfirmDialog({ isOpen: true, type: 'DEACTIVATE', targetStaff: staff })}
-                                  className="px-2.5 py-1 text-[11px] font-bold bg-amber-50 hover:bg-amber-100 text-amber-800 rounded-lg transition-colors cursor-pointer border border-amber-200 disabled:opacity-40 disabled:cursor-not-allowed"
-                                  title={isSelf ? 'Cannot deactivate yourself' : isLastActive ? 'Cannot deactivate the last active employee' : 'Deactivate employee account'}
-                                >
-                                  Deactivate
-                                </button>
-                              ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => setConfirmDialog({ isOpen: true, type: 'ACTIVATE', targetStaff: staff })}
-                                  className="px-2.5 py-1 text-[11px] font-bold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg transition-colors cursor-pointer border border-emerald-200"
-                                  title="Reactivate employee account"
-                                >
-                                  Activate
-                                </button>
-                              )}
-
-                              <button
-                                type="button"
-                                disabled={isSelf || isLastActive}
-                                onClick={() => setConfirmDialog({ isOpen: true, type: 'REMOVE', targetStaff: staff })}
-                                className="px-2.5 py-1 text-[11px] font-bold bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg transition-colors cursor-pointer border border-rose-200 disabled:opacity-40 disabled:cursor-not-allowed"
-                                title={isSelf ? 'Cannot remove yourself' : isLastActive ? 'Cannot remove the last active employee' : 'Permanently remove employee'}
-                              >
-                                Remove
-                              </button>
-                            </div>
+                {/* High-density Institutional Table */}
+                <div className="bg-white rounded-xl border border-slate-200/90 shadow-2xs overflow-x-auto">
+                  <table className="w-full min-w-[700px] text-left text-xs divide-y divide-slate-100">
+                    <thead className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider font-['Montserrat']">
+                      <tr>
+                        <th className="py-3 px-4">Relationship Manager</th>
+                        <th className="py-3 px-4">Corporate Email</th>
+                        <th className="py-3 px-4">Direct Contact</th>
+                        <th className="py-3 px-4">Status</th>
+                        <th className="py-3 px-4">Assigned Leads</th>
+                        <th className="py-3 px-4 text-right">Desk Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredStaff.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="py-12 text-center text-slate-400 text-xs">
+                            <Users className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                            <p className="font-semibold text-slate-700">No team members match your criteria.</p>
+                            <p className="text-[11px] text-slate-400 mt-0.5">Try adjusting your search query or status filter.</p>
                           </td>
                         </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                      ) : (
+                        filteredStaff.map((staff) => {
+                          const currentUserId = staffUser?.id || staffUser?.uid;
+                          const isSelf = staff.id === currentUserId;
+                          const isLastActive = activeStaffCount <= 1 && staff.isActive !== false;
+                          const initials = (staff.displayName || staff.email || 'RM')
+                            .split(' ')
+                            .map((p) => p[0])
+                            .filter(Boolean)
+                            .slice(0, 2)
+                            .join('')
+                            .toUpperCase();
 
-                {/* Table Footer / Pagination */}
-                <div className="px-5 py-3.5 bg-slate-50/60 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
-                  <div className="flex items-center space-x-2">
-                    <span>
-                      Showing <strong className="text-slate-800 tabular-nums">{staffList.length}</strong> of{' '}
+                          return (
+                            <tr key={staff.id} className="hover:bg-slate-50/80 transition-colors">
+                              <td className="py-3 px-4">
+                                <div className="flex items-center space-x-3">
+                                  <div className="w-7 h-7 rounded-lg bg-[#172033] text-white flex items-center justify-center font-bold text-[11px] shrink-0 font-['Montserrat']">
+                                    {initials}
+                                  </div>
+                                  <div className="min-w-0">
+                                    <span className="font-bold text-slate-900 block truncate font-['Montserrat']">
+                                      {staff.displayName}
+                                    </span>
+                                    {isSelf && (
+                                      <span className="text-[10px] text-[#0073E6] font-bold block">
+                                        (Current Account)
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="py-3 px-4 text-slate-600 font-mono text-[11px]">
+                                {staff.email}
+                              </td>
+                              <td className="py-3 px-4 text-slate-600 font-mono tabular-nums text-[11px]">
+                                {staff.phone || '—'}
+                              </td>
+                              <td className="py-3 px-4">
+                                {staff.isActive !== false ? (
+                                  <span className="inline-flex items-center space-x-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                    <span>Active</span>
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center space-x-1.5 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
+                                    <span>Deactivated</span>
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-3 px-4 font-bold text-slate-900 tabular-nums">
+                                {leads.filter(l => l.assignedStaffId === staff.id).length}
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <div className="flex items-center justify-end space-x-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenEditUser(staff)}
+                                    className="px-2.5 py-1 text-[11px] font-bold bg-white hover:bg-slate-100 text-slate-700 rounded-lg transition-colors cursor-pointer border border-slate-200 shadow-2xs"
+                                    title="Edit employee details"
+                                  >
+                                    Edit
+                                  </button>
+
+                                  {staff.isActive !== false ? (
+                                    <button
+                                      type="button"
+                                      disabled={isSelf || isLastActive}
+                                      onClick={() => setConfirmDialog({ isOpen: true, type: 'DEACTIVATE', targetStaff: staff })}
+                                      className="px-2.5 py-1 text-[11px] font-bold bg-white hover:bg-amber-50 text-amber-800 rounded-lg transition-colors cursor-pointer border border-amber-200 disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs"
+                                      title={isSelf ? 'Cannot deactivate yourself' : isLastActive ? 'Cannot deactivate the last active employee' : 'Deactivate employee account'}
+                                    >
+                                      Deactivate
+                                    </button>
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => setConfirmDialog({ isOpen: true, type: 'ACTIVATE', targetStaff: staff })}
+                                      className="px-2.5 py-1 text-[11px] font-bold bg-white hover:bg-emerald-50 text-emerald-800 rounded-lg transition-colors cursor-pointer border border-emerald-200 shadow-2xs"
+                                      title="Reactivate employee account"
+                                    >
+                                      Activate
+                                    </button>
+                                  )}
+
+                                  <button
+                                    type="button"
+                                    disabled={isSelf || isLastActive}
+                                    onClick={() => setConfirmDialog({ isOpen: true, type: 'REMOVE', targetStaff: staff })}
+                                    className="px-2.5 py-1 text-[11px] font-bold bg-white hover:bg-rose-50 text-rose-700 rounded-lg transition-colors cursor-pointer border border-rose-200 disabled:opacity-40 disabled:cursor-not-allowed shadow-2xs"
+                                    title={isSelf ? 'Cannot remove yourself' : isLastActive ? 'Cannot remove the last active employee' : 'Permanently remove employee'}
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+
+                  {/* Table Footer / Summary */}
+                  <div className="px-4 py-3 bg-slate-50/70 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500 font-medium">
+                    <div>
+                      Showing <strong className="text-slate-800 tabular-nums">{filteredStaff.length}</strong> of{' '}
                       <strong className="text-slate-800 tabular-nums">{staffList.length}</strong> team members
-                    </span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="text-[11px] text-slate-400">Page 1 of 1</span>
-                    <div className="inline-flex rounded-lg border border-slate-200/80 shadow-2xs overflow-hidden">
-                      <button disabled className="px-2.5 py-1 bg-white text-slate-300 text-xs font-semibold cursor-not-allowed">
-                        Previous
-                      </button>
-                      <button disabled className="px-2.5 py-1 bg-white text-slate-300 text-xs font-semibold border-l border-slate-200/80 cursor-not-allowed">
-                        Next
-                      </button>
+                    </div>
+                    <div className="text-[11px] text-slate-400">
+                      Standard operational permissions active across all authenticated staff.
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {/* ============================================================== */}
           {/* VIEW 9: REPORTS & OPERATIONAL ANALYTICS                        */}
