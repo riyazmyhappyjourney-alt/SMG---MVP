@@ -122,7 +122,7 @@ export class AiSensyNotificationService {
       campaigns: {
         propertyListed: process.env.AISENSY_CAMPAIGN_PROPERTY_LISTED || 'SMG_Property_Submitted2',
         propertyPublished: process.env.AISENSY_CAMPAIGN_PROPERTY_PUBLISHED || 'property_published',
-        propertyVerified: process.env.AISENSY_CAMPAIGN_PROPERTY_VERIFIED || 'SMG_Property_verfied',
+        propertyVerified: process.env.AISENSY_CAMPAIGN_PROPERTY_VERIFIED || 'SMG_Property_verified',
         propertyActionRequired: process.env.AISENSY_CAMPAIGN_PROPERTY_ACTION_REQUIRED || 'property_action_required',
       },
     };
@@ -505,7 +505,9 @@ export class AiSensyNotificationService {
     propertyId: string;
     referenceId?: string;
   }): Promise<DispatchedAiSensyRecord> {
-    const campaignName = process.env.AISENSY_CAMPAIGN_PROPERTY_VERIFIED || 'SMG_Property_verfied';
+    const rawCampaign = process.env.AISENSY_CAMPAIGN_PROPERTY_VERIFIED || 'SMG_Property_verified';
+    // Support both SMG_Property_verified and SMG_Property_verfied seamlessly
+    const campaignName = rawCampaign === 'SMG_Property_verfied' ? 'SMG_Property_verified' : rawCampaign;
     const { urlSuffix } = this.buildPropertyUrl(data.propertyId);
     const use3Params = process.env.AISENSY_PROPERTY_VERIFIED_PARAM_COUNT === '3';
 
