@@ -51,7 +51,7 @@ steps:
       - '--set-env-vars'
       - 'NODE_ENV=staging,APP_URL=https://staging.sellmyghar.in,AUTH_JWT_ISSUER=https://staging.sellmyghar.in,AUTH_JWT_AUDIENCE=https://staging.sellmyghar.in,PG_SSL_ALLOW_INSECURE=true,ALLOW_DEV_FALLBACKS=true,SUPABASE_URL=https://jtawqvseigeslgbrphfl.supabase.co,SUPABASE_ANON_KEY=sb_publishable_8ZaeejigTE9QoQWhNsBn9w_cVuSupIM,VITE_SUPABASE_URL=https://jtawqvseigeslgbrphfl.supabase.co,VITE_SUPABASE_ANON_KEY=sb_publishable_8ZaeejigTE9QoQWhNsBn9w_cVuSupIM,AISENSY_CAMPAIGN_PROPERTY_LISTED=SMG_Property_Submitted2,AISENSY_CAMPAIGN_PROPERTY_VERIFIED=SMG_Property_verified,AISENSY_CAMPAIGN_USER_WELCOME=SMG_Welcome_New_Users2,AISENSY_CAMPAIGN_OTP=SMG_OTP_Auth'
       - '--set-secrets'
-      - 'DATABASE_URL=staging-db-connection-string:latest,JWT_SECRET=staging-jwt-secret:latest,INITIAL_STAFF_PASSWORD=staging-initial-staff-password:latest,INITIAL_ADMIN_PASSWORD=staging-initial-admin-password:latest'
+      - 'DATABASE_URL=staging-db-connection-string:latest,JWT_SECRET=staging-jwt-secret:latest,INITIAL_STAFF_PASSWORD=staging-initial-staff-password:latest,INITIAL_ADMIN_PASSWORD=staging-initial-admin-password:latest,AISENSY_API_KEY=staging-aisensy-api-key:latest,RESEND_API_KEY=staging-resend-api-key:latest'
 
 images:
   - 'asia-south1-docker.pkg.dev/$PROJECT_ID/sellmyghar/app:staging-${_COMMIT_SHA}'
