@@ -2,7 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
-import { createHash, randomBytes } from 'crypto';
+import crypto, { createHash, randomBytes } from 'crypto';
 
 dotenv.config();
 dotenv.config({ path: '.env.local' });
@@ -243,8 +243,22 @@ function parseCookies(cookieHeader?: string): Record<string, string> {
   return cookies;
 }
 
-app.use((req, _res, next) => {
-  (req as any).cookies = parseCookies(req.headers.cookie);
+app.use((req, res, next) => {
+  const parsed = parseCookies(req.headers.cookie);
+  (req as any).cookies = parsed;
+
+  // Issue or refresh CSRF token cookie on GET requests (page loads, public queries)
+  if (req.method === 'GET' && !parsed.sellmyghar_csrf) {
+    const csrfToken = crypto.randomBytes(24).toString('hex');
+    res.cookie('sellmyghar_csrf', csrfToken, {
+      httpOnly: false,
+      secure: isProd,
+      sameSite: 'lax',
+      maxAge: 24 * 60 * 60 * 1000,
+      path: '/',
+    });
+    parsed.sellmyghar_csrf = csrfToken;
+  }
   next();
 });
 
@@ -253,6 +267,21 @@ const MUTATING_METHODS = new Set(['POST', 'PUT', 'DELETE', 'PATCH']);
 
 app.use('/api', (req, res, next) => {
   if (!MUTATING_METHODS.has(req.method.toUpperCase())) {
+    return next();
+  }
+
+  // Exempt webhooks and public auth handshake endpoints from double-submit session token validation
+  const isAuthOrWebhook = 
+    req.path.startsWith('/webhooks') ||
+    req.path.includes('webhook') ||
+    req.path.startsWith('/auth/login') ||
+    req.path.startsWith('/auth/otp') ||
+    req.path.startsWith('/auth/logout') ||
+    req.path.startsWith('/auth/forgot-password') ||
+    req.path.startsWith('/auth/reset-password') ||
+    req.path.startsWith('/auth/google');
+
+  if (isAuthOrWebhook) {
     return next();
   }
 
@@ -290,6 +319,21 @@ app.use('/api', (req, res, next) => {
       return res.status(403).json({
         error: 'CSRF_REJECTED',
         message: 'Malformed Referer header on mutating request.',
+      });
+    }
+  }
+
+  // 4. Double-Submit CSRF Token Check on state-changing requests with authenticated session
+  const cookies = (req as any).cookies || {};
+  const hasSession = Boolean(cookies.sellmyghar_session || cookies.sellmyghar_staff_session);
+  const csrfCookie = cookies.sellmyghar_csrf;
+  const csrfHeader = (req.headers['x-csrf-token'] as string | undefined)?.trim();
+
+  if (hasSession) {
+    if (!csrfHeader || !csrfCookie || csrfHeader !== csrfCookie) {
+      return res.status(403).json({
+        error: 'CSRF_TOKEN_INVALID',
+        message: 'Invalid or missing CSRF token on authenticated mutating request.',
       });
     }
   }
@@ -370,8 +414,34 @@ async function initSchemaColumns() {
       ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_login_attempts INT NOT NULL DEFAULT 0;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_until TIMESTAMPTZ;
       ALTER TABLE users ADD COLUMN IF NOT EXISTS module_permissions TEXT[] DEFAULT '{}';
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS welcome_whatsapp_sent_at TIMESTAMPTZ;
       CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_lower ON users (LOWER(email)) WHERE email IS NOT NULL;
       ALTER TABLE consents ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMPTZ;
+
+      CREATE TABLE IF NOT EXISTS whatsapp_notifications (
+        id VARCHAR(64) PRIMARY KEY,
+        campaign_name VARCHAR(128) NOT NULL,
+        destination VARCHAR(64) NOT NULL,
+        user_name VARCHAR(128),
+        user_id VARCHAR(64) REFERENCES users(id) ON DELETE SET NULL,
+        property_id VARCHAR(64) REFERENCES properties(id) ON DELETE SET NULL,
+        idempotency_key VARCHAR(128) NOT NULL UNIQUE,
+        template_params JSONB,
+        buttons JSONB,
+        status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+        provider_message_id VARCHAR(128),
+        provider_response JSONB,
+        delivery_status VARCHAR(64),
+        error_message TEXT,
+        delivery_attempts INT DEFAULT 1,
+        sent_at TIMESTAMPTZ,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_whatsapp_notif_idemp ON whatsapp_notifications (idempotency_key);
+      CREATE INDEX IF NOT EXISTS idx_whatsapp_notif_status ON whatsapp_notifications (status);
+      CREATE INDEX IF NOT EXISTS idx_whatsapp_notif_user ON whatsapp_notifications (user_id);
+      CREATE INDEX IF NOT EXISTS idx_whatsapp_notif_msg_id ON whatsapp_notifications (provider_message_id);
 
       CREATE TABLE IF NOT EXISTS otp_verifications (
         id VARCHAR(64) PRIMARY KEY,
@@ -614,13 +684,21 @@ async function initSchemaColumns() {
   }
 }
 
-// Helper: Sets HTTP-Only cryptographically signed session cookie
+// Helper: Sets HTTP-Only cryptographically signed session cookie and companion CSRF cookie
 function setSessionCookie(res: Response, token: string) {
   res.cookie('sellmyghar_session', token, {
     httpOnly: true,
     secure: isProd,
     sameSite: 'lax',
     maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    path: '/',
+  });
+  const csrfToken = crypto.randomBytes(24).toString('hex');
+  res.cookie('sellmyghar_csrf', csrfToken, {
+    httpOnly: false,
+    secure: isProd,
+    sameSite: 'lax',
+    maxAge: 24 * 60 * 60 * 1000,
     path: '/',
   });
 }
@@ -973,7 +1051,7 @@ app.post('/api/auth/otp/request', jsonDefault, rateLimit('otp-req', 10, 900), as
 // API: Customer OTP Verification (Generates cryptographically signed JWT cookie; strictly OWNER role)
 app.post('/api/auth/otp/verify', jsonDefault, rateLimit('otp-verify', 10, 900), async (req, res) => {
   try {
-    const { phone, otp, name } = req.body;
+    const { phone, otp, name, marketingConsent } = req.body;
     const cleanPhone = String(phone || '').replace(/\D/g, '').slice(-10);
     if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
       return res.status(400).json({ success: false, error: 'Valid 10-digit Indian mobile number is required.' });
@@ -1006,20 +1084,41 @@ app.post('/api/auth/otp/verify', jsonDefault, rateLimit('otp-verify', 10, 900), 
 
     // Only dispatch registration notifications upon genuine new user creation (never on repeat logins)
     if (isNewUser) {
-      // 1. Record statutory communication consent
-      try {
-        const consentId = `cst-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
-        await executeQuery(
-          `INSERT INTO consents (
-            id, phone, user_id, purpose, notice_version,
-            is_consented, consented_at, is_withdrawn,
-            ip_hash, user_agent_hash
-          ) VALUES ($1, $2, $3, 'COMMUNICATION', 'v1.0', true, NOW(), false, $4, $5)
-          ON CONFLICT DO NOTHING;`,
-          [consentId, normalizedPhone, authenticatedUser.uid, clientIp, String(req.headers['user-agent'] || 'unknown').slice(0, 64)]
-        );
-      } catch (cstErr: any) {
-        console.warn('[OtpRegistrationConsent] Note:', cstErr.message);
+      // 1a. Record statutory communication consent when explicitly confirmed by user
+      if (req.body.communicationConsent === true) {
+        try {
+          const commConsentId = `cst-comm-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`;
+          await executeQuery(
+            `INSERT INTO consents (
+              id, phone, user_id, purpose, notice_version,
+              is_consented, consented_at, is_withdrawn,
+              ip_hash, user_agent_hash
+            ) VALUES ($1, $2, $3, 'COMMUNICATION', 'v1.0', $4, NOW(), false, $5, $6)
+            ON CONFLICT DO NOTHING;`,
+            [commConsentId, normalizedPhone, authenticatedUser.uid, true, clientIp, String(req.headers['user-agent'] || 'unknown').slice(0, 64)]
+          );
+        } catch (commErr: any) {
+          console.warn('[OtpRegistrationConsent] Communication note:', commErr.message);
+        }
+      }
+
+      // 1b. Record marketing consent ONLY if user explicitly opted in (DPDP unbundled consent requirement)
+      if (marketingConsent === true) {
+        try {
+          const consentId = `cst-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`;
+          await executeQuery(
+            `INSERT INTO consents (
+              id, phone, user_id, purpose, notice_version,
+              is_consented, consented_at, is_withdrawn,
+              ip_hash, user_agent_hash
+            ) VALUES ($1, $2, $3, 'MARKETING', 'v1.0', true, NOW(), false, $4, $5)
+            ON CONFLICT DO NOTHING;`,
+            [consentId, normalizedPhone, authenticatedUser.uid, clientIp, String(req.headers['user-agent'] || 'unknown').slice(0, 64)]
+          );
+          console.info(`[OtpRegistrationConsent] Recorded explicit marketing consent for ${normalizedPhone}`);
+        } catch (cstErr: any) {
+          console.warn('[OtpRegistrationConsent] Note:', cstErr.message);
+        }
       }
 
       // 2. Dispatch automated registration welcome email (if email was provided)
@@ -2494,6 +2593,38 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
 
     const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
 
+    // Idempotency guard: prevent duplicate property creation on retry or network replay
+    const idempotencyKey = String(req.headers['x-idempotency-key'] || req.body.idempotencyKey || '').trim();
+    if (idempotencyKey) {
+      try {
+        const existingProp = await executeQuery(
+          `SELECT id, asking_price_inr, listing_status, verification_tier, internal_verification_notes, created_at
+           FROM properties
+           WHERE owner_id = $1
+             AND internal_verification_notes::text LIKE $2
+             AND created_at > NOW() - INTERVAL '10 minutes'
+           LIMIT 1;`,
+          [req.user!.uid, `%"idempotencyKey":"${idempotencyKey}"%`]
+        );
+        if (existingProp.rows && existingProp.rows.length > 0) {
+          const match = existingProp.rows[0];
+          const year = new Date(match.created_at).getFullYear();
+          const refSuffix = match.id.replace(/^prop-/, '').slice(-4).toUpperCase();
+          const refId = `SMG-${year}-${refSuffix}`;
+          return res.status(200).json({
+            success: true,
+            propertyId: match.id,
+            referenceId: refId,
+            property: match,
+            message: 'Property listing already submitted and confirmed.',
+            idempotent: true
+          });
+        }
+      } catch (idempErr: any) {
+        console.warn('[PostPropertyIdempotencyCheck] Note:', idempErr.message);
+      }
+    }
+
     // Atomic transaction: User -> RLS Context -> DPDP Consent -> Property -> Seller Lead -> Media
     const pool = getDbPool();
     const client = await pool.connect();
@@ -2657,6 +2788,7 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
         phoneVerificationStatus: 'UNVERIFIED_CONTACT_DECLARED',
         authenticatedSellerId: resolvedUserId,
         authProvider: caller.email ? 'google' : 'session',
+        idempotencyKey: idempotencyKey || null,
         source: 'WIZARD_V2'
       });
 
@@ -8728,10 +8860,73 @@ app.get(
   }
 );
 
+// AiSensy Webhook Replay Protection Cache (Message IDs processed in the last 15 minutes)
+const processedAiSensyWebhookIds = new Map<string, number>();
+
+function verifyAiSensyWebhookAuth(req: Request, res: Response, next: NextFunction) {
+  const expectedSecret = process.env.AISENSY_WEBHOOK_SECRET;
+
+  // Extract secret token from header, bearer token, or query param
+  const authHeader = (req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+  const customHeader = ((req.headers['x-aisensy-secret'] || req.headers['x-webhook-secret'] || '') as string).trim();
+  const querySecret = ((req.query.secret || req.query.token || '') as string).trim();
+  const providedSecret = authHeader || customHeader || querySecret;
+
+  if (expectedSecret) {
+    if (!providedSecret) {
+      return res.status(401).json({
+        success: false,
+        error: 'WEBHOOK_UNAUTHORIZED',
+        message: 'Missing AiSensy webhook secret token.',
+      });
+    }
+    const bufA = Buffer.from(providedSecret);
+    const bufB = Buffer.from(expectedSecret);
+    if (bufA.length !== bufB.length || !crypto.timingSafeEqual(bufA, bufB)) {
+      return res.status(401).json({
+        success: false,
+        error: 'WEBHOOK_UNAUTHORIZED',
+        message: 'Invalid AiSensy webhook secret token.',
+      });
+    }
+  } else if (isProd) {
+    return res.status(503).json({
+      success: false,
+      error: 'WEBHOOK_UNCONFIGURED',
+      message: 'AISENSY_WEBHOOK_SECRET is not configured on the server.',
+    });
+  }
+
+  // Replay / Deduplication Protection
+  const messageId = req.body?.messageId || req.body?.data?.messageId || req.body?.id;
+  if (messageId && typeof messageId === 'string') {
+    const now = Date.now();
+    for (const [id, ts] of processedAiSensyWebhookIds.entries()) {
+      if (now - ts > 15 * 60 * 1000) {
+        processedAiSensyWebhookIds.delete(id);
+      }
+    }
+    if (processedAiSensyWebhookIds.has(messageId)) {
+      return res.json({
+        success: true,
+        handled: true,
+        status: 'DEDUPLICATED',
+        message: 'Webhook event was previously processed. Duplicate suppressed.',
+      });
+    }
+    processedAiSensyWebhookIds.set(messageId, now);
+  }
+
+  next();
+}
+
+export const verifyAiSensySignature = verifyAiSensyWebhookAuth;
+
 // 9. AiSensy WhatsApp Webhook Callback (Delivery & Read Receipts)
 app.post(
-  '/api/webhooks/aisensy',
+  ['/api/webhooks/aisensy', '/api/notifications/aisensy/webhook'],
   jsonDefault,
+  verifyAiSensyWebhookAuth,
   async (req: Request, res: Response) => {
     try {
       const result = await AiSensyNotificationService.handleWebhookCallback(req.body);
@@ -9488,7 +9683,8 @@ async function startServer() {
   return server;
 }
 
-if (!process.env.RUNNING_TESTS) {
+const isTestOrAudit = process.env.RUNNING_TESTS === 'true' || process.env.NODE_ENV === 'test' || process.argv.some(a => a.includes('test') || a.includes('audit'));
+if (!isTestOrAudit) {
   startServer();
 }
 

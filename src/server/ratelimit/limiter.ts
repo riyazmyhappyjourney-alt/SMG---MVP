@@ -1,12 +1,17 @@
-import { getValidatedConfig } from '../config/env';
+import { getValidatedConfig, ConfigurationError } from '../config/env';
+import { executeQuery } from '../db/pool';
 
 /**
  * Rate Limiting & Abuse Prevention Engine
  * 
- * [Rate Limiting Architecture]:
- * Operates with instance-local in-memory storage for MVP launch.
- * When REDIS_URL is configured in production, a shared cache can be attached;
- * otherwise, a clear production warning is logged that limits are instance-local.
+ * [Shared Distributed Architecture]:
+ * Operates with shared atomic PostgreSQL rate-limit storage across all Cloud Run
+ * and clustered server instances.
+ * 
+ * When REDIS_URL is configured and an external Redis driver is attached via configureClient,
+ * it operates via the custom attached cache.
+ * 
+ * Local dev sandbox mode uses InMemoryFallbackStore strictly when ALLOW_DEV_FALLBACKS=true.
  */
 
 export interface DistributedCacheClient {
@@ -25,8 +30,8 @@ export interface RateLimitResult {
   reason?: string;
 }
 
-// In-memory fallback simulation strictly for local dev when ALLOW_DEV_FALLBACKS=true
-class InMemoryFallbackStore implements DistributedCacheClient {
+// In-memory fallback simulation strictly for isolated unit testing / local sandbox without DB
+export class InMemoryFallbackStore implements DistributedCacheClient {
   private store = new Map<string, { val: string; expiresAt: number }>();
 
   async get(key: string): Promise<string | null> {
@@ -69,43 +74,145 @@ class InMemoryFallbackStore implements DistributedCacheClient {
     if (!item) return -2;
     return Math.max(0, Math.ceil((item.expiresAt - Date.now()) / 1000));
   }
+
+  clear(): void {
+    this.store.clear();
+  }
+}
+
+/**
+ * Production Shared Rate Limit Store backed by PostgreSQL.
+ * Provides atomic, multi-instance rate limits and lockout tracking across all containers.
+ */
+export class PostgresRateLimitStore implements DistributedCacheClient {
+  private static tableEnsured = false;
+
+  private async ensureTable(): Promise<void> {
+    if (PostgresRateLimitStore.tableEnsured) return;
+    try {
+      await executeQuery(`
+        CREATE TABLE IF NOT EXISTS shared_rate_limits (
+          key VARCHAR(255) PRIMARY KEY,
+          val TEXT NOT NULL,
+          expires_at TIMESTAMPTZ NOT NULL,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+        );
+        CREATE INDEX IF NOT EXISTS idx_shared_rate_limits_exp ON shared_rate_limits (expires_at);
+      `);
+      PostgresRateLimitStore.tableEnsured = true;
+    } catch (err: any) {
+      // Table check note
+      console.warn('[PostgresRateLimitStore] Table initialization note:', err.message);
+    }
+  }
+
+  async get(key: string): Promise<string | null> {
+    await this.ensureTable();
+    const res = await executeQuery<{ val: string }>(
+      `SELECT val FROM shared_rate_limits WHERE key = $1 AND expires_at > NOW() LIMIT 1;`,
+      [key]
+    );
+    if (!res.rows || res.rows.length === 0) return null;
+    return res.rows[0].val;
+  }
+
+  async set(key: string, value: string, _mode?: string, duration?: number): Promise<unknown> {
+    await this.ensureTable();
+    const durationSeconds = typeof duration === 'number' && duration > 0 ? duration : 3600;
+    await executeQuery(
+      `INSERT INTO shared_rate_limits (key, val, expires_at, updated_at)
+       VALUES ($1, $2, NOW() + ($3 || ' seconds')::interval, NOW())
+       ON CONFLICT (key) DO UPDATE
+       SET val = EXCLUDED.val,
+           expires_at = EXCLUDED.expires_at,
+           updated_at = NOW();`,
+      [key, String(value), durationSeconds]
+    );
+    return 'OK';
+  }
+
+  async incr(key: string): Promise<number> {
+    await this.ensureTable();
+    const res = await executeQuery<{ val: string }>(
+      `INSERT INTO shared_rate_limits (key, val, expires_at, updated_at)
+       VALUES ($1, '1', NOW() + INTERVAL '1 hour', NOW())
+       ON CONFLICT (key) DO UPDATE
+       SET val = CASE 
+         WHEN shared_rate_limits.expires_at <= NOW() THEN '1'
+         ELSE (COALESCE(NULLIF(shared_rate_limits.val, '')::integer, 0) + 1)::text
+       END,
+       expires_at = CASE 
+         WHEN shared_rate_limits.expires_at <= NOW() THEN NOW() + INTERVAL '1 hour'
+         ELSE shared_rate_limits.expires_at
+       END,
+       updated_at = NOW()
+       RETURNING val;`,
+      [key]
+    );
+    const valStr = res.rows[0]?.val || '1';
+    return parseInt(valStr, 10);
+  }
+
+  async expire(key: string, seconds: number): Promise<number> {
+    await this.ensureTable();
+    await executeQuery(
+      `UPDATE shared_rate_limits
+       SET expires_at = NOW() + ($2 || ' seconds')::interval, updated_at = NOW()
+       WHERE key = $1;`,
+      [key, seconds]
+    );
+    return 1;
+  }
+
+  async del(key: string): Promise<number> {
+    await this.ensureTable();
+    await executeQuery(`DELETE FROM shared_rate_limits WHERE key = $1;`, [key]);
+    return 1;
+  }
+
+  async ttl(key: string): Promise<number> {
+    await this.ensureTable();
+    const res = await executeQuery<{ ttl: number }>(
+      `SELECT GREATEST(0, CEIL(EXTRACT(EPOCH FROM (expires_at - NOW()))))::integer as ttl
+       FROM shared_rate_limits
+       WHERE key = $1 AND expires_at > NOW() LIMIT 1;`,
+      [key]
+    );
+    if (!res.rows || res.rows.length === 0) return -2;
+    return Number(res.rows[0].ttl);
+  }
 }
 
 export class DistributedRateLimiter {
   private static client: DistributedCacheClient | null = null;
-  private static warnedInstanceLocal = false;
 
-  public static getActiveLimiterType(): 'IN_MEMORY_INSTANCE_LOCAL' | 'CUSTOM_ATTACHED_STORE' {
-    return this.client instanceof InMemoryFallbackStore || !this.client
-      ? 'IN_MEMORY_INSTANCE_LOCAL'
-      : 'CUSTOM_ATTACHED_STORE';
+  public static getActiveLimiterType(): 'POSTGRES_SHARED_STORE' | 'CUSTOM_ATTACHED_STORE' | 'IN_MEMORY_FALLBACK' {
+    if (this.client instanceof PostgresRateLimitStore) return 'POSTGRES_SHARED_STORE';
+    if (this.client instanceof InMemoryFallbackStore) return 'IN_MEMORY_FALLBACK';
+    if (this.client) return 'CUSTOM_ATTACHED_STORE';
+    return 'POSTGRES_SHARED_STORE';
   }
 
   public static isDistributed(): boolean {
-    return this.getActiveLimiterType() === 'CUSTOM_ATTACHED_STORE';
+    const type = this.getActiveLimiterType();
+    return type === 'POSTGRES_SHARED_STORE' || type === 'CUSTOM_ATTACHED_STORE';
   }
 
   private static getClient(): DistributedCacheClient {
     if (!this.client) {
       const config = getValidatedConfig();
-      if (config.isProduction && !this.warnedInstanceLocal) {
-        if (config.redisUrl) {
-          console.warn(
-            '[RATE_LIMIT] Notice: REDIS_URL is defined, but no distributed Redis client driver is attached. Active store is InMemoryFallbackStore. Rate limits remain instance-local to this container.'
-          );
-        } else {
-          console.warn(
-            '[RATE_LIMIT] Warning: REDIS_URL is not configured in production. Active store is InMemoryFallbackStore. Rate limits are instance-local to this container.'
-          );
-        }
-        this.warnedInstanceLocal = true;
+      if (config.isProduction && !config.databaseUrl) {
+        throw new ConfigurationError(
+          'DATABASE_URL',
+          'Production rate limiting requires a shared database connection. Fail-closed.'
+        );
       }
-      this.client = new InMemoryFallbackStore();
+      this.client = new PostgresRateLimitStore();
     }
     return this.client;
   }
 
-  static configureClient(client: DistributedCacheClient) {
+  static configureClient(client: DistributedCacheClient | null) {
     this.client = client;
   }
 

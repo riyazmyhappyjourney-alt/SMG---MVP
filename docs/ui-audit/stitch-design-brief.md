@@ -376,8 +376,8 @@ graph TD
 - Icon: Padlock inside blue circular badge.
 - Title: "Staff Operations Portal - Restricted Authentication for Bengaluru Verification & CRM Desk".
 - Quick-fill credentials banner for development testing:
-  - Staff: `staff@sellmyghar.in` / `[REDACTED_BOOTSTRAP_PASSWORD]`
-  - Admin: `admin@sellmyghar.in` / `[REDACTED_BOOTSTRAP_PASSWORD]`
+  - Staff: `staff@sellmyghar.in` / `<bootstrap password — see Secret Manager>`
+  - Admin: `admin@sellmyghar.in` / `<bootstrap password — see Secret Manager>`
 - Form inputs: Staff Email, Password.
 - Primary Submit: "Access Operational Desk".
 - Secondary Link: "Return to Public Homepage".

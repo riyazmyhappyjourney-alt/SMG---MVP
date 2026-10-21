@@ -1,0 +1,61 @@
+# ==============================================================================
+# Google Cloud Build Pipeline for SellMyGhar.in (Staging)
+# Builds container and deploys to Google Cloud Run in asia-south1
+# ==============================================================================
+
+substitutions:
+  _COMMIT_SHA: 'latest'
+
+steps:
+  # 1. Build container image using Dockerfile
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'asia-south1-docker.pkg.dev/$PROJECT_ID/sellmyghar/app:staging-${_COMMIT_SHA}'
+      - '-t'
+      - 'asia-south1-docker.pkg.dev/$PROJECT_ID/sellmyghar/app:staging-latest'
+      - '.'
+
+  # 2. Push image to Google Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '--all-tags'
+      - 'asia-south1-docker.pkg.dev/$PROJECT_ID/sellmyghar/app'
+
+  # 3. Deploy to Cloud Run Staging service
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: gcloud
+    args:
+      - 'run'
+      - 'deploy'
+      - 'sellmyghar-staging'
+      - '--image'
+      - 'asia-south1-docker.pkg.dev/$PROJECT_ID/sellmyghar/app:staging-latest'
+      - '--region'
+      - 'asia-south1'
+      - '--platform'
+      - 'managed'
+      - '--no-allow-unauthenticated'
+      - '--port'
+      - '8080'
+      - '--memory'
+      - '1Gi'
+      - '--cpu'
+      - '1'
+      - '--min-instances'
+      - '0'
+      - '--max-instances'
+      - '2'
+      - '--set-env-vars'
+      - 'NODE_ENV=staging,APP_URL=https://staging.sellmyghar.in,AUTH_JWT_ISSUER=https://staging.sellmyghar.in,AUTH_JWT_AUDIENCE=https://staging.sellmyghar.in,PG_SSL_ALLOW_INSECURE=true,ALLOW_DEV_FALLBACKS=true,SUPABASE_URL=https://jtawqvseigeslgbrphfl.supabase.co,SUPABASE_ANON_KEY=sb_publishable_8ZaeejigTE9QoQWhNsBn9w_cVuSupIM,VITE_SUPABASE_URL=https://jtawqvseigeslgbrphfl.supabase.co,VITE_SUPABASE_ANON_KEY=sb_publishable_8ZaeejigTE9QoQWhNsBn9w_cVuSupIM,AISENSY_CAMPAIGN_PROPERTY_LISTED=SMG_Property_Submitted2,AISENSY_CAMPAIGN_PROPERTY_VERIFIED=SMG_Property_verified,AISENSY_CAMPAIGN_USER_WELCOME=SMG_Welcome_New_Users2,AISENSY_CAMPAIGN_OTP=SMG_OTP_Auth'
+      - '--set-secrets'
+      - 'DATABASE_URL=staging-db-connection-string:latest,JWT_SECRET=staging-jwt-secret:latest,INITIAL_STAFF_PASSWORD=staging-initial-staff-password:latest,INITIAL_ADMIN_PASSWORD=staging-initial-admin-password:latest'
+
+images:
+  - 'asia-south1-docker.pkg.dev/$PROJECT_ID/sellmyghar/app:staging-${_COMMIT_SHA}'
+  - 'asia-south1-docker.pkg.dev/$PROJECT_ID/sellmyghar/app:staging-latest'
+
+options:
+  logging: CLOUD_LOGGING_ONLY

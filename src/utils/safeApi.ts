@@ -112,14 +112,30 @@ export async function safeParseJson<T = any>(res: Response): Promise<ApiResponse
   }
 }
 
+function getCsrfTokenFromCookie(): string | null {
+  if (typeof document === 'undefined') return null;
+  const match = document.cookie.match(/(?:^|;\s*)sellmyghar_csrf=([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 /**
- * Convenience wrapper for fetch with automatic safe JSON parsing.
+ * Convenience wrapper for fetch with automatic safe JSON parsing and CSRF token transmission.
  */
 export async function safeFetchJson<T = any>(input: RequestInfo | URL, init?: RequestInit): Promise<ApiResponse<T>> {
   try {
+    const headers = new Headers(init?.headers || {});
+    const method = (init?.method || 'GET').toUpperCase();
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+      const csrf = getCsrfTokenFromCookie();
+      if (csrf && !headers.has('X-CSRF-Token')) {
+        headers.set('X-CSRF-Token', csrf);
+      }
+    }
+
     const res = await fetch(input, {
       credentials: 'include',
       ...init,
+      headers,
     });
     return await safeParseJson<T>(res);
   } catch (networkErr: any) {
@@ -131,3 +147,4 @@ export async function safeFetchJson<T = any>(input: RequestInfo | URL, init?: Re
     };
   }
 }
+

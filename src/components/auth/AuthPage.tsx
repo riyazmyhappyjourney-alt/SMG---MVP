@@ -90,6 +90,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   // User profile fields (for signup mode)
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [marketingConsent, setMarketingConsent] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -200,7 +201,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({
           phone: cleanPhone, 
           otp: otpCode, 
           name: name.trim(),
-          email: email.trim().toLowerCase()
+          email: email.trim().toLowerCase(),
+          marketingConsent,
         }),
       });
 
@@ -711,7 +713,21 @@ export const AuthPage: React.FC<AuthPageProps> = ({
             </div>
 
             {/* Bottom CTA */}
-            <div className="pt-6">
+            <div className="pt-4">
+              {/* Optional Unbundled Marketing Checkbox (DPDP Act Compliance) */}
+              <div className="flex items-start space-x-2.5 mb-3 p-3 rounded-xl bg-slate-50 border border-slate-200/70 text-left">
+                <input
+                  id="marketing-consent-cb"
+                  type="checkbox"
+                  checked={marketingConsent}
+                  onChange={(e) => setMarketingConsent(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-[#0073E6] focus:ring-[#0073E6] cursor-pointer"
+                />
+                <label htmlFor="marketing-consent-cb" className="text-xs text-slate-600 leading-snug cursor-pointer select-none">
+                  (Optional) Receive property recommendations, valuation insights, and updates on WhatsApp.
+                </label>
+              </div>
+
               <button
                 type="submit"
                 form="otp-auth-form"
@@ -725,7 +741,20 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                 )}
               </button>
 
-              <div className="flex items-center justify-center space-x-1.5 text-[11px] text-slate-400 mt-3">
+              {/* Legal Notice */}
+              <p className="text-[11px] text-slate-500 text-center leading-relaxed mt-2.5">
+                By verifying, you agree to our{' '}
+                <a href="#/terms" target="_blank" rel="noopener noreferrer" className="text-[#0073E6] hover:underline font-semibold">
+                  Terms of Service
+                </a>{' '}
+                and{' '}
+                <a href="#/privacy-policy" target="_blank" rel="noopener noreferrer" className="text-[#0073E6] hover:underline font-semibold">
+                  Privacy Policy
+                </a>
+                .
+              </p>
+
+              <div className="flex items-center justify-center space-x-1.5 text-[11px] text-slate-400 mt-2">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
                 <span>Protected by SellMyGhar 256-bit secure session</span>
               </div>

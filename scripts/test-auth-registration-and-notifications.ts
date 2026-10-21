@@ -164,8 +164,8 @@ export async function runAuthAndNotificationTests(): Promise<{ passed: number; f
       'WhatsApp registration passes userName parameter to template',
       Boolean(
         capturedWaPayload &&
-        capturedWaPayload.campaignName === (process.env.AISENSY_CAMPAIGN_USER_WELCOME || 'SMG_User_Registered') &&
-        capturedWaPayload.templateParams[0] === 'Ananya Rao'
+        capturedWaPayload.campaignName === (process.env.AISENSY_CAMPAIGN_USER_WELCOME || 'SMG_Welcome_New_Users2') &&
+        (capturedWaPayload.userName === 'Ananya Rao' || capturedWaPayload.templateParams?.[0] === 'Ananya Rao')
       )
     );
 

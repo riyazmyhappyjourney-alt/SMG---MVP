@@ -1,4 +1,5 @@
 import { recordAuditEvent } from '../audit/logger';
+import { executeQuery } from '../db/pool';
 
 /**
  * AiSensy WhatsApp Business API Integration Service
@@ -126,7 +127,7 @@ export class AiSensyNotificationService {
         propertyPublished: process.env.AISENSY_CAMPAIGN_PROPERTY_PUBLISHED || 'property_published',
         propertyVerified: process.env.AISENSY_CAMPAIGN_PROPERTY_VERIFIED || 'SMG_Property_verified',
         propertyActionRequired: process.env.AISENSY_CAMPAIGN_PROPERTY_ACTION_REQUIRED || 'property_action_required',
-        userWelcome: process.env.AISENSY_CAMPAIGN_USER_WELCOME || 'SMG_User_Registered',
+        userWelcome: process.env.AISENSY_CAMPAIGN_USER_WELCOME || 'SMG_Welcome_New_Users2',
         otpAuth: process.env.AISENSY_CAMPAIGN_OTP || 'SMG_OTP_Auth',
       },
     };
@@ -175,6 +176,19 @@ export class AiSensyNotificationService {
       };
     }
 
+    if (messageId && status) {
+      try {
+        await executeQuery(
+          `UPDATE whatsapp_notifications 
+           SET delivery_status = $1, 
+               provider_response = COALESCE(provider_response, '{}'::jsonb) || $2::jsonb,
+               updated_at = NOW() 
+           WHERE provider_message_id = $3 OR id = $3;`,
+          [status, JSON.stringify(payload), messageId]
+        );
+      } catch {}
+    }
+
     try {
       await recordAuditEvent({
         actor: { uid: 'aisensy-webhook', roles: ['SYSTEM'], permissions: [] },
@@ -203,7 +217,8 @@ export class AiSensyNotificationService {
     templateParams: string[],
     propertyId?: string,
     idempotencyKey?: string,
-    buttons?: any[]
+    buttons?: any[],
+    userId?: string
   ): Promise<DispatchedAiSensyRecord> {
     // 1. Recipient Phone Validation Guard
     if (!this.isValidPhoneNumber(phone)) {
@@ -228,7 +243,7 @@ export class AiSensyNotificationService {
     const destination = this.normalizePhoneNumber(phone);
     const key = idempotencyKey || `${campaignName}:${propertyId || 'global'}:${destination}`;
 
-    // 2. Idempotency Guard (Deduplication)
+    // 2. Idempotency Guard (In-memory & Database deduplication)
     if (this.sentCampaignKeys.has(key)) {
       const skipRecord: DispatchedAiSensyRecord = {
         id: `skip-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -245,6 +260,36 @@ export class AiSensyNotificationService {
       };
       this.dispatchedLedger.push(skipRecord);
       return skipRecord;
+    }
+
+    if (key) {
+      try {
+        const dbCheck = await executeQuery(
+          `SELECT id, status, provider_message_id, delivery_status, delivery_attempts FROM whatsapp_notifications WHERE idempotency_key = $1 LIMIT 1;`,
+          [key]
+        );
+        if (dbCheck.rows && dbCheck.rows.length > 0) {
+          const existing = dbCheck.rows[0];
+          if (['DELIVERED', 'SUBMITTED', 'SIMULATED'].includes(existing.status)) {
+            this.sentCampaignKeys.add(key);
+            const skipRecord: DispatchedAiSensyRecord = {
+              id: existing.id,
+              campaignName,
+              destination,
+              userName,
+              templateParams,
+              buttons: buttons && buttons.length > 0 ? buttons : undefined,
+              propertyId,
+              status: 'SIMULATED',
+              attempts: existing.delivery_attempts || 0,
+              providerResponse: { message: 'Duplicate campaign dispatch skipped via database idempotency guard', existingStatus: existing.status },
+              timestamp: new Date().toISOString(),
+            };
+            this.dispatchedLedger.push(skipRecord);
+            return skipRecord;
+          }
+        }
+      } catch {}
     }
 
     const apiKey = process.env.AISENSY_API_KEY;
@@ -271,6 +316,35 @@ export class AiSensyNotificationService {
           timestamp: new Date().toISOString(),
         };
         this.dispatchedLedger.push(simRecord);
+
+        try {
+          await executeQuery(
+            `INSERT INTO whatsapp_notifications 
+             (id, campaign_name, destination, user_name, user_id, property_id, idempotency_key, template_params, buttons, status, provider_message_id, provider_response, delivery_status, error_message, delivery_attempts, sent_at, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'SIMULATED', $10, $11, 'DELIVERED', NULL, 1, NOW(), NOW(), NOW())
+             ON CONFLICT (idempotency_key) DO NOTHING;`,
+            [
+              simRecord.id,
+              campaignName,
+              destination,
+              userName,
+              userId || null,
+              propertyId || null,
+              key,
+              JSON.stringify(templateParams),
+              buttons ? JSON.stringify(buttons) : null,
+              `sim-msg-${Date.now()}`,
+              JSON.stringify(simRecord.providerResponse),
+            ]
+          );
+          if (userId) {
+            await executeQuery(
+              `UPDATE users SET welcome_whatsapp_sent_at = NOW() WHERE id = $1 AND welcome_whatsapp_sent_at IS NULL;`,
+              [userId]
+            );
+          }
+        } catch {}
+
         return simRecord;
       }
 
@@ -377,6 +451,56 @@ export class AiSensyNotificationService {
     };
 
     this.dispatchedLedger.push(record);
+
+    // Persist to database (whatsapp_notifications)
+    try {
+      const providerMsgId = record.providerResponse?.messageId || record.providerResponse?.id || record.providerResponse?.data?.messageId || null;
+      const isDeliveredOrSim = record.status === 'DELIVERED' || record.status === 'SIMULATED';
+      const sentAt = isDeliveredOrSim ? new Date().toISOString() : null;
+      const deliveryStatus = isDeliveredOrSim ? 'DELIVERED' : (record.status === 'FAILED' ? 'FAILED' : 'PENDING');
+
+      await executeQuery(
+        `INSERT INTO whatsapp_notifications 
+         (id, campaign_name, destination, user_name, user_id, property_id, idempotency_key, template_params, buttons, status, provider_message_id, provider_response, delivery_status, error_message, delivery_attempts, sent_at, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW(), NOW())
+         ON CONFLICT (idempotency_key) DO UPDATE
+         SET status = EXCLUDED.status,
+             provider_message_id = EXCLUDED.provider_message_id,
+             provider_response = EXCLUDED.provider_response,
+             delivery_status = EXCLUDED.delivery_status,
+             error_message = EXCLUDED.error_message,
+             delivery_attempts = whatsapp_notifications.delivery_attempts + 1,
+             sent_at = COALESCE(whatsapp_notifications.sent_at, EXCLUDED.sent_at),
+             updated_at = NOW();`,
+        [
+          record.id,
+          campaignName,
+          destination,
+          userName,
+          userId || null,
+          propertyId || null,
+          key,
+          JSON.stringify(templateParams),
+          buttons ? JSON.stringify(buttons) : null,
+          record.status,
+          providerMsgId,
+          JSON.stringify(record.providerResponse || {}),
+          deliveryStatus,
+          record.error || null,
+          attempts || 1,
+          sentAt,
+        ]
+      );
+
+      if (isSuccess && userId) {
+        await executeQuery(
+          `UPDATE users SET welcome_whatsapp_sent_at = NOW() WHERE id = $1 AND welcome_whatsapp_sent_at IS NULL;`,
+          [userId]
+        );
+      }
+    } catch (persistErr: any) {
+      console.warn('[AiSensy] Notification persistence note:', persistErr.message);
+    }
 
     // Record statutory audit event (non-blocking, masked destination)
     try {
@@ -584,14 +708,22 @@ export class AiSensyNotificationService {
 
   /**
    * 5. Triggered on successful new user account registration
-   * Campaign: AISENSY_CAMPAIGN_USER_WELCOME (default: "SMG_User_Registered")
-   * Template:
-   *   Hello {{1}},
-   *   Welcome to SellMyGhar.in.
-   *   We're glad you're here. You can now continue your home buying or selling journey through your SellMyGhar account.
-   *   Thank you for joining us.
-   *   Team SellMyGhar.in
-   * Params: [userName]
+   * Campaign: AISENSY_CAMPAIGN_USER_WELCOME (default: "SMG_Welcome_New_Users2")
+   * 
+   * Approved Template Content:
+   *   Welcome to SellMyGhar.in!
+   *
+   *   Your registration is successful.
+   *
+   *   Ready to sell your flat in Bengaluru? List your property with us for free and connect with potential buyers.
+   *
+   *   Tap below to get started.
+   *
+   * CTA Button:
+   *   Label: "Post Your Property for Free"
+   *   Type: Visit Website (url)
+   *   URL: https://sellmyghar.in/post-property (or #/post-property)
+   *   Parameter text: "post-property"
    */
   public static async handleUserRegistered(data: {
     userId: string;
@@ -602,7 +734,7 @@ export class AiSensyNotificationService {
     if (!rawPhone || !this.isValidPhoneNumber(rawPhone)) {
       const skipRecord: DispatchedAiSensyRecord = {
         id: `skip-no-phone-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        campaignName: process.env.AISENSY_CAMPAIGN_USER_WELCOME || 'SMG_User_Registered',
+        campaignName: process.env.AISENSY_CAMPAIGN_USER_WELCOME || 'SMG_Welcome_New_Users2',
         destination: rawPhone || 'none',
         userName: data.userName || 'Homeowner',
         templateParams: [data.userName || 'Homeowner'],
@@ -617,13 +749,28 @@ export class AiSensyNotificationService {
       return skipRecord;
     }
 
-    const campaignName = process.env.AISENSY_CAMPAIGN_USER_WELCOME || 'SMG_User_Registered';
-    const params = [
-      data.userName || 'Homeowner',
-    ];
+    const campaignName = process.env.AISENSY_CAMPAIGN_USER_WELCOME || 'SMG_Welcome_New_Users2';
+    const defaultParamCount = (campaignName === 'SMG_Welcome_New_Users' || campaignName === 'SMG_Welcome_New_Users2') ? '0' : '1';
+    const paramCount = process.env.AISENSY_WELCOME_PARAM_COUNT || defaultParamCount;
+    const params = paramCount === '0' ? [] : [data.userName || 'Homeowner'];
 
     const destination = this.normalizePhoneNumber(rawPhone);
     const idempotencyKey = `welcome-reg-wa:${data.userId}:${destination}`;
+
+    const postPropertySuffix = process.env.AISENSY_WELCOME_BUTTON_URL_SUFFIX || 'post-property';
+    const buttons = [
+      {
+        type: 'button',
+        sub_type: 'url',
+        index: '0',
+        parameters: [
+          {
+            type: 'text',
+            text: postPropertySuffix,
+          },
+        ],
+      },
+    ];
 
     return this.sendCampaignWithRetry(
       campaignName,
@@ -631,7 +778,9 @@ export class AiSensyNotificationService {
       data.userName,
       params,
       undefined,
-      idempotencyKey
+      idempotencyKey,
+      buttons,
+      data.userId
     );
   }
 

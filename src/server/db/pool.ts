@@ -248,3 +248,28 @@ export async function executeUserQuery<T = any>(
   const pool = getDbPool();
   return withUserSession(pool, user, callback);
 }
+
+/**
+ * Executes a callback within an isolated PostgreSQL transaction (BEGIN / COMMIT / ROLLBACK)
+ * with dedicated connection check-out and guaranteed release back to the pool.
+ */
+export async function withTransaction<T = any>(
+  callback: (client: DbConnection) => Promise<T>
+): Promise<T> {
+  const pool = getDbPool();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const result = await callback(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {}
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+

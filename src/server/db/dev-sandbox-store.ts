@@ -25,6 +25,7 @@ export interface DevUser {
   failed_login_attempts: number;
   locked_until: string | null;
   module_permissions?: string[];
+  welcome_whatsapp_sent_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -241,11 +242,13 @@ class DevSandboxStore {
   public heroSlides = new Map<string, any>();
   public emailTemplates = new Map<string, any>();
   public publicationNotifications = new Map<string, any>();
+  public whatsappNotifications = new Map<string, any>();
   public partnerLogos = new Map<string, any>();
   public partnerSectionSettings = new Map<string, any>();
   public careerPositions = new Map<string, any>();
   public careerApplications = new Map<string, any>();
   public passwordResetTokens = new Map<string, DevPasswordResetToken>();
+  public sharedRateLimits = new Map<string, { val: string; expiresAt: number }>();
   private activeTxSnapshots = new Map<string, {
     users: Map<string, DevUser>;
     passwordResetTokens: Map<string, DevPasswordResetToken>;
@@ -276,6 +279,7 @@ class DevSandboxStore {
     this.heroSlides.clear();
     this.emailTemplates.clear();
     this.publicationNotifications.clear();
+    this.whatsappNotifications.clear();
     this.partnerLogos.clear();
     this.partnerSectionSettings.clear();
     this.careerPositions.clear();
@@ -1349,6 +1353,20 @@ class DevSandboxStore {
       return { rows: [] };
     }
 
+    // 9b-1. USERS: Update welcome_whatsapp_sent_at
+    if (cleanSql.includes('UPDATE users') && cleanSql.includes('welcome_whatsapp_sent_at')) {
+      const targetId = params[0];
+      const u = this.users.get(targetId);
+      if (u) {
+        if (!u.welcome_whatsapp_sent_at) {
+          u.welcome_whatsapp_sent_at = new Date().toISOString();
+          u.updated_at = new Date().toISOString();
+        }
+        return { rows: [{ ...u }] };
+      }
+      return { rows: [] };
+    }
+
     // 9c-0. USERS: Update phone / email / display_name
     if (cleanSql.includes('UPDATE users') && cleanSql.includes('phone = COALESCE')) {
       const phone = params[0];
@@ -1454,6 +1472,9 @@ class DevSandboxStore {
       const id = params[0];
       const rec = this.otpVerifications.get(id);
       if (rec) {
+        if (cleanSql.includes('is_consumed = false') && rec.is_consumed) {
+          return { rows: [] };
+        }
         rec.is_consumed = true;
         return { rows: [{ ...rec }] };
       }
@@ -1532,6 +1553,63 @@ class DevSandboxStore {
             this.passwordResetTokens.delete(key);
           }
         }
+      }
+      return { rows: [] };
+    }
+
+    // 9d-3. SHARED_RATE_LIMITS Handlers (Distributed Rate Limiting)
+    if (cleanSql.includes('shared_rate_limits')) {
+      if (cleanSql.includes('CREATE TABLE')) {
+        return { rows: [] };
+      }
+      if (cleanSql.includes('SELECT val FROM shared_rate_limits')) {
+        const key = params[0];
+        const item = this.sharedRateLimits.get(key);
+        if (item && item.expiresAt > Date.now()) {
+          return { rows: [{ val: item.val }] };
+        }
+        return { rows: [] };
+      }
+      if (cleanSql.includes('INSERT INTO shared_rate_limits') && cleanSql.includes('RETURNING val')) {
+        // Atomic increment in dev store
+        const key = params[0];
+        const item = this.sharedRateLimits.get(key);
+        let nextVal = 1;
+        let expiresAt = Date.now() + 3600 * 1000;
+        if (item && item.expiresAt > Date.now()) {
+          nextVal = parseInt(item.val, 10) + 1;
+          expiresAt = item.expiresAt;
+        }
+        this.sharedRateLimits.set(key, { val: String(nextVal), expiresAt });
+        return { rows: [{ val: String(nextVal) }] };
+      }
+      if (cleanSql.includes('INSERT INTO shared_rate_limits')) {
+        const key = params[0];
+        const val = String(params[1]);
+        const durSeconds = Number(params[2]) || 3600;
+        this.sharedRateLimits.set(key, { val, expiresAt: Date.now() + durSeconds * 1000 });
+        return { rows: [] };
+      }
+      if (cleanSql.includes('UPDATE shared_rate_limits') && cleanSql.includes('expires_at =')) {
+        const key = params[0];
+        const durSeconds = Number(params[1]) || 3600;
+        const item = this.sharedRateLimits.get(key);
+        if (item) {
+          item.expiresAt = Date.now() + durSeconds * 1000;
+        }
+        return { rows: [] };
+      }
+      if (cleanSql.includes('DELETE FROM shared_rate_limits')) {
+        const key = params[0];
+        this.sharedRateLimits.delete(key);
+        return { rows: [] };
+      }
+      if (cleanSql.includes('SELECT GREATEST(0') || cleanSql.includes('ttl')) {
+        const key = params[0];
+        const item = this.sharedRateLimits.get(key);
+        if (!item || item.expiresAt <= Date.now()) return { rows: [] };
+        const ttl = Math.max(0, Math.ceil((item.expiresAt - Date.now()) / 1000));
+        return { rows: [{ ttl }] };
       }
       return { rows: [] };
     }
@@ -2094,6 +2172,15 @@ class DevSandboxStore {
           return false;
         });
 
+        if (cleanSql.includes('COUNT(*)')) {
+          let count = matched.length;
+          if (cleanSql.includes('internal_verification_notes') && params[1]) {
+            const pattern = String(params[1]).replace(/%/g, '');
+            count = matched.filter(p => p.internal_verification_notes && p.internal_verification_notes.includes(pattern)).length;
+          }
+          return { rows: [{ cnt: count, count }] };
+        }
+
         return {
           rows: matched.map(p => {
             const lead = Array.from(this.sellerLeads.values()).find(l =>
@@ -2302,8 +2389,9 @@ class DevSandboxStore {
 
       if (cleanSql.includes('listing_status =')) {
         let newListingStatus: 'DRAFT' | 'PUBLISHED' | 'PAUSED' | 'SOLD' | 'ARCHIVED' | undefined;
-        let propId = params[0];
+        let propId = params[params.length - 1];
         if (cleanSql.includes("listing_status = 'PUBLISHED'")) newListingStatus = 'PUBLISHED';
+        else if (cleanSql.includes("listing_status = 'DRAFT'")) newListingStatus = 'DRAFT';
         else if (cleanSql.includes("listing_status = 'PAUSED'")) newListingStatus = 'PAUSED';
         else if (cleanSql.includes("listing_status = 'SOLD'")) newListingStatus = 'SOLD';
         else if (cleanSql.includes("listing_status = 'ARCHIVED'")) newListingStatus = 'ARCHIVED';
@@ -2838,6 +2926,66 @@ class DevSandboxStore {
         };
       }
       this.publicationNotifications.set(notif.id, notif);
+      return { rows: [{ ...notif }] };
+    }
+
+    // 27b. WHATSAPP_NOTIFICATIONS: Select, Insert, Update
+    if (cleanSql.includes('FROM whatsapp_notifications') && cleanSql.includes('WHERE idempotency_key = $1')) {
+      const found = Array.from(this.whatsappNotifications.values()).find(n => n.idempotency_key === params[0]);
+      return found ? { rows: [{ ...found }] } : { rows: [] };
+    }
+
+    if (cleanSql.includes('FROM whatsapp_notifications') && (cleanSql.includes('WHERE provider_message_id =') || cleanSql.includes('WHERE id ='))) {
+      const target = params[params.length - 1];
+      const found = Array.from(this.whatsappNotifications.values()).find(n => n.provider_message_id === target || n.id === target);
+      return found ? { rows: [{ ...found }] } : { rows: [] };
+    }
+
+    if (cleanSql.includes('FROM whatsapp_notifications')) {
+      const list = Array.from(this.whatsappNotifications.values()).sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+      return { rows: list.map(n => ({ ...n })) };
+    }
+
+    if (cleanSql.includes('UPDATE whatsapp_notifications')) {
+      const target = params[params.length - 1];
+      const existing = Array.from(this.whatsappNotifications.values()).find(n => n.provider_message_id === target || n.id === target);
+      if (existing) {
+        existing.delivery_status = params[0] || existing.delivery_status;
+        try {
+          const extra = typeof params[1] === 'string' ? JSON.parse(params[1]) : params[1];
+          existing.provider_response = { ...(existing.provider_response || {}), ...extra };
+        } catch {}
+        existing.updated_at = new Date().toISOString();
+        this.whatsappNotifications.set(existing.id, existing);
+        return { rows: [{ ...existing }] };
+      }
+      return { rows: [] };
+    }
+
+    if (cleanSql.includes('INSERT INTO whatsapp_notifications')) {
+      const notif = {
+        id: params[0],
+        campaign_name: params[1],
+        destination: params[2],
+        user_name: params[3],
+        user_id: params[4],
+        property_id: params[5],
+        idempotency_key: params[6],
+        template_params: params[7],
+        buttons: params[8],
+        status: params[9],
+        provider_message_id: params[10],
+        provider_response: params[11],
+        delivery_status: params[12],
+        error_message: params[13],
+        delivery_attempts: params[14] !== undefined ? params[14] : 1,
+        sent_at: params[15] || null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      this.whatsappNotifications.set(notif.id, notif);
       return { rows: [{ ...notif }] };
     }
 

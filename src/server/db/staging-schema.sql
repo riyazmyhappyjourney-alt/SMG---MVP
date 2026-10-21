@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS users (
   module_permissions TEXT[] NOT NULL DEFAULT '{}',
   failed_login_attempts INT NOT NULL DEFAULT 0,
   locked_until TIMESTAMPTZ,
+  welcome_whatsapp_sent_at TIMESTAMPTZ,
   is_active BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -404,6 +405,33 @@ CREATE TABLE IF NOT EXISTS publication_notifications (
 
 CREATE INDEX IF NOT EXISTS idx_pub_notif_status ON publication_notifications (status);
 CREATE INDEX IF NOT EXISTS idx_pub_notif_property ON publication_notifications (property_id);
+
+-- 19b. WhatsApp Notifications Table (AiSensy Dispatches)
+CREATE TABLE IF NOT EXISTS whatsapp_notifications (
+  id VARCHAR(64) PRIMARY KEY,
+  campaign_name VARCHAR(128) NOT NULL,
+  destination VARCHAR(64) NOT NULL,
+  user_name VARCHAR(128),
+  user_id VARCHAR(64) REFERENCES users(id) ON DELETE SET NULL,
+  property_id VARCHAR(64) REFERENCES properties(id) ON DELETE SET NULL,
+  idempotency_key VARCHAR(128) NOT NULL UNIQUE,
+  template_params JSONB,
+  buttons JSONB,
+  status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+  provider_message_id VARCHAR(128),
+  provider_response JSONB,
+  delivery_status VARCHAR(64),
+  error_message TEXT,
+  delivery_attempts INT DEFAULT 1,
+  sent_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_whatsapp_notif_idemp ON whatsapp_notifications (idempotency_key);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_notif_status ON whatsapp_notifications (status);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_notif_user ON whatsapp_notifications (user_id);
+CREATE INDEX IF NOT EXISTS idx_whatsapp_notif_msg_id ON whatsapp_notifications (provider_message_id);
 
 -- 20. Career Positions Table (Careers CMS)
 CREATE TABLE IF NOT EXISTS career_positions (

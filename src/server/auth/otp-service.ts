@@ -1,5 +1,5 @@
 import crypto from 'crypto';
-import { executeQuery } from '../db/pool';
+import { executeQuery, withTransaction } from '../db/pool';
 import { getValidatedConfig } from '../config/env';
 import { DistributedRateLimiter } from '../ratelimit/limiter';
 import { getSmsProvider, recordDevOtp } from '../notifications/sms-provider';
@@ -118,6 +118,11 @@ export class OtpService {
 
     if (!waDelivered) {
       const smsProvider = getSmsProvider();
+      if (!smsProvider.isConfigured()) {
+        throw new Error(
+          'WhatsApp delivery failed and SMS fallback is unconfigured. Indian DLT template registration is required for SMS delivery.'
+        );
+      }
       await smsProvider.sendOtp(normalizedPhone, otpCode);
       deliveredChannel = 'SMS';
     }
@@ -137,6 +142,7 @@ export class OtpService {
 
   /**
    * Verifies OTP, checks attempts/expiration, consumes single-use record, and resolves user identity.
+   * Atomic across concurrent requests using PostgreSQL transactions and row-level locking (FOR UPDATE).
    */
   static async verifyOtp(
     phone: string,
@@ -156,236 +162,244 @@ export class OtpService {
       throw new Error(`Phone is temporarily locked due to multiple failed OTP attempts. Retry in ${lockoutCheck.retryAfterSeconds}s.`);
     }
 
-    // 2. Fetch latest active unconsumed OTP
-    const activeRes = await executeQuery<{
-      id: string;
-      phone: string;
-      otp_hash: string;
-      attempts_count: number;
-      max_attempts: number;
-      expires_at: string;
-      is_consumed: boolean;
-    }>(
-      `SELECT id, phone, otp_hash, attempts_count, max_attempts, expires_at, is_consumed
-       FROM otp_verifications
-       WHERE phone = $1 AND is_consumed = false
-       ORDER BY created_at DESC LIMIT 1;`,
-      [normalizedPhone]
-    );
+    return await withTransaction(async (client) => {
+      // 2. Fetch latest active unconsumed OTP with row-level lock (FOR UPDATE)
+      const activeRes = (await client.query(
+        `SELECT id, phone, otp_hash, attempts_count, max_attempts, expires_at, is_consumed
+         FROM otp_verifications
+         WHERE phone = $1 AND is_consumed = false
+         ORDER BY created_at DESC LIMIT 1 FOR UPDATE;`,
+        [normalizedPhone]
+      )) as {
+        rows: {
+          id: string;
+          phone: string;
+          otp_hash: string;
+          attempts_count: number;
+          max_attempts: number;
+          expires_at: string;
+          is_consumed: boolean;
+        }[];
+      };
 
-    if (!activeRes.rows || activeRes.rows.length === 0) {
-      await recordAuditEvent({
-        actor: { uid: `anon-${cleanDigits}`, roles: ['BUYER'], phone: normalizedPhone },
-        action: 'OTP_VERIFICATION_FAILED',
-        targetEntity: 'otp_verifications',
-        targetEntityId: 'none',
-        clientIp,
-        diffSummary: { reason: 'NO_ACTIVE_OTP_FOUND', phone: normalizedPhone },
-      });
-      throw new Error('No active verification code found for this phone. Please request a new code.');
-    }
+      if (!activeRes.rows || activeRes.rows.length === 0) {
+        await recordAuditEvent({
+          actor: { uid: `anon-${cleanDigits}`, roles: ['BUYER'], phone: normalizedPhone },
+          action: 'OTP_VERIFICATION_FAILED',
+          targetEntity: 'otp_verifications',
+          targetEntityId: 'none',
+          clientIp,
+          diffSummary: { reason: 'NO_ACTIVE_OTP_FOUND', phone: normalizedPhone },
+        });
+        throw new Error('No active verification code found for this phone. Please request a new code.');
+      }
 
-    const otpRecord = activeRes.rows[0];
+      const otpRecord = activeRes.rows[0];
 
-    // 3. Expiration Check
-    if (new Date(otpRecord.expires_at).getTime() < Date.now()) {
-      await executeQuery(`UPDATE otp_verifications SET is_consumed = true WHERE id = $1;`, [otpRecord.id]);
-      await recordAuditEvent({
-        actor: { uid: `anon-${cleanDigits}`, roles: ['BUYER'], phone: normalizedPhone },
-        action: 'OTP_EXPIRED',
-        targetEntity: 'otp_verifications',
-        targetEntityId: otpRecord.id,
-        clientIp,
-        diffSummary: { phone: normalizedPhone, expiredAt: otpRecord.expires_at },
-      });
-      throw new Error('Verification code has expired. Please request a new code.');
-    }
+      // 3. Expiration Check
+      if (new Date(otpRecord.expires_at).getTime() < Date.now()) {
+        await client.query(`UPDATE otp_verifications SET is_consumed = true WHERE id = $1;`, [otpRecord.id]);
+        await recordAuditEvent({
+          actor: { uid: `anon-${cleanDigits}`, roles: ['BUYER'], phone: normalizedPhone },
+          action: 'OTP_EXPIRED',
+          targetEntity: 'otp_verifications',
+          targetEntityId: otpRecord.id,
+          clientIp,
+          diffSummary: { phone: normalizedPhone, expiredAt: otpRecord.expires_at },
+        });
+        throw new Error('Verification code has expired. Please request a new code.');
+      }
 
-    // 4. Max attempts check
-    if (otpRecord.attempts_count >= otpRecord.max_attempts) {
-      await executeQuery(`UPDATE otp_verifications SET is_consumed = true WHERE id = $1;`, [otpRecord.id]);
-      await DistributedRateLimiter.registerFailedOtpAttempt(normalizedPhone);
-      await recordAuditEvent({
-        actor: { uid: `anon-${cleanDigits}`, roles: ['BUYER'], phone: normalizedPhone },
-        action: 'OTP_VERIFICATION_FAILED',
-        targetEntity: 'otp_verifications',
-        targetEntityId: otpRecord.id,
-        clientIp,
-        diffSummary: { reason: 'MAX_ATTEMPTS_EXCEEDED', phone: normalizedPhone },
-      });
-      throw new Error('Account locked for 30 minutes due to 5 consecutive invalid OTP attempts.');
-    }
-
-    // 5. Timing-safe cryptographic comparison
-    const expectedHash = hashOtp(normalizedPhone, enteredOtp.trim());
-    const isValid = timingSafeCompare(expectedHash, otpRecord.otp_hash);
-
-    if (!isValid) {
-      const nextAttempts = otpRecord.attempts_count + 1;
-      await executeQuery(
-        `UPDATE otp_verifications SET attempts_count = $1 WHERE id = $2;`,
-        [nextAttempts, otpRecord.id]
-      );
-
-      const { lockedOut, attemptsLeft } = await DistributedRateLimiter.registerFailedOtpAttempt(normalizedPhone);
-
-      await recordAuditEvent({
-        actor: { uid: `anon-${cleanDigits}`, roles: ['BUYER'], phone: normalizedPhone },
-        action: 'OTP_VERIFICATION_FAILED',
-        targetEntity: 'otp_verifications',
-        targetEntityId: otpRecord.id,
-        clientIp,
-        diffSummary: { attempts_count: nextAttempts, attemptsLeft, phone: normalizedPhone },
-      });
-
-      if (lockedOut || nextAttempts >= otpRecord.max_attempts) {
-        await executeQuery(`UPDATE otp_verifications SET is_consumed = true WHERE id = $1;`, [otpRecord.id]);
+      // 4. Max attempts check
+      if (otpRecord.attempts_count >= otpRecord.max_attempts) {
+        await client.query(`UPDATE otp_verifications SET is_consumed = true WHERE id = $1;`, [otpRecord.id]);
+        await DistributedRateLimiter.registerFailedOtpAttempt(normalizedPhone);
+        await recordAuditEvent({
+          actor: { uid: `anon-${cleanDigits}`, roles: ['BUYER'], phone: normalizedPhone },
+          action: 'OTP_VERIFICATION_FAILED',
+          targetEntity: 'otp_verifications',
+          targetEntityId: otpRecord.id,
+          clientIp,
+          diffSummary: { reason: 'MAX_ATTEMPTS_EXCEEDED', phone: normalizedPhone },
+        });
         throw new Error('Account locked for 30 minutes due to 5 consecutive invalid OTP attempts.');
       }
-      throw new Error(`Invalid OTP. ${attemptsLeft} attempts remaining.`);
-    }
 
-    // 6. Consume OTP immediately (Single-use enforcement)
-    await executeQuery(`UPDATE otp_verifications SET is_consumed = true WHERE id = $1;`, [otpRecord.id]);
-    await DistributedRateLimiter.resetOtpFailures(normalizedPhone);
+      // 5. Timing-safe cryptographic comparison
+      const expectedHash = hashOtp(normalizedPhone, enteredOtp.trim());
+      const isValid = timingSafeCompare(expectedHash, otpRecord.otp_hash);
 
-    await recordAuditEvent({
-      actor: { uid: `anon-${cleanDigits}`, roles: ['BUYER'], phone: normalizedPhone },
-      action: 'OTP_VERIFIED',
-      targetEntity: 'otp_verifications',
-      targetEntityId: otpRecord.id,
-      clientIp,
-      diffSummary: { phone: normalizedPhone },
-    });
+      if (!isValid) {
+        const nextAttempts = otpRecord.attempts_count + 1;
+        await client.query(
+          `UPDATE otp_verifications SET attempts_count = $1 WHERE id = $2;`,
+          [nextAttempts, otpRecord.id]
+        );
 
-    // 7. Identity Resolution & Account Linking
-    // Check if PHONE identity exists
-    const identityRes = await executeQuery<{
-      id: string;
-      user_id: string;
-      provider: string;
-      provider_user_id: string;
-    }>(
-      `SELECT id, user_id, provider, provider_user_id FROM user_identities WHERE provider = 'PHONE' AND provider_user_id = $1 LIMIT 1;`,
-      [normalizedPhone]
-    );
+        const { lockedOut, attemptsLeft } = await DistributedRateLimiter.registerFailedOtpAttempt(normalizedPhone);
 
-    let userRecord: any = null;
-    let isNewUser = false;
+        await recordAuditEvent({
+          actor: { uid: `anon-${cleanDigits}`, roles: ['BUYER'], phone: normalizedPhone },
+          action: 'OTP_VERIFICATION_FAILED',
+          targetEntity: 'otp_verifications',
+          targetEntityId: otpRecord.id,
+          clientIp,
+          diffSummary: { attempts_count: nextAttempts, attemptsLeft, phone: normalizedPhone },
+        });
 
-    if (identityRes.rows && identityRes.rows.length > 0) {
-      // Identity exists -> fetch linked user
-      const userRes = await executeQuery(
-        `SELECT id, phone, email, display_name, roles, is_active, token_version FROM users WHERE id = $1 LIMIT 1;`,
-        [identityRes.rows[0].user_id]
-      );
-      if (userRes.rows && userRes.rows.length > 0) {
-        userRecord = userRes.rows[0];
+        if (lockedOut || nextAttempts >= otpRecord.max_attempts) {
+          await client.query(`UPDATE otp_verifications SET is_consumed = true WHERE id = $1;`, [otpRecord.id]);
+          throw new Error('Account locked for 30 minutes due to 5 consecutive invalid OTP attempts.');
+        }
+        throw new Error(`Invalid OTP. ${attemptsLeft} attempts remaining.`);
       }
-    }
 
-    if (!userRecord) {
-      // Check if user with phone already exists in users table
-      const existingUserRes = await executeQuery(
-        `SELECT id, phone, email, display_name, roles, is_active, token_version FROM users WHERE phone = $1 LIMIT 1;`,
-        [normalizedPhone]
+      // 6. Atomically consume OTP with single-use condition
+      const consumeRes = await client.query(
+        `UPDATE otp_verifications SET is_consumed = true WHERE id = $1 AND is_consumed = false RETURNING id;`,
+        [otpRecord.id]
       );
-
-      if (existingUserRes.rows && existingUserRes.rows.length > 0) {
-        userRecord = existingUserRes.rows[0];
-        // Create matching PHONE identity
-        const identId = `ident-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`;
-        await executeQuery(
-          `INSERT INTO user_identities (id, user_id, provider, provider_user_id, phone, is_verified, created_at)
-           VALUES ($1, $2, 'PHONE', $3, $3, true, NOW())
-           ON CONFLICT (provider, provider_user_id) DO NOTHING;`,
-          [identId, userRecord.id, normalizedPhone]
-        );
-      } else {
-        // Create new customer user with strictly OWNER role
-        isNewUser = true;
-        const newUserId = `usr-c-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`;
-        const displayName = providedName?.trim() || `Owner ${normalizedPhone.slice(-4)}`;
-
-        await executeQuery(
-          `INSERT INTO users (id, phone, email, display_name, roles, is_active, token_version, created_at, updated_at)
-           VALUES ($1, $2, NULL, $3, '{OWNER}', true, 1, NOW(), NOW())
-           ON CONFLICT (phone) DO UPDATE SET updated_at = NOW()
-           RETURNING *;`,
-          [newUserId, normalizedPhone, displayName]
-        );
-
-        const identId = `ident-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`;
-        await executeQuery(
-          `INSERT INTO user_identities (id, user_id, provider, provider_user_id, phone, is_verified, created_at)
-           VALUES ($1, $2, 'PHONE', $3, $3, true, NOW())
-           ON CONFLICT (provider, provider_user_id) DO NOTHING;`,
-          [identId, newUserId, normalizedPhone]
-        );
-
-        userRecord = {
-          id: newUserId,
-          phone: normalizedPhone,
-          email: null,
-          display_name: displayName,
-          roles: ['OWNER'],
-          is_active: true,
-          token_version: 1,
-        };
+      if (!consumeRes.rows || consumeRes.rows.length === 0) {
+        throw new Error('Verification code has already been consumed.');
       }
-    }
 
-    // 8. Update display name if explicitly provided
-    if (providedName && providedName.trim() && userRecord.display_name !== providedName.trim()) {
-      await executeQuery(
-        `UPDATE users SET display_name = $1, updated_at = NOW() WHERE id = $2;`,
-        [providedName.trim(), userRecord.id]
-      );
-      userRecord.display_name = providedName.trim();
-    }
+      await DistributedRateLimiter.resetOtpFailures(normalizedPhone);
 
-    // 9. Staff Account Hijack Defense: Prevent public customer OTP login into staff accounts
-    const roles = (Array.isArray(userRecord.roles) ? userRecord.roles : ['OWNER']) as AppRole[];
-    const isStaff = roles.some((r) => r.startsWith('STAFF_'));
-    if (isStaff) {
       await recordAuditEvent({
-        actor: { uid: userRecord.id, roles, phone: normalizedPhone },
-        action: 'STAFF_ACCESS_DENIED',
+        actor: { uid: `anon-${cleanDigits}`, roles: ['BUYER'], phone: normalizedPhone },
+        action: 'OTP_VERIFIED',
+        targetEntity: 'otp_verifications',
+        targetEntityId: otpRecord.id,
+        clientIp,
+        diffSummary: { phone: normalizedPhone },
+      });
+
+      // 7. Identity Resolution & Account Linking
+      const identityRes = (await client.query(
+        `SELECT id, user_id, provider, provider_user_id FROM user_identities WHERE provider = 'PHONE' AND provider_user_id = $1 LIMIT 1;`,
+        [normalizedPhone]
+      )) as {
+        rows: {
+          id: string;
+          user_id: string;
+          provider: string;
+          provider_user_id: string;
+        }[];
+      };
+
+      let userRecord: any = null;
+      let isNewUser = false;
+
+      if (identityRes.rows && identityRes.rows.length > 0) {
+        const userRes = (await client.query(
+          `SELECT id, phone, email, display_name, roles, is_active, token_version FROM users WHERE id = $1 LIMIT 1;`,
+          [identityRes.rows[0].user_id]
+        )) as { rows: any[] };
+        if (userRes.rows && userRes.rows.length > 0) {
+          userRecord = userRes.rows[0];
+        }
+      }
+
+      if (!userRecord) {
+        const existingUserRes = await client.query(
+          `SELECT id, phone, email, display_name, roles, is_active, token_version FROM users WHERE phone = $1 LIMIT 1;`,
+          [normalizedPhone]
+        );
+
+        if (existingUserRes.rows && existingUserRes.rows.length > 0) {
+          userRecord = existingUserRes.rows[0];
+          const identId = `ident-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`;
+          await client.query(
+            `INSERT INTO user_identities (id, user_id, provider, provider_user_id, phone, is_verified, created_at)
+             VALUES ($1, $2, 'PHONE', $3, $3, true, NOW())
+             ON CONFLICT (provider, provider_user_id) DO NOTHING;`,
+            [identId, userRecord.id, normalizedPhone]
+          );
+        } else {
+          isNewUser = true;
+          const newUserId = `usr-c-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`;
+          const displayName = providedName?.trim() || `Owner ${normalizedPhone.slice(-4)}`;
+
+          await client.query(
+            `INSERT INTO users (id, phone, email, display_name, roles, is_active, token_version, created_at, updated_at)
+             VALUES ($1, $2, NULL, $3, '{OWNER}', true, 1, NOW(), NOW())
+             ON CONFLICT (phone) DO UPDATE SET updated_at = NOW()
+             RETURNING *;`,
+            [newUserId, normalizedPhone, displayName]
+          );
+
+          const identId = `ident-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`;
+          await client.query(
+            `INSERT INTO user_identities (id, user_id, provider, provider_user_id, phone, is_verified, created_at)
+             VALUES ($1, $2, 'PHONE', $3, $3, true, NOW())
+             ON CONFLICT (provider, provider_user_id) DO NOTHING;`,
+            [identId, newUserId, normalizedPhone]
+          );
+
+          userRecord = {
+            id: newUserId,
+            phone: normalizedPhone,
+            email: null,
+            display_name: displayName,
+            roles: ['OWNER'],
+            is_active: true,
+            token_version: 1,
+          };
+        }
+      }
+
+      // 8. Update display name if explicitly provided
+      if (providedName && providedName.trim() && userRecord.display_name !== providedName.trim()) {
+        await client.query(
+          `UPDATE users SET display_name = $1, updated_at = NOW() WHERE id = $2;`,
+          [providedName.trim(), userRecord.id]
+        );
+        userRecord.display_name = providedName.trim();
+      }
+
+      // 9. Staff Account Hijack Defense: Prevent public customer OTP login into staff accounts
+      const roles = (Array.isArray(userRecord.roles) ? userRecord.roles : ['OWNER']) as AppRole[];
+      const isStaff = roles.some((r) => r.startsWith('STAFF_'));
+      if (isStaff) {
+        await recordAuditEvent({
+          actor: { uid: userRecord.id, roles, phone: normalizedPhone },
+          action: 'STAFF_ACCESS_DENIED',
+          targetEntity: 'users',
+          targetEntityId: userRecord.id,
+          clientIp,
+          diffSummary: { reason: 'STAFF_ACCOUNT_OTP_ATTEMPT', phone: normalizedPhone },
+        });
+        throw new Error('Staff accounts must authenticate via enterprise corporate credentials. Public customer OTP is rejected.');
+      }
+
+      const authenticatedUser: AuthenticatedUser = {
+        uid: userRecord.id,
+        phone: normalizedPhone,
+        email: userRecord.email || null,
+        roles: ['OWNER'],
+        permissions: [
+          'properties:create',
+          'properties:read_own',
+          'properties:update_own',
+          'properties:read_reserve_price',
+          'documents:upload_own',
+          'documents:read_own',
+          'visits:read_own',
+          'offers:read_own',
+          'listings:read_public',
+        ],
+      };
+
+      await recordAuditEvent({
+        actor: authenticatedUser,
+        action: 'LOGIN_SUCCESS',
         targetEntity: 'users',
         targetEntityId: userRecord.id,
         clientIp,
-        diffSummary: { reason: 'STAFF_ACCOUNT_OTP_ATTEMPT', phone: normalizedPhone },
+        diffSummary: { authMethod: 'PHONE_OTP', phone: normalizedPhone },
       });
-      throw new Error('Staff accounts must authenticate via enterprise corporate credentials. Public customer OTP is rejected.');
-    }
 
-    const authenticatedUser: AuthenticatedUser = {
-      uid: userRecord.id,
-      phone: normalizedPhone,
-      email: userRecord.email || null,
-      roles: ['OWNER'],
-      permissions: [
-        'properties:create',
-        'properties:read_own',
-        'properties:update_own',
-        'properties:read_reserve_price',
-        'documents:upload_own',
-        'documents:read_own',
-        'visits:read_own',
-        'offers:read_own',
-        'listings:read_public',
-      ],
-    };
-
-    await recordAuditEvent({
-      actor: authenticatedUser,
-      action: 'LOGIN_SUCCESS',
-      targetEntity: 'users',
-      targetEntityId: userRecord.id,
-      clientIp,
-      diffSummary: { authMethod: 'PHONE_OTP', phone: normalizedPhone },
+      return { authenticatedUser, userRecord, isNewUser };
     });
-
-    return { authenticatedUser, userRecord, isNewUser };
   }
 }

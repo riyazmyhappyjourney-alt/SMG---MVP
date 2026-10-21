@@ -131,11 +131,14 @@ export async function runAuthIntegrationTests(): Promise<{ passed: number; faile
 
   try {
     // 0. Bootstrap test environment
-    process.env.INITIAL_STAFF_PASSWORD = '[REDACTED_BOOTSTRAP_PASSWORD]';
-    process.env.INITIAL_ADMIN_PASSWORD = '[REDACTED_BOOTSTRAP_PASSWORD]';
+    process.env.RUNNING_TESTS = 'true';
+    const initialStaffPass = process.env.INITIAL_STAFF_PASSWORD || 'TestStaffPass#2026_LocalSandbox!';
+    const initialAdminPass = process.env.INITIAL_ADMIN_PASSWORD || 'TestAdminPass#2026_LocalSandbox!';
+    process.env.INITIAL_STAFF_PASSWORD = initialStaffPass;
+    process.env.INITIAL_ADMIN_PASSWORD = initialAdminPass;
     await initSchemaColumns();
 
-    const staffPass = '[REDACTED_BOOTSTRAP_PASSWORD]';
+    const staffPass = initialStaffPass;
     const staffHash = await hashPassword(staffPass);
 
     // Setup staff user in dev store

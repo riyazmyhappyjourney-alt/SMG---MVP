@@ -3,21 +3,40 @@ import { getValidatedConfig, ConfigurationError } from '../config/env';
 /**
  * SellMyGhar SMS Delivery Provider Abstraction
  * 
- * Supports:
- * 1. Dev / Test: In-memory logging & testing hooks (zero external dependencies).
- * 2. Production: Configured via environment variables; fails closed if unconfigured.
- * 
- * Never returns or logs the raw OTP in HTTP responses.
+ * SMS Fallback Policy:
+ * 1. Primary OTP Delivery: AiSensy WhatsApp Business API (Campaign: SMG_OTP_Auth).
+ * 2. SMS Fallback Gateway: Bhash SMS will be integrated only after Indian DLT sender ID
+ *    and template approvals are completed.
+ * 3. Until DLT approval is active: Unconfigured SMS provider never returns fabricated
+ *    success responses. If WhatsApp fails and SMS is unconfigured, it fails safely
+ *    and transparently directs the user to retry via WhatsApp.
+ * 4. Dev / Test: In-memory logging & testing hooks.
  */
 
+export interface SmsDeliveryResult {
+  success: boolean;
+  messageId?: string;
+  error?: string;
+}
+
 export interface SmsProvider {
-  sendOtp(phone: string, otp: string): Promise<{ success: boolean; messageId?: string }>;
+  sendOtp(phone: string, otp: string): Promise<SmsDeliveryResult>;
+  isConfigured(): boolean;
+  getProviderName(): string;
 }
 
 class DevSmsProvider implements SmsProvider {
   private devOtps = new Map<string, { otp: string; timestamp: number }>();
 
-  async sendOtp(phone: string, otp: string): Promise<{ success: boolean; messageId?: string }> {
+  isConfigured(): boolean {
+    return true;
+  }
+
+  getProviderName(): string {
+    return 'Dev In-Memory SMS Provider';
+  }
+
+  async sendOtp(phone: string, otp: string): Promise<SmsDeliveryResult> {
     this.devOtps.set(phone, { otp, timestamp: Date.now() });
     const isDev = process.env.NODE_ENV !== 'production' || process.env.ALLOW_DEV_FALLBACKS === 'true';
     if (isDev) {
@@ -40,22 +59,38 @@ class DevSmsProvider implements SmsProvider {
 }
 
 class ProductionSmsProvider implements SmsProvider {
-  async sendOtp(phone: string, _otp: string): Promise<{ success: boolean; messageId?: string }> {
-    const config = getValidatedConfig();
-    const apiKey = process.env.SMS_API_KEY || process.env.SMS_PROVIDER_KEY;
+  isConfigured(): boolean {
+    // Bhash SMS Gateway configuration check (requires approved DLT registration)
+    const bhashUser = process.env.BHASH_SMS_USER;
+    const bhashPass = process.env.BHASH_SMS_PASSWORD;
+    const bhashSender = process.env.BHASH_SMS_SENDER_ID;
+    const bhashTemplate = process.env.BHASH_SMS_DLT_TEMPLATE_ID;
+    return Boolean(bhashUser && bhashPass && bhashSender && bhashTemplate);
+  }
 
-    if (!apiKey) {
+  getProviderName(): string {
+    return this.isConfigured()
+      ? 'Bhash SMS Gateway'
+      : 'Bhash SMS Gateway (Pending DLT Template Approval)';
+  }
+
+  async sendOtp(phone: string, _otp: string): Promise<SmsDeliveryResult> {
+    if (!this.isConfigured()) {
+      const config = getValidatedConfig();
       if (!config.allowSandbox) {
         throw new ConfigurationError(
-          'SMS_API_KEY',
-          'Production SMS gateway API key is missing. Fail-closed: OTP cannot be delivered.'
+          'BHASH_SMS_DLT_TEMPLATE_ID',
+          'SMS fallback gateway is pending Indian DLT template registration. Primary OTP delivery is available via WhatsApp.'
         );
       }
+      throw new Error(
+        'SMS gateway is pending Indian DLT template registration. Primary OTP delivery is available via WhatsApp.'
+      );
     }
 
-    // When real SMS provider credentials are provided, dispatch over HTTPS to provider
-    // Placeholder for enterprise gateway webhook / HTTP dispatch
-    return { success: true, messageId: `sms-prod-${Date.now().toString(36)}` };
+    // Future Bhash integration dispatch point:
+    // Once DLT sender ID and templates are approved, execute HTTPS request to Bhash API.
+    throw new Error('Bhash SMS gateway integration is deferred pending DLT approval.');
   }
 }
 
@@ -87,4 +122,3 @@ export function getLastDevOtp(phone: string): string | undefined {
 export function clearDevOtps(): void {
   devProviderInstance.clear();
 }
-

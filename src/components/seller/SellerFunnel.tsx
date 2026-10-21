@@ -34,6 +34,8 @@ import {
   getZoneForLocality
 } from '../../data/bengaluruData';
 import { AutocompleteInput } from '../common/AutocompleteInput';
+import { PropertySubmissionAnimation } from './PropertySubmissionAnimation';
+import { SubmissionSuccessCard } from './SubmissionSuccessCard';
 import { 
   sanitizeOwnerName, 
   sanitizeIndianPhone, 
@@ -231,6 +233,9 @@ export function SellerFunnel({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [submissionSuccess, setSubmissionSuccess] = useState<boolean>(false);
   const [serverReferenceId, setServerReferenceId] = useState<string>('');
+  const [listingStatus, setListingStatus] = useState<string>('PUBLISHED');
+  const submittingRef = useRef<boolean>(false);
+  const submissionKeyRef = useRef<string>('');
 
   // Check active session on mount
   useEffect(() => {
@@ -533,10 +538,15 @@ export function SellerFunnel({
       }
     }
 
-    if (isSubmitting) return;
+    if (submittingRef.current || isSubmitting) return;
 
+    submittingRef.current = true;
     setIsSubmitting(true);
     setErrorMessage(null);
+
+    if (!submissionKeyRef.current) {
+      submissionKeyRef.current = `sub-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 8)}`;
+    }
 
     const cleanPhone = ownerPhone.replace(/\D/g, '').slice(-10);
     const normalizedPhone = `+91${cleanPhone}`;
@@ -594,7 +604,11 @@ export function SellerFunnel({
       ownerEmail: ownerEmail.trim() || undefined,
       zone: cityZone || 'Bengaluru East',
       isDuplex,
+      idempotencyKey: submissionKeyRef.current,
     };
+
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => abortController.abort(), 35000);
 
     try {
       // Background auto-authentication if user is not already logged in
@@ -627,10 +641,16 @@ export function SellerFunnel({
 
       const propRes = await fetch('/api/properties', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Idempotency-Key': submissionKeyRef.current,
+        },
         credentials: 'include',
+        signal: abortController.signal,
         body: JSON.stringify(payload),
       });
+
+      clearTimeout(timeoutId);
 
       const propData = await propRes.json();
       if (!propRes.ok || !propData.success) {
@@ -644,7 +664,10 @@ export function SellerFunnel({
       const createdPid = propData.propertyId || propData.property?.id || null;
       setSubmittedPropertyId(createdPid);
       setServerReferenceId(propData.referenceId || `SMG-${Date.now().toString(36).toUpperCase()}`);
+      setListingStatus(propData.property?.listing_status || 'PUBLISHED');
       setSubmissionSuccess(true);
+      submissionKeyRef.current = '';
+
       trackFunnelCompleted('SELLER_WIZARD_V3', {
         bhkType: bhkConfig,
         locality: localityQuery,
@@ -652,94 +675,51 @@ export function SellerFunnel({
       });
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (err: any) {
-      const msg = err.message || 'Submission failed. Please check your network connection and try again.';
+      clearTimeout(timeoutId);
+      const isTimeout = err?.name === 'AbortError';
+      const msg = isTimeout
+        ? 'Submission timed out. Please check your network connection and click Retry Submission.'
+        : (err?.message || 'Submission failed. Please check your network connection and try again.');
       setErrorMessage(msg);
       setFieldErrors(prev => ({ ...prev, submit: msg }));
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
+      submittingRef.current = false;
       setIsSubmitting(false);
     }
   };
 
   // ====================================================================
-  // SUBMISSION SUCCESS VIEW
+  // SUBMISSION LOADING VIEW (Animated Custom Apartment Building)
+  // ====================================================================
+  if (isSubmitting) {
+    return (
+      <div className="min-h-screen bg-[#F4F6F9] py-16 px-4 sm:px-6 lg:px-8 flex items-center justify-center font-['Montserrat']">
+        <PropertySubmissionAnimation hasPhotos={photos.length > 0} />
+      </div>
+    );
+  }
+
+  // ====================================================================
+  // SUBMISSION SUCCESS VIEW (Thank You Card)
   // ====================================================================
   if (submissionSuccess) {
     return (
-      <div className="min-h-screen bg-[#F4F6F9] py-12 px-4 sm:px-6 lg:px-8 font-['Montserrat']">
-        <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow-xs border border-slate-200 p-8 sm:p-10 text-center">
-          <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
-            <CheckCircle2 className="w-9 h-9" />
-          </div>
-
-          <span className="inline-block px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 mb-3">
-            Listing Status: Published & Live
-          </span>
-
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-[#172033] tracking-tight mb-2">
-            Property Listed Successfully
-          </h1>
-          <p className="text-slate-600 text-sm leading-relaxed mb-6 max-w-lg mx-auto font-['Poppins']">
-            Your residential property has been posted to SellMyGhar.in. Our Bengaluru relationship team will verify documentation and connect matched buyers.
-          </p>
-
-          <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-4 mb-6 text-left max-w-md mx-auto space-y-2 font-['Poppins'] text-xs">
-            <div className="flex justify-between">
-              <span className="text-slate-500">Reference ID:</span>
-              <span className="font-mono font-bold text-slate-800">{serverReferenceId}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Property:</span>
-              <span className="font-bold text-slate-800">{societyQuery}, {localityQuery}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Configuration:</span>
-              <span className="font-bold text-slate-800">{bhkConfig} ({superBuiltUpSqft} sq.ft.)</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-slate-500">Expected Pricing:</span>
-              <span className="font-bold text-[#0073E6]">{formatINRWords(expectedPrice)}</span>
-            </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-            {submittedPropertyId && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (onViewProperty) {
-                    onViewProperty(submittedPropertyId);
-                  } else {
-                    window.location.href = `/property/${submittedPropertyId}`;
-                  }
-                }}
-                className="w-full sm:w-auto px-6 py-3 bg-[#0073E6] hover:bg-[#005BB5] text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer flex items-center justify-center space-x-1.5"
-              >
-                <span>View Submitted Property</span>
-                <ExternalLink className="w-3.5 h-3.5" />
-              </button>
-            )}
-            {onViewDashboard && (
-              <button
-                type="button"
-                onClick={onViewDashboard}
-                className="w-full sm:w-auto px-6 py-3 bg-white border border-[#0073E6] hover:bg-blue-50 text-[#0073E6] font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer"
-              >
-                Go to Seller Dashboard
-              </button>
-            )}
-            {onBackToHome && (
-              <button
-                type="button"
-                onClick={onBackToHome}
-                className="w-full sm:w-auto px-6 py-3 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer"
-              >
-                Return to Homepage
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
+      <SubmissionSuccessCard
+        propertyTitle={`${societyQuery.trim()} - ${bhkConfig}`}
+        propertyId={submittedPropertyId}
+        referenceId={serverReferenceId}
+        listingStatus={listingStatus}
+        societyName={societyQuery.trim()}
+        locality={localityQuery.trim()}
+        bhkConfig={bhkConfig}
+        superBuiltUpSqft={typeof superBuiltUpSqft === 'number' ? superBuiltUpSqft : 1550}
+        expectedPrice={expectedPrice}
+        formattedPriceText={formatINRWords(expectedPrice)}
+        onViewProperty={onViewProperty}
+        onViewDashboard={onViewDashboard}
+        onBackToHome={onBackToHome}
+      />
     );
   }
 
@@ -1045,8 +1025,20 @@ export function SellerFunnel({
               <div className="mb-6 p-4 bg-rose-50 border border-rose-200 rounded-xl flex items-start space-x-3 text-xs text-rose-800 animate-fadeIn font-['Poppins']">
                 <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
                 <div className="flex-1">
-                  <strong className="font-bold block">Please address the following error:</strong>
+                  <strong className="font-bold block">Submission Notice:</strong>
                   <span>{errorMessage}</span>
+                  {currentStep === 5 && (
+                    <div className="mt-3">
+                      <button
+                        type="button"
+                        onClick={handleSubmitProperty}
+                        disabled={isSubmitting}
+                        className="px-4 py-1.5 rounded-lg bg-[#244B8F] hover:bg-[#1B386B] text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
+                      >
+                        Retry Submission
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <button
                   type="button"
@@ -2263,21 +2255,12 @@ export function SellerFunnel({
                       type="button"
                       onClick={handleSubmitProperty}
                       disabled={isSubmitting}
-                      className={`w-full sm:w-auto px-8 py-3.5 sm:py-3 rounded-md bg-[#0073E6] sm:bg-[#0073E6] hover:bg-[#005BB5] text-white font-bold text-sm shadow-sm transition-all flex items-center justify-center space-x-2 ${
+                      className={`w-full sm:w-auto px-8 py-3.5 sm:py-3 rounded-md bg-[#244B8F] hover:bg-[#1B386B] text-white font-bold text-sm shadow-sm transition-all flex items-center justify-center space-x-2 ${
                         isSubmitting ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer hover:scale-[1.01] active:scale-[0.99]'
                       }`}
                     >
-                      {isSubmitting ? (
-                        <>
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          <span>Submitting Listing...</span>
-                        </>
-                      ) : (
-                        <>
-                          <ShieldCheck className="w-4 h-4" />
-                          <span>Post Property FREE</span>
-                        </>
-                      )}
+                      <ShieldCheck className="w-4 h-4" />
+                      <span>Post Property FREE</span>
                     </button>
                   )}
                 </div>
