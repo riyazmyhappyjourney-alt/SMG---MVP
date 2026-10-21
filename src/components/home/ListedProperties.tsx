@@ -74,9 +74,11 @@ export const ListedProperties: React.FC<ListedPropertiesProps> = ({
   };
 
   const CORRIDOR_MAP: Record<string, string[]> = {
-    'bengaluru east': ['whitefield', 'sarjapur', 'bellandur', 'marathahalli', 'varthur', 'kadugodi', 'brookefield', 'indiranagar', 'east'],
-    'bengaluru north': ['hebbal', 'thanisandra', 'yelahanka', 'jakkur', 'hennur', 'sahakarnagar', 'north'],
-    'bengaluru south': ['jp nagar', 'hsr', 'electronic city', 'bannerghatta', 'btm', 'kanakapura', 'south'],
+    'bengaluru east': ['whitefield', 'sarjapur', 'bellandur', 'marathahalli', 'varthur', 'kadugodi', 'brookefield', 'indiranagar', 'east', 'panathur', 'kr puram'],
+    'bengaluru north': ['hebbal', 'thanisandra', 'yelahanka', 'jakkur', 'hennur', 'sahakarnagar', 'north', 'devanahalli', 'nagawara'],
+    'bengaluru south': ['jp nagar', 'hsr', 'electronic city', 'bannerghatta', 'btm', 'kanakapura', 'south', 'jayanagar', 'banashankari'],
+    'bengaluru west': ['malleshwaram', 'rajajinagar', 'vijayanagar', 'yeshwanthpur', 'kengeri', 'west', 'tumkur road', 'nagasandra'],
+    'bengaluru central': ['indiranagar', 'koramangala', 'cbd', 'richmond', 'frazer town', 'lavelle', 'central', 'mg road', 'vasanth nagar'],
   };
 
   const filteredProperties = properties.filter((p) => {
