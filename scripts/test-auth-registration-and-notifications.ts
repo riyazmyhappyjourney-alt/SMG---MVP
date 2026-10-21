@@ -189,8 +189,10 @@ export async function runAuthAndNotificationTests(): Promise<{ passed: number; f
     });
     record(
       'Google registration without phone number skips WhatsApp safely without failing',
-      noPhoneRecord.status === 'SKIPPED_INVALID_PHONE' &&
-      noPhoneRecord.error?.includes('No phone number supplied')
+      Boolean(
+        noPhoneRecord.status === 'SKIPPED_INVALID_PHONE' &&
+        noPhoneRecord.error?.includes('No phone number supplied')
+      )
     );
   } finally {
     AiSensyNotificationService.setMockDispatcher(null);
@@ -224,6 +226,75 @@ export async function runAuthAndNotificationTests(): Promise<{ passed: number; f
     serverContent.includes("app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), authenticateUser")
   );
 
+  // 8. Phone Number Login with WhatsApp OTP & SMS Fallback
+  AiSensyNotificationService.clearDispatchedMessages();
+  let capturedOtpWaPayload: any = null;
+  AiSensyNotificationService.setMockDispatcher(async (payload) => {
+    capturedOtpWaPayload = payload;
+    return { success: true, data: { status: 'submitted', messageId: 'msg-wa-otp-01' } };
+  });
+
+  try {
+    const testPhoneWa = '9876510001';
+    const otpRes = await OtpService.requestOtp(testPhoneWa, '127.0.0.1', 'AUTO');
+
+    record(
+      'Phone login requests OTP and delivers via WhatsApp (AiSensy) by default',
+      otpRes.success && otpRes.channel === 'WHATSAPP'
+    );
+
+    record(
+      'WhatsApp OTP payload uses SMG_OTP_Auth campaign and 91 prefix',
+      Boolean(
+        capturedOtpWaPayload &&
+        capturedOtpWaPayload.campaignName === (process.env.AISENSY_CAMPAIGN_OTP || 'SMG_OTP_Auth') &&
+        capturedOtpWaPayload.destination === `91${testPhoneWa}` &&
+        Array.isArray(capturedOtpWaPayload.templateParams) &&
+        capturedOtpWaPayload.templateParams.length === 1
+      )
+    );
+
+    // Test explicit SMS fallback requested by user
+    const testPhoneSms = '9876510002';
+    const smsRes = await OtpService.requestOtp(testPhoneSms, '127.0.0.1', 'SMS');
+    record(
+      'Explicit SMS channel request delivers via SMS provider',
+      smsRes.success && smsRes.channel === 'SMS'
+    );
+
+    // Test fail-soft fallback to SMS if WhatsApp throws or fails
+    AiSensyNotificationService.setMockDispatcher(async () => {
+      throw new Error('AiSensy network timeout');
+    });
+
+    const testPhoneFallback = '9876510003';
+    const fallbackRes = await OtpService.requestOtp(testPhoneFallback, '127.0.0.1', 'AUTO');
+    record(
+      'WhatsApp delivery failure falls back gracefully to SMS without throwing',
+      fallbackRes.success && fallbackRes.channel === 'SMS'
+    );
+  } finally {
+    AiSensyNotificationService.setMockDispatcher(null);
+  }
+
+  // 9. Google Login Scope Verification (Strictly No OTP)
+  record(
+    'Server Google OAuth callback does not invoke OtpService or send OTP',
+    !serverContent.match(/\/api\/auth\/google\/session[\s\S]*?OtpService\.requestOtp/)
+  );
+
+  // 10. UI Channel Display & SMS Fallback in AuthPage.tsx
+  record(
+    'AuthPage displays delivery channel ("WhatsApp" or "SMS") on OTP screen',
+    authPageContent.includes("Code sent via <strong className=\"text-slate-800\">{otpChannel === 'WHATSAPP' ? 'WhatsApp' : 'SMS'}</strong>")
+  );
+
+  record(
+    'AuthPage provides "Resend on WhatsApp" and "Send via SMS" fallback options',
+    authPageContent.includes("Resend on WhatsApp") &&
+    authPageContent.includes("Send via SMS")
+  );
+
   console.log(`\nSubtotal: ${passed} passed, ${failed} failed\n`);
   return { passed, failed, results };
 }
@@ -235,3 +306,4 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     }
   });
 }
+

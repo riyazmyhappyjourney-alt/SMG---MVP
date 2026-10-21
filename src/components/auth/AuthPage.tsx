@@ -85,6 +85,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   const [phone, setPhone] = useState('');
   const [otpDigits, setOtpDigits] = useState<string[]>(['', '', '', '', '', '']);
   const [otpCooldown, setOtpCooldown] = useState(0);
+  const [otpChannel, setOtpChannel] = useState<'WHATSAPP' | 'SMS'>('WHATSAPP');
 
   // User profile fields (for signup mode)
   const [name, setName] = useState('');
@@ -132,7 +133,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   const otpCode = otpDigits.join('');
 
   // Handle Send OTP
-  const handleSendOtp = async (e?: React.FormEvent) => {
+  const handleSendOtp = async (e?: React.FormEvent, requestedChannel?: 'WHATSAPP' | 'SMS') => {
     if (e) e.preventDefault();
     setError(null);
 
@@ -143,10 +144,20 @@ export const AuthPage: React.FC<AuthPageProps> = ({
 
     setLoading(true);
     try {
-      const response = await safeFetchJson<{ success: boolean; cooldownSeconds?: number; error?: string; message?: string }>('/api/auth/otp/request', {
+      const response = await safeFetchJson<{
+        success: boolean;
+        cooldownSeconds?: number;
+        channel?: 'WHATSAPP' | 'SMS';
+        devOtp?: string;
+        error?: string;
+        message?: string;
+      }>('/api/auth/otp/request', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: cleanPhone }),
+        body: JSON.stringify({
+          phone: cleanPhone,
+          channel: requestedChannel || 'AUTO',
+        }),
       });
 
       if (!response.ok || !response.data?.success) {
@@ -154,6 +165,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
       }
 
       setStep('OTP');
+      setOtpChannel(response.data.channel || 'WHATSAPP');
       setOtpDigits(['', '', '', '', '', '']);
       setOtpCooldown(response.data.cooldownSeconds || 60);
     } catch (err: any) {
@@ -164,9 +176,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   };
 
   // Handle Resend OTP
-  const handleResendOtp = async () => {
+  const handleResendOtp = async (channel?: 'WHATSAPP' | 'SMS') => {
     if (otpCooldown > 0 || loading) return;
-    await handleSendOtp();
+    await handleSendOtp(undefined, channel);
   };
 
   // Handle Verify OTP
@@ -612,15 +624,18 @@ export const AuthPage: React.FC<AuthPageProps> = ({
               <h1 className="text-2xl font-black text-[#172033] tracking-tight">
                 Verify Phone Number
               </h1>
-              <div className="flex items-center text-xs text-slate-500 font-medium mt-1.5">
-                <span>Code sent to <strong className="text-slate-800">+91 {cleanPhone}</strong></span>
+              <div className="flex items-center text-xs text-slate-500 font-medium mt-1.5 flex-wrap gap-1">
+                <span>
+                  Code sent via <strong className="text-slate-800">{otpChannel === 'WHATSAPP' ? 'WhatsApp' : 'SMS'}</strong> to{' '}
+                  <strong className="text-slate-800">+91 {cleanPhone}</strong>
+                </span>
                 <button
                   type="button"
                   onClick={() => {
                     setError(null);
                     setStep('PHONE');
                   }}
-                  className="ml-2 font-bold text-[#0073E6] hover:underline cursor-pointer"
+                  className="font-bold text-[#0073E6] hover:underline cursor-pointer ml-1"
                 >
                   Change
                 </button>
@@ -662,23 +677,34 @@ export const AuthPage: React.FC<AuthPageProps> = ({
               </form>
 
               {/* Resend Countdown / Link */}
-              <div className="text-center text-xs text-slate-500">
+              <div className="text-center text-xs text-slate-500 space-y-2">
                 {otpCooldown > 0 ? (
                   <span>
                     Resend code in <strong className="font-mono text-slate-800 font-bold">{otpCooldown}s</strong>
                   </span>
                 ) : (
-                  <span>
-                    Didn't receive code?{' '}
-                    <button
-                      type="button"
-                      onClick={handleResendOtp}
-                      disabled={loading}
-                      className="font-bold text-[#0073E6] hover:underline cursor-pointer ml-1"
-                    >
-                      Resend Code
-                    </button>
-                  </span>
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-2">
+                    <span>Didn't receive code?</span>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        type="button"
+                        onClick={() => handleResendOtp('WHATSAPP')}
+                        disabled={loading}
+                        className="font-bold text-[#0073E6] hover:underline cursor-pointer"
+                      >
+                        Resend on WhatsApp
+                      </button>
+                      <span className="text-slate-300">•</span>
+                      <button
+                        type="button"
+                        onClick={() => handleResendOtp('SMS')}
+                        disabled={loading}
+                        className="font-bold text-slate-600 hover:text-slate-900 hover:underline cursor-pointer"
+                      >
+                        Send via SMS
+                      </button>
+                    </div>
+                  </div>
                 )}
               </div>
 

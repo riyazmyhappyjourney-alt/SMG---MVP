@@ -113,6 +113,7 @@ export class AiSensyNotificationService {
       propertyVerified: string;
       propertyActionRequired: string;
       userWelcome: string;
+      otpAuth: string;
     };
   } {
     const apiKey = process.env.AISENSY_API_KEY;
@@ -126,6 +127,7 @@ export class AiSensyNotificationService {
         propertyVerified: process.env.AISENSY_CAMPAIGN_PROPERTY_VERIFIED || 'SMG_Property_verified',
         propertyActionRequired: process.env.AISENSY_CAMPAIGN_PROPERTY_ACTION_REQUIRED || 'property_action_required',
         userWelcome: process.env.AISENSY_CAMPAIGN_USER_WELCOME || 'SMG_User_Registered',
+        otpAuth: process.env.AISENSY_CAMPAIGN_OTP || 'SMG_OTP_Auth',
       },
     };
   }
@@ -630,6 +632,66 @@ export class AiSensyNotificationService {
       params,
       undefined,
       idempotencyKey
+    );
+  }
+
+  /**
+   * 6. Triggered exclusively on Customer Phone Number Login
+   * Campaign: AISENSY_CAMPAIGN_OTP (default: "SMG_OTP_Auth")
+   * Category: AUTHENTICATION
+   * Template:
+   *   {{1}} is your verification code for SellMyGhar.in. Valid for 5 minutes. Do not share this code with anyone.
+   * Button: Copy Code
+   * Params: [otpCode]
+   */
+  public static async handleOtpDelivery(data: {
+    phone: string;
+    otpCode: string;
+  }): Promise<DispatchedAiSensyRecord> {
+    const rawPhone = String(data.phone || '').trim();
+    if (!this.isValidPhoneNumber(rawPhone)) {
+      const skipRecord: DispatchedAiSensyRecord = {
+        id: `skip-invalid-phone-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        campaignName: process.env.AISENSY_CAMPAIGN_OTP || 'SMG_OTP_Auth',
+        destination: rawPhone || 'none',
+        userName: 'Customer',
+        templateParams: [data.otpCode],
+        status: 'SKIPPED_INVALID_PHONE',
+        attempts: 0,
+        error: `Invalid Indian mobile number: "${rawPhone}". Expected 10 digits starting with 6-9.`,
+        timestamp: new Date().toISOString(),
+      };
+      this.dispatchedLedger.push(skipRecord);
+      return skipRecord;
+    }
+
+    const campaignName = process.env.AISENSY_CAMPAIGN_OTP || 'SMG_OTP_Auth';
+    const params = [data.otpCode];
+    const destination = this.normalizePhoneNumber(rawPhone);
+    const idempotencyKey = `otp-wa:${destination}:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 5)}`;
+
+    const buttons = [
+      {
+        type: 'button',
+        sub_type: 'url',
+        index: 0,
+        parameters: [
+          {
+            type: 'text',
+            text: data.otpCode,
+          },
+        ],
+      },
+    ];
+
+    return this.sendCampaignWithRetry(
+      campaignName,
+      destination,
+      'Customer',
+      params,
+      undefined,
+      idempotencyKey,
+      buttons
     );
   }
 }

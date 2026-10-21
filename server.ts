@@ -951,14 +951,14 @@ app.post('/api/auth/reset-password', jsonDefault, rateLimit('auth-reset-pw', 5, 
 // API: Customer OTP Request
 app.post('/api/auth/otp/request', jsonDefault, rateLimit('otp-req', 10, 900), async (req, res) => {
   try {
-    const { phone } = req.body;
+    const { phone, channel } = req.body;
     const cleanPhone = String(phone || '').replace(/\D/g, '').slice(-10);
     if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
       return res.status(400).json({ success: false, error: 'Valid 10-digit Indian mobile number is required.' });
     }
 
     const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
-    const otpRes = await OtpService.requestOtp(`+91${cleanPhone}`, clientIp);
+    const otpRes = await OtpService.requestOtp(`+91${cleanPhone}`, clientIp, channel);
     const isDev = process.env.NODE_ENV !== 'production' && process.env.ALLOW_DEV_FALLBACKS === 'true';
     const devCode = isDev ? getLastDevOtp(`+91${cleanPhone}`) : undefined;
     return res.json({

@@ -26,6 +26,10 @@ class DevSmsProvider implements SmsProvider {
     return { success: true, messageId: `dev-msg-${Date.now()}` };
   }
 
+  recordOtp(phone: string, otp: string): void {
+    this.devOtps.set(phone, { otp, timestamp: Date.now() });
+  }
+
   getDevOtp(phone: string): string | undefined {
     return this.devOtps.get(phone)?.otp;
   }
@@ -72,6 +76,10 @@ export function setTestSmsProvider(provider: SmsProvider | null): void {
   testOverrideProvider = provider;
 }
 
+export function recordDevOtp(phone: string, otp: string): void {
+  devProviderInstance.recordOtp(phone, otp);
+}
+
 export function getLastDevOtp(phone: string): string | undefined {
   return devProviderInstance.getDevOtp(phone);
 }
@@ -79,3 +87,4 @@ export function getLastDevOtp(phone: string): string | undefined {
 export function clearDevOtps(): void {
   devProviderInstance.clear();
 }
+

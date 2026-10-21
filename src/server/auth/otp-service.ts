@@ -2,7 +2,8 @@ import crypto from 'crypto';
 import { executeQuery } from '../db/pool';
 import { getValidatedConfig } from '../config/env';
 import { DistributedRateLimiter } from '../ratelimit/limiter';
-import { getSmsProvider } from '../notifications/sms-provider';
+import { getSmsProvider, recordDevOtp } from '../notifications/sms-provider';
+import { AiSensyNotificationService } from '../notifications/aisensy-service';
 import { recordAuditEvent } from '../audit/logger';
 import { AuthenticatedUser, AppRole } from '../../core/types/auth';
 
@@ -45,11 +46,14 @@ export function timingSafeCompare(a: string, b: string): boolean {
 export class OtpService {
   /**
    * Generates and dispatches a cryptographically secure 6-digit OTP.
+   * Exclusively for Phone Number Login.
+   * Dispatches via WhatsApp (AiSensy) by default, falling back to SMS if WhatsApp delivery fails or if SMS is requested.
    */
   static async requestOtp(
     phone: string,
-    clientIp: string
-  ): Promise<{ success: boolean; cooldownSeconds: number }> {
+    clientIp: string,
+    channel: 'WHATSAPP' | 'SMS' | 'AUTO' = 'AUTO'
+  ): Promise<{ success: boolean; cooldownSeconds: number; channel: 'WHATSAPP' | 'SMS' }> {
     const cleanDigits = phone.replace(/\D/g, '').slice(-10);
     if (!/^[6-9]\d{9}$/.test(cleanDigits)) {
       throw new Error('Valid 10-digit Indian mobile number is required.');
@@ -88,9 +92,35 @@ export class OtpService {
       [otpId, normalizedPhone, otpHash, MAX_ATTEMPTS, expiresAt]
     );
 
-    // 5. Deliver through SMS Provider abstraction
-    const smsProvider = getSmsProvider();
-    await smsProvider.sendOtp(normalizedPhone, otpCode);
+    // Record in-memory for dev/test environments
+    recordDevOtp(normalizedPhone, otpCode);
+
+    // 5. Deliver through WhatsApp (AiSensy) or SMS Provider fallback
+    let deliveredChannel: 'WHATSAPP' | 'SMS' = 'SMS';
+    let waDelivered = false;
+
+    if (channel !== 'SMS') {
+      try {
+        const waRes = await AiSensyNotificationService.handleOtpDelivery({
+          phone: normalizedPhone,
+          otpCode,
+        });
+        if (waRes.status === 'DELIVERED' || waRes.status === 'SIMULATED') {
+          waDelivered = true;
+          deliveredChannel = 'WHATSAPP';
+        } else {
+          console.warn(`[OtpService] WhatsApp delivery status: ${waRes.status} (${waRes.error || 'unspecified'}), falling back to SMS.`);
+        }
+      } catch (err: any) {
+        console.warn(`[OtpService] WhatsApp delivery exception: ${err?.message || err}, falling back to SMS.`);
+      }
+    }
+
+    if (!waDelivered) {
+      const smsProvider = getSmsProvider();
+      await smsProvider.sendOtp(normalizedPhone, otpCode);
+      deliveredChannel = 'SMS';
+    }
 
     // 6. Security Audit Event (Never logs raw OTP)
     await recordAuditEvent({
@@ -99,10 +129,10 @@ export class OtpService {
       targetEntity: 'otp_verifications',
       targetEntityId: otpId,
       clientIp,
-      diffSummary: { phone: normalizedPhone, expiresAt },
+      diffSummary: { phone: normalizedPhone, expiresAt, channel: deliveredChannel },
     });
 
-    return { success: true, cooldownSeconds: 60 };
+    return { success: true, cooldownSeconds: 60, channel: deliveredChannel };
   }
 
   /**
