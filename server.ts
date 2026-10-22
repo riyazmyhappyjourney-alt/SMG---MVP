@@ -3089,11 +3089,10 @@ app.get('/api/properties', authenticateUser, async (req, res) => {
       FROM properties p
       LEFT JOIN users u ON u.id = p.owner_id
       LEFT JOIN LATERAL (
-        SELECT sl.id AS lead_id, sl.lead_status, sl.assigned_staff_id, sl.next_follow_up_at, sl.follow_up_notes, sl.created_at
+        SELECT sl.id, sl.id AS lead_id, sl.lead_status, sl.assigned_staff_id, sl.next_follow_up_at, sl.follow_up_notes, sl.created_at
         FROM seller_leads sl
-
         WHERE sl.property_id = p.id
-           OR (sl.property_id IS NULL AND sl.phone IS NOT NULL AND u.phone IS NOT NULL AND sl.phone = u.phone)
+           OR (sl.property_id IS NULL AND sl.phone IS NOT NULL AND u.phone IS NOT NULL AND (sl.phone = u.phone OR RIGHT(sl.phone, 10) = RIGHT(u.phone, 10)))
         ORDER BY (CASE WHEN sl.property_id = p.id THEN 0 ELSE 1 END), sl.created_at DESC
         LIMIT 1
       ) sl ON true
@@ -3105,9 +3104,10 @@ app.get('/api/properties', authenticateUser, async (req, res) => {
     // IDOR Protection: Non-staff authenticated users can ONLY query their own properties
     if (isOwner) {
       const userPhone = req.user!.phone || '';
+      const cleanPhone = userPhone.replace(/\D/g, '').slice(-10);
       const userEmail = (req.user!.email || '').trim().toLowerCase();
-      query += ` WHERE (p.owner_id = $1 OR ($2 != '' AND (p.owner_id IN (SELECT id FROM users WHERE phone = $2) OR p.id IN (SELECT property_id FROM seller_leads WHERE phone = $2))) OR ($3 != '' AND (p.owner_id IN (SELECT id FROM users WHERE LOWER(email) = $3))))`;
-      params.push(req.user!.uid, userPhone, userEmail);
+      query += ` WHERE (p.owner_id = $1 OR ($2 != '' AND (p.owner_id IN (SELECT id FROM users WHERE phone LIKE $2) OR p.id IN (SELECT property_id FROM seller_leads WHERE phone LIKE $2))) OR ($3 != '' AND (p.owner_id IN (SELECT id FROM users WHERE LOWER(email) = $3))))`;
+      params.push(req.user!.uid, cleanPhone ? `%${cleanPhone}` : '', userEmail);
     } else {
       // Staff authorization check: verify staff has permission to view listings
       const canList = req.user!.roles.includes('STAFF_SUPER_ADMIN') || 
