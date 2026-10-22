@@ -133,7 +133,13 @@ export const StaffLogin: React.FC<StaffLoginProps> = ({ onSuccess, onBackToHome,
         <div className="sm:mx-auto sm:w-full sm:max-w-md px-4 mb-4">
           <button
             type="button"
-            onClick={onBackToHome}
+            onClick={() => {
+              if (typeof window !== 'undefined' && (window.location.hostname.startsWith('crm.') || window.location.hostname.startsWith('crm-'))) {
+                window.location.replace('https://sellmyghar.in');
+              } else if (onBackToHome) {
+                onBackToHome();
+              }
+            }}
             className="inline-flex items-center text-xs font-semibold text-slate-500 hover:text-[#0073E6] transition-colors cursor-pointer group"
           >
             <ArrowLeft className="w-3.5 h-3.5 mr-1.5 group-hover:-translate-x-1 transition-transform" />

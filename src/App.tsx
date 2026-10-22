@@ -59,9 +59,22 @@ export const parseLocalitySlug = (path: string, hash: string): string | null => 
 };
 
 export function resolveRoute(path: string, hash: string, host: string): AppRoute {
+  // 1. Strict CRM Subdomain Isolation (e.g. crm.sellmyghar.in)
+  // On the CRM subdomain, public customer routes (LOGIN, HOME, etc.) are strictly prohibited.
+  const isCrmSubdomain = host.startsWith('crm.') || host.startsWith('crm-');
+  if (isCrmSubdomain) {
+    if (hash.startsWith('#/reset-password') || path === '/reset-password') return 'RESET_PASSWORD';
+    if (hash.startsWith('#/property/') || path.startsWith('/property/')) return 'PROPERTY_DETAIL';
+    return 'CRM';
+  }
+
+  // 2. Localhost development shortcut
+  const isLocalhostCrm = host.includes('localhost') && (hash === '#/crm' || path === '/crm');
+  if (isLocalhostCrm) return 'CRM';
+
   const localitySlug = parseLocalitySlug(path, hash);
 
-  // 1. Explicit application hash routes take highest precedence (user clicks / navigation)
+  // 3. Explicit application hash routes take highest precedence on public domain
   if (hash === '#/terms') return 'TERMS';
   if (hash === '#/privacy-policy' || hash === '#/privacy') return 'PRIVACY_POLICY';
   if (hash === '#/cookie-policy') return 'COOKIE_POLICY';
@@ -75,16 +88,10 @@ export function resolveRoute(path: string, hash: string, host: string): AppRoute
   if (hash === '#/dashboard' || hash === '#/seller-dashboard') return 'DASHBOARD';
   if (hash === '#/seller-assisted' || hash === '#/post-property') return 'SELLER_ASSISTED';
 
-  // 2. Property detail view (direct URL or hash) takes precedence so CRM users can view listings
+  // 4. Property detail view (direct URL or hash)
   if (hash.startsWith('#/property/') || path.startsWith('/property/')) {
     return 'PROPERTY_DETAIL';
   }
-
-  // 3. CRM is strictly isolated to the crm.* subdomain (e.g. crm.sellmyghar.in).
-  // On main domain (sellmyghar.in / www.sellmyghar.in), #/crm and /crm are completely disabled.
-  const isCrmSubdomain = host.startsWith('crm.') || host.startsWith('crm-');
-  const isLocalhostCrm = host.includes('localhost') && (hash === '#/crm' || path === '/crm');
-  if (isCrmSubdomain || isLocalhostCrm) return 'CRM';
 
   if (path === '/dashboard' || path === '/seller-dashboard') return 'DASHBOARD';
   if (path === '/login' || path === '/register') return 'LOGIN';
@@ -231,6 +238,14 @@ export default function App() {
         window.history.replaceState({}, document.title, '/');
       }
     }
+
+    // Strict CRM Subdomain Protection: Any navigation to public routes must leave crm.* completely
+    const isCrmDomain = window.location.hostname.startsWith('crm.') || window.location.hostname.startsWith('crm-');
+    if (isCrmDomain && route !== 'CRM' && route !== 'PROPERTY_DETAIL' && route !== 'RESET_PASSWORD') {
+      window.location.replace('https://sellmyghar.in');
+      return;
+    }
+
     setCurrentRoute(route);
     if (route === 'CRM') {
       if (window.location.hostname.startsWith('crm.') || window.location.hostname.includes('localhost')) {
@@ -322,7 +337,8 @@ export default function App() {
   };
 
   const navigateToLogin = (fromRoute?: AppRoute) => {
-    const origin = fromRoute || (currentRoute !== 'LOGIN' ? currentRoute : 'HOME');
+    let origin = fromRoute || (currentRoute !== 'LOGIN' ? currentRoute : 'HOME');
+    if (origin === 'CRM') origin = 'HOME';
     setLoginReturnRoute(origin);
     try {
       sessionStorage.setItem('sellmyghar_auth_redirect', origin);
@@ -404,10 +420,10 @@ export default function App() {
         intent={isPostPropertyIntent ? 'POST_PROPERTY' : 'GENERAL'}
         initialMode="SIGNIN"
         onBackToHome={() => {
-          let dest = loginReturnRoute && loginReturnRoute !== 'LOGIN' ? loginReturnRoute : 'HOME';
+          let dest = loginReturnRoute && loginReturnRoute !== 'LOGIN' && loginReturnRoute !== 'CRM' ? loginReturnRoute : 'HOME';
           try {
             const stored = sessionStorage.getItem('sellmyghar_auth_redirect') as AppRoute;
-            if (stored && stored !== 'LOGIN') dest = stored;
+            if (stored && stored !== 'LOGIN' && stored !== 'CRM') dest = stored;
           } catch {}
           navigateTo(dest);
         }}
@@ -520,7 +536,13 @@ export default function App() {
             setStaffSession(session);
             navigateTo('CRM');
           }}
-          onBackToHome={() => navigateTo('HOME')}
+          onBackToHome={() => {
+            if (window.location.hostname.startsWith('crm.') || window.location.hostname.startsWith('crm-')) {
+              window.location.replace('https://sellmyghar.in');
+            } else {
+              navigateTo('HOME');
+            }
+          }}
         />
       );
     }
@@ -529,7 +551,13 @@ export default function App() {
       <CrmDashboard
         staffUser={staffSession.user}
         onLogout={handleStaffLogout}
-        onExit={() => navigateTo('HOME')}
+        onExit={() => {
+          if (window.location.hostname.startsWith('crm.') || window.location.hostname.startsWith('crm-')) {
+            window.location.replace('https://sellmyghar.in');
+          } else {
+            navigateTo('HOME');
+          }
+        }}
       />
     );
   }
