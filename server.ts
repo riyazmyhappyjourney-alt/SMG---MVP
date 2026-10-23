@@ -8,7 +8,7 @@ dotenv.config();
 dotenv.config({ path: '.env.local' });
 
 import { getValidatedConfig } from './src/server/config/env';
-import { executeQuery, getDbPool } from './src/server/db/pool';
+import { executeQuery, getDbPool, withTransaction } from './src/server/db/pool';
 import { signSessionToken, verifySessionToken } from './src/server/auth/tokens';
 import { decodeJwt, jwtVerify } from 'jose';
 import { 
@@ -390,6 +390,7 @@ async function initSchemaColumns() {
       ALTER TABLE seller_leads ADD COLUMN IF NOT EXISTS next_follow_up_at TIMESTAMPTZ;
       ALTER TABLE seller_leads ADD COLUMN IF NOT EXISTS follow_up_notes TEXT;
       ALTER TABLE seller_leads ADD COLUMN IF NOT EXISTS notes TEXT;
+      ALTER TABLE seller_leads ADD COLUMN IF NOT EXISTS email VARCHAR(255);
       ALTER TABLE properties ADD COLUMN IF NOT EXISTS listing_intent VARCHAR(20) NOT NULL DEFAULT 'SELL';
       ALTER TABLE properties ADD COLUMN IF NOT EXISTS crm_status VARCHAR(30) NOT NULL DEFAULT 'NEW';
       ALTER TABLE properties ADD COLUMN IF NOT EXISTS listing_status VARCHAR(30) NOT NULL DEFAULT 'DRAFT';
@@ -513,6 +514,9 @@ async function initSchemaColumns() {
       ALTER TABLE buyer_enquiries ADD COLUMN IF NOT EXISTS follow_up_notes TEXT;
       ALTER TABLE buyer_enquiries ADD COLUMN IF NOT EXISTS notes TEXT;
       ALTER TABLE buyer_enquiries ADD COLUMN IF NOT EXISTS property_id VARCHAR(64);
+      ALTER TABLE buyer_enquiries ADD COLUMN IF NOT EXISTS attribution JSONB;
+      ALTER TABLE buyer_enquiries ADD COLUMN IF NOT EXISTS expected_price_inr BIGINT;
+      ALTER TABLE buyer_enquiries ADD COLUMN IF NOT EXISTS email VARCHAR(255);
       CREATE INDEX IF NOT EXISTS idx_buyer_enquiries_phone ON buyer_enquiries (phone);
       CREATE INDEX IF NOT EXISTS idx_buyer_enquiries_status ON buyer_enquiries (lead_status);
       CREATE INDEX IF NOT EXISTS idx_buyer_enquiries_staff ON buyer_enquiries (assigned_staff_id);
@@ -4552,6 +4556,8 @@ app.get('/api/crm/leads', authenticateUser, requireStaffMember, async (req: Requ
         sl.next_follow_up_at,
         sl.follow_up_notes,
         sl.notes,
+        sl.attribution,
+        sl.email,
         sl.created_at,
         sl.updated_at
       FROM seller_leads sl
@@ -4571,7 +4577,7 @@ app.get('/api/crm/leads', authenticateUser, requireStaffMember, async (req: Requ
         be.preferred_locality_or_society AS society,
         be.preferred_locality_or_society AS locality,
         be.bhk_type AS bhk,
-        NULL::bigint AS expected_price,
+        be.expected_price_inr AS expected_price,
         'BUY' AS listing_intent,
         be.lead_status,
         be.assigned_staff_id,
@@ -4582,6 +4588,8 @@ app.get('/api/crm/leads', authenticateUser, requireStaffMember, async (req: Requ
         be.next_follow_up_at,
         be.follow_up_notes,
         be.notes,
+        be.attribution,
+        be.email,
         be.created_at,
         be.updated_at
       FROM buyer_enquiries be
@@ -4662,6 +4670,11 @@ app.get('/api/crm/leads', authenticateUser, requireStaffMember, async (req: Requ
         nextFollowUpAt: r.next_follow_up_at,
         followUpNotes: r.follow_up_notes,
         notes: r.notes,
+        email: r.email || r.attribution?.email || null,
+        attribution: r.attribution || null,
+        source: r.attribution?.source || (r.lead_type === 'SELLER' ? 'SellMyGhar' : 'Inbound Enquiry'),
+        externalEnquiryId: r.attribution?.externalEnquiryId || null,
+        externalListingId: r.attribution?.externalListingId || null,
         isOverdue,
         createdAt: r.created_at,
         updatedAt: r.updated_at
@@ -4676,6 +4689,285 @@ app.get('/api/crm/leads', authenticateUser, requireStaffMember, async (req: Requ
   } catch (err: any) {
     console.error('[CrmLeads] Error:', err);
     return res.status(500).json({ error: 'Failed to retrieve CRM leads' });
+  }
+});
+
+// API: Check Duplicate CRM Leads by Phone or External Enquiry ID (Protected: requireStaffMember)
+app.get('/api/crm/leads/check-duplicate', authenticateUser, requireStaffMember, async (req: Request, res: Response) => {
+  try {
+    const rawPhone = String(req.query.phone || '').trim();
+    const externalEnquiryId = String(req.query.externalEnquiryId || '').trim();
+    const cleanPhone = rawPhone.replace(/\D/g, '').slice(-10);
+
+    if (!cleanPhone && !externalEnquiryId) {
+      return res.json({ success: true, exists: false, matches: [] });
+    }
+
+    const matches: any[] = [];
+
+    // 1. Check seller_leads
+    if (cleanPhone) {
+      const sellerRes = await executeQuery(
+        `SELECT sl.id, 'SELLER' as lead_type, sl.owner_name as name, sl.phone, sl.lead_status as stage, 
+                sl.apartment_society_name as society, sl.locality_id as locality, sl.attribution,
+                staff.display_name as assigned_staff_name, sl.created_at
+         FROM seller_leads sl
+         LEFT JOIN users staff ON staff.id = sl.assigned_staff_id
+         WHERE sl.phone LIKE $1
+         LIMIT 5;`,
+        [`%${cleanPhone}`]
+      );
+      (sellerRes.rows || []).forEach(r => matches.push(r));
+    }
+
+    // 2. Check buyer_enquiries
+    if (cleanPhone) {
+      const buyerRes = await executeQuery(
+        `SELECT be.id, 'BUYER' as lead_type, be.buyer_name as name, be.phone, be.lead_status as stage,
+                be.preferred_locality_or_society as society, be.preferred_locality_or_society as locality, be.attribution,
+                staff.display_name as assigned_staff_name, be.created_at
+         FROM buyer_enquiries be
+         LEFT JOIN users staff ON staff.id = be.assigned_staff_id
+         WHERE be.phone LIKE $1
+         LIMIT 5;`,
+        [`%${cleanPhone}`]
+      );
+      (buyerRes.rows || []).forEach(r => matches.push(r));
+    }
+
+    // 3. Check by externalEnquiryId if provided
+    if (externalEnquiryId) {
+      const sellerExtRes = await executeQuery(
+        `SELECT sl.id, 'SELLER' as lead_type, sl.owner_name as name, sl.phone, sl.lead_status as stage,
+                sl.apartment_society_name as society, sl.locality_id as locality, sl.attribution,
+                staff.display_name as assigned_staff_name, sl.created_at
+         FROM seller_leads sl
+         LEFT JOIN users staff ON staff.id = sl.assigned_staff_id
+         WHERE sl.attribution->>'externalEnquiryId' = $1
+         LIMIT 5;`,
+        [externalEnquiryId]
+      );
+      (sellerExtRes.rows || []).forEach(r => {
+        if (!matches.some(m => m.id === r.id)) matches.push(r);
+      });
+
+      const buyerExtRes = await executeQuery(
+        `SELECT be.id, 'BUYER' as lead_type, be.buyer_name as name, be.phone, be.lead_status as stage,
+                be.preferred_locality_or_society as society, be.preferred_locality_or_society as locality, be.attribution,
+                staff.display_name as assigned_staff_name, be.created_at
+         FROM buyer_enquiries be
+         LEFT JOIN users staff ON staff.id = be.assigned_staff_id
+         WHERE be.attribution->>'externalEnquiryId' = $1
+         LIMIT 5;`,
+        [externalEnquiryId]
+      );
+      (buyerExtRes.rows || []).forEach(r => {
+        if (!matches.some(m => m.id === r.id)) matches.push(r);
+      });
+    }
+
+    return res.json({
+      success: true,
+      exists: matches.length > 0,
+      matches: matches.map(m => ({
+        id: m.id,
+        leadType: m.lead_type,
+        name: m.name,
+        phone: m.phone,
+        stage: m.stage,
+        society: m.society,
+        locality: m.locality,
+        assignedStaffName: m.assigned_staff_name || 'Unassigned',
+        source: m.attribution?.source || (m.lead_type === 'SELLER' ? 'SellMyGhar' : 'Inbound'),
+        externalEnquiryId: m.attribution?.externalEnquiryId || null,
+        createdAt: m.created_at
+      }))
+    });
+  } catch (err: any) {
+    console.error('[CheckDuplicateLead] Error:', err);
+    return res.status(500).json({ error: 'Failed to check duplicate leads' });
+  }
+});
+
+// API: Manual Lead Entry (Protected: requirePermissionMiddleware('leads:create'))
+app.post('/api/crm/leads', jsonDefault, authenticateUser, requirePermissionMiddleware('leads:create'), async (req: Request, res: Response) => {
+  const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+  try {
+    const {
+      fullName,
+      phone,
+      email,
+      leadType = 'BUYER',
+      source = '99acres',
+      externalEnquiryId,
+      externalListingId,
+      enquiryDate,
+      message,
+      propertyId,
+      society,
+      locality,
+      budget,
+      bhk,
+      additionalRequirements,
+      assignedStaffId,
+      initialStage = 'NEW',
+      nextFollowUpAt,
+      followUpNotes
+    } = req.body;
+
+    // 1. Validation
+    if (!fullName || typeof fullName !== 'string' || !fullName.trim()) {
+      return res.status(400).json({ success: false, error: 'Full name is required.' });
+    }
+
+    const cleanPhone = String(phone || '').replace(/\D/g, '').slice(-10);
+    if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Valid 10-digit Indian mobile number starting with 6, 7, 8, or 9 is required.'
+      });
+    }
+    const normalizedPhone = `+91${cleanPhone}`;
+
+    const normalizedEmail = (email && typeof email === 'string' && email.includes('@'))
+      ? email.trim().toLowerCase()
+      : null;
+
+    const isSeller = String(leadType).toUpperCase() === 'SELLER';
+
+    const validStage = ['NEW', 'CONTACTED', 'FOLLOW_UP', 'SITE_VISIT', 'NEGOTIATION', 'CONVERTED', 'LOST'].includes(String(initialStage).toUpperCase())
+      ? String(initialStage).toUpperCase()
+      : 'NEW';
+
+    const attributionPayload = {
+      source: String(source || '99acres').trim(),
+      externalEnquiryId: externalEnquiryId ? String(externalEnquiryId).trim() : null,
+      externalListingId: externalListingId ? String(externalListingId).trim() : null,
+      enquiryDate: enquiryDate || new Date().toISOString(),
+      email: normalizedEmail,
+      message: message ? String(message).trim() : null,
+      additionalRequirements: additionalRequirements ? String(additionalRequirements).trim() : null,
+      createdByStaffId: req.user!.uid,
+      createdVia: 'MANUAL_CRM_ENTRY'
+    };
+
+    const finalNotes = [
+      `[Source: ${attributionPayload.source}]`,
+      attributionPayload.externalEnquiryId ? `[Ext ID: ${attributionPayload.externalEnquiryId}]` : '',
+      attributionPayload.externalListingId ? `[Ext Listing: ${attributionPayload.externalListingId}]` : '',
+      message ? `Message: ${message}` : '',
+      additionalRequirements ? `Requirements: ${additionalRequirements}` : ''
+    ].filter(Boolean).join(' | ');
+
+    const resolvedLocality = (locality || society || 'Bengaluru').trim();
+    const resolvedSociety = (society || locality || 'Bengaluru').trim();
+    const resolvedBhk = (bhk || '3 BHK').trim();
+    const resolvedBudget = budget ? parseInt(String(budget).replace(/\D/g, ''), 10) || null : null;
+
+    let createdId = '';
+
+    await withTransaction(async (client) => {
+      if (isSeller) {
+        createdId = `lead-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`;
+        await client.query(
+          `INSERT INTO seller_leads (
+            id, owner_name, phone, email, apartment_society_name, locality_id,
+            bhk_type, expected_price_inr, listing_intent, lead_status,
+            assigned_staff_id, assigned_at, property_id,
+            next_follow_up_at, follow_up_notes, notes, attribution,
+            created_at, updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'SELL', $9, $10, $11, $12, $13, $14, $15, $16, $17, NOW());`,
+          [
+            createdId,
+            fullName.trim(),
+            normalizedPhone,
+            normalizedEmail,
+            resolvedSociety,
+            resolvedLocality,
+            resolvedBhk,
+            resolvedBudget,
+            validStage,
+            assignedStaffId || null,
+            assignedStaffId ? new Date().toISOString() : null,
+            propertyId || null,
+            nextFollowUpAt || null,
+            followUpNotes || null,
+            finalNotes || null,
+            JSON.stringify(attributionPayload),
+            enquiryDate || new Date().toISOString()
+          ]
+        );
+      } else {
+        createdId = `enq-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`;
+        await client.query(
+          `INSERT INTO buyer_enquiries (
+            id, buyer_name, phone, email, preferred_locality_or_society,
+            bhk_type, expected_price_inr, property_id, lead_status,
+            assigned_staff_id, assigned_at,
+            next_follow_up_at, follow_up_notes, notes, attribution,
+            created_at, updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, NOW());`,
+          [
+            createdId,
+            fullName.trim(),
+            normalizedPhone,
+            normalizedEmail,
+            resolvedSociety,
+            resolvedBhk,
+            resolvedBudget,
+            propertyId || null,
+            validStage,
+            assignedStaffId || null,
+            assignedStaffId ? new Date().toISOString() : null,
+            nextFollowUpAt || null,
+            followUpNotes || null,
+            finalNotes || null,
+            JSON.stringify(attributionPayload),
+            enquiryDate || new Date().toISOString()
+          ]
+        );
+      }
+
+      // Record Audit Event inside transaction
+      await client.query(
+        `INSERT INTO audit_logs (
+          id, action, actor_id, target_entity, target_entity_id, client_ip, diff_summary, timestamp
+        ) VALUES ($1, 'LEAD_MANUALLY_CREATED', $2, $3, $4, $5, $6, NOW());`,
+        [
+          `audit-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`,
+          req.user!.uid,
+          isSeller ? 'seller_leads' : 'buyer_enquiries',
+          createdId,
+          clientIp,
+          JSON.stringify({
+            source: attributionPayload.source,
+            externalEnquiryId: attributionPayload.externalEnquiryId,
+            name: fullName.trim(),
+            phone: normalizedPhone,
+            leadType: isSeller ? 'SELLER' : 'BUYER',
+            assignedStaffId: assignedStaffId || null,
+            initialStage: validStage
+          })
+        ]
+      );
+    });
+
+    return res.status(201).json({
+      success: true,
+      leadId: createdId,
+      lead: {
+        id: createdId,
+        type: isSeller ? 'SELLER' : 'BUYER',
+        name: fullName.trim(),
+        phone: normalizedPhone,
+        stage: validStage,
+        source: attributionPayload.source
+      },
+      message: `${attributionPayload.source} lead created successfully.`
+    });
+  } catch (err: any) {
+    console.error('[CreateCrmLead] Error:', err);
+    return res.status(500).json({ error: err.message || 'Failed to create lead' });
   }
 });
 

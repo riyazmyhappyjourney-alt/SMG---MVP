@@ -67,6 +67,7 @@ export interface DevSellerLead {
   id: string;
   owner_name: string;
   phone: string;
+  email?: string | null;
   apartment_society_name: string;
   locality_id: string;
   bhk_type: string;
@@ -79,6 +80,7 @@ export interface DevSellerLead {
   next_follow_up_at: string | null;
   follow_up_notes: string | null;
   notes: string | null;
+  attribution?: any;
   consent_record_id: string | null;
   created_at: string;
   updated_at: string;
@@ -88,8 +90,10 @@ export interface DevBuyerEnquiry {
   id: string;
   buyer_name: string;
   phone: string;
+  email?: string | null;
   preferred_locality_or_society: string;
   bhk_type: string;
+  expected_price_inr?: number | null;
   property_id?: string | null;
   lead_status: string;
   assigned_staff_id: string | null;
@@ -97,6 +101,7 @@ export interface DevBuyerEnquiry {
   next_follow_up_at: string | null;
   follow_up_notes: string | null;
   notes: string | null;
+  attribution?: any;
   created_at: string;
   updated_at: string;
 }
@@ -1776,6 +1781,18 @@ class DevSandboxStore {
     if (cleanSql.includes('FROM seller_leads') && !cleanSql.includes('FROM properties')) {
       let leads = Array.from(this.sellerLeads.values());
 
+      // Phone filter
+      if (cleanSql.includes('sl.phone LIKE $') || cleanSql.includes('phone LIKE $')) {
+        const phonePattern = String(params[0] || '').replace(/%/g, '');
+        leads = leads.filter(l => l.phone && l.phone.includes(phonePattern));
+      }
+
+      // External enquiry ID filter
+      if (cleanSql.includes("sl.attribution->>'externalEnquiryId' = $") || cleanSql.includes("attribution->>'externalEnquiryId' = $")) {
+        const extId = String(params[0] || '');
+        leads = leads.filter(l => l.attribution && l.attribution.externalEnquiryId === extId);
+      }
+
       // Status filter
       if (cleanSql.includes('sl.lead_status = $')) {
         const statusVal = params.find(p => ['NEW', 'CONTACTED', 'FOLLOW_UP', 'SITE_VISIT', 'NEGOTIATION', 'CONVERTED', 'LOST'].includes(p));
@@ -1863,31 +1880,57 @@ class DevSandboxStore {
 
     // 15. SELLER_LEADS: Insert
     if (cleanSql.includes('INSERT INTO seller_leads')) {
-      const propIdParam = cleanSql.includes('property_id')
-        ? (params.find((p: any) => typeof p === 'string' && p.startsWith('prop-')) || null)
-        : null;
-      const consentIdParam = params.find((p: any) => typeof p === 'string' && p.startsWith('cst-')) || params[10] || null;
+      let lead: DevSellerLead;
+      if (cleanSql.includes('email') && cleanSql.includes('attribution')) {
+        lead = {
+          id: params[0] || `lead-${Date.now()}`,
+          owner_name: params[1],
+          phone: params[2],
+          email: params[3] || null,
+          apartment_society_name: params[4],
+          locality_id: params[5],
+          bhk_type: params[6],
+          expected_price_inr: params[7] ? Number(params[7]) : null,
+          listing_intent: 'SELL',
+          lead_status: params[8] || 'NEW',
+          assigned_staff_id: params[9] || null,
+          assigned_at: params[10] || null,
+          property_id: params[11] || null,
+          next_follow_up_at: params[12] || null,
+          follow_up_notes: params[13] || null,
+          notes: params[14] || null,
+          attribution: typeof params[15] === 'string' ? JSON.parse(params[15]) : params[15],
+          consent_record_id: null,
+          created_at: params[16] || new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+      } else {
+        const propIdParam = cleanSql.includes('property_id')
+          ? (params.find((p: any) => typeof p === 'string' && p.startsWith('prop-')) || null)
+          : null;
+        const consentIdParam = params.find((p: any) => typeof p === 'string' && p.startsWith('cst-')) || params[10] || null;
 
-      const lead: DevSellerLead = {
-        id: params[0] || `lead-${Date.now()}`,
-        owner_name: params[1],
-        phone: params[2],
-        apartment_society_name: params[3],
-        locality_id: params[4],
-        bhk_type: params[5],
-        expected_price_inr: params[6] || null,
-        listing_intent: (params.find((p: any) => p === 'RENT' || p === 'SELL') as any) || 'SELL',
-        lead_status: 'NEW',
-        assigned_staff_id: params[9] || null,
-        consent_record_id: consentIdParam,
-        property_id: propIdParam,
-        assigned_at: null,
-        next_follow_up_at: null,
-        follow_up_notes: null,
-        notes: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
+        lead = {
+          id: params[0] || `lead-${Date.now()}`,
+          owner_name: params[1],
+          phone: params[2],
+          apartment_society_name: params[3],
+          locality_id: params[4],
+          bhk_type: params[5],
+          expected_price_inr: params[6] || null,
+          listing_intent: (params.find((p: any) => p === 'RENT' || p === 'SELL') as any) || 'SELL',
+          lead_status: 'NEW',
+          assigned_staff_id: params[9] || null,
+          consent_record_id: consentIdParam,
+          property_id: propIdParam,
+          assigned_at: null,
+          next_follow_up_at: null,
+          follow_up_notes: null,
+          notes: null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+      }
       this.sellerLeads.set(lead.id, lead);
       return { rows: [{ ...lead }] };
     }
@@ -1917,6 +1960,20 @@ class DevSandboxStore {
             assigned_staff_phone: staff?.phone || null,
           }]
         };
+      }
+      if (cleanSql.includes("be.attribution->>'externalEnquiryId' = $") || cleanSql.includes("attribution->>'externalEnquiryId' = $")) {
+        const extId = String(params[0] || '');
+        const match = Array.from(this.buyerEnquiries.values()).filter(b => 
+          b.attribution && b.attribution.externalEnquiryId === extId
+        );
+        return { rows: match.map(b => ({ ...b, name: b.buyer_name, owner_name: b.buyer_name, client_name: b.buyer_name, property_id: b.property_id || null })) };
+      }
+      if (cleanSql.includes('WHERE be.phone LIKE $1') || cleanSql.includes('WHERE phone LIKE $1')) {
+        const pattern = String(params[0] || '').replace(/%/g, '');
+        const match = Array.from(this.buyerEnquiries.values()).filter(b => 
+          b.phone && b.phone.includes(pattern)
+        );
+        return { rows: match.map(b => ({ ...b, name: b.buyer_name, owner_name: b.buyer_name, client_name: b.buyer_name, property_id: b.property_id || null })) };
       }
       if (cleanSql.includes('WHERE phone = $1') || cleanSql.includes('WHERE buyer_phone = $1')) {
         const rawPhone = String(params[0] || '').replace(/\D/g, '').slice(-10);
@@ -1950,23 +2007,46 @@ class DevSandboxStore {
 
     // 17. BUYER_ENQUIRIES: Insert
     if (cleanSql.includes('INSERT INTO buyer_enquiries')) {
-      const hasProp = cleanSql.includes('property_id');
-      const be: DevBuyerEnquiry = {
-        id: params[0] || `enq-${Date.now()}`,
-        buyer_name: params[1],
-        phone: params[2],
-        preferred_locality_or_society: params[3],
-        bhk_type: params[4],
-        property_id: hasProp ? (params[5] || null) : null,
-        lead_status: 'NEW',
-        assigned_staff_id: null,
-        assigned_at: null,
-        next_follow_up_at: null,
-        follow_up_notes: null,
-        notes: params.length === 7 ? (params[6] || null) : (params[7] || params[6] || null),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
+      let be: DevBuyerEnquiry;
+      if (cleanSql.includes('email') && cleanSql.includes('attribution')) {
+        be = {
+          id: params[0] || `enq-${Date.now()}`,
+          buyer_name: params[1],
+          phone: params[2],
+          email: params[3] || null,
+          preferred_locality_or_society: params[4],
+          bhk_type: params[5],
+          expected_price_inr: params[6] ? Number(params[6]) : null,
+          property_id: params[7] || null,
+          lead_status: params[8] || 'NEW',
+          assigned_staff_id: params[9] || null,
+          assigned_at: params[10] || null,
+          next_follow_up_at: params[11] || null,
+          follow_up_notes: params[12] || null,
+          notes: params[13] || null,
+          attribution: typeof params[14] === 'string' ? JSON.parse(params[14]) : params[14],
+          created_at: params[15] || new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+      } else {
+        const hasProp = cleanSql.includes('property_id');
+        be = {
+          id: params[0] || `enq-${Date.now()}`,
+          buyer_name: params[1],
+          phone: params[2],
+          preferred_locality_or_society: params[3],
+          bhk_type: params[4],
+          property_id: hasProp ? (params[5] || null) : null,
+          lead_status: 'NEW',
+          assigned_staff_id: null,
+          assigned_at: null,
+          next_follow_up_at: null,
+          follow_up_notes: null,
+          notes: params.length === 7 ? (params[6] || null) : (params[7] || params[6] || null),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+      }
       this.buyerEnquiries.set(be.id, be);
       return { rows: [{ ...be, name: be.buyer_name, owner_name: be.buyer_name, client_name: be.buyer_name }] };
     }

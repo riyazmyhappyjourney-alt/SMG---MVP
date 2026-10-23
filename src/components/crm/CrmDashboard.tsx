@@ -65,6 +65,7 @@ import { PartnerLogosManager } from './PartnerLogosManager';
 import { PublicationEmailManager } from './PublicationEmailManager';
 import { PropertySuggestionsManager } from './PropertySuggestionsManager';
 import { CareerCmsManager } from './CareerCmsManager';
+import { ManualLeadModal } from './ManualLeadModal';
 import { DateTimePicker } from '../common/DateTimePicker';
 import {
   formatIndianCurrency,
@@ -524,6 +525,17 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
   const [propertyDetailLoading, setPropertyDetailLoading] = useState<boolean>(false);
   const [propertyDetailError, setPropertyDetailError] = useState<string | null>(null);
   const [isBrochureModalOpen, setIsBrochureModalOpen] = useState<boolean>(false);
+
+  // Manual Lead & 99acres Entry Modal State
+  const [isAddLeadModalOpen, setIsAddLeadModalOpen] = useState<boolean>(false);
+  const [addLeadInitialSource, setAddLeadInitialSource] = useState<string>('99acres');
+  const [addLeadInitialType, setAddLeadInitialType] = useState<'BUYER' | 'SELLER'>('BUYER');
+
+  const handleOpenAddLead = useCallback((source = '99acres', type: 'BUYER' | 'SELLER' = 'BUYER') => {
+    setAddLeadInitialSource(source);
+    setAddLeadInitialType(type);
+    setIsAddLeadModalOpen(true);
+  }, []);
 
   // Employee Administration: Add Employee Modal State
   const [isAddUserOpen, setIsAddUserOpen] = useState<boolean>(false);
@@ -2508,10 +2520,28 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   <button
                     type="button"
                     onClick={() => handleExportCsv('leads')}
-                    className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-white border border-slate-200/80 text-slate-700 hover:bg-slate-50 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+                    className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-white border border-slate-200/80 text-slate-700 hover:bg-slate-50 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
                   >
                     <Download className="w-3.5 h-3.5 text-[#0073E6]" />
-                    <span>Export Leads CSV</span>
+                    <span className="hidden sm:inline">Export Leads CSV</span>
+                    <span className="sm:hidden">Export</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenAddLead('99acres', 'BUYER')}
+                    className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200/90 text-amber-900 text-xs font-bold shadow-2xs transition-all cursor-pointer"
+                    title="Quickly record an inbound lead from 99acres.com"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0 animate-pulse" />
+                    <span>Add 99acres Lead</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenAddLead('SellMyGhar Portal', 'BUYER')}
+                    className="inline-flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-[#0073E6] hover:bg-[#005bb5] text-white text-xs font-bold shadow-sm transition-all cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add Lead</span>
                   </button>
                 </div>
               </div>
@@ -6155,6 +6185,26 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
           onClose={() => setIsBrochureModalOpen(false)}
           propertyData={propertyDetailData}
           currentUser={staffUser}
+        />
+      )}
+
+      {/* ============================================================== */}
+      {/* MODAL: MANUAL & 99ACRES LEAD INTAKE                            */}
+      {/* ============================================================== */}
+      {isAddLeadModalOpen && (
+        <ManualLeadModal
+          isOpen={isAddLeadModalOpen}
+          onClose={() => setIsAddLeadModalOpen(false)}
+          initialSource={addLeadInitialSource}
+          initialType={addLeadInitialType}
+          staffList={staffList}
+          properties={properties}
+          crmFetch={crmFetch}
+          onLeadCreated={(newLeadId) => {
+            loadLeads();
+            setSelectedLeadId(newLeadId);
+            setToastMessage('Lead created successfully!');
+          }}
         />
       )}
     </div>

@@ -23,6 +23,7 @@ import { runPropertySubmissionFixTests } from './test-property-submission-fix';
 import { runSellMyGharEnhancementTests } from './test-sellmyghar-enhancements';
 import { runMasterBugfixRegressionTests } from './test-master-bugfix-regression';
 import { runAuthAndNotificationTests } from './test-auth-registration-and-notifications';
+import { runManual99acresLeadTests } from './test-manual-99acres-lead';
 
 async function runAll() {
   console.log('====================================================');
@@ -249,6 +250,15 @@ async function runAll() {
   totalFailed += authUxRes.failed;
   suiteResults.push({ name: 'Auth UX, Registration Email & WhatsApp', passed: authUxRes.passed, failed: authUxRes.failed, tests: authUxRes.results });
   console.log(`Subtotal: ${authUxRes.passed} passed, ${authUxRes.failed} failed\n`);
+
+  // Suite 26: Manual 99acres Lead Entry & Duplicate Detection Suite
+  console.log('--- 26. Manual 99acres Lead Entry & Duplicate Detection Suite ---');
+  const leadEntryRes = await runManual99acresLeadTests();
+  leadEntryRes.results.forEach(r => console.log(' ', r));
+  totalPassed += leadEntryRes.passed;
+  totalFailed += leadEntryRes.failed;
+  suiteResults.push({ name: 'Manual 99acres Lead Entry & Duplicate Detection', passed: leadEntryRes.passed, failed: leadEntryRes.failed, tests: leadEntryRes.results });
+  console.log(`Subtotal: ${leadEntryRes.passed} passed, ${leadEntryRes.failed} failed\n`);
 
   console.log('====================================================');
   console.log(`FINAL RESULTS: ${totalPassed} PASSED, ${totalFailed} FAILED (TOTAL: ${totalPassed + totalFailed}/${totalPassed + totalFailed})`);
