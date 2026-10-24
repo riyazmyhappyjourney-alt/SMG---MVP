@@ -229,6 +229,91 @@ app.use((req, res, next) => {
   next();
 });
 
+// ====================================================================
+// SENSITIVE PATH & RECONNAISSANCE PROBE SHIELD
+// Rejects automated exploit probes (e.g., /.env, /.git, /wp-login.php, /server.js)
+// with an immediate 404 text/plain response. Prevents probing paths from
+// falling through to the SPA wildcard handler or serving index.html.
+// ====================================================================
+const SENSITIVE_PROBE_EXTENSIONS = new Set([
+  '.env', '.bak', '.old', '.orig', '.save', '.swp', '.swo',
+  '.sql', '.sqlite', '.db', '.conf', '.config', '.ini', '.log',
+  '.php', '.php3', '.php4', '.php5', '.phtml', '.asp', '.aspx',
+  '.jsp', '.cgi', '.pl', '.action', '.do', '.yml', '.yaml'
+]);
+
+const SENSITIVE_PROBE_KEYWORDS = [
+  'wp-login', 'wp-admin', 'wp-content', 'wp-includes',
+  'xmlrpc', 'phpmyadmin', 'pma', 'adminer', 'cgi-bin',
+  'boaform', 'autodiscover', 'actuator', 'solr', 'telescope',
+  '.aws', '.ssh', '.git', '.svn', '.hg', '.bzr', '.env'
+];
+
+const PROTECTED_SOURCE_FILES = new Set([
+  '/package.json',
+  '/package-lock.json',
+  '/server.ts',
+  '/server.js',
+  '/tsconfig.json',
+  '/dockerfile',
+  '/cloudbuild.yaml',
+  '/readme.md',
+  '/.env',
+  '/.env.local',
+  '/.env.bak',
+  '/.env.production',
+  '/.env.development',
+  '/.git/config'
+]);
+
+app.use((req: Request, res: Response, next: NextFunction) => {
+  let rawPath = req.path || '';
+  try {
+    rawPath = decodeURIComponent(rawPath);
+  } catch {
+    // Malformed URI encoding is rejected
+    return res.status(400).type('text/plain').send('Bad Request');
+  }
+
+  // Reject null-byte injection attempts
+  if (rawPath.includes('\0') || req.url.includes('%00')) {
+    return res.status(400).type('text/plain').send('Bad Request');
+  }
+
+  const normalized = path.posix.normalize(rawPath).toLowerCase();
+  const trimmed = normalized.replace(/\/+$/, '') || '/';
+
+  // 1. Allow standard well-known verification paths (e.g., Let's Encrypt / PKI)
+  if (trimmed.startsWith('/.well-known/')) {
+    return next();
+  }
+
+  // 2. Reject dotfiles and dot-directories (e.g. /.env, /.git, /.env/, etc.)
+  const segments = trimmed.split('/').filter(Boolean);
+  const hasDotSegment = segments.some(s => s.startsWith('.'));
+  if (hasDotSegment) {
+    return res.status(404).type('text/plain').send('Not Found');
+  }
+
+  // 3. Reject protected source and configuration files
+  if (PROTECTED_SOURCE_FILES.has(trimmed)) {
+    return res.status(404).type('text/plain').send('Not Found');
+  }
+
+  // 4. Reject suspicious probe keywords (e.g. wp-login.php, phpmyadmin, etc.)
+  if (SENSITIVE_PROBE_KEYWORDS.some(kw => trimmed.includes(kw))) {
+    return res.status(404).type('text/plain').send('Not Found');
+  }
+
+  // 5. Reject sensitive file extensions (.php, .bak, .sql, .env, etc.)
+  const ext = path.posix.extname(trimmed);
+  if (ext && SENSITIVE_PROBE_EXTENSIONS.has(ext)) {
+    return res.status(404).type('text/plain').send('Not Found');
+  }
+
+  next();
+});
+
 // Lightweight cookie parser helper
 function parseCookies(cookieHeader?: string): Record<string, string> {
   const cookies: Record<string, string> = {};
@@ -1240,7 +1325,7 @@ app.post('/api/auth/google/session', jsonDefault, rateLimit('google-session', 10
         }
 
         // Strictly disallow unverified decode fallback in production
-        if (!verifiedClaims && (!isProd || process.env.ALLOW_DEV_FALLBACKS === 'true')) {
+        if (!verifiedClaims && (!isProd && process.env.ALLOW_DEV_FALLBACKS === 'true')) {
           verifiedClaims = decodeJwt(accessToken.trim());
         }
 
@@ -1624,7 +1709,7 @@ app.post('/api/auth/logout', async (req, res) => {
 
 // DEV: Instant Role & Identity Switcher (Synchronizes frontend Dev RBAC switcher with backend session cookie)
 app.post('/api/dev/switch-role', jsonDefault, async (req, res) => {
-  if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DEV_FALLBACKS !== 'true') {
+  if (isProd || process.env.NODE_ENV === 'production') {
     return res.status(403).json({ error: 'FORBIDDEN', message: 'Dev role switcher disabled in production.' });
   }
 
@@ -9926,6 +10011,12 @@ async function startServer() {
       if (req.originalUrl.startsWith('/api')) {
         return next();
       }
+      const reqPath = req.path || '';
+      const hasExt = path.posix.extname(reqPath) !== '';
+      const acceptsHtml = (req.headers.accept || '').includes('text/html');
+      if (hasExt && !acceptsHtml) {
+        return res.status(404).type('text/plain').send('Not Found');
+      }
       try {
         const url = req.originalUrl;
         let template = fs.readFileSync(path.resolve('index.html'), 'utf-8');
@@ -9936,8 +10027,30 @@ async function startServer() {
       }
     });
   } else {
+    // Dedicated /favicon.ico handler: serve favicon.png with correct image MIME-type
+    app.get('/favicon.ico', (_req, res) => {
+      const icoPath = path.resolve('dist', 'favicon.png');
+      if (fs.existsSync(icoPath)) {
+        res.setHeader('Content-Type', 'image/png');
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        return res.sendFile('favicon.png', { root: 'dist' });
+      }
+      res.status(204).end();
+    });
+
     app.use(express.static('dist'));
-    app.get('*', (_req, res) => {
+
+    // SPA navigation fallback: ONLY serve index.html for extension-less routes or requests accepting text/html.
+    // Explicit static file misses (e.g., missing .jpg, .js, .css, .ico) must return 404, NEVER index.html!
+    app.get('*', (req, res) => {
+      const reqPath = req.path || '';
+      const hasExt = path.posix.extname(reqPath) !== '';
+      const acceptsHtml = (req.headers.accept || '').includes('text/html');
+
+      if (hasExt && !acceptsHtml) {
+        return res.status(404).type('text/plain').send('Not Found');
+      }
+
       res.sendFile('index.html', { root: 'dist' });
     });
   }

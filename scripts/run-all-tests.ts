@@ -24,6 +24,7 @@ import { runSellMyGharEnhancementTests } from './test-sellmyghar-enhancements';
 import { runMasterBugfixRegressionTests } from './test-master-bugfix-regression';
 import { runAuthAndNotificationTests } from './test-auth-registration-and-notifications';
 import { runManual99acresLeadTests } from './test-manual-99acres-lead';
+import { runProbeSecurityTests } from './test-probe-and-production-security';
 
 async function runAll() {
   console.log('====================================================');
@@ -259,6 +260,15 @@ async function runAll() {
   totalFailed += leadEntryRes.failed;
   suiteResults.push({ name: 'Manual 99acres Lead Entry & Duplicate Detection', passed: leadEntryRes.passed, failed: leadEntryRes.failed, tests: leadEntryRes.results });
   console.log(`Subtotal: ${leadEntryRes.passed} passed, ${leadEntryRes.failed} failed\n`);
+
+  // Suite 27: Sensitive Probe Shield & Production Security Suite
+  console.log('--- 27. Sensitive Probe Shield & Production Security Suite ---');
+  const probeSecRes = await runProbeSecurityTests();
+  probeSecRes.results.forEach(r => console.log(' ', r));
+  totalPassed += probeSecRes.passed;
+  totalFailed += probeSecRes.failed;
+  suiteResults.push({ name: 'Sensitive Probe Shield & Production Security', passed: probeSecRes.passed, failed: probeSecRes.failed, tests: probeSecRes.results });
+  console.log(`Subtotal: ${probeSecRes.passed} passed, ${probeSecRes.failed} failed\n`);
 
   console.log('====================================================');
   console.log(`FINAL RESULTS: ${totalPassed} PASSED, ${totalFailed} FAILED (TOTAL: ${totalPassed + totalFailed}/${totalPassed + totalFailed})`);
