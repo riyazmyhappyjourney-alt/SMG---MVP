@@ -49,7 +49,7 @@ steps:
       - '--max-instances'
       - '10'
       - '--set-env-vars'
-      - 'NODE_ENV=production,APP_URL=https://sellmyghar.in,AUTH_JWT_ISSUER=https://sellmyghar.in,AUTH_JWT_AUDIENCE=https://sellmyghar.in,PG_SSL_ALLOW_INSECURE=true,SUPABASE_URL=https://jtawqvseigeslgbrphfl.supabase.co,SUPABASE_ANON_KEY=sb_publishable_8ZaeejigTE9QoQWhNsBn9w_cVuSupIM,VITE_SUPABASE_URL=https://jtawqvseigeslgbrphfl.supabase.co,VITE_SUPABASE_ANON_KEY=sb_publishable_8ZaeejigTE9QoQWhNsBn9w_cVuSupIM,AISENSY_CAMPAIGN_PROPERTY_LISTED=SMG_Property_Submitted2,AISENSY_CAMPAIGN_PROPERTY_VERIFIED=SMG_Property_verified,AISENSY_CAMPAIGN_USER_WELCOME=SMG_Welcome_New_Users2,AISENSY_CAMPAIGN_OTP=SMG_OTP_Auth'
+      - 'NODE_ENV=production,APP_URL=https://sellmyghar.in,AUTH_JWT_ISSUER=https://sellmyghar.in,AUTH_JWT_AUDIENCE=https://sellmyghar.in,SUPABASE_URL=https://jtawqvseigeslgbrphfl.supabase.co,SUPABASE_ANON_KEY=sb_publishable_8ZaeejigTE9QoQWhNsBn9w_cVuSupIM,VITE_SUPABASE_URL=https://jtawqvseigeslgbrphfl.supabase.co,VITE_SUPABASE_ANON_KEY=sb_publishable_8ZaeejigTE9QoQWhNsBn9w_cVuSupIM,AISENSY_CAMPAIGN_PROPERTY_LISTED=SMG_Property_Submitted2,AISENSY_CAMPAIGN_PROPERTY_VERIFIED=SMG_Property_verified,AISENSY_CAMPAIGN_USER_WELCOME=SMG_Welcome_New_Users2,AISENSY_CAMPAIGN_OTP=SMG_OTP_Auth'
       - '--set-secrets'
       - 'DATABASE_URL=db-connection-string:latest,JWT_SECRET=jwt-secret:latest,INITIAL_STAFF_PASSWORD=initial-staff-password:latest,INITIAL_ADMIN_PASSWORD=initial-admin-password:latest,AISENSY_API_KEY=aisensy-api-key:latest,RESEND_API_KEY=resend-api-key:latest'
 
