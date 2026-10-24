@@ -57,7 +57,7 @@ export const StaffLogin: React.FC<StaffLoginProps> = ({ onSuccess, onBackToHome,
       const data = await response.json();
 
       if (!response.ok || !data.success) {
-        throw new Error(data.error || 'Invalid credentials. Only authorized SellMyGhar staff can access the operational portal.');
+        throw new Error(data.error || 'Invalid credentials. Only authorized SellMyGhar staff can access internal portals.');
       }
 
       sessionStorage.setItem(
@@ -67,7 +67,7 @@ export const StaffLogin: React.FC<StaffLoginProps> = ({ onSuccess, onBackToHome,
 
       onSuccess({ user: data.user, token: data.token });
     } catch (err: any) {
-      setErrorMessage(err.message || 'Authentication failed. Please verify your credentials.');
+      setErrorMessage(err.message || 'Invalid credentials. Only authorized SellMyGhar staff can access internal portals.');
     } finally {
       setLoading(false);
     }
