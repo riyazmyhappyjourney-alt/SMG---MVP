@@ -510,8 +510,15 @@ export const AuthPage: React.FC<AuthPageProps> = ({
 
               {/* Error Message */}
               {error && (
-                <div className="mt-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs font-medium text-rose-700">
-                  {error}
+                <div className="mt-4 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-xs font-medium text-rose-700">
+                  <p className="leading-relaxed">{error}</p>
+                  <button
+                    type="button"
+                    onClick={handleGoogleAuth}
+                    className="mt-2.5 inline-flex items-center space-x-1.5 text-xs font-bold text-[#0073E6] hover:underline cursor-pointer"
+                  >
+                    <span>👉 Sign in with Google instead</span>
+                  </button>
                 </div>
               )}
 

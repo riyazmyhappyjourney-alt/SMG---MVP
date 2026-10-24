@@ -120,7 +120,7 @@ export class OtpService {
       const smsProvider = getSmsProvider();
       if (!smsProvider.isConfigured()) {
         throw new Error(
-          'WhatsApp delivery failed and SMS fallback is unconfigured. Indian DLT template registration is required for SMS delivery.'
+          'WhatsApp OTP delivery is currently unavailable (WhatsApp service plan inactive). Please sign in with Google or try again shortly.'
         );
       }
       await smsProvider.sendOtp(normalizedPhone, otpCode);
