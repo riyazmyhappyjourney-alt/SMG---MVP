@@ -20,20 +20,58 @@ export async function hashPassword(password: string): Promise<string> {
 }
 
 /**
+ * Fixed, valid dummy scrypt hash generated with the standard hashPassword implementation
+ * using identical parameters (16-byte salt, 64-byte key).
+ * Used to execute equivalent cryptographic workload when an email is not found,
+ * mitigating timing discrepancies between existent and nonexistent accounts.
+ */
+export const DUMMY_SCRYPT_HASH =
+  'scrypt$57fb1f29e9b56ecb3bc56128b8e6e09f$d3d1640c3d682dbf5e269cb047aff5a663b711a555a0d2c8c3c2b80d7e3193cffc1b274e8622cd79b2a33bba615eb2101cdc9ef27ccde10fd0155587cd425150';
+
+/**
+ * Executes a dummy scrypt verification against a fixed valid hash using the candidate password.
+ * Always resolves to false.
+ */
+export async function dummyVerifyPassword(password: string): Promise<boolean> {
+  const candidate = typeof password === 'string' && password ? password : 'dummyPasswordWorkload#1';
+  await verifyPassword(candidate, DUMMY_SCRYPT_HASH);
+  return false;
+}
+
+/**
  * Timing-safe verification of a plaintext password against an scrypt hash
  */
 export async function verifyPassword(password: string, storedHash: string): Promise<boolean> {
-  if (!password || !storedHash) {
+  if (!password || !storedHash || typeof password !== 'string' || typeof storedHash !== 'string') {
     return false;
   }
 
   const parts = storedHash.split('$');
   if (parts.length !== 3 || parts[0] !== 'scrypt') {
+    try {
+      await scryptAsync(password, Buffer.alloc(SALT_BYTES), KEY_BYTES);
+    } catch { /* noop */ }
     return false;
   }
 
-  const salt = Buffer.from(parts[1], 'hex');
-  const originalKey = Buffer.from(parts[2], 'hex');
+  let salt: Buffer;
+  let originalKey: Buffer;
+  try {
+    salt = Buffer.from(parts[1], 'hex');
+    originalKey = Buffer.from(parts[2], 'hex');
+  } catch {
+    try {
+      await scryptAsync(password, Buffer.alloc(SALT_BYTES), KEY_BYTES);
+    } catch { /* noop */ }
+    return false;
+  }
+
+  if (salt.length !== SALT_BYTES || originalKey.length !== KEY_BYTES) {
+    try {
+      await scryptAsync(password, Buffer.alloc(SALT_BYTES), KEY_BYTES);
+    } catch { /* noop */ }
+    return false;
+  }
 
   try {
     const derivedKey = (await scryptAsync(password, salt, originalKey.length)) as Buffer;

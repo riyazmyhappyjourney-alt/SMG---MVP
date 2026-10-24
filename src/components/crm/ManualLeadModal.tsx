@@ -116,10 +116,14 @@ export const ManualLeadModal: React.FC<ManualLeadModalProps> = ({
     if (propertyId) {
       const selected = properties.find((p) => p.id === propertyId);
       if (selected) {
-        if (selected.society) setSociety(selected.society);
-        if (selected.locality) setLocality(selected.locality);
-        if (selected.bhk) setBhk(selected.bhk);
-        if (selected.askingPriceRaw) setBudget(String(selected.askingPriceRaw));
+        const societyVal = (selected as any).society || selected.projectName;
+        const localityVal = (selected as any).locality || selected.localityName;
+        const bhkVal = (selected as any).bhk || selected.bhkType;
+        const budgetVal = (selected as any).askingPriceRaw || selected.askingPriceInr;
+        if (societyVal) setSociety(societyVal);
+        if (localityVal) setLocality(localityVal);
+        if (bhkVal) setBhk(bhkVal);
+        if (budgetVal) setBudget(String(budgetVal));
       }
     }
   }, [propertyId, properties]);
@@ -542,11 +546,17 @@ export const ManualLeadModal: React.FC<ManualLeadModalProps> = ({
                   className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#0073E6] focus:border-transparent transition-all"
                 >
                   <option value="">-- None / General Inbound Inquiry --</option>
-                  {properties.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.society ? `${p.society} - ` : ''}{p.locality || 'Bengaluru'} ({p.bhk || 'Apartment'}) - {p.askingPrice || 'Price on Request'} [{p.id}]
-                    </option>
-                  ))}
+                  {properties.map((p) => {
+                    const society = (p as any).society || p.projectName;
+                    const locality = (p as any).locality || p.localityName || 'Bengaluru';
+                    const bhk = (p as any).bhk || p.bhkType || 'Apartment';
+                    const price = p.askingPriceInr ? `₹${(p.askingPriceInr / 100000).toFixed(1)}L` : ((p as any).askingPrice || 'Price on Request');
+                    return (
+                      <option key={p.id} value={p.id}>
+                        {society ? `${society} - ` : ''}{locality} ({bhk}) - {price} [{p.id}]
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 
@@ -678,11 +688,15 @@ export const ManualLeadModal: React.FC<ManualLeadModalProps> = ({
                   className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#0073E6] focus:border-transparent transition-all"
                 >
                   <option value="">-- Unassigned (General Desk Queue) --</option>
-                  {staffList.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} ({s.role.replace('STAFF_', '')})
-                    </option>
-                  ))}
+                  {staffList.map((s) => {
+                    const label = s.displayName || s.name || s.email;
+                    const primaryRole = ((s as any).role || s.roles?.[0] || 'STAFF').replace('STAFF_', '');
+                    return (
+                      <option key={s.id} value={s.id}>
+                        {label} ({primaryRole})
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 

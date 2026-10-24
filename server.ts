@@ -27,6 +27,7 @@ import { requirePermission, hasPermission } from './src/server/auth/rbac';
 import { 
   hashPassword, 
   verifyPassword, 
+  dummyVerifyPassword,
   generatePasswordResetToken, 
   validatePasswordResetToken, 
   executePasswordResetCompletion
@@ -842,6 +843,7 @@ app.post('/api/auth/login', jsonDefault, rateLimit('auth-login', 10, 900), async
     );
 
     if (!result.rows || result.rows.length === 0) {
+      await dummyVerifyPassword(String(password));
       await recordAuditEvent({
         actor: { uid: 'anonymous', roles: [] },
         action: 'STAFF_LOGIN_FAILED',
@@ -860,6 +862,7 @@ app.post('/api/auth/login', jsonDefault, rateLimit('auth-login', 10, 900), async
 
     // Check account lockout (5 failed attempts locks for 15 minutes)
     if (user.locked_until && new Date(user.locked_until).getTime() > Date.now()) {
+      await dummyVerifyPassword(String(password));
       await recordAuditEvent({
         actor: { uid: user.id, roles: user.roles || [], email: user.email },
         action: 'STAFF_LOGIN_LOCKED',
@@ -875,6 +878,7 @@ app.post('/api/auth/login', jsonDefault, rateLimit('auth-login', 10, 900), async
     }
 
     if (!user.is_active) {
+      await dummyVerifyPassword(String(password));
       await recordAuditEvent({
         actor: { uid: user.id, roles: user.roles || [], email: user.email },
         action: 'STAFF_ACCESS_DENIED',
@@ -883,10 +887,22 @@ app.post('/api/auth/login', jsonDefault, rateLimit('auth-login', 10, 900), async
         clientIp,
         diffSummary: { email: cleanEmail, reason: 'ACCOUNT_INACTIVE' },
       });
-      return res.status(401).json({ success: false, error: 'Staff account is inactive.' });
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid credentials. Only authorized SellMyGhar staff can access internal portals.'
+      });
     }
 
     if (!user.password_hash) {
+      await dummyVerifyPassword(String(password));
+      await recordAuditEvent({
+        actor: { uid: user.id, roles: user.roles || [], email: user.email },
+        action: 'STAFF_LOGIN_FAILED',
+        targetEntity: 'users',
+        targetEntityId: user.id,
+        clientIp,
+        diffSummary: { email: cleanEmail, reason: 'PASSWORD_AUTH_UNAVAILABLE' },
+      });
       return res.status(401).json({
         success: false,
         error: 'Invalid credentials. Only authorized SellMyGhar staff can access internal portals.'
@@ -941,7 +957,10 @@ app.post('/api/auth/login', jsonDefault, rateLimit('auth-login', 10, 900), async
         clientIp,
         diffSummary: { email: cleanEmail, reason: 'NON_STAFF_ROLE' },
       });
-      return res.status(403).json({ success: false, error: 'Access denied: account lacks staff privileges.' });
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid credentials. Only authorized SellMyGhar staff can access internal portals.'
+      });
     }
 
     // Reset failed login counter on successful password verification

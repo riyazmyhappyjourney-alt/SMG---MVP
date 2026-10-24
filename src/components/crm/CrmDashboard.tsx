@@ -6203,7 +6203,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
           onLeadCreated={(newLeadId) => {
             loadLeads();
             setSelectedLeadId(newLeadId);
-            setToastMessage('Lead created successfully!');
+            showToast('Lead created successfully!', 'success');
           }}
         />
       )}

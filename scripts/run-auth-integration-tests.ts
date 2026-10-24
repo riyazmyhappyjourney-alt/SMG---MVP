@@ -279,11 +279,11 @@ export async function runAuthIntegrationTests(): Promise<{ passed: number; faile
     });
     const body8 = await res8.json();
     assert(
-      res8.status === 401 && body8.error === 'Staff account is inactive.',
-      'TEST 8: Inactive staff account is rejected with 401 and descriptive error'
+      res8.status === 401 && body8.error === 'Invalid credentials. Only authorized SellMyGhar staff can access internal portals.',
+      'TEST 8: Inactive staff account is rejected with 401 without leaking account existence or status'
     );
 
-    // TEST 9: Customer account attempting staff login -> 403 ACCESS_DENIED
+    // TEST 9: Customer account attempting staff login -> 401 normalized error (RBAC denied)
     const customerWithPass: any = {
       id: 'usr-customer-with-pass-01',
       phone: '+919845099999',
@@ -307,8 +307,8 @@ export async function runAuthIntegrationTests(): Promise<{ passed: number; faile
     });
     const body9 = await res9.json();
     assert(
-      res9.status === 403 && body9.error?.includes('account lacks staff privileges'),
-      'TEST 9: Customer account attempting staff login is rejected with 403 ACCESS_DENIED'
+      res9.status === 401 && body9.error === 'Invalid credentials. Only authorized SellMyGhar staff can access internal portals.',
+      'TEST 9: Customer account attempting staff login is rejected with 401 normalized error without leaking role'
     );
 
     // TEST 10: Passwordless account attempting password login -> 401
