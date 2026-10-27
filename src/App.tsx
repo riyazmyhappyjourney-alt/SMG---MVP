@@ -58,7 +58,7 @@ export const parseLocalitySlug = (path: string, hash: string): string | null => 
   return null;
 };
 
-export function resolveRoute(path: string, hash: string, host: string): AppRoute {
+export function resolveRoute(path: string, hash: string, host: string, search: string = ''): AppRoute {
   // 1. Strict CRM Subdomain Isolation (e.g. crm.sellmyghar.in)
   // On the CRM subdomain, public customer routes (LOGIN, HOME, etc.) are strictly prohibited.
   const isCrmSubdomain = host.startsWith('crm.') || host.startsWith('crm-');
@@ -99,8 +99,17 @@ export function resolveRoute(path: string, hash: string, host: string): AppRoute
   if (path === '/consent') return 'CONSENT';
   if (path === '/seller-assisted' || path === '/post-property') return 'SELLER_ASSISTED';
 
-  // 4. OAuth Callback route: ONLY when not overridden by an explicit application route
-  if (path === '/auth/callback' || path.startsWith('/auth/callback') || hash === '#/auth/callback' || hash.startsWith('#/auth/callback')) {
+  // 5. OAuth Callback route: explicit callback path OR OAuth provider redirect parameters (?code=, ?error=)
+  const searchParams = new URLSearchParams(search);
+  const hasOAuthCallbackQuery = searchParams.has('code') || searchParams.has('error') || searchParams.has('error_description');
+
+  if (
+    path === '/auth/callback' ||
+    path.startsWith('/auth/callback') ||
+    hash === '#/auth/callback' ||
+    hash.startsWith('#/auth/callback') ||
+    hasOAuthCallbackQuery
+  ) {
     return 'AUTH_CALLBACK';
   }
 
@@ -142,7 +151,7 @@ export default function App() {
   });
 
   const [currentRoute, setCurrentRoute] = useState<AppRoute>(() => {
-    return resolveRoute(window.location.pathname, window.location.hash, window.location.hostname);
+    return resolveRoute(window.location.pathname, window.location.hash, window.location.hostname, window.location.search);
   });
 
   const [activeUser, setActiveUser] = useState<UserAuthProfile | null>(null);
@@ -220,7 +229,7 @@ export default function App() {
       const localitySlug = parseLocalitySlug(path, hash);
       if (localitySlug) setSelectedLocalitySlug(localitySlug);
 
-      setCurrentRoute(resolveRoute(path, hash, host));
+      setCurrentRoute(resolveRoute(path, hash, host, window.location.search));
     };
 
     window.addEventListener('hashchange', handleLocationChange);

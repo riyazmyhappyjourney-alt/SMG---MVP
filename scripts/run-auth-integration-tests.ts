@@ -1047,6 +1047,9 @@ export async function runAuthIntegrationTests(): Promise<{ passed: number; faile
       const homeDefault = resolveRoute('/', '', 'localhost');
       const dashboardDefault = resolveRoute('/', '#/dashboard', 'localhost');
 
+      const homeWithOAuthCode = resolveRoute('/', '', 'localhost', '?code=9754705c-6f86-437f-bda3-522ccc54e029');
+      const homeWithOAuthError = resolveRoute('/', '', 'localhost', '?error=access_denied&error_description=User+cancelled');
+
       assert(
         callbackInitial === 'AUTH_CALLBACK' &&
           callbackWithDashboardHash === 'DASHBOARD' &&
@@ -1055,8 +1058,10 @@ export async function runAuthIntegrationTests(): Promise<{ passed: number; faile
           callbackWithCrmHash === 'CRM' &&
           callbackWithSellerAssistedHash === 'SELLER_ASSISTED' &&
           homeDefault === 'HOME' &&
-          dashboardDefault === 'DASHBOARD',
-        'TEST 43: Route detection precedence ensures explicit application routes override stale /auth/callback pathname'
+          dashboardDefault === 'DASHBOARD' &&
+          homeWithOAuthCode === 'AUTH_CALLBACK' &&
+          homeWithOAuthError === 'AUTH_CALLBACK',
+        'TEST 43: Route detection precedence ensures explicit application routes override stale /auth/callback pathname and root ?code= routes to callback'
       );
 
       // TEST 44: Single OAuth authorization attempt produces at most one backend session exchange
