@@ -301,8 +301,8 @@ app.use((req: Request, res: Response, next: NextFunction) => {
     return next();
   }
 
-  // In development mode, permit Vite's internal dependency cache, virtual modules, and local filesystem imports
-  if (!isProd && (trimmed.includes('/.vite/') || trimmed.startsWith('/@vite') || trimmed.startsWith('/@react-refresh') || trimmed.startsWith('/@fs/') || trimmed.startsWith('/@id/'))) {
+  // In development mode, permit Vite's source files, dependency cache, virtual modules, and local filesystem imports
+  if (!isProd && (trimmed.startsWith('/src/') || trimmed.startsWith('/node_modules/') || trimmed.includes('/.vite/') || trimmed.startsWith('/@vite') || trimmed.startsWith('/@react-refresh') || trimmed.startsWith('/@fs/') || trimmed.startsWith('/@id/'))) {
     return next();
   }
 
@@ -319,7 +319,13 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   }
 
   // 4. Reject suspicious probe keywords (e.g. wp-login.php, phpmyadmin, etc.)
-  if (SENSITIVE_PROBE_KEYWORDS.some(kw => trimmed.includes(kw))) {
+  const matchesProbe = SENSITIVE_PROBE_KEYWORDS.some(kw => {
+    if (kw.includes('-') || kw.includes('.')) {
+      return trimmed.includes(kw);
+    }
+    return segments.some(s => s === kw || s.startsWith(kw + '.') || s.startsWith(kw + '-'));
+  });
+  if (matchesProbe) {
     return res.status(404).type('text/plain').send('Not Found');
   }
 
