@@ -17,6 +17,7 @@ import {
   MessageSquare,
   Award
 } from 'lucide-react';
+import { safeFetch } from '../../utils/safeApi';
 
 export type BHKOption = 
   | '1BHK' 
@@ -113,7 +114,7 @@ export const LeadCapture: React.FC<LeadCaptureProps> = ({
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 4500);
 
-      const response = await fetch('/api/leads', {
+      const response = await safeFetch('/api/leads', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         signal: controller.signal,

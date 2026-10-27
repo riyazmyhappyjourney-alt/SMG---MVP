@@ -2077,7 +2077,7 @@ class DevSandboxStore {
     }
 
     // 19. PROPERTY MEDIA: Select, Insert, Update, Delete
-    if (cleanSql.includes('FROM property_media')) {
+    if (cleanSql.includes('FROM property_media') && !cleanSql.includes('FROM properties')) {
       if (cleanSql.includes('WHERE property_id = $1')) {
         const propId = String(params[0] || '').trim().toLowerCase();
         const media = Array.from(this.propertyMedia.values()).filter(m =>
@@ -2282,11 +2282,19 @@ class DevSandboxStore {
       }
 
       // 4. Public active listings query (/api/listings)
-      if (cleanSql.includes('listing_status = \'PUBLISHED\'') || cleanSql.includes('COALESCE(listing_status, \'PUBLISHED\') = \'PUBLISHED\'')) {
+      if (
+        cleanSql.includes("listing_status, 'PUBLISHED'") || 
+        cleanSql.includes("listing_status = 'PUBLISHED'") || 
+        cleanSql.includes("p.listing_status = 'PUBLISHED'") ||
+        cleanSql.includes("COALESCE(p.listing_status, 'PUBLISHED') = 'PUBLISHED'")
+      ) {
         const published = Array.from(this.properties.values()).filter(p => 
           (p.listing_status === 'PUBLISHED' || (!p.listing_status && p.id.startsWith('prop-dev-seed'))) &&
           p.crm_status !== 'LOST' && p.crm_status !== 'DROPPED'
         );
+        if (cleanSql.includes('COUNT(*)')) {
+          return { rows: [{ total: String(published.length), count: published.length }] };
+        }
         return { rows: published.map(p => ({ ...p })) };
       }
 
@@ -2481,7 +2489,7 @@ class DevSandboxStore {
         }
 
         if (newListingStatus) {
-          const p = findProp(propId);
+          const p = findProp(propId) || findProp(params[0]);
           if (p) {
             p.listing_status = newListingStatus;
             p.updated_at = new Date().toISOString();

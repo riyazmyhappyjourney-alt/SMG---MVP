@@ -14,6 +14,7 @@ import {
   Trash2
 } from 'lucide-react';
 import { hasAnalyticsConsent, setAnalyticsConsent } from '../../utils/analytics';
+import { safeFetch } from '../../utils/safeApi';
 
 interface UserConsentItem {
   purpose: 'SELLER_ONBOARDING' | 'MARKETING_OPT_IN' | 'VISIT_COORDINATION' | 'ANALYTICS_TELEMETRY';
@@ -174,7 +175,7 @@ export function ConsentPortal() {
       };
 
       try {
-        const response = await fetch('/api/compliance/withdraw-consent', {
+        const response = await safeFetch('/api/compliance/withdraw-consent', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ phone: `+91${phone}`, purpose }),

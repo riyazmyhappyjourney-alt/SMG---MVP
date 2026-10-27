@@ -14,6 +14,7 @@ import {
   Ban
 } from 'lucide-react';
 import { AuthenticatedUser } from '../../core/types/auth';
+import { safeFetch } from '../../utils/safeApi';
 
 export interface AdminErasureItem {
   id: string;
@@ -100,7 +101,7 @@ export function AdminErasureQueue() {
 
     try {
       // Dispatch to compliance API backend
-      const res = await fetch(`/api/compliance/erasure-requests/${selectedRequest.id}/execute`, {
+      const res = await safeFetch(`/api/compliance/erasure-requests/${selectedRequest.id}/execute`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

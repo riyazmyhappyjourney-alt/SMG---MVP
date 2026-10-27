@@ -162,12 +162,21 @@ export async function runPropertySubmissionFixTests() {
   );
 
   let sessionCookie = '';
+  let csrfToken = 'csrf-test-token-123';
   if (Array.isArray(setCookieHeader)) {
     const c = setCookieHeader.find((h: string) => h.includes('sellmyghar_session='));
     sessionCookie = c ? c.split(';')[0] : '';
+    const csrfC = setCookieHeader.find((h: string) => h.includes('sellmyghar_csrf='));
+    if (csrfC) {
+      csrfToken = csrfC.split(';')[0].split('=')[1];
+    }
   } else if (typeof setCookieHeader === 'string') {
-    sessionCookie = setCookieHeader.split(';')[0];
+    const matchSession = setCookieHeader.match(/sellmyghar_session=([^;]+)/);
+    if (matchSession) sessionCookie = `sellmyghar_session=${matchSession[1]}`;
+    const matchCsrf = setCookieHeader.match(/sellmyghar_csrf=([^;]+)/);
+    if (matchCsrf) csrfToken = matchCsrf[1];
   }
+  const fullCookie = `${sessionCookie}; sellmyghar_csrf=${csrfToken}`;
 
   // 4. Block cross-site mutating property submission via CSRF defense
   const crossSiteRes = await dispatchRequest(app, '/api/properties', {
@@ -231,7 +240,8 @@ export async function runPropertySubmissionFixTests() {
     headers: {
       'Origin': 'http://localhost:3000',
       'Sec-Fetch-Site': 'same-origin',
-      'Cookie': sessionCookie,
+      'Cookie': fullCookie,
+      'X-CSRF-Token': csrfToken,
       'Content-Type': 'application/json'
     },
     body: validPropertyPayload
@@ -266,7 +276,8 @@ export async function runPropertySubmissionFixTests() {
     headers: {
       'Origin': 'http://localhost:3000',
       'Sec-Fetch-Site': 'same-origin',
-      'Cookie': sessionCookie,
+      'Cookie': fullCookie,
+      'X-CSRF-Token': csrfToken,
       'Content-Type': 'application/json'
     },
     body: {
@@ -305,7 +316,8 @@ export async function runPropertySubmissionFixTests() {
     headers: {
       'Origin': 'http://localhost:3000',
       'Sec-Fetch-Site': 'same-origin',
-      'Cookie': sessionCookie,
+      'Cookie': fullCookie,
+      'X-CSRF-Token': csrfToken,
       'Content-Type': 'application/json'
     },
     body: rentalPayload
@@ -332,7 +344,8 @@ export async function runPropertySubmissionFixTests() {
       headers: {
         'Origin': 'http://localhost:3000',
         'Sec-Fetch-Site': 'same-origin',
-        'Cookie': sessionCookie,
+        'Cookie': fullCookie,
+        'X-CSRF-Token': csrfToken,
         'Content-Type': 'application/json'
       },
       body: {
@@ -401,12 +414,14 @@ export async function runPropertySubmissionFixTests() {
 
   const googleSessionToken = await signSessionToken(googleUser, 1);
 
+  const googleCsrf = 'google-seller-csrf-token';
   const googleSubmitRes = await dispatchRequest(app, '/api/properties', {
     method: 'POST',
     headers: {
       'Origin': 'http://localhost:3000',
       'Sec-Fetch-Site': 'same-origin',
-      'Cookie': `sellmyghar_session=${googleSessionToken}`,
+      'Cookie': `sellmyghar_session=${googleSessionToken}; sellmyghar_csrf=${googleCsrf}`,
+      'X-CSRF-Token': googleCsrf,
       'Content-Type': 'application/json'
     },
     body: {
@@ -457,7 +472,8 @@ export async function runPropertySubmissionFixTests() {
     headers: {
       'Origin': 'http://localhost:3000',
       'Sec-Fetch-Site': 'same-origin',
-      'Cookie': `sellmyghar_session=${googleSessionToken}`,
+      'Cookie': `sellmyghar_session=${googleSessionToken}; sellmyghar_csrf=${googleCsrf}`,
+      'X-CSRF-Token': googleCsrf,
       'Content-Type': 'application/json'
     },
     body: {

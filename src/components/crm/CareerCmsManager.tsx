@@ -15,6 +15,7 @@ import {
   Users,
   Eye
 } from 'lucide-react';
+import { safeFetch } from '../../utils/safeApi';
 
 export interface CareerPosition {
   id: string;
@@ -133,7 +134,7 @@ export const CareerCmsManager: React.FC = () => {
     try {
       if (editingPos) {
         // Update
-        const res = await fetch(`/api/crm/careers/positions/${editingPos.id}`, {
+        const res = await safeFetch(`/api/crm/careers/positions/${editingPos.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -152,7 +153,7 @@ export const CareerCmsManager: React.FC = () => {
         setSuccessMsg(`Position "${formTitle}" updated successfully.`);
       } else {
         // Create
-        const res = await fetch('/api/crm/careers/positions', {
+        const res = await safeFetch('/api/crm/careers/positions', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -184,7 +185,7 @@ export const CareerCmsManager: React.FC = () => {
 
   const handleToggleActive = async (pos: CareerPosition) => {
     try {
-      const res = await fetch(`/api/crm/careers/positions/${pos.id}`, {
+      const res = await safeFetch(`/api/crm/careers/positions/${pos.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_active: !pos.is_active })
@@ -207,7 +208,7 @@ export const CareerCmsManager: React.FC = () => {
       return;
     }
     try {
-      const res = await fetch(`/api/crm/careers/positions/${id}`, {
+      const res = await safeFetch(`/api/crm/careers/positions/${id}`, {
         method: 'DELETE'
       });
       const data = await res.json();

@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { StaffRole } from '../../core/types/auth';
 import { DocumentType } from '../../core/types/entities';
+import { safeFetch } from '../../utils/safeApi';
 
 export interface VerifiedDocumentItem {
   id: string;
@@ -180,7 +181,7 @@ export function DocumentVerificationDesk({ currentRole }: DocumentVerificationDe
 
     try {
       // Dispatch API request to compliance/document backend
-      const res = await fetch('/api/crm/documents/verify', {
+      const res = await safeFetch('/api/crm/documents/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -47,6 +47,7 @@ import { Header } from '../home/Header';
 import { Footer } from '../home/Footer';
 import { isFavoriteProperty, toggleFavoriteProperty } from '../../utils/favoritesStore';
 import { getDistinctCommunityPhoto } from '../../utils/propertyImages';
+import { safeFetch } from '../../utils/safeApi';
 import { AdaptivePropertyImage } from '../common/AdaptivePropertyImage';
 import { FullImageViewerModal } from '../common/FullImageViewerModal';
 import {
@@ -321,7 +322,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
         notes: `Preferred Slot: ${preferredSlot}. Funding: ${fundingMode}. Requested via Public Detail Page.`
       };
 
-      const res = await fetch('/api/leads', {
+      const res = await safeFetch('/api/leads', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)

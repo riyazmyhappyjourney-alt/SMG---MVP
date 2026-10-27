@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Header } from '../home/Header';
 import { Footer } from '../home/Footer';
 import { Briefcase, MapPin, CheckCircle, AlertCircle, X, Send, FileText } from 'lucide-react';
+import { safeFetch } from '../../utils/safeApi';
 
 interface CareersPageProps {
   onBackToHome?: () => void;
@@ -141,7 +142,7 @@ export const CareersPage: React.FC<CareersPageProps> = ({
     setSubmitError(null);
 
     try {
-      const res = await fetch('/api/careers/apply', {
+      const res = await safeFetch('/api/careers/apply', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

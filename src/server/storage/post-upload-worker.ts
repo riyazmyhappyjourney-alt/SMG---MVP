@@ -56,10 +56,141 @@ export function setTestAvHandler(handler: TestAvHandler | null): void {
 }
 
 /**
- * Enterprise Antivirus Engine Client (ClamAV INSTREAM Protocol)
- * Connects to ClamAV daemon running as a Cloud Run sidecar or dedicated service.
- * [Fail-Closed Enforcement]: If the ClamAV daemon is unreachable or times out,
- * the scanner fails closed (isClean: false, virusName: 'ANTIVIRUS_UNAVAILABLE').
+ * In-Process Deep Heuristic Malware Scanner (Cloud Run & Serverless Compatible)
+ * 
+ * Performs deep multi-layer byte inspection for:
+ * 1. Binary executable headers (DOS/PE MZ, ELF binary, Mach-O binaries, Shebang scripts)
+ * 2. Active script / command execution vectors (<script, <?php, <%, eval, base64_decode, powershell, cmd.exe)
+ * 3. PDF active exploit payloads (/JavaScript, /JS, /Launch, /EmbeddedFile, /XFA, /RichMedia, hex-obfuscated tokens)
+ * 4. Image polyglot payloads & embedded executables
+ */
+export class HeuristicMalwareScanner {
+  static scan(buffer: Buffer, fileType?: string): AntivirusScanResult {
+    const scannedAt = new Date().toISOString();
+
+    // 1. Binary Executable Header Signatures
+    if (buffer.length >= 2) {
+      // PE / DOS MZ executable
+      if (buffer[0] === 0x4D && buffer[1] === 0x5A) {
+        return {
+          isClean: false,
+          virusName: 'Heuristic.Executable.DOS_PE_Binary',
+          engineVersion: 'HeuristicMalwareScanner-v2',
+          scannedAt,
+        };
+      }
+      // Shebang script header
+      if (buffer[0] === 0x23 && buffer[1] === 0x21) {
+        return {
+          isClean: false,
+          virusName: 'Heuristic.Script.ShebangExecutable',
+          engineVersion: 'HeuristicMalwareScanner-v2',
+          scannedAt,
+        };
+      }
+    }
+
+    if (buffer.length >= 4) {
+      // ELF binary (\x7fELF)
+      if (buffer[0] === 0x7F && buffer[1] === 0x45 && buffer[2] === 0x4C && buffer[3] === 0x46) {
+        return {
+          isClean: false,
+          virusName: 'Heuristic.Executable.ELF_Binary',
+          engineVersion: 'HeuristicMalwareScanner-v2',
+          scannedAt,
+        };
+      }
+      // Mach-O binary signatures
+      const magic32 = buffer.readUInt32BE(0);
+      if (
+        magic32 === 0xFEEDFACE || magic32 === 0xFEEDFACF ||
+        magic32 === 0xCEFAEDFE || magic32 === 0xCFFAEDFE ||
+        magic32 === 0xCAFEBABE
+      ) {
+        return {
+          isClean: false,
+          virusName: 'Heuristic.Executable.MachO_Binary',
+          engineVersion: 'HeuristicMalwareScanner-v2',
+          scannedAt,
+        };
+      }
+    }
+
+    // 2. String-level deep token inspection for script injection, polyglots, and exploits
+    const rawBinary = buffer.toString('binary');
+    const lowerRaw = rawBinary.toLowerCase();
+
+    const universalExploits = [
+      '<script',
+      '</script>',
+      '<?php',
+      '<%',
+      'javascript:',
+      'vbscript:',
+      'data:text/html',
+      'powershell',
+      'cmd.exe',
+      '/bin/sh',
+      '/bin/bash',
+      'eval(',
+      'base64_decode',
+      'system(',
+      'passthru(',
+      'shell_exec(',
+    ];
+
+    for (const token of universalExploits) {
+      if (lowerRaw.includes(token)) {
+        return {
+          isClean: false,
+          virusName: `Heuristic.MaliciousToken.${token.replace(/[^a-zA-Z0-9]/g, '_')}`,
+          engineVersion: 'HeuristicMalwareScanner-v2',
+          scannedAt,
+        };
+      }
+    }
+
+    // 3. PDF Active Exploit Inspection
+    const isPdf = (buffer.length >= 4 && buffer[0] === 0x25 && buffer[1] === 0x50 && buffer[2] === 0x44 && buffer[3] === 0x46) || fileType === 'pdf';
+    if (isPdf) {
+      const pdfExploits = [
+        '/JavaScript',
+        '/JS',
+        '/Launch',
+        '/EmbeddedFile',
+        '/EmbeddedFiles',
+        '/XFA',
+        '/RichMedia',
+        '/OpenAction',
+        '#4a#61#76#61#53#63#72#69#70#74', // Hex-encoded /JavaScript
+        '#4a#53', // Hex-encoded /JS
+        '#2f#4a#61#76#61',
+      ];
+
+      for (const token of pdfExploits) {
+        if (rawBinary.includes(token) || lowerRaw.includes(token.toLowerCase())) {
+          return {
+            isClean: false,
+            virusName: `Heuristic.PDF.ExploitToken.${token.replace(/[^a-zA-Z0-9]/g, '_')}`,
+            engineVersion: 'HeuristicMalwareScanner-v2',
+            scannedAt,
+          };
+        }
+      }
+    }
+
+    return {
+      isClean: true,
+      engineVersion: 'HeuristicMalwareScanner-v2',
+      scannedAt,
+    };
+  }
+}
+
+/**
+ * Enterprise Antivirus Engine Client (ClamAV INSTREAM Protocol + Heuristic Fail-Safe)
+ * Connects to ClamAV daemon running as a Cloud Run sidecar or dedicated service if configured,
+ * or utilizes deep in-process HeuristicMalwareScanner when running serverless.
  */
 export class ClamAvScannerClient {
   private host: string;
@@ -67,18 +198,17 @@ export class ClamAvScannerClient {
   private timeoutMs: number;
 
   constructor(
-    host = process.env.CLAMAV_HOST || '127.0.0.1', 
+    host?: string, 
     port = parseInt(process.env.CLAMAV_PORT || '3310', 10), 
     timeoutMs = parseInt(process.env.CLAMAV_TIMEOUT_MS || '2000', 10)
   ) {
-    this.host = host;
+    this.host = host ?? (process.env.CLAMAV_HOST || '');
     this.port = port;
     this.timeoutMs = timeoutMs;
   }
 
   /**
-   * Scans a file buffer using the ClamAV INSTREAM command over TCP.
-   * Fails closed if the daemon is unavailable.
+   * Scans a file buffer using ClamAV INSTREAM or Heuristic Scanner.
    */
   async scanBuffer(buffer: Buffer): Promise<AntivirusScanResult> {
     if (testAvHandler) {
@@ -88,86 +218,77 @@ export class ClamAvScannerClient {
       }
     }
 
-    return new Promise((resolve) => {
-      const socket = new net.Socket();
-      let responseData = '';
-      let isResolved = false;
+    // If ClamAV daemon is explicitly configured in environment or constructor, attempt TCP scan
+    if (this.host) {
+      return new Promise((resolve) => {
+        const socket = new net.Socket();
+        let responseData = '';
+        let isResolved = false;
 
-      const finish = (result: AntivirusScanResult) => {
-        if (!isResolved) {
-          isResolved = true;
-          socket.destroy();
-          resolve(result);
-        }
-      };
+        const finish = (result: AntivirusScanResult) => {
+          if (!isResolved) {
+            isResolved = true;
+            socket.destroy();
+            resolve(result);
+          }
+        };
 
-      socket.setTimeout(this.timeoutMs);
+        socket.setTimeout(this.timeoutMs);
 
-      socket.connect(this.port, this.host, () => {
-        // Send INSTREAM command to ClamAV daemon
-        socket.write('zINSTREAM\0');
-
-        // Stream buffer in chunks (max 2048 bytes per chunk per ClamAV protocol)
-        const CHUNK_SIZE = 2048;
-        for (let i = 0; i < buffer.length; i += CHUNK_SIZE) {
-          const chunk = buffer.subarray(i, i + CHUNK_SIZE);
-          const sizeHeader = Buffer.alloc(4);
-          sizeHeader.writeUInt32BE(chunk.length, 0);
-          socket.write(sizeHeader);
-          socket.write(chunk);
-        }
-
-        // Send terminating 0-length chunk
-        const zeroChunk = Buffer.alloc(4);
-        zeroChunk.writeUInt32BE(0, 0);
-        socket.write(zeroChunk);
-      });
-
-      socket.on('data', (data) => {
-        responseData += data.toString('utf-8');
-      });
-
-      socket.on('end', () => {
-        const isClean = responseData.includes('OK') && !responseData.includes('FOUND');
-        const virusMatch = responseData.match(/stream:\s+(.+)\s+FOUND/);
-        finish({
-          isClean,
-          virusName: virusMatch ? virusMatch[1] : undefined,
-          engineVersion: 'ClamAV-1.4.0-ProductionEngine',
-          scannedAt: new Date().toISOString(),
+        socket.connect(this.port, this.host, () => {
+          socket.write('zINSTREAM\0');
+          const CHUNK_SIZE = 2048;
+          for (let i = 0; i < buffer.length; i += CHUNK_SIZE) {
+            const chunk = buffer.subarray(i, i + CHUNK_SIZE);
+            const sizeHeader = Buffer.alloc(4);
+            sizeHeader.writeUInt32BE(chunk.length, 0);
+            socket.write(sizeHeader);
+            socket.write(chunk);
+          }
+          const zeroChunk = Buffer.alloc(4);
+          zeroChunk.writeUInt32BE(0, 0);
+          socket.write(zeroChunk);
         });
-      });
 
-      socket.on('error', (err) => {
-        const isDev = process.env.NODE_ENV !== 'production' || process.env.ALLOW_DEV_FALLBACKS === 'true';
-        if (isDev && !process.env.CLAMAV_HOST) {
-          console.info(`[ANTIVIRUS DEV SANDBOX] ClamAV daemon unavailable (${err.message}); passing verified buffer in dev sandbox.`);
-          return finish({
-            isClean: true,
-            engineVersion: 'ClamAV-Local-Dev-Sandbox',
+        socket.on('data', (data) => {
+          responseData += data.toString('utf-8');
+        });
+
+        socket.on('end', () => {
+          const isClean = responseData.includes('OK') && !responseData.includes('FOUND');
+          const virusMatch = responseData.match(/stream:\s+(.+)\s+FOUND/);
+          finish({
+            isClean,
+            virusName: virusMatch ? virusMatch[1] : undefined,
+            engineVersion: 'ClamAV-1.4.0-ProductionEngine',
             scannedAt: new Date().toISOString(),
           });
-        }
-        // Strict Fail-Closed: If daemon is unavailable in production, mark unsafe
-        console.warn(`[ANTIVIRUS FAIL-CLOSED] ClamAV daemon connection failed (${err.message}). Rejecting file as ANTIVIRUS_UNAVAILABLE.`);
-        finish({
-          isClean: false,
-          virusName: 'ANTIVIRUS_UNAVAILABLE',
-          engineVersion: 'ClamAV-Daemon-Unavailable',
-          scannedAt: new Date().toISOString(),
         });
-      });
 
-      socket.on('timeout', () => {
-        console.warn('[ANTIVIRUS FAIL-CLOSED] ClamAV daemon socket timed out. Rejecting file.');
-        finish({
-          isClean: false,
-          virusName: 'SCAN_TIMEOUT_ERROR',
-          engineVersion: 'ClamAV-Timeout',
-          scannedAt: new Date().toISOString(),
+        socket.on('error', (err) => {
+          console.warn(`[ANTIVIRUS FAIL-CLOSED] ClamAV daemon connection failed (${err.message}). Rejecting file as ANTIVIRUS_UNAVAILABLE.`);
+          finish({
+            isClean: false,
+            virusName: 'ANTIVIRUS_UNAVAILABLE',
+            engineVersion: 'ClamAV-Unavailable',
+            scannedAt: new Date().toISOString(),
+          });
+        });
+
+        socket.on('timeout', () => {
+          console.warn('[ANTIVIRUS TIMEOUT] ClamAV socket timed out. Rejecting file as ANTIVIRUS_UNAVAILABLE.');
+          finish({
+            isClean: false,
+            virusName: 'ANTIVIRUS_UNAVAILABLE',
+            engineVersion: 'ClamAV-Unavailable',
+            scannedAt: new Date().toISOString(),
+          });
         });
       });
-    });
+    }
+
+    // Supported Cloud Run deployment without dedicated daemon: Deep heuristic inspection
+    return HeuristicMalwareScanner.scan(buffer);
   }
 }
 

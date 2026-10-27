@@ -112,10 +112,31 @@ export async function safeParseJson<T = any>(res: Response): Promise<ApiResponse
   }
 }
 
-function getCsrfTokenFromCookie(): string | null {
+export function getCsrfTokenFromCookie(): string | null {
   if (typeof document === 'undefined') return null;
   const match = document.cookie.match(/(?:^|;\s*)sellmyghar_csrf=([^;]+)/);
   return match ? decodeURIComponent(match[1]) : null;
+}
+
+/**
+ * Native fetch wrapper with automatic CSRF token injection and credentials inclusion
+ * for state-changing requests.
+ */
+export async function safeFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const headers = new Headers(init?.headers || {});
+  const method = (init?.method || 'GET').toUpperCase();
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    const csrf = getCsrfTokenFromCookie();
+    if (csrf && !headers.has('X-CSRF-Token')) {
+      headers.set('X-CSRF-Token', csrf);
+    }
+  }
+
+  return fetch(input, {
+    credentials: 'include',
+    ...init,
+    headers,
+  });
 }
 
 /**
@@ -123,20 +144,7 @@ function getCsrfTokenFromCookie(): string | null {
  */
 export async function safeFetchJson<T = any>(input: RequestInfo | URL, init?: RequestInit): Promise<ApiResponse<T>> {
   try {
-    const headers = new Headers(init?.headers || {});
-    const method = (init?.method || 'GET').toUpperCase();
-    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
-      const csrf = getCsrfTokenFromCookie();
-      if (csrf && !headers.has('X-CSRF-Token')) {
-        headers.set('X-CSRF-Token', csrf);
-      }
-    }
-
-    const res = await fetch(input, {
-      credentials: 'include',
-      ...init,
-      headers,
-    });
+    const res = await safeFetch(input, init);
     return await safeParseJson<T>(res);
   } catch (networkErr: any) {
     return {

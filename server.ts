@@ -66,11 +66,24 @@ export { getDistinctCommunityPhoto };
 import { PropertySuggestionsService } from './src/server/inventory/property-suggestions-service';
 
 const app = express();
+app.disable('x-powered-by');
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const isProd = process.env.NODE_ENV === 'production';
 
-// Trust reverse proxy (Google Cloud Run / Cloudflare Load Balancer)
-app.set('trust proxy', 1);
+// Trust reverse proxy for Google Cloud Load Balancer (GFE) + Cloud Run Serverless NEG
+// Only loopback, link-local (169.254.0.0/16), and RFC 1918 private subnets are trusted proxy hops.
+app.set('trust proxy', (ip: string) => {
+  if (!ip) return false;
+  return (
+    ip === '127.0.0.1' ||
+    ip === '::1' ||
+    ip === '::ffff:127.0.0.1' ||
+    /^169\.254\./.test(ip) || // Google Cloud link-local metadata & proxies
+    /^10\./.test(ip) ||       // RFC 1918 private network (Cloud Run ingress / VPC)
+    /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(ip) ||
+    /^192\.168\./.test(ip)
+  );
+});
 
 // ====================================================================
 // 1. SECURITY HEADERS, CORS, COOKIE PARSER & ANTI-CSRF DEFENSE
@@ -148,15 +161,20 @@ export function getTrustedAppOrigin(req: Request): string {
 }
 
 /**
- * Safely extracts client IP address preventing X-Forwarded-For spoofing.
- * Prioritizes Cloudflare CF-Connecting-IP, then Express req.ip (via trusted proxy),
- * with fallback to socket remote address.
+ * Safely extracts client IP address preventing header spoofing.
+ * Prioritizes Express req.ip (evaluated via trusted reverse proxy boundaries for Google Cloud Load Balancer / GFE).
+ * CF-Connecting-IP is ONLY trusted if explicit Cloudflare origin shield verification succeeds.
  */
 export function getClientIp(req: Request): string {
-  // 1. Cloudflare edge header (cannot be spoofed from outside Cloudflare in production)
-  const cfIp = req.headers['cf-connecting-ip'];
-  if (typeof cfIp === 'string' && cfIp.trim()) {
-    return cfIp.trim();
+  // 1. If explicit Cloudflare origin shield is active and verified, honor CF-Connecting-IP
+  if (process.env.CLOUDFLARE_ENABLED === 'true' && process.env.CLOUDFLARE_ORIGIN_SECRET) {
+    const originSecret = req.headers['x-cf-secret'] || req.headers['x-origin-secret'];
+    if (originSecret && originSecret === process.env.CLOUDFLARE_ORIGIN_SECRET) {
+      const cfIp = req.headers['cf-connecting-ip'];
+      if (typeof cfIp === 'string' && cfIp.trim()) {
+        return cfIp.trim();
+      }
+    }
   }
 
   // 2. Express req.ip (when trust proxy is configured, parses reverse-proxy hops safely)
@@ -164,15 +182,7 @@ export function getClientIp(req: Request): string {
     return req.ip;
   }
 
-  // 3. X-Forwarded-For fallback
-  const forwarded = req.headers['x-forwarded-for'];
-  if (typeof forwarded === 'string' && forwarded.trim()) {
-    const ips = forwarded.split(',').map((s) => s.trim()).filter(Boolean);
-    if (ips.length > 0) {
-      return ips[0];
-    }
-  }
-
+  // 3. Fallback to socket remote address
   return req.socket?.remoteAddress || '127.0.0.1';
 }
 
@@ -828,7 +838,7 @@ app.get(['/api/health', '/health', '/healthz'], (_req, res) => {
 
 // API: Staff Login (Verifies scrypt password hash, enforces account lockout; issues HTTP-only cookie)
 app.post('/api/auth/login', jsonDefault, rateLimit('auth-login', 10, 900), async (req, res) => {
-  const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+  const clientIp = getClientIp(req);
   try {
     const { email, password } = req.body;
     if (!email || !password) {
@@ -1022,7 +1032,7 @@ app.post('/api/auth/login', jsonDefault, rateLimit('auth-login', 10, 900), async
 
 // 1. Request Password Reset Link (Generic response prevents email enumeration)
 app.post('/api/auth/forgot-password', jsonDefault, rateLimit('auth-forgot-pw', 5, 900), async (req: Request, res: Response) => {
-  const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+  const clientIp = getClientIp(req);
   try {
     const { email } = req.body;
     if (!email || typeof email !== 'string' || !email.includes('@')) {
@@ -1091,7 +1101,7 @@ app.get('/api/auth/verify-reset-token', jsonDefault, async (req: Request, res: R
 
 // 3. Confirm New Password
 app.post('/api/auth/reset-password', jsonDefault, rateLimit('auth-reset-pw', 5, 900), async (req: Request, res: Response) => {
-  const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+  const clientIp = getClientIp(req);
   try {
     const { token, newPassword } = req.body;
     if (!token || typeof token !== 'string') {
@@ -1143,7 +1153,7 @@ app.post('/api/auth/otp/request', jsonDefault, rateLimit('otp-req', 10, 900), as
       return res.status(400).json({ success: false, error: 'Valid 10-digit Indian mobile number is required.' });
     }
 
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    const clientIp = getClientIp(req);
     const otpRes = await OtpService.requestOtp(`+91${cleanPhone}`, clientIp, channel);
     const isDev = process.env.NODE_ENV !== 'production' && process.env.ALLOW_DEV_FALLBACKS === 'true';
     const devCode = isDev ? getLastDevOtp(`+91${cleanPhone}`) : undefined;
@@ -1169,7 +1179,7 @@ app.post('/api/auth/otp/verify', jsonDefault, rateLimit('otp-verify', 10, 900), 
       return res.status(400).json({ success: false, error: 'OTP code is required.' });
     }
 
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    const clientIp = getClientIp(req);
     const normalizedPhone = `+91${cleanPhone}`;
 
     const { authenticatedUser, userRecord, isNewUser } = await OtpService.verifyOtp(
@@ -1828,7 +1838,7 @@ app.post('/api/contact', jsonDefault, rateLimit('contact-submit', 5, 900), async
     }
     const message = rawMessage;
     const normalizedPhone = `+91${cleanPhone}`;
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    const clientIp = getClientIp(req);
 
 
     const consentId = `cst-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
@@ -1922,7 +1932,7 @@ app.post('/api/leads', jsonDefault, rateLimit('leads-submit', 5, 900), async (re
     const validBhk = allowedBhks.includes(bhkType) ? bhkType : '3BHK';
     const isSeller = intent === 'SELL' || intent === 'SELLER';
     const normalizedPhone = `+91${cleanPhone}`;
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    const clientIp = getClientIp(req);
 
     const randomNum = Math.floor(1000 + Math.random() * 9000);
     const referenceId = `SMG-${new Date().getFullYear()}-${randomNum}`;
@@ -2108,30 +2118,57 @@ const SAMPLE_SOCIETIES = [
 ];
 
 
-// API: Verified Listings (Sanitized public projection)
-app.get('/api/listings', async (_req, res) => {
+// API: Verified Listings (Sanitized public projection with bounded pagination and rate limiting)
+app.get('/api/listings', rateLimit('listings-browse', 120, 60), async (req: Request, res: Response) => {
   try {
+    const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit as string, 10) || 48));
+    const offset = (page - 1) * limit;
+
+    let totalCount = 0;
+    try {
+      const countRes = await executeQuery<{ total: string }>(`
+        SELECT COUNT(*)::text as total
+        FROM properties
+        WHERE COALESCE(listing_status, 'PUBLISHED') = 'PUBLISHED'
+          AND COALESCE(crm_status, 'NEW') NOT IN ('LOST', 'DROPPED');
+      `);
+      totalCount = parseInt(countRes.rows?.[0]?.total || '0', 10);
+    } catch {
+      totalCount = 0;
+    }
+
     const dbResult = await executeQuery(`
       SELECT 
-        id, 
-        project_locality_id,
-        unit_floor, 
-        total_floors, 
-        bhk_type, 
-        super_built_up_sqft, 
-        carpet_area_sqft, 
-        facing, 
-        bathrooms_count, 
-        car_parks_count, 
-        asking_price_inr, 
-        verification_tier,
-        internal_verification_notes,
-        created_at
-      FROM properties
-      WHERE COALESCE(listing_status, 'PUBLISHED') = 'PUBLISHED'
-        AND COALESCE(crm_status, 'NEW') NOT IN ('LOST', 'DROPPED')
-      ORDER BY created_at DESC;
-    `);
+        p.id, 
+        p.project_locality_id,
+        p.unit_floor, 
+        p.total_floors, 
+        p.bhk_type, 
+        p.super_built_up_sqft, 
+        p.carpet_area_sqft, 
+        p.facing, 
+        p.bathrooms_count, 
+        p.car_parks_count, 
+        p.asking_price_inr, 
+        p.verification_tier,
+        p.internal_verification_notes,
+        p.created_at,
+        pm.url as media_image
+      FROM properties p
+      LEFT JOIN LATERAL (
+        SELECT url FROM property_media 
+        WHERE property_id = p.id 
+          AND COALESCE(quarantine_status, 'CLEAN') != 'QUARANTINED'
+          AND COALESCE(is_published, true) = true
+        ORDER BY is_featured DESC, created_at ASC 
+        LIMIT 1
+      ) pm ON true
+      WHERE COALESCE(p.listing_status, 'PUBLISHED') = 'PUBLISHED'
+        AND COALESCE(p.crm_status, 'NEW') NOT IN ('LOST', 'DROPPED')
+      ORDER BY p.created_at DESC
+      LIMIT $1 OFFSET $2;
+    `, [limit, offset]);
 
     const listings = await Promise.all(dbResult.rows.map(async (row: any) => {
       // Deterministic society mapping based on property ID so images never dynamically swap when listings are added/removed
@@ -2156,19 +2193,11 @@ app.get('/api/listings', async (_req, res) => {
         notes = {};
       }
 
-      let mediaImage: string | null = null;
-      try {
-        const mediaRes = await executeQuery(`SELECT url FROM property_media WHERE property_id = $1 ORDER BY is_featured DESC, created_at ASC LIMIT 1;`, [row.id]);
-        if (mediaRes.rows && mediaRes.rows.length > 0) {
-          mediaImage = mediaRes.rows[0].url;
-        }
-      } catch {}
-
-      const userPhoto = (mediaImage && typeof mediaImage === 'string' && mediaImage.trim())
-        ? mediaImage.trim()
-        : (Array.isArray(notes.photos) && notes.photos.length > 0 && typeof notes.photos[0] === 'string')
-        ? notes.photos[0].trim()
+      const mediaImage = (row.media_image && typeof row.media_image === 'string' && row.media_image.trim())
+        ? row.media_image.trim()
         : null;
+
+      const userPhoto = mediaImage || (Array.isArray(notes.photos) && notes.photos.length > 0 && typeof notes.photos[0] === 'string' ? notes.photos[0].trim() : null);
 
       const projectName = (notes.societyName && notes.societyName.trim())
         ? notes.societyName.trim()
@@ -2212,7 +2241,7 @@ app.get('/api/listings', async (_req, res) => {
       };
     }));
 
-    if (listings.length < 4) {
+    if (listings.length < 4 && page === 1) {
       SAMPLE_SOCIETIES.forEach((soc, i) => {
         if (listings.length < 6) {
           const bhk = i % 2 === 0 ? '3BHK' : '2BHK';
@@ -2242,7 +2271,17 @@ app.get('/api/listings', async (_req, res) => {
       });
     }
 
-    return res.json({ listings });
+    const effectiveTotal = Math.max(totalCount, listings.length);
+    return res.json({ 
+      listings,
+      pagination: {
+        page,
+        limit,
+        total: effectiveTotal,
+        totalPages: Math.max(1, Math.ceil(effectiveTotal / limit)),
+        hasMore: offset + listings.length < effectiveTotal,
+      }
+    });
   } catch (err: any) {
     console.error('[Listings] Error retrieving properties:', err);
     return res.status(500).json({ error: 'Failed to fetch listings' });
@@ -2699,7 +2738,7 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
       });
     }
 
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    const clientIp = getClientIp(req);
 
     // Idempotency guard: prevent duplicate property creation on retry or network replay
     const idempotencyKey = String(req.headers['x-idempotency-key'] || req.body.idempotencyKey || '').trim();
@@ -3150,10 +3189,7 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
     });
   } catch (err: any) {
     console.error('[PostProperty] Error saving property to DB:', err?.message || err, err?.detail || '', err?.constraint || '', err?.table || '');
-    const cleanDetail = err?.detail || err?.message || '';
-    const safeErrorMsg = (Boolean(process.env.RUNNING_TESTS) || !cleanDetail)
-      ? 'Database error saving property. Please try again.'
-      : `Database error saving property: ${cleanDetail.replace(/password[^\s]*/gi, '***')}. Please try again.`;
+    const safeErrorMsg = 'Database error saving property. Please try again.';
     return res.status(500).json({ error: safeErrorMsg });
   }
 });
@@ -4339,8 +4375,8 @@ app.get('/api/careers/positions', async (_req: Request, res: Response) => {
   }
 });
 
-// 2. Submit Candidate Job Application (Public - Dispatches to Talent Inbox sellmyghar1@gmail.com)
-app.post('/api/careers/apply', jsonDefault, async (req: Request, res: Response) => {
+// 2. Submit Candidate Job Application (Public - Dispatches to Talent Inbox sellmyghar1@gmail.com, Rate-Limited)
+app.post('/api/careers/apply', jsonDefault, rateLimit('careers-apply', 5, 900), async (req: Request, res: Response) => {
   res.setHeader('Content-Type', 'application/json');
   try {
     const { position_id, position_title, applicant_name, email, phone, experience_years, resume_url, cover_note } = req.body || {};
@@ -4616,7 +4652,7 @@ app.post('/api/compliance/withdraw-consent', jsonDefault, rateLimit('consent-wit
       }
     }
 
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    const clientIp = getClientIp(req);
 
     // Strictly enforce callerUser.phone (ignore client-supplied req.body.phone to prevent consent spoofing)
     const withdrawRes = await SellerWorkflowService.withdrawConsent(callerUser, String(purpose).trim(), clientIp);
@@ -4895,7 +4931,7 @@ app.get('/api/crm/leads/check-duplicate', authenticateUser, requireStaffMember, 
 
 // API: Manual Lead Entry (Protected: requirePermissionMiddleware('leads:create'))
 app.post('/api/crm/leads', jsonDefault, authenticateUser, requirePermissionMiddleware('leads:create'), async (req: Request, res: Response) => {
-  const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+  const clientIp = getClientIp(req);
   try {
     const {
       fullName,
@@ -5186,7 +5222,7 @@ const updateLeadStatusHandler = async (req: Request, res: Response) => {
       });
     }
 
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    const clientIp = getClientIp(req);
 
     // 1. Try seller_leads first
     const sellerCheck = await executeQuery(`SELECT * FROM seller_leads WHERE id = $1 LIMIT 1;`, [id]);
@@ -5333,7 +5369,7 @@ const assignLeadHandler = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'STAFF_ROLE_REQUIRED', message: 'Assigned relationship manager must possess an operational staff role.' });
     }
 
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    const clientIp = getClientIp(req);
 
     let isSeller = true;
     let sellerCheck = await executeQuery(`SELECT * FROM seller_leads WHERE id = $1 LIMIT 1;`, [id]);
@@ -5430,7 +5466,7 @@ const followUpHandler = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'Valid nextFollowUpAt ISO date string is required.' });
     }
 
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    const clientIp = getClientIp(req);
 
     let isSeller = true;
     let sellerCheck = await executeQuery(`SELECT * FROM seller_leads WHERE id = $1 LIMIT 1;`, [id]);
@@ -5519,7 +5555,7 @@ app.post('/api/crm/leads/:id/notes', jsonDefault, authenticateUser, async (req: 
       return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff permission required to add notes.' });
     }
 
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    const clientIp = getClientIp(req);
     const timestampedNote = `[${new Date().toISOString()} - ${req.user!.email || req.user!.uid}]: ${note.trim()}`;
 
     let isSeller = true;
@@ -5740,7 +5776,7 @@ const updateDocStatusHandler = async (req: Request, res: Response) => {
       }
     }
 
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    const clientIp = getClientIp(req);
 
     await recordAuditEvent({
       actor: req.user!,
@@ -5959,7 +5995,7 @@ app.post('/api/crm/visits', jsonDefault, authenticateUser, requireModule('VISITS
       `, [resolvedLeadId]);
     }
 
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    const clientIp = getClientIp(req);
     await recordAuditEvent({
       actor: req.user!,
       action: 'VISIT_SCHEDULED',
@@ -6052,7 +6088,7 @@ app.patch('/api/crm/visits/:id/status', jsonDefault, authenticateUser, requireMo
       `, [targetStatus, notes || null, id]);
     }
 
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    const clientIp = getClientIp(req);
     await recordAuditEvent({
       actor: req.user!,
       action: 'VISIT_STATUS_CHANGED',
@@ -6127,7 +6163,7 @@ app.post('/api/crm/visits/:id/whatsapp-reminder', jsonDefault, authenticateUser,
       });
     }
 
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    const clientIp = getClientIp(req);
     const isWhatsAppConfigured = Boolean(process.env.WHATSAPP_API_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID);
 
     if (!isWhatsAppConfigured) {
@@ -6298,7 +6334,7 @@ app.post('/api/crm/offers', jsonDefault, authenticateUser, requireModule('OFFERS
       `, [resolvedLeadId]);
     }
 
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    const clientIp = getClientIp(req);
     await recordAuditEvent({
       actor: req.user!,
       action: 'OFFER_RECORDED',
@@ -6361,7 +6397,7 @@ app.patch('/api/crm/offers/:id/status', jsonDefault, authenticateUser, requireMo
       await executeQuery(`UPDATE seller_leads SET lead_status = 'CONVERTED', updated_at = NOW() WHERE id = $1;`, [existing.lead_id]);
     }
 
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    const clientIp = getClientIp(req);
     await recordAuditEvent({
       actor: req.user!,
       action: 'OFFER_STATUS_CHANGED',
@@ -6910,7 +6946,7 @@ app.post('/api/crm/users', jsonDefault, authenticateUser, requireStaffMember, as
       VALUES ($1, $2, $3, $4, $5, ARRAY[$6]::varchar[], $7::text[], true, 1, NOW(), NOW());
     `, [newUserId, cleanPhone, normalizedEmail, fullName.trim(), passHash, userRole, assignedModules]);
 
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    const clientIp = getClientIp(req);
     await recordAuditEvent({
       actor: req.user!,
       action: 'STAFF_USER_CREATED',
@@ -7038,7 +7074,7 @@ app.patch('/api/crm/users/:id', jsonDefault, authenticateUser, requireStaffMembe
       `, [newRoles, newModules, newIsActive, newDisplayName, newPhone, id]);
     }
 
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    const clientIp = getClientIp(req);
     await recordAuditEvent({
       actor: req.user!,
       action: 'STAFF_USER_UPDATED',
@@ -7128,7 +7164,7 @@ app.delete('/api/crm/users/:id', jsonDefault, authenticateUser, requireStaffMemb
     }
     await executeQuery(`DELETE FROM users WHERE id = $1;`, [id]);
 
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    const clientIp = getClientIp(req);
     await recordAuditEvent({
       actor: req.user!,
       action: 'STAFF_USER_DELETED',
@@ -7197,7 +7233,7 @@ app.patch('/api/crm/users/:id/role', jsonDefault, authenticateUser, async (req: 
       UPDATE users SET roles = ARRAY[$1]::varchar[], module_permissions = $2::text[], updated_at = NOW() WHERE id = $3;
     `, [role, newModules, id]);
 
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    const clientIp = getClientIp(req);
     await recordAuditEvent({
       actor: req.user!,
       action: 'STAFF_ROLE_CHANGED',
@@ -7220,7 +7256,7 @@ app.patch('/api/crm/users/:id/role', jsonDefault, authenticateUser, async (req: 
 
 // 11g. CRM Staff Self-Service Password Change (Requires current password verification & revokes prior sessions)
 app.post('/api/crm/auth/change-password', jsonDefault, rateLimit('staff-pw-change', 10, 900), authenticateUser, async (req: Request, res: Response) => {
-  const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+  const clientIp = getClientIp(req);
   try {
     const isStaff = req.user?.roles?.some(r => r.startsWith('STAFF_'));
     if (!isStaff) {
@@ -7311,7 +7347,7 @@ app.post('/api/crm/auth/change-password', jsonDefault, rateLimit('staff-pw-chang
 
 // 11h. Super Admin: Forced Staff Password Reset (Requires STAFF_SUPER_ADMIN, revokes target sessions & audits)
 app.post('/api/crm/users/:id/reset-password', jsonDefault, rateLimit('admin-pw-reset', 10, 900), authenticateUser, async (req: Request, res: Response) => {
-  const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+  const clientIp = getClientIp(req);
   try {
     const isSuperAdmin = req.user?.roles?.includes('STAFF_SUPER_ADMIN');
     if (!isSuperAdmin) {
@@ -8128,7 +8164,7 @@ app.post(
     const propertyId = `prop-crm-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
     const finalProjectLocality = projectName && locality ? `${projectName}, ${locality}` : (req.body.project_locality_id || 'Sobha Dream Acres, Panathur');
     const finalOwnerId = ownerId || req.user!.uid;
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    const clientIp = getClientIp(req);
 
     const insertRes = await executeQuery(`
       INSERT INTO properties (
@@ -8214,7 +8250,7 @@ const updatePropertyHandler = async (req: Request, res: Response) => {
     }
 
     const { id } = req.params;
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    const clientIp = getClientIp(req);
 
     const existingCheck = await executeQuery(`SELECT * FROM properties WHERE id = $1 LIMIT 1;`, [id]);
     if (!existingCheck.rows || existingCheck.rows.length === 0) {
@@ -8459,7 +8495,7 @@ app.post(
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
-      const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+      const clientIp = getClientIp(req);
 
       const existingCheck = await executeQuery(`SELECT * FROM properties WHERE id = $1 LIMIT 1;`, [id]);
       if (!existingCheck.rows || existingCheck.rows.length === 0) {
@@ -8566,7 +8602,7 @@ const updatePropertyStatusHandler = async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'STATUS_REQUIRED', message: 'Target status is required.' });
     }
 
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    const clientIp = getClientIp(req);
 
     const existingCheck = await executeQuery(`SELECT * FROM properties WHERE id = $1 LIMIT 1;`, [id]);
     if (!existingCheck.rows || existingCheck.rows.length === 0) {
@@ -8758,7 +8794,7 @@ app.post(
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    const clientIp = getClientIp(req);
 
     // Optional incoming body payload to auto-save edits before publishing
     if (req.body && typeof req.body === 'object') {
@@ -8844,12 +8880,12 @@ app.post(
     const updateRes = await executeQuery(`
       UPDATE properties
       SET listing_status = 'PUBLISHED', 
-          title = COALESCE(title, $2),
-          description = COALESCE(description, $3), 
+          title = COALESCE(title, $1),
+          description = COALESCE(description, $2), 
           updated_at = NOW()
-      WHERE id = $1
+      WHERE id = $3
       RETURNING *;
-    `, [id, property.title || null, property.description]);
+    `, [property.title || null, property.description, id]);
 
     // Verify published persistence & accessibility
     const verifiedCheck = await executeQuery(`SELECT id, listing_status FROM properties WHERE id = $1 AND listing_status = 'PUBLISHED' LIMIT 1;`, [id]);
@@ -8902,7 +8938,7 @@ app.post(
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
-      const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+      const clientIp = getClientIp(req);
 
       const propRes = await executeQuery(`SELECT * FROM properties WHERE id = $1 LIMIT 1;`, [id]);
       if (!propRes.rows || propRes.rows.length === 0) {
@@ -8958,7 +8994,7 @@ app.post(
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
-      const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+      const clientIp = getClientIp(req);
 
       const propRes = await executeQuery(`SELECT * FROM properties WHERE id = $1 LIMIT 1;`, [id]);
       if (!propRes.rows || propRes.rows.length === 0) {
@@ -9014,7 +9050,7 @@ app.post(
   async (req: Request, res: Response) => {
     try {
       const { id } = req.params;
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    const clientIp = getClientIp(req);
 
     const propRes = await executeQuery(`SELECT * FROM properties WHERE id = $1 LIMIT 1;`, [id]);
     if (!propRes.rows || propRes.rows.length === 0) {
@@ -9444,7 +9480,7 @@ app.post(
     try {
       const { id } = req.params;
       const { url, fileName, fileBase64, isFeatured = false, title } = req.body;
-      const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+      const clientIp = getClientIp(req);
 
       // Verify target property exists
       const propCheck = await executeQuery(`SELECT id FROM properties WHERE id = $1 LIMIT 1;`, [id]);
@@ -9727,7 +9763,7 @@ app.delete(
   async (req: Request, res: Response) => {
     try {
       const { id, imageId } = req.params;
-      const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+      const clientIp = getClientIp(req);
 
       await executeQuery(`DELETE FROM property_media WHERE id = $1;`, [imageId]);
 
@@ -9786,7 +9822,7 @@ app.post(
   async (req: Request, res: Response) => {
     try {
       const { id, imageId } = req.params;
-      const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+      const clientIp = getClientIp(req);
 
       await executeQuery(`UPDATE property_media SET is_featured = false WHERE property_id = $1;`, [id]);
       await executeQuery(`UPDATE property_media SET is_featured = true WHERE id = $1 AND property_id = $2;`, [imageId, id]);
@@ -9821,7 +9857,7 @@ app.post(
     try {
       const { id } = req.params;
       const { imageIds } = req.body;
-      const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+      const clientIp = getClientIp(req);
 
       if (!Array.isArray(imageIds)) {
         return res.status(400).json({ error: 'INVALID_PAYLOAD', message: 'imageIds must be an array of media IDs.' });
@@ -9899,7 +9935,7 @@ app.post('/api/compliance/erasure-request', jsonDefault, rateLimit('erasure-requ
       return res.status(400).json({ error: 'Valid reason is required to submit a statutory data erasure request.' });
     }
 
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    const clientIp = getClientIp(req);
     const result = await ErasureService.requestErasure(req.user!, reason.trim(), clientIp);
 
     return res.status(201).json({
@@ -9939,7 +9975,7 @@ app.get('/api/compliance/erasure-requests', authenticateUser, requireRole('STAFF
 app.post('/api/compliance/erasure-requests/:id/execute', jsonDefault, authenticateUser, requireRole('STAFF_SUPER_ADMIN'), async (req, res) => {
   try {
     const { id } = req.params;
-    const clientIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '127.0.0.1';
+    const clientIp = getClientIp(req);
 
     const result = await ErasureService.executeErasureRequest(req.user!, id, clientIp);
     return res.json({

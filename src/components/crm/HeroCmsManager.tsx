@@ -7,11 +7,11 @@ import {
   ArrowDown, 
   Download, 
   CheckCircle, 
-  XCircle, 
-  RefreshCw, 
+  RefreshCw,
   Upload,
   AlertCircle
 } from 'lucide-react';
+import { safeFetch } from '../../utils/safeApi';
 
 export interface HeroSlide {
   id: string;
@@ -95,7 +95,7 @@ export const HeroCmsManager: React.FC = () => {
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch('/api/cms/hero-slides', {
+      const res = await safeFetch('/api/cms/hero-slides', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -130,7 +130,7 @@ export const HeroCmsManager: React.FC = () => {
 
   const handleToggleActive = async (slide: HeroSlide) => {
     try {
-      const res = await fetch(`/api/cms/hero-slides/${slide.id}`, {
+      const res = await safeFetch(`/api/cms/hero-slides/${slide.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ is_active: !slide.is_active }),
@@ -146,7 +146,7 @@ export const HeroCmsManager: React.FC = () => {
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to remove this hero banner slide?')) return;
     try {
-      const res = await fetch(`/api/cms/hero-slides/${id}`, { method: 'DELETE' });
+      const res = await safeFetch(`/api/cms/hero-slides/${id}`, { method: 'DELETE' });
       if (res.ok) {
         fetchSlides();
       }
@@ -167,7 +167,7 @@ export const HeroCmsManager: React.FC = () => {
     setSlides(newSlides);
 
     try {
-      await fetch('/api/cms/hero-slides/reorder', {
+      await safeFetch('/api/cms/hero-slides/reorder', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ordered_ids: newSlides.map((s) => s.id) }),

@@ -50,6 +50,7 @@ import {
   sanitizeDescription 
 } from '../../utils/formSanitizer';
 import { trackFunnelStep, trackFunnelCompleted } from '../../utils/analytics';
+import { safeFetch } from '../../utils/safeApi';
 
 export type PropertyKind = 'Flat / Apartment' | 'Gated Community Villa';
 export type FurnishingStatus = 'Furnished' | 'Semi-furnished' | 'Unfurnished';
@@ -639,7 +640,7 @@ export function SellerFunnel({
         }
       }
 
-      const propRes = await fetch('/api/properties', {
+      const propRes = await safeFetch('/api/properties', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

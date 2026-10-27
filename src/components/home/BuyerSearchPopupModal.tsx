@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Search, MapPin, IndianRupee, Phone, User, CheckCircle2, ArrowRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { BENGALURU_LOCALITIES } from '../../data/bengaluruData';
+import { safeFetch } from '../../utils/safeApi';
 
 interface BuyerSearchPopupModalProps {
   isOpen: boolean;
@@ -46,7 +47,7 @@ export const BuyerSearchPopupModal: React.FC<BuyerSearchPopupModalProps> = ({
 
     setIsSubmitting(true);
     try {
-      const res = await fetch('/api/leads', {
+      const res = await safeFetch('/api/leads', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -27,6 +27,7 @@ import {
 import { PropertyListingStatus, CrmProperty } from './CrmDashboard';
 import { StaffRole } from '../../core/types/auth';
 import { getDistinctCommunityPhoto } from '../../utils/propertyImages';
+import { safeFetch } from '../../utils/safeApi';
 
 interface PropertyEditorProps {
   property: CrmProperty | null;
@@ -245,7 +246,7 @@ export function PropertyEditor({
 
   const crmFetch = async (url: string, init?: RequestInit): Promise<Response> => {
     const headers = getCrmHeaders(init?.headers as Record<string, string> || {});
-    return fetch(url, {
+    return safeFetch(url, {
       ...init,
       headers,
       credentials: 'include',

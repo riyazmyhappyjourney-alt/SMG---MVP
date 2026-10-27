@@ -67,6 +67,7 @@ import { PropertySuggestionsManager } from './PropertySuggestionsManager';
 import { CareerCmsManager } from './CareerCmsManager';
 import { ManualLeadModal } from './ManualLeadModal';
 import { DateTimePicker } from '../common/DateTimePicker';
+import { getCsrfTokenFromCookie } from '../../utils/safeApi';
 import {
   formatIndianCurrency,
   formatIndianNumberFull,
@@ -289,7 +290,15 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
     if (token && !headers.has('Authorization')) {
       headers.set('Authorization', `Bearer ${token}`);
     }
+    const method = (init?.method || 'GET').toUpperCase();
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+      const csrf = getCsrfTokenFromCookie();
+      if (csrf && !headers.has('X-CSRF-Token')) {
+        headers.set('X-CSRF-Token', csrf);
+      }
+    }
     return fetch(input, {
+      credentials: 'include',
       ...init,
       headers,
     });

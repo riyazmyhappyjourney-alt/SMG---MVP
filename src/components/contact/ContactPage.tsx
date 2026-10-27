@@ -16,6 +16,7 @@ import {
   FileCheck
 } from 'lucide-react';
 import { trackEnquirySubmitted } from '../../utils/analytics';
+import { safeFetch } from '../../utils/safeApi';
 
 interface ContactPageProps {
   onNavigate: (route: 'HOME' | 'CRM' | 'CONSENT' | 'SELLER_ASSISTED' | 'CONTACT') => void;
@@ -104,7 +105,7 @@ export const ContactPage: React.FC<ContactPageProps> = ({
         GENERAL: 'General Enquiry / Partnership'
       };
 
-      const res = await fetch('/api/contact', {
+      const res = await safeFetch('/api/contact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
