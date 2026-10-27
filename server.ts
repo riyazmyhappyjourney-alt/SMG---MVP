@@ -207,7 +207,9 @@ app.use((req, res, next) => {
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
   res.setHeader(
     'Content-Security-Policy',
-    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: blob:; connect-src 'self' https:; frame-ancestors 'none';"
+    isProd
+      ? "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: blob:; connect-src 'self' https:; frame-ancestors 'none';"
+      : "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: blob:; connect-src 'self' https: ws: wss:; frame-ancestors 'none';"
   );
   res.setHeader(
     'Permissions-Policy',
@@ -296,6 +298,11 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 
   // 1. Allow standard well-known verification paths (e.g., Let's Encrypt / PKI)
   if (trimmed.startsWith('/.well-known/')) {
+    return next();
+  }
+
+  // In development mode, permit Vite's internal dependency cache, virtual modules, and local filesystem imports
+  if (!isProd && (trimmed.includes('/.vite/') || trimmed.startsWith('/@vite') || trimmed.startsWith('/@react-refresh') || trimmed.startsWith('/@fs/') || trimmed.startsWith('/@id/'))) {
     return next();
   }
 
