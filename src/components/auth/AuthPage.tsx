@@ -11,6 +11,7 @@ interface AuthPageProps {
   onSuccess: (user: UserAuthProfile) => void;
   onBackToHome: () => void;
   showSplashOnInit?: boolean;
+  customerMobileLoginEnabled?: boolean;
 }
 
 type AuthStep = 'WELCOME' | 'PHONE' | 'OTP';
@@ -65,12 +66,37 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   onSuccess,
   onBackToHome,
   showSplashOnInit = false,
+  customerMobileLoginEnabled = false,
 }) => {
+  const [mobileLoginAllowed, setMobileLoginAllowed] = useState<boolean>(customerMobileLoginEnabled);
   const [step, setStep] = useState<AuthStep>('WELCOME');
   const [mode, setMode] = useState<'SIGNIN' | 'SIGNUP'>(initialMode);
   const [isSplash, setIsSplash] = useState(showSplashOnInit);
 
   const isPostProperty = intent === 'POST_PROPERTY';
+
+  // Synchronize mobile login availability from server public config
+  useEffect(() => {
+    if (customerMobileLoginEnabled) {
+      setMobileLoginAllowed(true);
+      return;
+    }
+    fetch('/api/auth/public-config')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((cfg) => {
+        if (cfg && typeof cfg.customerMobileLoginEnabled === 'boolean') {
+          setMobileLoginAllowed(cfg.customerMobileLoginEnabled);
+        }
+      })
+      .catch(() => {});
+  }, [customerMobileLoginEnabled]);
+
+  // If mobile login is disabled, strictly lock step to WELCOME
+  useEffect(() => {
+    if (!mobileLoginAllowed && step !== 'WELCOME') {
+      setStep('WELCOME');
+    }
+  }, [mobileLoginAllowed, step]);
 
   // Ensure intended destination is preserved across page refreshes and Google OAuth round-trips
   useEffect(() => {
@@ -345,12 +371,16 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                 {/* Headings */}
                 <div className="text-center mb-6">
                   <h1 className="text-2xl font-black text-[#172033] tracking-tight">
-                    {isPostProperty
-                      ? mode === 'SIGNUP'
-                        ? 'Create an Account to Post Your Property'
-                        : 'Login to Post Your Property'
-                      : mode === 'SIGNUP'
-                      ? 'Create an Account'
+                    {mobileLoginAllowed
+                      ? isPostProperty
+                        ? mode === 'SIGNUP'
+                          ? 'Create an Account to Post Your Property'
+                          : 'Login to Post Your Property'
+                        : mode === 'SIGNUP'
+                        ? 'Create an Account'
+                        : 'Welcome to SellMyGhar.in'
+                      : isPostProperty
+                      ? 'Sign in to Post Your Property'
                       : 'Welcome to SellMyGhar.in'}
                   </h1>
                   <p className="text-xs text-slate-500 font-medium mt-1.5 leading-relaxed">
@@ -369,31 +399,32 @@ export const AuthPage: React.FC<AuthPageProps> = ({
 
                 {/* Action Buttons */}
                 <div className="space-y-3">
-                  {/* Primary CTA: Continue with Phone Number */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setError(null);
-                      setStep('PHONE');
-                    }}
-                    className="w-full py-3.5 px-4 bg-[#172033] hover:bg-slate-800 active:bg-black text-white text-sm font-bold rounded-xl shadow-sm transition-all cursor-pointer flex items-center justify-center space-x-2.5"
-                  >
-                    <Phone className="w-4 h-4 text-white" />
-                    <span>Continue with Phone Number</span>
-                  </button>
+                  {mobileLoginAllowed && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setError(null);
+                        setStep('PHONE');
+                      }}
+                      className="w-full py-3.5 px-4 bg-[#172033] hover:bg-slate-800 active:bg-black text-white text-sm font-bold rounded-xl shadow-sm transition-all cursor-pointer flex items-center justify-center space-x-2.5"
+                    >
+                      <Phone className="w-4 h-4 text-white" />
+                      <span>Continue with Phone Number</span>
+                    </button>
+                  )}
 
-                  {/* Secondary Action: Continue with Google */}
+                  {/* Primary Action: Continue with Google */}
                   <button
                     type="button"
                     onClick={handleGoogleAuth}
                     disabled={loading}
-                    className="w-full py-3.5 px-4 bg-white hover:bg-slate-50 active:bg-slate-100 text-[#172033] text-sm font-bold rounded-xl border border-slate-200 shadow-xs transition-all cursor-pointer flex items-center justify-center space-x-2.5"
+                    className="w-full py-3.5 px-4 bg-white hover:bg-slate-50 active:bg-slate-100 text-[#172033] text-sm font-bold rounded-xl border border-slate-300 shadow-xs transition-all cursor-pointer flex items-center justify-center space-x-3 hover:border-slate-400"
                   >
                     {loading ? (
-                      <Loader2 className="w-4 h-4 animate-spin text-[#0073E6]" />
+                      <Loader2 className="w-5 h-5 animate-spin text-[#0073E6]" />
                     ) : (
                       <>
-                        <svg className="w-4 h-4" viewBox="0 0 24 24">
+                        <svg className="w-5 h-5" viewBox="0 0 24 24">
                           <path
                             fill="#4285F4"
                             d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.65v3.03h3.88c2.27-2.09 3.66-5.17 3.66-9.12z"
@@ -431,45 +462,52 @@ export const AuthPage: React.FC<AuthPageProps> = ({
                 </p>
               </div>
 
-              {/* Bottom Toggle between Sign In and Sign Up */}
-              <div className="border-t border-slate-100 pt-4 mt-6 text-center text-xs text-slate-600">
-                {mode === 'SIGNIN' ? (
-                  <span>
-                    Don't have an account?{' '}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMode('SIGNUP');
-                        setError(null);
-                      }}
-                      className="font-bold text-[#0073E6] hover:underline cursor-pointer ml-1"
-                    >
-                      {isPostProperty ? 'Sign up to Post Property' : 'Sign up'}
-                    </button>
-                  </span>
-                ) : (
-                  <span>
-                    Already have an account?{' '}
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMode('SIGNIN');
-                        setError(null);
-                      }}
-                      className="font-bold text-[#0073E6] hover:underline cursor-pointer ml-1"
-                    >
-                      Sign in
-                    </button>
-                  </span>
-                )}
-              </div>
+              {/* Bottom Reassurance / Mode Toggle */}
+              {mobileLoginAllowed ? (
+                <div className="border-t border-slate-100 pt-4 mt-6 text-center text-xs text-slate-600">
+                  {mode === 'SIGNIN' ? (
+                    <span>
+                      Don't have an account?{' '}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMode('SIGNUP');
+                          setError(null);
+                        }}
+                        className="font-bold text-[#0073E6] hover:underline cursor-pointer ml-1"
+                      >
+                        {isPostProperty ? 'Sign up to Post Property' : 'Sign up'}
+                      </button>
+                    </span>
+                  ) : (
+                    <span>
+                      Already have an account?{' '}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMode('SIGNIN');
+                          setError(null);
+                        }}
+                        className="font-bold text-[#0073E6] hover:underline cursor-pointer ml-1"
+                      >
+                        Sign in
+                      </button>
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <div className="border-t border-slate-100 pt-4 mt-6 flex items-center justify-center space-x-2 text-xs text-slate-500">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                  <span>Verified Bengaluru Advisory · Secure Google Sign-In</span>
+                </div>
+              )}
 
             </div>
           </div>
         )}
 
         {/* SCREEN C: Phone Number Entry Screen */}
-        {step === 'PHONE' && (
+        {mobileLoginAllowed && step === 'PHONE' && (
           <div className="flex-1 flex flex-col justify-between p-6">
             
             {/* Top Navigation Bar */}
@@ -606,7 +644,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
         )}
 
         {/* SCREEN D: OTP Verification Screen */}
-        {step === 'OTP' && (
+        {mobileLoginAllowed && step === 'OTP' && (
           <div className="flex-1 flex flex-col justify-between p-6">
             
             {/* Top Navigation Bar */}

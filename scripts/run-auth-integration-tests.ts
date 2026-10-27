@@ -339,8 +339,44 @@ export async function runAuthIntegrationTests(): Promise<{ passed: number; faile
     );
 
     // ====================================================================
-    // PART 2: CUSTOMER OTP AUTHENTICATION
+    // PART 2: CUSTOMER OTP AUTHENTICATION & TEMPORARY DLT FEATURE FLAG
     // ====================================================================
+
+    // TEST 10b: Customer Mobile Login Feature Flag - Disabled by default
+    delete process.env.CUSTOMER_MOBILE_LOGIN_ENABLED;
+    const disabledReqRes = await dispatchRequest(app, '/api/auth/otp/request', {
+      method: 'POST',
+      headers: { 'x-forwarded-for': '10.10.1.1' },
+      body: { phone: '+919876543210' },
+    });
+    const disabledReqBody = await disabledReqRes.json();
+    assert(
+      disabledReqRes.status === 403 && disabledReqBody.error === 'CUSTOMER_MOBILE_LOGIN_DISABLED',
+      'TEST 10b: Customer OTP request rejected with 403 when CUSTOMER_MOBILE_LOGIN_ENABLED is unset'
+    );
+
+    // TEST 10c: Customer OTP verification rejected with 403 when flag is disabled
+    const disabledVerifyRes = await dispatchRequest(app, '/api/auth/otp/verify', {
+      method: 'POST',
+      headers: { 'x-forwarded-for': '10.10.1.1' },
+      body: { phone: '9876543210', otp: '123456' },
+    });
+    const disabledVerifyBody = await disabledVerifyRes.json();
+    assert(
+      disabledVerifyRes.status === 403 && disabledVerifyBody.error === 'CUSTOMER_MOBILE_LOGIN_DISABLED',
+      'TEST 10c: Customer OTP verify rejected with 403 when CUSTOMER_MOBILE_LOGIN_ENABLED is unset'
+    );
+
+    // TEST 10d: Public config reports customerMobileLoginEnabled: false
+    const pubCfgRes = await dispatchRequest(app, '/api/auth/public-config', { method: 'GET' });
+    const pubCfgBody = await pubCfgRes.json();
+    assert(
+      pubCfgRes.status === 200 && pubCfgBody.customerMobileLoginEnabled === false,
+      'TEST 10d: Public config exposes customerMobileLoginEnabled: false'
+    );
+
+    // Enable flag to run preserved OTP engine regression suite
+    process.env.CUSTOMER_MOBILE_LOGIN_ENABLED = 'true';
 
     // TEST 11: Valid phone OTP request -> 200, cooldown returned, SMS dispatched via provider
     const testPhone11 = '+919876543210';
@@ -1078,6 +1114,7 @@ export async function runAuthIntegrationTests(): Promise<{ passed: number; faile
         'TEST 45: Ordinary route changes from dashboard, contact, or CRM cannot re-enter the callback'
       );
     } finally {
+      delete process.env.CUSTOMER_MOBILE_LOGIN_ENABLED;
       setSupabaseClientForTesting(prevSupabaseClient);
     }
 

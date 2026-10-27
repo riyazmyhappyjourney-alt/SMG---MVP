@@ -226,7 +226,8 @@ async function runTests() {
   const staffTokenMatch = staffCookieStr.match(/sellmyghar_staff_session=([^;]+)/);
   const staffToken = staffTokenMatch ? staffTokenMatch[1] : '';
 
-  // B. Customer OTP Verification Clears Staff Session
+  // B. Customer OTP Verification Clears Staff Session (with feature flag active)
+  process.env.CUSTOMER_MOBILE_LOGIN_ENABLED = 'true';
   const otpReqRes = await dispatchRequest(app, '/api/auth/otp/request', {
     method: 'POST',
     body: { phone: '9876543210' },
@@ -245,6 +246,7 @@ async function runTests() {
       name: 'Ramesh Patel',
     },
   });
+  delete process.env.CUSTOMER_MOBILE_LOGIN_ENABLED;
   assert(otpVerifyRes.status === 200, 'Customer OTP verification succeeds with HTTP 200');
   const otpVerifyCookies = otpVerifyRes.headers['set-cookie'] || [];
   const otpCookieStr = Array.isArray(otpVerifyCookies) ? otpVerifyCookies.join('; ') : otpVerifyCookies;

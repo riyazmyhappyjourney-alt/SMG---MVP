@@ -1144,8 +1144,20 @@ app.post('/api/auth/reset-password', jsonDefault, rateLimit('auth-reset-pw', 5, 
   }
 });
 
+export function isCustomerMobileLoginEnabled(): boolean {
+  return process.env.CUSTOMER_MOBILE_LOGIN_ENABLED === 'true';
+}
+
 // API: Customer OTP Request
 app.post('/api/auth/otp/request', jsonDefault, rateLimit('otp-req', 10, 900), async (req, res) => {
+  if (!isCustomerMobileLoginEnabled()) {
+    return res.status(403).json({
+      success: false,
+      error: 'CUSTOMER_MOBILE_LOGIN_DISABLED',
+      message: 'Mobile number and OTP login is temporarily unavailable while SMS/DLT registration is in progress. Please use Continue with Google.'
+    });
+  }
+
   try {
     const { phone, channel } = req.body;
     const cleanPhone = String(phone || '').replace(/\D/g, '').slice(-10);
@@ -1168,6 +1180,13 @@ app.post('/api/auth/otp/request', jsonDefault, rateLimit('otp-req', 10, 900), as
 
 // API: Customer OTP Verification (Generates cryptographically signed JWT cookie; strictly OWNER role)
 app.post('/api/auth/otp/verify', jsonDefault, rateLimit('otp-verify', 10, 900), async (req, res) => {
+  if (!isCustomerMobileLoginEnabled()) {
+    return res.status(403).json({
+      success: false,
+      error: 'CUSTOMER_MOBILE_LOGIN_DISABLED',
+      message: 'Mobile number and OTP login is temporarily unavailable while SMS/DLT registration is in progress. Please use Continue with Google.'
+    });
+  }
   try {
     const { phone, otp, name, marketingConsent } = req.body;
     const cleanPhone = String(phone || '').replace(/\D/g, '').slice(-10);
@@ -1298,6 +1317,7 @@ app.get('/api/auth/public-config', (_req, res) => {
   return res.json({
     supabaseUrl: process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '',
     supabaseAnonKey: process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '',
+    customerMobileLoginEnabled: isCustomerMobileLoginEnabled(),
   });
 });
 

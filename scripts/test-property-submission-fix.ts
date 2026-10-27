@@ -100,6 +100,22 @@ export async function runPropertySubmissionFixTests() {
   const cleanPhone = '9876500111';
   const ownerName = 'Sunil Narang';
 
+  // Verify feature flag guard when disabled
+  delete process.env.CUSTOMER_MOBILE_LOGIN_ENABLED;
+  const flagDisabledRes = await dispatchRequest(app, '/api/auth/otp/request', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: { phone: cleanPhone }
+  });
+  const flagDisabledData = await flagDisabledRes.json();
+  assert(
+    flagDisabledRes.status === 403 && flagDisabledData.error === 'CUSTOMER_MOBILE_LOGIN_DISABLED',
+    'Customer OTP request is rejected with 403 when CUSTOMER_MOBILE_LOGIN_ENABLED is unset'
+  );
+
+  // Enable flag for testing preserved seller submission flow
+  process.env.CUSTOMER_MOBILE_LOGIN_ENABLED = 'true';
+
   // 1. Request OTP via /api/auth/otp/request
   const otpReqRes = await dispatchRequest(app, '/api/auth/otp/request', {
     method: 'POST',
@@ -539,5 +555,6 @@ export async function runPropertySubmissionFixTests() {
   assert(staffCrmData.lead && staffCrmData.lead.id === googleLead?.id, 'CRM returns full lead details for staff review');
 
   // 17. Post-test cleanup
+  delete process.env.CUSTOMER_MOBILE_LOGIN_ENABLED;
   return { passed, failed, results };
 }
