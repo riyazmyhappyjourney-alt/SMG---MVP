@@ -224,8 +224,8 @@ export const PropertyProgressTracker: React.FC<{
       </div>
 
       {/* Connected Milestone Dots (Responsive scroll wrapper for mobile) */}
-      <div className="overflow-x-auto pb-2 scrollbar-thin">
-        <div className="min-w-[540px] sm:min-w-0 relative px-4 pt-1 pb-2">
+      <div className="w-full max-w-full min-w-0 overflow-x-auto pb-2 no-scrollbar sm:scrollbar-thin">
+        <div className="min-w-[500px] sm:min-w-0 relative px-3 sm:px-4 pt-1 pb-2">
           
           {/* Base Horizontal Connecting Rail running through dot center (top 16px) */}
           <div className="absolute top-[18px] left-8 right-8 h-1 bg-slate-200 z-0 rounded-full" />
@@ -317,7 +317,7 @@ export const PropertyProgressTracker: React.FC<{
 
       {/* Footer link to detailed view if in card mode */}
       {variant === 'card' && onViewDetailed && (
-        <div className="mt-3 pt-2.5 border-t border-slate-200/80 flex items-center justify-between text-xs">
+        <div className="mt-3 pt-2.5 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-2 text-xs">
           <span className="text-[11px] text-slate-500">
             Lifecycle managed directly by assigned Relationship Manager.
           </span>
@@ -556,7 +556,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 font-['Plus_Jakarta_Sans',sans-serif] text-slate-900">
+    <div className="min-h-screen w-full max-w-full overflow-x-hidden bg-slate-50 font-['Plus_Jakarta_Sans',sans-serif] text-slate-900">
       
       {/* Toast Notification */}
       {toastMessage && (
@@ -567,26 +567,27 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
       )}
 
       {/* TOP NAVBAR */}
-      <header className="bg-[#0073E6] text-white sticky top-0 z-40 shadow-md">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <header className="bg-[#0073E6] text-white sticky top-0 z-40 shadow-md w-full max-w-full">
+        <div className="w-full max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             
             {/* Left: Brand Logo & Portal Name */}
-            <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2 sm:space-x-4 min-w-0 shrink">
               <button
                 type="button"
                 onClick={onBackToHome}
-                className="flex items-center space-x-2 text-white hover:opacity-90 transition-opacity cursor-pointer focus:outline-none"
+                className="flex items-center space-x-1.5 sm:space-x-2 text-white hover:opacity-90 transition-opacity cursor-pointer focus:outline-none min-w-0"
               >
-                <div className="bg-white p-1 rounded-md">
-                  <Building2 className="w-6 h-6 text-[#0073E6]" />
+                <div className="bg-white p-1 rounded-md shrink-0">
+                  <Building2 className="w-5 h-5 sm:w-6 sm:h-6 text-[#0073E6]" />
                 </div>
-                <div className="text-left">
-                  <span className="text-lg font-black tracking-tight block leading-tight">
+                <div className="text-left min-w-0">
+                  <span className="text-base sm:text-lg font-black tracking-tight block leading-tight truncate">
                     SellMy<span className="text-[#B68A4A]">Ghar</span>
                   </span>
-                  <span className="text-[10px] tracking-widest uppercase font-extrabold text-blue-200 block -mt-0.5">
-                    Owner Portal • Resale & Rentals
+                  <span className="text-[9px] sm:text-[10px] tracking-wider sm:tracking-widest uppercase font-extrabold text-blue-200 block -mt-0.5 truncate">
+                    <span className="sm:hidden">Owner Portal</span>
+                    <span className="hidden sm:inline">Owner Portal • Resale & Rentals</span>
                   </span>
                 </div>
               </button>
@@ -605,22 +606,23 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
             </div>
 
             {/* Right: Actions & User Capsule */}
-            <div className="flex items-center space-x-3 sm:space-x-4">
+            <div className="flex items-center space-x-1.5 sm:space-x-3 shrink-0">
               
               {/* Post Property FREE Button */}
               <button
                 type="button"
                 onClick={onPostPropertyClick}
-                className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-[#0073E6] hover:bg-[#005BB5] text-white rounded-lg text-xs font-extrabold shadow-sm hover:shadow transition-all cursor-pointer border border-white/20"
+                className="inline-flex items-center space-x-1 sm:space-x-1.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2 bg-[#0073E6] hover:bg-[#005BB5] text-white rounded-lg text-[11px] sm:text-xs font-extrabold shadow-sm hover:shadow transition-all cursor-pointer border border-white/20 whitespace-nowrap"
               >
-                <Plus className="w-3.5 h-3.5" />
-                <span>Post Flat / Rent</span>
-                <span className="bg-white/20 px-1 py-0.2 rounded text-[9px] uppercase tracking-wider">FREE</span>
+                <Plus className="w-3.5 h-3.5 shrink-0" />
+                <span className="hidden sm:inline">Post Flat / Rent</span>
+                <span className="sm:hidden">Post Flat</span>
+                <span className="hidden sm:inline bg-white/20 px-1 py-0.2 rounded text-[9px] uppercase tracking-wider">FREE</span>
               </button>
 
               {/* User Dropdown / Profile Badge (Truthful Owner Label) */}
-              <div className="flex items-center space-x-2 bg-white/10 hover:bg-white/15 px-3 py-1.5 rounded-xl border border-white/20 transition-colors">
-                <div className="w-7 h-7 rounded-full bg-[#0073E6] text-white font-black text-xs flex items-center justify-center border border-white/30">
+              <div className="flex items-center space-x-1 sm:space-x-2 bg-white/10 hover:bg-white/15 px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl border border-white/20 transition-colors">
+                <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-[#0073E6] text-white font-black text-[11px] sm:text-xs flex items-center justify-center border border-white/30 shrink-0">
                   {(currentUser || user)?.name ? (currentUser || user)!.name.charAt(0).toUpperCase() : 'H'}
                 </div>
                 <div className="hidden sm:block text-left text-xs leading-tight">
@@ -633,7 +635,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                   type="button"
                   onClick={onLogout}
                   title="Sign Out"
-                  className="text-blue-200 hover:text-white p-1 ml-1 cursor-pointer transition-colors"
+                  className="text-blue-200 hover:text-white p-1 ml-0.5 sm:ml-1 cursor-pointer transition-colors shrink-0"
                 >
                   <LogOut className="w-3.5 h-3.5" />
                 </button>
@@ -646,37 +648,40 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
       </header>
 
       {/* SUB-HEADER BREADCRUMB (Clean without technical or promotional badge) */}
-      <div className="bg-white border-b border-slate-200 py-2.5 shadow-2xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between text-xs text-slate-500">
-          <div className="flex items-center space-x-2">
+      <div className="bg-white border-b border-slate-200 py-2 sm:py-2.5 shadow-2xs w-full max-w-full overflow-hidden">
+        <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 flex items-center justify-between text-xs text-slate-500 min-w-0">
+          <div className="flex items-center space-x-1.5 sm:space-x-2 overflow-x-auto no-scrollbar whitespace-nowrap min-w-0 py-0.5 text-[11px] sm:text-xs">
             <button
               type="button"
               onClick={onBackToHome}
-              className="hover:text-[#0073E6] flex items-center space-x-1 font-medium cursor-pointer"
+              className="hover:text-[#0073E6] flex items-center space-x-1 font-medium cursor-pointer shrink-0"
             >
               <span>Home</span>
             </button>
-            <span>/</span>
-            <span className="text-slate-800 font-bold">Owner Dashboard</span>
-            <span>/</span>
-            <span className="text-[#0073E6] font-bold">Resale & Rental Listings</span>
+            <span className="text-slate-300">/</span>
+            <span className="text-slate-800 font-bold shrink-0">
+              <span className="hidden sm:inline">Owner Dashboard</span>
+              <span className="sm:hidden">Dashboard</span>
+            </span>
+            <span className="text-slate-300">/</span>
+            <span className="text-[#0073E6] font-bold truncate">Resale & Rental Listings</span>
           </div>
 
-          <div className="text-slate-400 font-medium text-[11px] hidden sm:block">
+          <div className="text-slate-400 font-medium text-[11px] hidden sm:block shrink-0 pl-2">
             Direct RM Desk: +91 8217873708
           </div>
         </div>
       </div>
 
       {/* MAIN CONTAINER */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
+      <div className="w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-3 sm:py-8 min-w-0">
         
         {/* Mobile Top Segmented Tab Switcher (Instant 1-Tap Navigation for Mobile Screens) */}
-        <div className="lg:hidden mb-4 bg-white p-1.5 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-1.5 sticky top-16 z-20">
+        <div className="lg:hidden mb-4 bg-white p-1 sm:p-1.5 rounded-2xl border border-slate-200 shadow-2xs flex items-center gap-1 sm:gap-1.5 sticky top-16 z-20 w-full max-w-full overflow-x-auto no-scrollbar">
           <button
             type="button"
             onClick={() => setActiveTab('LISTINGS')}
-            className={`flex-1 py-2 px-2 rounded-xl text-xs font-bold transition-all text-center flex items-center justify-center space-x-1.5 cursor-pointer ${
+            className={`flex-1 min-w-0 py-2 px-1.5 sm:px-2 rounded-xl text-[11px] sm:text-xs font-bold transition-all text-center flex items-center justify-center space-x-1 sm:space-x-1.5 cursor-pointer ${
               activeTab === 'LISTINGS'
                 ? 'bg-[#0073E6] text-white shadow-xs'
                 : 'text-slate-600 hover:bg-slate-50'
@@ -688,7 +693,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('TIMELINE')}
-            className={`flex-1 py-2 px-2 rounded-xl text-xs font-bold transition-all text-center flex items-center justify-center space-x-1.5 cursor-pointer ${
+            className={`flex-1 min-w-0 py-2 px-1.5 sm:px-2 rounded-xl text-[11px] sm:text-xs font-bold transition-all text-center flex items-center justify-center space-x-1 sm:space-x-1.5 cursor-pointer ${
               activeTab === 'TIMELINE'
                 ? 'bg-[#0073E6] text-white shadow-xs'
                 : 'text-slate-600 hover:bg-slate-50'
@@ -700,7 +705,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('VISITS')}
-            className={`flex-1 py-2 px-2 rounded-xl text-xs font-bold transition-all text-center flex items-center justify-center space-x-1.5 cursor-pointer ${
+            className={`flex-1 min-w-0 py-2 px-1.5 sm:px-2 rounded-xl text-[11px] sm:text-xs font-bold transition-all text-center flex items-center justify-center space-x-1 sm:space-x-1.5 cursor-pointer ${
               activeTab === 'VISITS'
                 ? 'bg-[#0073E6] text-white shadow-xs'
                 : 'text-slate-600 hover:bg-slate-50'
@@ -711,10 +716,10 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
           </button>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6 lg:gap-8 items-start w-full min-w-0">
           
           {/* LEFT SIDEBAR (Desktop Left, Mobile Follows Content) */}
-          <aside className="lg:col-span-3 space-y-4 order-last lg:order-first">
+          <aside className="lg:col-span-3 space-y-4 order-last lg:order-first w-full min-w-0">
             
             {/* Owner Profile Card (Truthful Account Badge) */}
             <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs text-center relative overflow-hidden">
@@ -849,47 +854,47 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
           </aside>
 
           {/* MAIN CONTENT AREA */}
-          <main className="lg:col-span-9 space-y-6">
+          <main className="lg:col-span-9 space-y-4 sm:space-y-6 w-full min-w-0 max-w-full">
             
             {/* Top Heading Bar with Intent Selector (Clean, spacious, no corner visuals) */}
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="space-y-1">
-                  <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+            <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-slate-200 shadow-xs space-y-3 sm:space-y-4 w-full min-w-0">
+              <div className="flex flex-wrap items-center justify-between gap-2.5 sm:gap-3">
+                <div className="space-y-0.5 sm:space-y-1 min-w-0">
+                  <h1 className="text-lg sm:text-2xl font-black text-slate-900 tracking-tight">
                     Manage My Properties
                   </h1>
-                  <p className="text-xs text-slate-500">
+                  <p className="text-[11px] sm:text-xs text-slate-500">
                     Property progress tracking, statutory title audit, and scheduled site visits.
                   </p>
                 </div>
 
-                <div className="flex items-center space-x-2">
+                <div className="flex items-center space-x-2 shrink-0">
                   <button
                     type="button"
                     onClick={fetchProperties}
                     disabled={loading}
-                    className="p-2.5 rounded-xl border border-slate-300 text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors cursor-pointer"
+                    className="p-2 sm:p-2.5 rounded-xl border border-slate-300 text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-colors cursor-pointer shrink-0"
                     title="Refresh Listings"
                   >
-                    <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                    <RefreshCw className={`w-3.5 h-3.5 sm:w-4 sm:h-4 ${loading ? 'animate-spin' : ''}`} />
                   </button>
                   <button
                     type="button"
                     onClick={onPostPropertyClick}
-                    className="inline-flex items-center space-x-1.5 px-4 py-2.5 bg-[#0073E6] hover:bg-[#005BB5] text-white text-xs font-extrabold rounded-xl shadow-xs transition-all cursor-pointer"
+                    className="inline-flex items-center space-x-1 sm:space-x-1.5 px-3 sm:px-4 py-2 sm:py-2.5 bg-[#0073E6] hover:bg-[#005BB5] text-white text-[11px] sm:text-xs font-extrabold rounded-xl shadow-xs transition-all cursor-pointer whitespace-nowrap shrink-0"
                   >
-                    <Plus className="w-4 h-4" />
+                    <Plus className="w-3.5 h-3.5 shrink-0" />
                     <span>Post New Property</span>
                   </button>
                 </div>
               </div>
 
               {/* SALE vs RENTAL Quick Intent Filter Tabs */}
-              <div className="flex items-center gap-1.5 sm:gap-2 pt-2 border-t border-slate-100 overflow-x-auto no-scrollbar">
+              <div className="w-full max-w-full min-w-0 flex items-center gap-1.5 sm:gap-2 pt-2 border-t border-slate-100 overflow-x-auto no-scrollbar py-0.5">
                 <button
                   type="button"
                   onClick={() => setIntentFilter('ALL')}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer shrink-0 ${
+                  className={`px-3 sm:px-3.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer shrink-0 whitespace-nowrap ${
                     intentFilter === 'ALL'
                       ? 'bg-slate-900 text-white shadow-2xs'
                       : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -901,106 +906,106 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                 <button
                   type="button"
                   onClick={() => setIntentFilter('SELL')}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center space-x-1.5 ${
+                  className={`px-3 sm:px-3.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center space-x-1.5 whitespace-nowrap ${
                     intentFilter === 'SELL'
                       ? 'bg-[#0073E6] text-white shadow-2xs'
                       : 'bg-blue-50 text-[#0073E6] hover:bg-blue-100'
                   }`}
                 >
-                  <Building2 className="w-3.5 h-3.5" />
+                  <Building2 className="w-3.5 h-3.5 shrink-0" />
                   <span>Resale / Sale ({kpiStats.saleCount})</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setIntentFilter('RENT')}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center space-x-1.5 ${
+                  className={`px-3 sm:px-3.5 py-1.5 rounded-lg text-[11px] sm:text-xs font-bold transition-all cursor-pointer shrink-0 flex items-center space-x-1.5 whitespace-nowrap ${
                     intentFilter === 'RENT'
                       ? 'bg-purple-700 text-white shadow-2xs'
                       : 'bg-purple-50 text-purple-700 hover:bg-purple-100'
                   }`}
                 >
-                  <Key className="w-3.5 h-3.5" />
+                  <Key className="w-3.5 h-3.5 shrink-0" />
                   <span>Rentals ({kpiStats.rentCount})</span>
                 </button>
               </div>
             </div>
 
             {/* 4 Clean Summary KPI Chips */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 w-full min-w-0">
               
               {/* Chip 1: Live Broadcast */}
               <div 
                 onClick={() => setStatusFilter('ACTIVE')}
-                className={`bg-white p-3.5 rounded-xl border transition-all cursor-pointer shadow-2xs hover:shadow-xs ${
+                className={`bg-white p-2.5 sm:p-3.5 rounded-xl border transition-all cursor-pointer shadow-2xs hover:shadow-xs min-w-0 ${
                   statusFilter === 'ACTIVE' ? 'border-[#0073E6] ring-2 ring-[#0073E6]/20' : 'border-slate-200'
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-2xl font-black text-slate-900">
+                  <span className="text-xl sm:text-2xl font-black text-slate-900">
                     {kpiStats.activeCount.toString().padStart(2, '0')}
                   </span>
-                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <div className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
                 </div>
-                <p className="text-[11px] font-bold text-slate-600 mt-1">Live Broadcast</p>
-                <span className="text-[10px] text-slate-400">Buyers & Tenants Active</span>
+                <p className="text-[10px] sm:text-[11px] font-bold text-slate-600 mt-1 truncate">Live Broadcast</p>
+                <span className="text-[9px] sm:text-[10px] text-slate-400 block truncate">Buyers & Tenants Active</span>
               </div>
 
               {/* Chip 2: Verification Pending */}
               <div 
                 onClick={() => setStatusFilter('REVIEW')}
-                className={`bg-white p-3.5 rounded-xl border transition-all cursor-pointer shadow-2xs hover:shadow-xs ${
+                className={`bg-white p-2.5 sm:p-3.5 rounded-xl border transition-all cursor-pointer shadow-2xs hover:shadow-xs min-w-0 ${
                   statusFilter === 'REVIEW' ? 'border-[#0073E6] ring-2 ring-[#0073E6]/20' : 'border-slate-200'
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-2xl font-black text-amber-600">
+                  <span className="text-xl sm:text-2xl font-black text-amber-600">
                     {kpiStats.reviewCount.toString().padStart(2, '0')}
                   </span>
-                  <Clock className="w-4 h-4 text-amber-500" />
+                  <Clock className="w-4 h-4 text-amber-500 shrink-0" />
                 </div>
-                <p className="text-[11px] font-bold text-slate-600 mt-1">Under Diligence</p>
-                <span className="text-[10px] text-slate-400">Title registry check</span>
+                <p className="text-[10px] sm:text-[11px] font-bold text-slate-600 mt-1 truncate">Under Diligence</p>
+                <span className="text-[9px] sm:text-[10px] text-slate-400 block truncate">Title registry check</span>
               </div>
 
               {/* Chip 3: RM Site Visits */}
               <div 
                 onClick={() => setActiveTab('VISITS')}
-                className="bg-white p-3.5 rounded-xl border border-slate-200 transition-all cursor-pointer shadow-2xs hover:shadow-xs hover:border-indigo-400"
+                className="bg-white p-2.5 sm:p-3.5 rounded-xl border border-slate-200 transition-all cursor-pointer shadow-2xs hover:shadow-xs hover:border-indigo-400 min-w-0"
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-2xl font-black text-indigo-600">
+                  <span className="text-xl sm:text-2xl font-black text-indigo-600">
                     {kpiStats.totalSiteVisits.toString().padStart(2, '0')}
                   </span>
-                  <Users className="w-4 h-4 text-indigo-500" />
+                  <Users className="w-4 h-4 text-indigo-500 shrink-0" />
                 </div>
-                <p className="text-[11px] font-bold text-slate-600 mt-1">RM Site Visits</p>
-                <span className="text-[10px] text-slate-400">Screened & Escorted</span>
+                <p className="text-[10px] sm:text-[11px] font-bold text-slate-600 mt-1 truncate">RM Site Visits</p>
+                <span className="text-[9px] sm:text-[10px] text-slate-400 block truncate">Screened & Escorted</span>
               </div>
 
               {/* Chip 4: Direct Views */}
-              <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs">
+              <div className="bg-white p-2.5 sm:p-3.5 rounded-xl border border-slate-200 shadow-2xs min-w-0">
                 <div className="flex items-center justify-between">
-                  <span className="text-2xl font-black text-blue-600">
+                  <span className="text-xl sm:text-2xl font-black text-blue-600">
                     {kpiStats.totalViews}
                   </span>
-                  <Eye className="w-4 h-4 text-blue-500" />
+                  <Eye className="w-4 h-4 text-blue-500 shrink-0" />
                 </div>
-                <p className="text-[11px] font-bold text-slate-600 mt-1">Direct Views</p>
-                <span className="text-[10px] text-slate-400">Verified Corridor</span>
+                <p className="text-[10px] sm:text-[11px] font-bold text-slate-600 mt-1 truncate">Direct Views</p>
+                <span className="text-[9px] sm:text-[10px] text-slate-400 block truncate">Verified Corridor</span>
               </div>
 
             </div>
 
             {/* TAB 1: LISTINGS VIEW (Primary View with Connected Milestones Tracker on each card) */}
             {activeTab === 'LISTINGS' && (
-              <div className="space-y-4">
+              <div className="space-y-4 w-full min-w-0">
                 
                 {/* Search & Filter Toolbar */}
-                <div className="bg-white p-3.5 rounded-xl border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+                <div className="bg-white p-3 sm:p-3.5 rounded-xl border border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-2.5 sm:gap-3 w-full min-w-0">
                   
                   {/* Search input */}
-                  <div className="relative flex-1 min-w-[220px]">
+                  <div className="relative w-full sm:flex-1 sm:min-w-[200px]">
                     <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3 pointer-events-none" />
                     <input
                       type="text"
@@ -1012,11 +1017,11 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                   </div>
 
                   {/* Filter Status Dropdown */}
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center gap-2 w-full sm:w-auto">
                     <select
                       value={statusFilter}
                       onChange={(e: any) => setStatusFilter(e.target.value)}
-                      className="flex-1 min-w-[130px] px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0073E6] cursor-pointer"
+                      className="w-full sm:w-auto sm:min-w-[125px] px-2.5 sm:px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[11px] sm:text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0073E6] cursor-pointer"
                     >
                       <option value="ALL">Status: All</option>
                       <option value="ACTIVE">Status: Live</option>
@@ -1028,7 +1033,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                     <select
                       value={bhkFilter}
                       onChange={(e) => setBhkFilter(e.target.value)}
-                      className="flex-1 min-w-[100px] px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0073E6] cursor-pointer"
+                      className="w-full sm:w-auto sm:min-w-[95px] px-2.5 sm:px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[11px] sm:text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0073E6] cursor-pointer"
                     >
                       <option value="ALL">All BHK</option>
                       <option value="2 BHK">2 BHK</option>
@@ -1039,7 +1044,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                     <select
                       value={sortBy}
                       onChange={(e: any) => setSortBy(e.target.value)}
-                      className="flex-1 min-w-[130px] px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0073E6] cursor-pointer"
+                      className="col-span-2 sm:col-span-1 w-full sm:w-auto sm:min-w-[125px] px-2.5 sm:px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[11px] sm:text-xs font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#0073E6] cursor-pointer"
                     >
                       <option value="NEWEST">Newest First</option>
                       <option value="PRICE_DESC">Price: High to Low</option>
@@ -1056,7 +1061,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                           setBhkFilter('ALL');
                           setIntentFilter('ALL');
                         }}
-                        className="text-xs font-bold text-rose-600 hover:underline px-2 py-1 cursor-pointer"
+                        className="col-span-2 sm:col-span-1 text-xs font-bold text-rose-600 hover:underline px-2 py-1 cursor-pointer text-center sm:text-left"
                       >
                         Reset
                       </button>
@@ -1115,8 +1120,8 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                           className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-xs hover:shadow-md transition-all duration-200"
                         >
                           {/* Card Top Meta Line */}
-                          <div className="bg-slate-50/80 px-4 sm:px-6 py-2.5 border-b border-slate-200/80 flex flex-wrap items-center justify-between text-xs text-slate-500 gap-2">
-                            <div className="flex items-center space-x-3">
+                          <div className="bg-slate-50/80 px-3 sm:px-6 py-2.5 border-b border-slate-200/80 flex flex-wrap items-center justify-between text-xs text-slate-500 gap-2">
+                            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2.5 text-[11px] sm:text-xs">
                               {/* Intent Badge */}
                               <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider ${
                                 isRent 
@@ -1129,10 +1134,10 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                               <span className="font-mono font-bold text-slate-700">
                                 {property.referenceId}
                               </span>
-                              <span>•</span>
-                              <span>Uploaded: {formatBackendTimestamp(property.createdAt)}</span>
-                              <span>•</span>
-                              <span>RM: <strong>{property.rmName || 'Kavitha Ranganathan'}</strong> (+91 8217873708)</span>
+                              <span className="text-slate-300 hidden sm:inline">•</span>
+                              <span className="text-slate-500">Uploaded: {formatBackendTimestamp(property.createdAt)}</span>
+                              <span className="text-slate-300 hidden sm:inline">•</span>
+                              <span className="text-slate-600">RM: <strong>{property.rmName || 'Kavitha Ranganathan'}</strong></span>
                             </div>
 
                             {/* Status Pill Badge */}
@@ -1353,11 +1358,11 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                           />
 
                           {/* Share bar */}
-                          <div className="px-4 sm:px-6 py-2.5 bg-white border-t border-slate-100 flex items-center justify-between text-xs">
+                          <div className="px-3 sm:px-6 py-2.5 bg-white border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs">
                             <span className="text-[11px] text-slate-400">
                               Unit Reference: <strong className="font-mono text-slate-700">{property.referenceId}</strong>
                             </span>
-                            <div className="flex items-center space-x-3">
+                            <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
                               <a
                                 href={`/property/${property.id}`}
                                 target="_blank"
@@ -1393,7 +1398,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
 
             {/* TAB 2: DEDICATED PROPERTY PROGRESS VIEW (CRM LIFECYCLE TRACKER) */}
             {activeTab === 'TIMELINE' && (
-              <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-6 shadow-xs">
+              <div className="bg-white rounded-2xl border border-slate-200 p-3.5 sm:p-6 space-y-4 sm:space-y-6 shadow-xs w-full min-w-0">
                 
                 {error && (
                   <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl flex items-center justify-between">
@@ -1417,21 +1422,23 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                   return (
                     <>
                       {/* Property Progress Header Banner */}
-                      <div className="bg-gradient-to-r from-[#172033] to-[#0073E6] text-white p-5 rounded-xl shadow-sm flex flex-wrap items-center justify-between gap-4">
+                      <div className="bg-gradient-to-r from-[#172033] to-[#0073E6] text-white p-3.5 sm:p-5 rounded-xl shadow-sm flex flex-wrap items-center justify-between gap-3 sm:gap-4">
                         <div className="space-y-1">
                           <div className="flex items-center space-x-2 text-emerald-400 text-xs font-extrabold uppercase tracking-wider">
                             <Activity className="w-4 h-4" />
                             <span>Property Progress</span>
                           </div>
-                          <h2 className="text-lg font-black tracking-tight">
+                          <h2 className="text-base sm:text-lg font-black tracking-tight">
                             {timelineTarget.societyName || 'Bengaluru Property'} ({timelineTarget.bhkType || 'Flat'})
                           </h2>
-                          <p className="text-xs text-blue-200">
-                            Tracking ID: <span className="font-mono font-bold text-white">{timelineTarget.referenceId || 'SMG-TRACK'}</span> • Assigned RM: Kavitha Ranganathan (+91 8217873708)
-                          </p>
+                          <div className="text-xs text-blue-200 flex flex-wrap items-center gap-1.5">
+                            <span>Tracking ID: <strong className="font-mono text-white">{timelineTarget.referenceId || 'SMG-TRACK'}</strong></span>
+                            <span className="hidden sm:inline">•</span>
+                            <span>RM: Kavitha Ranganathan (+91 8217873708)</span>
+                          </div>
                         </div>
 
-                        <div className="text-right">
+                        <div className="text-left sm:text-right">
                           <span className="text-[10px] text-blue-200 uppercase font-bold block">Current Lifecycle Stage</span>
                           <span className="text-base font-extrabold text-emerald-400">
                             {isLost ? 'LOST' : currentStageLabel}
@@ -1441,7 +1448,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
 
                       {/* Property selector if owner has multiple properties */}
                       {properties.length > 1 && (
-                        <div className="flex items-center space-x-2 text-xs">
+                        <div className="flex flex-wrap items-center gap-2 text-xs">
                           <span className="font-bold text-slate-600">Select Property:</span>
                           <select
                             value={timelineTarget.id}
@@ -1559,10 +1566,10 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
 
             {/* TAB 3: BACKEND MANAGED SITE VISITS & RM SUPPORT */}
             {activeTab === 'VISITS' && (
-              <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-6 shadow-xs">
+              <div className="bg-white rounded-2xl border border-slate-200 p-3.5 sm:p-6 space-y-4 sm:space-y-6 shadow-xs w-full min-w-0">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <h2 className="text-lg font-black text-slate-900">
+                    <h2 className="text-base sm:text-lg font-black text-slate-900">
                       Coordinated Site Visits & RM Escorts
                     </h2>
                     <p className="text-xs text-slate-500 mt-0.5">
@@ -1570,7 +1577,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                     </p>
                   </div>
 
-                  <span className="text-xs font-bold bg-indigo-50 text-indigo-700 px-3 py-1.5 rounded-lg border border-indigo-200 flex items-center space-x-1.5">
+                  <span className="text-xs font-bold bg-indigo-50 text-indigo-700 px-2.5 sm:px-3 py-1.5 rounded-lg border border-indigo-200 flex items-center space-x-1.5">
                     <Users className="w-4 h-4" />
                     <span>{kpiStats.totalSiteVisits} Verified Visits Logged</span>
                   </span>
@@ -1592,11 +1599,11 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                       p.siteVisits?.map(visit => (
                         <div
                           key={visit.id}
-                          className="p-5 bg-slate-50 rounded-2xl border border-slate-200 space-y-3"
+                          className="p-3.5 sm:p-5 bg-slate-50 rounded-2xl border border-slate-200 space-y-3"
                         >
                           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3">
                             <div className="flex items-center space-x-2">
-                              <span className="w-2.5 h-2.5 rounded-full bg-indigo-600" />
+                              <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 shrink-0" />
                               <span className="font-black text-sm text-slate-900">
                                 {visit.visitorProfile}
                               </span>
@@ -1606,7 +1613,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                             </div>
 
                             <div className="flex items-center space-x-2 text-xs">
-                              <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                              <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                               <span className="font-bold text-slate-700">{visit.scheduledTime}</span>
                             </div>
                           </div>
@@ -1620,7 +1627,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                             </p>
                           </div>
 
-                          <div className="flex items-center justify-between text-xs pt-1">
+                          <div className="flex flex-wrap items-center justify-between text-xs pt-1 gap-2">
                             <span className="text-slate-500 text-[11px]">
                               Property: <strong>{p.societyName}</strong> ({p.bhkType}) • Ref: {p.referenceId}
                             </span>
