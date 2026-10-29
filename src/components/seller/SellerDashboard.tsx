@@ -377,6 +377,11 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
   // Selected property for detailed Property Progress tab
   const [selectedPropertyForTimeline, setSelectedPropertyForTimeline] = useState<SellerPropertyItem | null>(null);
 
+  // Assigned Relationship Manager desk info (dynamic if assigned, fallback to official SMG Desk)
+  const assignedRmName = properties.find(p => p.rmName && p.rmName !== 'Kavitha Ranganathan')?.rmName || 'SellMyGhar RM Desk';
+  const assignedRmPhone = properties.find(p => p.rmPhone)?.rmPhone || '+91 8217873708';
+  const assignedRmRole = properties.find(p => p.rmRole)?.rmRole || 'Dedicated Property & Diligence Support';
+
   // Quick Notification Toast
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -825,7 +830,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
               </nav>
             </div>
 
-            {/* Dedicated Relationship Manager Card with updated phone +91 8217873708 */}
+            {/* Dedicated Relationship Manager Card with verified phone +91 8217873708 */}
             <div className="bg-gradient-to-br from-slate-900 to-[#172033] text-white rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
               <div className="flex items-center space-x-2 text-emerald-400">
                 <Award className="w-4 h-4" />
@@ -834,20 +839,20 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                 </span>
               </div>
               <div>
-                <h4 className="font-bold text-sm text-white">Kavitha Ranganathan</h4>
+                <h4 className="font-bold text-sm text-white">{assignedRmName}</h4>
                 <p className="text-[11px] text-slate-300">
-                  Senior Property & Diligence Lead
+                  {assignedRmRole}
                 </p>
               </div>
               <p className="text-[11px] text-slate-400 leading-relaxed">
                 Handles all buyer & tenant screening, site visit escorts, and Sub-Registrar closing from the backend. Direct owner support.
               </p>
               <a
-                href="tel:+918217873708"
+                href={`tel:${assignedRmPhone.replace(/\s+/g, '')}`}
                 className="inline-flex items-center justify-center w-full py-2 bg-[#0073E6] hover:bg-[#005BB5] text-white rounded-lg text-xs font-bold transition-colors space-x-1.5"
               >
                 <Phone className="w-3.5 h-3.5" />
-                <span>Call RM: +91 8217873708</span>
+                <span>Call RM: {assignedRmPhone}</span>
               </a>
             </div>
 
@@ -1137,7 +1142,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                               <span className="text-slate-300 hidden sm:inline">•</span>
                               <span className="text-slate-500">Uploaded: {formatBackendTimestamp(property.createdAt)}</span>
                               <span className="text-slate-300 hidden sm:inline">•</span>
-                              <span className="text-slate-600">RM: <strong>{property.rmName || 'Kavitha Ranganathan'}</strong></span>
+                              <span className="text-slate-600">RM: <strong>{property.rmName || 'SellMyGhar RM Desk'}</strong></span>
                             </div>
 
                             {/* Status Pill Badge */}
@@ -1434,7 +1439,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
                           <div className="text-xs text-blue-200 flex flex-wrap items-center gap-1.5">
                             <span>Tracking ID: <strong className="font-mono text-white">{timelineTarget.referenceId || 'SMG-TRACK'}</strong></span>
                             <span className="hidden sm:inline">•</span>
-                            <span>RM: Kavitha Ranganathan (+91 8217873708)</span>
+                            <span>RM: {timelineTarget.rmName || 'SellMyGhar RM Desk'} ({timelineTarget.rmPhone || '+91 8217873708'})</span>
                           </div>
                         </div>
 
@@ -1540,7 +1545,7 @@ export const SellerDashboard: React.FC<SellerDashboardProps> = ({
 
                                   <p className="text-xs text-slate-600 mt-1 leading-relaxed">
                                     {m.key === 'NEW' && 'Property unit specifications, pricing expectation, and ownership intake digitized in system.'}
-                                    {m.key === 'CONTACTED' && 'Assigned Dedicated Relationship Manager Kavitha Ranganathan (+91 8217873708) for personal support.'}
+                                    {m.key === 'CONTACTED' && 'Assigned Dedicated Relationship Manager from SellMyGhar RM Desk (+91 8217873708) for personal support.'}
                                     {m.key === 'FOLLOW_UP' && 'Due diligence follow-up, title documentation screening, and property readiness review.'}
                                     {m.key === 'SITE_VISIT' && 'Coordinated screened buyer / tenant site visits escorted by RM. Zero spam calls to owner.'}
                                     {m.key === 'NEGOTIATION' && 'Offer structuring, earnest token verification, and buyer price negotiations handled by lead counsel.'}

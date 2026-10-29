@@ -471,72 +471,7 @@ class DevSandboxStore {
       user_agent_hash: 'ua-01'
     });
 
-    // Seed sample seller leads for initial CRM visualization
-    const lead1: DevSellerLead = {
-      id: 'lead-dev-seed-01',
-      owner_name: 'Vikramaditya Hegde',
-      phone: '+919845012345',
-      apartment_society_name: 'Sobha Dream Acres, Panathur',
-      locality_id: 'panathur',
-      bhk_type: '3BHK',
-      expected_price_inr: 14500000,
-      listing_intent: 'SELL',
-      lead_status: 'NEW',
-      assigned_staff_id: null,
-      assigned_at: null,
-      property_id: 'prop-dev-seed-01',
-      next_follow_up_at: null,
-      follow_up_notes: null,
-      notes: 'Submitted via Web Funnel. Awaiting first outreach call.',
-      consent_record_id: 'cst-01',
-      created_at: new Date(Date.now() - 3600000 * 3).toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    this.sellerLeads.set(lead1.id, lead1);
-
-    const lead2: DevSellerLead = {
-      id: 'lead-dev-seed-02',
-      owner_name: 'Priyanka Nair',
-      phone: '+919845088990',
-      apartment_society_name: 'Prestige Falcon City, Kanakapura Road',
-      locality_id: 'kanakapura-road',
-      bhk_type: '2BHK',
-      expected_price_inr: 11000000,
-      listing_intent: 'SELL',
-      lead_status: 'CONTACTED',
-      assigned_staff_id: 'usr-staff-intake-01',
-      assigned_at: new Date(Date.now() - 3600000 * 2).toISOString(),
-      property_id: null,
-      next_follow_up_at: new Date(Date.now() + 86400000).toISOString(),
-      follow_up_notes: 'Spoke with owner. Requested floor plan and recent maintenance receipt.',
-      notes: 'Initial call completed. Very receptive to legal title diligence model.',
-      consent_record_id: 'cst-02',
-      created_at: new Date(Date.now() - 86400000).toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    this.sellerLeads.set(lead2.id, lead2);
-
-    const lead3: DevSellerLead = {
-      id: 'lead-dev-seed-03',
-      owner_name: 'Anand Murthy',
-      phone: '+919845077112',
-      apartment_society_name: 'Brigade Gateway, Rajajinagar',
-      locality_id: 'rajajinagar',
-      bhk_type: '4BHK',
-      expected_price_inr: 38000000,
-      listing_intent: 'SELL',
-      lead_status: 'FOLLOW_UP',
-      assigned_staff_id: 'usr-staff-intake-01',
-      assigned_at: new Date(Date.now() - 86400000 * 2).toISOString(),
-      property_id: null,
-      next_follow_up_at: new Date(Date.now() - 1800000).toISOString(), // Overdue
-      follow_up_notes: 'Follow up on Form 15 EC download discrepancy.',
-      notes: 'Senior executive relocating to Singapore.',
-      consent_record_id: 'cst-03',
-      created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    this.sellerLeads.set(lead3.id, lead3);
+    // Seller leads start empty (populated strictly by real user submissions and webhooks)
 
     // Seed sample property linked to lead1 and Harish Babu
     const prop1: DevProperty = {
@@ -771,107 +706,7 @@ class DevSandboxStore {
       });
     }
 
-    const riyazLead: DevSellerLead = {
-      id: 'lead-riyaz-01',
-      owner_name: 'Riyaz Mhj',
-      phone: '+919876543210',
-      apartment_society_name: 'Prestige Shantiniketan',
-      locality_id: 'Whitefield',
-      bhk_type: '3BHK',
-      expected_price_inr: 20100000,
-      listing_intent: 'SELL',
-      lead_status: 'CONTACTED',
-      assigned_staff_id: 'usr-staff-closer-01',
-      consent_record_id: 'cst-seed-riyaz-01',
-      property_id: 'prop-mv86xj5r-m4v0',
-      assigned_at: new Date().toISOString(),
-      next_follow_up_at: null,
-      follow_up_notes: null,
-      notes: 'Owner email: socialmedia@myhappyjourney.com',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-    this.sellerLeads.set(riyazLead.id, riyazLead);
-
-    // Seed sample visits
-    const visit1: DevVisit = {
-      id: 'vis-dev-seed-01',
-      property_id: 'prop-dev-seed-01',
-      lead_id: 'lead-dev-seed-01',
-      client_name: 'Vikramaditya Hegde',
-      client_phone: '+919845012345',
-      visit_date: 'Today',
-      visit_time: '11:30 AM',
-      status: 'SCHEDULED',
-      assigned_staff_id: 'usr-staff-intake-01',
-      notes: 'Escorted site inspection for 3BHK unit.',
-      whatsapp_reminder_sent_at: null,
-      created_at: new Date(Date.now() - 3600000 * 24).toISOString(),
-      updated_at: new Date().toISOString()
-    };
-    const visit2: DevVisit = {
-      id: 'vis-dev-seed-02',
-      property_id: 'prop-dev-seed-02',
-      lead_id: 'lead-dev-seed-02',
-      client_name: 'Priyanka Nair',
-      client_phone: '+919845088990',
-      visit_date: 'Tomorrow',
-      visit_time: '04:00 PM',
-      status: 'SCHEDULED',
-      assigned_staff_id: 'usr-staff-closer-01',
-      notes: 'Buyer viewing with family.',
-      whatsapp_reminder_sent_at: null,
-      created_at: new Date(Date.now() - 3600000 * 12).toISOString(),
-      updated_at: new Date().toISOString()
-    };
-    const visit3: DevVisit = {
-      id: 'vis-dev-seed-03',
-      property_id: 'prop-dev-seed-03',
-      lead_id: 'lead-dev-seed-03',
-      client_name: 'Anand Murthy',
-      client_phone: '+919845077112',
-      visit_date: 'Yesterday',
-      visit_time: '02:00 PM',
-      status: 'COMPLETED',
-      assigned_staff_id: 'usr-staff-closer-01',
-      notes: 'First walkthrough completed. Title review follow-up requested.',
-      whatsapp_reminder_sent_at: new Date(Date.now() - 3600000 * 30).toISOString(),
-      created_at: new Date(Date.now() - 3600000 * 48).toISOString(),
-      updated_at: new Date().toISOString()
-    };
-    this.visits.set(visit1.id, visit1);
-    this.visits.set(visit2.id, visit2);
-    this.visits.set(visit3.id, visit3);
-
-    // Seed sample offers
-    const offer1: DevOffer = {
-      id: 'off-dev-seed-01',
-      property_id: 'prop-dev-seed-01',
-      lead_id: 'lead-dev-seed-01',
-      buyer_name: 'Rohan Mehra',
-      buyer_phone: '+919876500111',
-      offer_amount_inr: 14000000,
-      status: 'PENDING_REVIEW',
-      notes: 'Pre-approved loan sanction letter attached with HDFC Bank.',
-      counter_offer_amount_inr: null,
-      created_at: new Date(Date.now() - 3600000 * 18).toISOString(),
-      updated_at: new Date().toISOString()
-    };
-    const offer2: DevOffer = {
-      id: 'off-dev-seed-02',
-      property_id: 'prop-dev-seed-02',
-      lead_id: 'lead-dev-seed-02',
-      buyer_name: 'Ananya Sharma',
-      buyer_phone: '+919876500222',
-      offer_amount_inr: 10500000,
-      status: 'COUNTER_OFFERED',
-      notes: 'Counter-offered at ₹1.08 Cr following seller guidance.',
-      counter_offer_amount_inr: 10800000,
-      created_at: new Date(Date.now() - 3600000 * 36).toISOString(),
-      updated_at: new Date().toISOString()
-    };
-    this.offers.set(offer1.id, offer1);
-    this.offers.set(offer2.id, offer2);
+    // Visits and offers start empty (populated strictly by real CRM bookings and offers)
 
     // Seed legitimate document for prop1 awaiting review
     const seedDoc: DevDocument = {
@@ -893,41 +728,7 @@ class DevSandboxStore {
     };
     this.documents.set(seedDoc.id, seedDoc);
 
-    // Seed sample buyer enquiries
-    const buyerEnq1: DevBuyerEnquiry = {
-      id: 'enq-dev-seed-01',
-      buyer_name: 'Aditya Kashyap',
-      phone: '+919876543210',
-      preferred_locality_or_society: 'Sobha Dream Acres, Panathur',
-      bhk_type: '3BHK',
-      property_id: 'prop-dev-seed-01',
-      lead_status: 'NEW',
-      assigned_staff_id: null,
-      assigned_at: null,
-      next_follow_up_at: null,
-      follow_up_notes: null,
-      notes: 'Interested in high-floor 3BHK unit facing East.',
-      created_at: new Date(Date.now() - 3600000 * 2).toISOString(),
-      updated_at: new Date().toISOString()
-    };
-    const buyerEnq2: DevBuyerEnquiry = {
-      id: 'enq-dev-seed-02',
-      buyer_name: 'Meera Nambiar',
-      phone: '+919876543219',
-      preferred_locality_or_society: 'Prestige Falcon City, Kanakapura Road',
-      bhk_type: '2BHK',
-      property_id: 'prop-dev-seed-02',
-      lead_status: 'CONTACTED',
-      assigned_staff_id: 'usr-staff-intake-01',
-      assigned_at: new Date(Date.now() - 3600000 * 4).toISOString(),
-      next_follow_up_at: new Date(Date.now() + 86400000 * 2).toISOString(),
-      follow_up_notes: 'Discussed funding timeline and pre-approved loan status.',
-      notes: 'Looking for prompt registration and ready possession.',
-      created_at: new Date(Date.now() - 3600000 * 24).toISOString(),
-      updated_at: new Date().toISOString()
-    };
-    this.buyerEnquiries.set(buyerEnq1.id, buyerEnq1);
-    this.buyerEnquiries.set(buyerEnq2.id, buyerEnq2);
+    // Buyer enquiries start empty (populated strictly by real customer enquiries and webhooks)
 
     // Seed default hero slides
     if (this.heroSlides.size === 0) {
@@ -2303,7 +2104,7 @@ class DevSandboxStore {
               crm_status: lead?.lead_status || p.crm_status || 'NEW',
               lead_id: lead?.id || null,
               assigned_staff_id: lead?.assigned_staff_id || 'usr-staff-closer-01',
-              rm_name: staff?.display_name || 'Kavitha Ranganathan',
+              rm_name: staff?.display_name || 'SellMyGhar RM Desk',
               rm_phone: staff?.phone || '+918217873708',
             };
           })

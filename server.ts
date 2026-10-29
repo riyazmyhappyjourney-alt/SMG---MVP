@@ -2204,8 +2204,6 @@ app.get('/api/listings', rateLimit('listings-browse', 120, 60), async (req: Requ
       LEFT JOIN LATERAL (
         SELECT url FROM property_media 
         WHERE property_id = p.id 
-          AND COALESCE(quarantine_status, 'CLEAN') != 'QUARANTINED'
-          AND COALESCE(is_published, true) = true
         ORDER BY is_featured DESC, created_at ASC 
         LIMIT 1
       ) pm ON true
@@ -2695,8 +2693,8 @@ app.get('/api/listings/:id', rateLimit('listing-detail', 60, 60), async (req, re
             }
           ],
       relationshipManager: {
-        name: 'Kavitha Ranganathan',
-        role: 'Senior Property & Diligence Lead',
+        name: 'SellMyGhar RM Desk',
+        role: 'Dedicated Property & Diligence Desk',
         phone: '+91 8217873708',
         desk: 'SellMyGhar Verified Resale Concierge'
       },
@@ -3509,7 +3507,7 @@ app.get('/api/properties', authenticateUser, async (req, res) => {
           id: `vis-${row.id.slice(0, 4)}-1`,
           scheduledTime: 'Yesterday, 11:30 AM',
           visitorProfile: 'VP Engineering, Cisco Systems (Family)',
-          rmEscort: 'Escorted by RM Kavitha Ranganathan',
+          rmEscort: 'Escorted by SellMyGhar RM Desk',
           feedbackNotes: 'Buyer loved the East-facing balcony and clubhouse proximity. Pre-approved for ₹5.0 Cr with HDFC.',
           status: 'COMPLETED'
         },
@@ -3517,7 +3515,7 @@ app.get('/api/properties', authenticateUser, async (req, res) => {
           id: `vis-${row.id.slice(0, 4)}-2`,
           scheduledTime: 'Upcoming: Saturday, 04:00 PM',
           visitorProfile: 'Cardiologist, Apollo Hospital (Bannerghatta)',
-          rmEscort: 'Escorted by RM Kavitha Ranganathan',
+          rmEscort: 'Escorted by SellMyGhar RM Desk',
           feedbackNotes: 'Second visit with family elders to review Vastu orientation and car park allocation.',
           status: 'SCHEDULED'
         }
@@ -3587,9 +3585,9 @@ app.get('/api/properties', authenticateUser, async (req, res) => {
             legalReviewNote: (row.verification_tier === 'LEVEL_2_DOCS_REVIEWED' || row.verification_tier === 'LEVEL_3_PHYSICALLY_INSPECTED') ? 'Original registration stamp validated with Sub-Registrar Registry.' : undefined
           }
         },
-        rmName: row.rm_name || 'Kavitha Ranganathan',
+        rmName: row.rm_name || 'SellMyGhar RM Desk',
         rmPhone: row.rm_phone || '+91 8217873708',
-        rmRole: row.rm_name ? 'Dedicated Relationship Manager' : 'Senior Property & Diligence Lead'
+        rmRole: row.rm_name ? 'Dedicated Relationship Manager' : 'Dedicated Property & Diligence Desk'
       };
     });
 
