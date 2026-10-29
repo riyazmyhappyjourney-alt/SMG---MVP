@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Header } from './Header';
 import { Hero } from './Hero';
+import { MobileHomeView } from './MobileHomeView';
+import { TrustedPartnersMarquee } from './TrustedPartnersMarquee';
+import { HoldingCostCalculator } from './HoldingCostCalculator';
 import { HowItWorks } from './HowItWorks';
-import { WhySellMyGharSection } from './WhySellMyGharSection';
-import { PopularSocietiesSection } from './PopularSocietiesSection';
-import { CustomerReviewsSection } from './CustomerReviewsSection';
-import { FaqSection } from './FaqSection';
-import { CtaBanner } from './CtaBanner';
+import { ListedProperties } from './ListedProperties';
 import { Footer } from './Footer';
 import { BuyerSearchPopupModal } from './BuyerSearchPopupModal';
 import { FavoritesModal } from './FavoritesModal';
@@ -44,21 +43,16 @@ export const HomePage: React.FC<HomePageProps> = ({
   useEffect(() => {
     const handleHash = () => {
       const h = window.location.hash;
-      if (h === '#/how-it-works' || h === '#how-it-works') {
-        const el = document.getElementById('how-it-works');
-        if (el) el.scrollIntoView({ behavior: 'smooth' });
-      } else if (h === '#/why-sellmyghar' || h === '#why-sellmyghar') {
-        const el = document.getElementById('why-sellmyghar');
-        if (el) el.scrollIntoView({ behavior: 'smooth' });
-      } else if (h === '#/popular-societies' || h === '#popular-societies') {
-        const el = document.getElementById('popular-societies');
-        if (el) el.scrollIntoView({ behavior: 'smooth' });
-      } else if (h === '#/faqs' || h === '#faqs') {
-        const el = document.getElementById('faqs');
-        if (el) el.scrollIntoView({ behavior: 'smooth' });
-      } else if (h === '#/valuation' || h === '#valuation') {
-        const el = document.getElementById('hero-valuation-card');
-        if (el) el.scrollIntoView({ behavior: 'smooth' });
+      if (h === '#/holding-calculator' || h === '#holding-calculator' || h === '#calculator' || h === '#/calculator') {
+        setTimeout(() => {
+          const el = document.getElementById('holding-calculator') || document.getElementById('calculator');
+          if (el) el.scrollIntoView({ behavior: 'smooth' });
+        }, 120);
+      } else if (h === '#/listings' || h === '#listings') {
+        setTimeout(() => {
+          const el = document.getElementById('listings');
+          if (el) el.scrollIntoView({ behavior: 'smooth' });
+        }, 120);
       }
     };
     handleHash();
@@ -66,36 +60,71 @@ export const HomePage: React.FC<HomePageProps> = ({
     return () => window.removeEventListener('hashchange', handleHash);
   }, []);
 
-  const handleTabClick = (tab: 'BUY' | 'SELL' | 'ABOUT' | 'CONTACT') => {
-    if (tab === 'BUY') {
-      setIsBuyerModalOpen(true);
-    } else if (tab === 'SELL') {
-      const el = document.getElementById('hero-valuation-card');
-      if (el) el.scrollIntoView({ behavior: 'smooth' });
-    } else if (tab === 'ABOUT') {
-      const el = document.getElementById('why-sellmyghar');
-      if (el) el.scrollIntoView({ behavior: 'smooth' });
-    } else if (tab === 'CONTACT') {
-      if (onNavigateToContact) {
-        onNavigateToContact();
-      } else {
-        window.location.href = 'tel:+918217873708';
-      }
-    }
-  };
-
-  const handlePostProperty = () => {
-    trackEvent('SELLER_FUNNEL_START', { source: 'homepage_valuation_card' });
-    const el = document.getElementById('hero-valuation-card');
+  const scrollToListings = () => {
+    const el = document.getElementById('listings');
     if (el) {
       el.scrollIntoView({ behavior: 'smooth' });
     }
   };
 
+  const scrollToCalculator = () => {
+    const el = document.getElementById('holding-calculator') || document.getElementById('calculator');
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  const handleTabClick = (tab: 'BUY' | 'SELL' | 'ABOUT' | 'CONTACT') => {
+    if (tab === 'BUY') {
+      setIsBuyerModalOpen(true);
+    } else if (tab === 'SELL') {
+      if (!activeUser) {
+        if (onNavigateToLogin) onNavigateToLogin('SELLER_ASSISTED');
+        return;
+      }
+      if (onNavigateToSellerAssisted) onNavigateToSellerAssisted();
+    } else if (tab === 'ABOUT') {
+      if (onNavigateToAbout) {
+        onNavigateToAbout();
+      } else {
+        window.location.hash = '#/about';
+      }
+    } else if (tab === 'CONTACT') {
+      if (onNavigateToContact) {
+        onNavigateToContact();
+      }
+    }
+  };
+
+  const handlePostProperty = () => {
+    trackEvent('SELLER_FUNNEL_START', { source: 'header_post_property' });
+    if (!activeUser) {
+      if (onNavigateToLogin) onNavigateToLogin('SELLER_ASSISTED');
+      return;
+    }
+    if (onNavigateToSellerAssisted) {
+      onNavigateToSellerAssisted();
+    }
+  };
+
+  const handleStartSelling = (prefillLocality?: string) => {
+    trackEvent('SELLER_FUNNEL_START', { source: 'homepage', locality: prefillLocality || 'DIRECT' });
+    if (!activeUser) {
+      if (onNavigateToLogin) onNavigateToLogin('SELLER_ASSISTED');
+      return;
+    }
+    if (onNavigateToSellerAssisted) {
+      onNavigateToSellerAssisted(prefillLocality);
+    }
+  };
+
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [selectedLocality, setSelectedLocality] = useState<string>('ALL');
+
   return (
-    <div className="min-h-screen w-full max-w-full overflow-x-hidden flex flex-col bg-white selection:bg-[#0073E6] selection:text-white font-['Montserrat'] text-[#172033] pb-0">
+    <div className="min-h-screen w-full max-w-full overflow-x-hidden flex flex-col bg-[#F4F6F9] selection:bg-[#0073E6] selection:text-white font-['Montserrat'] text-[#172033] pb-0">
       
-      {/* 1. Clean Responsive Header (Matching Reference Wireframe) */}
+      {/* 1. Sticky Responsive Header */}
       <Header
         user={activeUser}
         onPostPropertyClick={handlePostProperty}
@@ -107,61 +136,93 @@ export const HomePage: React.FC<HomePageProps> = ({
         }}
         onTabClick={handleTabClick}
         onFavoritesClick={() => setIsFavoritesModalOpen(true)}
+        onSearchQuery={(q) => {
+          setSearchQuery(q);
+          scrollToListings();
+        }}
+        onSelectLocality={(loc) => {
+          setSelectedLocality(loc);
+          scrollToListings();
+        }}
       />
 
-      <main className="flex-1 w-full max-w-full">
-        
-        {/* 2. Hero Section: "Sell Your Flat in 45 Days" + Interactive 3-Step Valuation Card + Trust Stats Bar */}
-        <Hero
-          onSellClick={handlePostProperty}
+      <main className="flex-1">
+        {/* Mobile Dedicated Experience (Exact match to Reference UI) */}
+        <MobileHomeView
+          onSellClick={() => handleStartSelling()}
           onExploreClick={() => redirectToBuyMyGhar()}
-        />
-
-        {/* 3. Sell Your Flat in 4 Simple Steps (Clean 4-Card Step Flow) */}
-        <HowItWorks onPostProperty={handlePostProperty} />
-
-        {/* 4. Why SellMyGhar (4 Clean Value Points + Family Living Photography & Testimonial) */}
-        <WhySellMyGharSection />
-
-        {/* 5. Popular Apartment Communities in Bengaluru (6 Clean Society Cards) */}
-        <PopularSocietiesSection
-          onSelectSociety={(socName) => {
-            const el = document.getElementById('hero-valuation-card');
-            if (el) el.scrollIntoView({ behavior: 'smooth' });
+          onSelectLocality={(loc) => {
+            setSelectedLocality(loc);
+            scrollToListings();
+          }}
+          onSearchQuery={(q) => {
+            setSearchQuery(q);
+            scrollToListings();
+          }}
+          onOpenSaved={() => setIsFavoritesModalOpen(true)}
+          onOpenBuyerModal={() => setIsBuyerModalOpen(true)}
+          onSelectProperty={(_proj, _loc, _bhk) => {
+            if (onNavigateToContact) onNavigateToContact();
           }}
         />
 
-        {/* 6. What Our Customers Say (Authentic Non-AI Homeowner Feedback) */}
-        <CustomerReviewsSection />
+        {/* Desktop Hero Section: 45-day Proposition, Controlled Rolling Ticker, 99acres Inspired Quick Action Card */}
+        <div className="hidden md:block">
+          <Hero
+            onSellClick={() => handleStartSelling()}
+            onExploreClick={() => redirectToBuyMyGhar()}
+            onUnderstandProcessClick={scrollToCalculator}
+          />
+        </div>
 
-        {/* 7. Frequently Asked Questions (Clean 2-Column Accordion) */}
-        <FaqSection />
+        {/* 3. Trusted Partners Dynamic Marquee (Desktop layout) */}
+        <div className="hidden md:block">
+          <TrustedPartnersMarquee />
+        </div>
 
-        {/* 8. Ready to Sell Your Flat in 45 Days? (High-Converting CTA Banner) */}
-        <CtaBanner />
+        {/* 4. "How It Works" Seller Journey (Desktop layout) */}
+        <div className="hidden md:block bg-white border-y border-slate-200/60 my-8 py-4">
+          <HowItWorks onPostProperty={handlePostProperty} />
+        </div>
+
+        {/* 5. Financial Cost of an Unsold Flat Calculator (Desktop Only per spec) */}
+        <div className="hidden md:block">
+          <HoldingCostCalculator onExploreSellingOptions={() => handleStartSelling()} />
+        </div>
+
+        {/* 6. Verified Resale Inventory (Desktop layout) */}
+        <div id="listings" className="hidden md:block">
+          <ListedProperties
+            onSelectProperty={(_proj, _loc, _bhk) => {
+              if (onNavigateToContact) onNavigateToContact();
+            }}
+            searchQuery={searchQuery}
+            externalLocality={selectedLocality}
+          />
+        </div>
 
       </main>
 
-      {/* 9. DPDP-Compliant Footer with RERA Registration & Disclaimers */}
+      {/* 6. DPDP-Compliant Footer with Relocated FAQ Accordion & Legal Links */}
       <Footer
         onNavClick={handleTabClick}
         onConsentPortalOpen={onConsentPortalOpen}
       />
 
-      {/* Buyer Search Popup Modal */}
       <BuyerSearchPopupModal
         isOpen={isBuyerModalOpen}
         onClose={() => setIsBuyerModalOpen(false)}
         onBrowseListings={() => {
-          redirectToBuyMyGhar();
+          scrollToListings();
         }}
       />
 
-      {/* Saved Favorites Modal */}
       <FavoritesModal
         isOpen={isFavoritesModalOpen}
         onClose={() => setIsFavoritesModalOpen(false)}
       />
+
+
 
       {/* Mobile Bottom Navigation Bar */}
       <MobileBottomNav
@@ -184,3 +245,4 @@ export const HomePage: React.FC<HomePageProps> = ({
     </div>
   );
 };
+

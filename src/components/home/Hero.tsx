@@ -1,19 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { 
+  ArrowRight, 
   Building2, 
-  Users, 
-  FileText, 
-  CheckCircle2, 
-  ShieldCheck, 
-  TrendingUp, 
-  Star,
-  BadgePercent
+  MapPin, 
+  ChevronLeft, 
+  ChevronRight,
+  Search,
+  ChevronDown
 } from 'lucide-react';
-import { HeroValuationForm } from './HeroValuationForm';
+import { motion, AnimatePresence } from 'motion/react';
+import { searchSocieties, SocietyItem } from '../../data/bengaluruData';
+import { trackEvent } from '../../utils/analytics';
 
 interface HeroProps {
-  onSellClick?: () => void;
-  onExploreClick?: () => void;
+  onSellClick: () => void;
+  onExploreClick: () => void;
   onUnderstandProcessClick?: () => void;
 }
 
@@ -21,31 +22,58 @@ interface HeroSlideItem {
   id?: string;
   url: string;
   alt: string;
+  tag?: string;
 }
 
+// High-fidelity Bengaluru apartment township backdrops (production assets only)
 const DEFAULT_HERO_SLIDES: HeroSlideItem[] = [
   {
     id: 'slide-township-sunset',
     url: '/images/luxury-apartment-township-sunset.webp',
     alt: 'Luxury Apartment Township at Sunset in Bengaluru',
+    tag: 'Township Exterior',
   },
   {
     id: 'slide-clubhouse-amenities',
     url: '/images/brigade-granada-clubhouse.webp',
     alt: 'Premium Society Clubhouse and Township Amenities in Bengaluru',
+    tag: 'Society Amenities',
   },
   {
     id: 'slide-night-community',
     url: '/images/bengaluru-night-apartments.webp',
     alt: 'Modern Residential Community in Bengaluru Tech Corridor',
+    tag: 'Residential Community',
   },
 ];
 
-export const Hero: React.FC<HeroProps> = () => {
+// 11 Key Bengaluru residential resale micro-markets for continuous rolling ticker
+const LOCALITIES = [
+  'Hebbal',
+  'Thanisandra',
+  'Yelahanka',
+  'Jakkur',
+  'Hennur',
+  'Whitefield',
+  'Sarjapur Road',
+  'Bellandur',
+  'HSR Layout',
+  'JP Nagar',
+  'Indiranagar',
+];
+
+export const Hero: React.FC<HeroProps> = ({ 
+  onSellClick, 
+  onExploreClick,
+  onUnderstandProcessClick 
+}) => {
   const [slides, setSlides] = useState<HeroSlideItem[]>(DEFAULT_HERO_SLIDES);
   const [activeSlide, setActiveSlide] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
 
-  // Dynamic CMS Slides Fetching with sample-hero-banner filter
+
+  // Dynamic CMS Slides Fetching
   useEffect(() => {
     let isMounted = true;
     const fetchCmsSlides = async () => {
@@ -60,6 +88,7 @@ export const Hero: React.FC<HeroProps> = () => {
                 id: s.id,
                 url: s.image_url,
                 alt: s.alt_text || s.title || 'Bengaluru Residential Resale Apartment',
+                tag: s.title || 'Featured Corridor',
               }));
 
             if (activeOnly.length > 0) {
@@ -71,168 +100,433 @@ export const Hero: React.FC<HeroProps> = () => {
         // Retain default slides if backend CMS is offline
       }
     };
+
     fetchCmsSlides();
     return () => { isMounted = false; };
   }, []);
 
-  // Gentle background slide cross-fade
+  const slideCount = slides.length;
+
+  const handlePrevSlide = useCallback(() => {
+    setActiveSlide((prev) => (prev - 1 + slideCount) % slideCount);
+    trackEvent('HERO_SLIDE_CHANGE', { action: 'PREV' });
+  }, [slideCount]);
+
+  const handleNextSlide = useCallback(() => {
+    setActiveSlide((prev) => (prev + 1) % slideCount);
+    trackEvent('HERO_SLIDE_CHANGE', { action: 'NEXT' });
+  }, [slideCount]);
+
+  const handleSelectSlide = (idx: number) => {
+    setActiveSlide(idx);
+    trackEvent('HERO_SLIDE_CHANGE', { action: 'SELECT_INDEX', index: idx });
+  };
+
+  // Keyboard navigation (ArrowLeft / ArrowRight)
   useEffect(() => {
-    if (slides.length <= 1) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (['INPUT', 'SELECT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) {
+        return;
+      }
+      if (e.key === 'ArrowLeft') {
+        handlePrevSlide();
+      } else if (e.key === 'ArrowRight') {
+        handleNextSlide();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handlePrevSlide, handleNextSlide]);
+
+  // Auto-advancement loop timer for hero slides (advances every 2.0 seconds)
+  useEffect(() => {
+    if (isPaused || slideCount <= 1) return;
+
     const timer = setInterval(() => {
-      setActiveSlide((prev) => (prev + 1) % slides.length);
-    }, 6000);
+      setActiveSlide((prev) => (prev + 1) % slideCount);
+    }, 2000);
+
     return () => clearInterval(timer);
-  }, [slides.length]);
+  }, [isPaused, slideCount]);
+
+  // Continuous, perpetual ticking loop for locality ticker (advances every 1.8s in infinite loop)
+  const [localityTick, setLocalityTick] = useState(0);
+
+  useEffect(() => {
+    const ticker = setInterval(() => {
+      setLocalityTick((prev) => prev + 1);
+    }, 1800);
+
+    return () => clearInterval(ticker);
+  }, []);
+
+  const currentLocality = LOCALITIES[localityTick % LOCALITIES.length];
+
+  // Marketplace Card Tab & Form State
+  const [activeTab, setActiveTab] = useState<'SELL' | 'BUY' | 'RENT'>('SELL');
+  const [societyQuery, setSocietyQuery] = useState('');
+  const [bhk, setBhk] = useState('3 BHK');
+  const [suggestions, setSuggestions] = useState<SocietyItem[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  const handleSocietyInput = (text: string) => {
+    setSocietyQuery(text);
+    if (text.trim().length >= 1) {
+      const results = searchSocieties(text).slice(0, 8);
+      setSuggestions(results);
+      setShowSuggestions(true);
+    } else {
+      setSuggestions([]);
+      setShowSuggestions(false);
+    }
+  };
+
+  const handleSelectSociety = (item: SocietyItem) => {
+    setSocietyQuery(`${item.name} (${item.locality})`);
+    setShowSuggestions(false);
+  };
+
+  const handleSubmitSellerIntake = (e: React.FormEvent) => {
+    e.preventDefault();
+    trackEvent('HERO_CTA_PRIMARY_CLICK', { society: societyQuery, bhk });
+    onSellClick();
+  };
+
+  const handleTabChange = (tab: 'SELL' | 'BUY' | 'RENT') => {
+    setActiveTab(tab);
+    if (tab === 'BUY') {
+      onExploreClick();
+    }
+  };
 
   return (
-    <div className="relative bg-slate-900 overflow-hidden">
+    <div 
+      ref={containerRef}
+      onMouseEnter={() => setIsPaused(true)}
+      onMouseLeave={() => setIsPaused(false)}
+      className="relative overflow-hidden font-['Poppins',sans-serif] bg-slate-950 focus:outline-none"
+      tabIndex={0}
+      aria-label="SellMyGhar Homepage Hero Banner"
+    >
       
-      {/* Background Photography Backdrop with Eager Preload */}
-      <div className="absolute inset-0 z-0">
+      {/* 1. Background Carousel Layer */}
+      <div className="absolute inset-0 w-full h-full">
         {slides.map((slide, idx) => (
-          <div
-            key={slide.id || idx}
-            className={`absolute inset-0 transition-opacity duration-1000 ${
-              activeSlide === idx ? 'opacity-100' : 'opacity-0'
+          <img
+            key={`${slide.url}-${idx}`}
+            src={slide.url}
+            alt={slide.alt}
+            className={`absolute inset-0 w-full h-full object-cover object-[center_35%] lg:object-[65%_30%] transition-opacity duration-1000 ease-in-out ${
+              idx === activeSlide ? 'opacity-100' : 'opacity-0 pointer-events-none'
             }`}
-          >
-            <img
-              src={slide.url}
-              alt={slide.alt}
-              className="w-full h-full object-cover object-center"
-              loading={idx === 0 ? 'eager' : 'lazy'}
-              fetchPriority={idx === 0 ? 'high' : 'low'}
-            />
-          </div>
+            loading={idx === 0 ? 'eager' : 'lazy'}
+            fetchPriority={idx === 0 ? 'high' : 'low'}
+            decoding="async"
+          />
         ))}
-        {/* Soft, professional gradient overlays for maximum text legibility and clean contrast */}
-        <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-950/75 to-slate-950/40"></div>
-        <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-transparent to-transparent"></div>
       </div>
 
-      {/* Main Hero Container */}
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-10 pb-16 sm:pt-14 sm:pb-20 lg:pt-16 lg:pb-24">
+      {/* 2. Semi-Transparent Backdrop Gradient */}
+      <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-950/70 to-slate-950/40 pointer-events-none" />
+
+      {/* 3. Left & Right Navigation Controls */}
+      {slideCount > 1 && (
+        <>
+          <button
+            type="button"
+            onClick={handlePrevSlide}
+            aria-label="Previous Slide"
+            className="absolute left-3 sm:left-6 top-1/2 -translate-y-1/2 z-20 w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-slate-950/40 hover:bg-slate-900/80 backdrop-blur-md text-white border border-white/20 flex items-center justify-center transition-all cursor-pointer shadow-lg hover:scale-105"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
+
+          <button
+            type="button"
+            onClick={handleNextSlide}
+            aria-label="Next Slide"
+            className="absolute right-3 sm:right-6 top-1/2 -translate-y-1/2 z-20 w-10 h-10 sm:w-11 sm:h-11 rounded-full bg-slate-950/40 hover:bg-slate-900/80 backdrop-blur-md text-white border border-white/20 flex items-center justify-center transition-all cursor-pointer shadow-lg hover:scale-105"
+          >
+            <ChevronRight className="w-5 h-5" />
+          </button>
+        </>
+      )}
+
+      {/* 4. Slide Indicator Dots */}
+      {slideCount > 1 && (
+        <>
+          {/* Mobile Only: Horizontal Bottom Dots */}
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex md:hidden items-center space-x-2">
+            {slides.map((_, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => handleSelectSlide(idx)}
+                aria-label={`Go to slide ${idx + 1}`}
+                className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                  idx === activeSlide
+                    ? 'w-6 bg-white shadow-xs'
+                    : 'w-1.5 bg-white/40 hover:bg-white/70'
+                }`}
+              />
+            ))}
+          </div>
+
+          {/* Desktop Only: Vertical Pagination Dots (retaining only vertical indicator on desktop) */}
+          <div className="absolute right-5 top-1/2 -translate-y-1/2 z-20 hidden md:flex flex-col space-y-2.5 items-center">
+            {slides.map((_, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => handleSelectSlide(idx)}
+                aria-label={`Go to slide ${idx + 1}`}
+                className={`w-1.5 rounded-full transition-all cursor-pointer ${
+                  idx === activeSlide
+                    ? 'h-6 bg-white shadow-xs'
+                    : 'h-1.5 bg-white/40 hover:bg-white/70'
+                }`}
+              />
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* 5. Main Hero Container */}
+      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 sm:pt-16 pb-14 sm:pb-18">
         
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-12 items-center">
+        {/* HERO HEADLINE & TAGLINE SECTION */}
+        <div className="max-w-3xl space-y-3.5 text-left">
           
-          {/* Left Column: Heading, Subhead & Value Pillars */}
-          <div className="lg:col-span-7 text-white space-y-6 sm:space-y-8">
-            
-            {/* Eyebrow Badge */}
-            <div className="inline-flex items-center space-x-2 px-3 py-1 bg-white/10 backdrop-blur-md border border-white/20 rounded-full text-xs font-extrabold uppercase tracking-widest text-sky-300">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-              <span>Bengaluru Apartment Resale</span>
-            </div>
-
-            {/* Main Headline (User requested: "sell your Flat in 45 days in home Page") */}
-            <div className="space-y-2">
-              <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight leading-[1.1]">
-                Sell Your Flat in <span className="text-[#38BDF8]">45 Days</span> with Complete Confidence
-              </h1>
-              <p className="text-sm sm:text-lg text-slate-200/90 leading-relaxed max-w-xl font-normal pt-2">
-                Get the right price, verified buyers, and end-to-end legal diligence support for a smooth, hassle-free resale experience. Zero broker spam calls.
-              </p>
-            </div>
-
-            {/* 3 Value Pillars (from Image 1 Wireframe) */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-              
-              <div className="bg-white/10 backdrop-blur-md border border-white/15 rounded-2xl p-3.5 flex items-center space-x-3 shadow-xs">
-                <div className="w-9 h-9 rounded-xl bg-sky-500/20 text-sky-300 flex items-center justify-center shrink-0">
-                  <BadgePercent className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-white">Accurate Market Valuation</h4>
-                  <p className="text-[10px] text-slate-300">Registry benchmarked</p>
-                </div>
-              </div>
-
-              <div className="bg-white/10 backdrop-blur-md border border-white/15 rounded-2xl p-3.5 flex items-center space-x-3 shadow-xs">
-                <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center shrink-0">
-                  <Users className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-white">Verified Buyers</h4>
-                  <p className="text-[10px] text-slate-300">Pre-screened & funded</p>
-                </div>
-              </div>
-
-              <div className="bg-white/10 backdrop-blur-md border border-white/15 rounded-2xl p-3.5 flex items-center space-x-3 shadow-xs">
-                <div className="w-9 h-9 rounded-xl bg-indigo-500/20 text-indigo-300 flex items-center justify-center shrink-0">
-                  <FileText className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="text-xs font-bold text-white">End-to-End Assistance</h4>
-                  <p className="text-[10px] text-slate-300">Sub-Registrar closing</p>
-                </div>
-              </div>
-
-            </div>
-
+          {/* Eyebrow */}
+          <div className="flex items-center space-x-2 text-slate-300">
+            <span className="w-6 h-0.5 bg-[#0073E6] rounded-full" />
+            <span className="text-[11px] sm:text-xs font-bold tracking-widest uppercase text-blue-200">
+              BENGALURU RESIDENTIAL RESALE
+            </span>
           </div>
 
-          {/* Right Column: Interactive 3-Step Valuation Card */}
-          <div className="lg:col-span-5" id="hero-valuation-card">
-            <HeroValuationForm />
+          {/* Core USP Headline: "Sell your flat in 45 days." */}
+          <div>
+            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-white tracking-tight leading-[1.08] drop-shadow-[0_2px_10px_rgba(0,0,0,0.85)]">
+              Sell your flat in 45 days.
+            </h1>
+          </div>
+
+          {/* Credible, commercially grounded supporting copy */}
+          <p className="text-sm sm:text-base text-slate-200 font-normal leading-relaxed drop-shadow-[0_1px_6px_rgba(0,0,0,0.95)] max-w-2xl">
+            A transparent resale process with verified registry pricing, legal diligence, and pre-qualified buyers across Bengaluru.
+          </p>
+
+          {/* Action CTAs */}
+          <div className="pt-1.5 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                trackEvent('HERO_CTA_PRIMARY_CLICK', { action: 'SELL_MY_FLAT' });
+                onSellClick();
+              }}
+              className="px-6 py-3 rounded-xl bg-[#0073E6] hover:bg-[#005BB5] text-white text-xs sm:text-sm font-bold shadow-lg hover:shadow-xl transition-all cursor-pointer inline-flex items-center space-x-2 group"
+            >
+              <span>Sell My Flat</span>
+              <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+            </button>
+
+            <button
+              type="button"
+              onClick={onExploreClick}
+              className="px-5 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs sm:text-sm font-medium border border-white/20 backdrop-blur-xs transition-all cursor-pointer inline-flex items-center space-x-1.5"
+            >
+              <span>Browse Verified Flats</span>
+            </button>
+          </div>
+
+          {/* Robust, Clean Rolling Locality Animation */}
+          <div className="pt-2 flex items-center space-x-2 text-xs sm:text-sm text-slate-200">
+            <div className="flex items-center space-x-1.5 font-medium text-slate-300 drop-shadow-sm">
+              <MapPin className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+              <span>Active buyer demand in:</span>
+            </div>
+
+            {/* Dynamic Glassmorphic Capsule with Smooth Rolling Text and Auto-Resizing Width in Continuous Loop */}
+            <motion.div 
+              layout
+              transition={{ layout: { duration: 0.35, ease: [0.25, 1, 0.5, 1] } }}
+              className="relative inline-flex h-7 items-center overflow-hidden rounded-lg bg-white/10 backdrop-blur-md border border-white/20 shadow-xs px-3"
+            >
+              <AnimatePresence mode="popLayout" initial={false}>
+                <motion.div
+                  key={localityTick}
+                  initial={{ y: 18, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  exit={{ y: -18, opacity: 0 }}
+                  transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+                  className="text-white font-bold text-xs tracking-wide select-none whitespace-nowrap leading-none flex items-center"
+                >
+                  {currentLocality}
+                </motion.div>
+              </AnimatePresence>
+            </motion.div>
           </div>
 
         </div>
 
-      </div>
-
-      {/* Trust Stats Banner (Directly below Hero - Matching Image 1 Reference) */}
-      <div className="relative z-10 bg-white border-t border-slate-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8 divide-y lg:divide-y-0 lg:divide-x divide-slate-100">
+        {/* 6. REDESIGNED PROPERTY POSTING CARD (99acres inspired marketplace design) */}
+        <div className="mt-8 sm:mt-10">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200/90 overflow-hidden max-w-4xl">
             
-            {/* Stat 1 */}
-            <div className="flex items-center space-x-4 pt-4 sm:pt-0">
-              <div className="w-12 h-12 rounded-2xl bg-sky-50 text-[#0073E6] flex items-center justify-center shrink-0">
-                <Users className="w-6 h-6" />
+            {/* Top Marketplace Tab Bar */}
+            {/* Top Marketplace Tab Bar (Focused on Seller Listing) */}
+            <div className="px-5 sm:px-6 pt-3.5 pb-2 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center space-x-3 text-xs font-semibold">
+                
+                {/* Sell Flat Tab (Active) */}
+                <div className="flex items-center space-x-2 text-[#0073E6] font-bold pb-2 relative">
+                  <Building2 className="w-4 h-4 text-[#0073E6]" />
+                  <span>Sell / Resale Flat</span>
+                  <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#0073E6] rounded-full" />
+                </div>
+
+                {/* Vertical Divider */}
+                <span className="h-3.5 w-px bg-slate-200 self-center hidden sm:block" />
+
+                {/* Post Property FREE badge */}
+                <div className="flex items-center space-x-1.5 pb-2">
+                  <span className="text-slate-700 text-xs font-bold">Post Property</span>
+                  <span className="px-1.5 py-0.5 text-[9px] font-black uppercase bg-[#059669] text-white rounded shadow-2xs">
+                    FREE
+                  </span>
+                </div>
               </div>
-              <div>
-                <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">5,000+</div>
-                <div className="text-xs text-slate-500 font-medium">Happy Sellers in Bengaluru</div>
+
+              <div className="text-[11px] text-slate-400 font-medium hidden md:block">
+                Assisted Bengaluru Residential Resale & Direct Title Diligence
               </div>
             </div>
 
-            {/* Stat 2 */}
-            <div className="flex items-center space-x-4 pt-4 sm:pt-0 lg:pl-8">
-              <div className="w-12 h-12 rounded-2xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
-                <Building2 className="w-6 h-6" />
-              </div>
-              <div>
-                <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">200+</div>
-                <div className="text-xs text-slate-500 font-medium">Apartment Communities</div>
-              </div>
-            </div>
+            {/* Input Row: Compact Marketplace Controls */}
+            <div className="p-4 sm:p-5 space-y-3.5">
+              <form onSubmit={handleSubmitSellerIntake} className="grid grid-cols-1 md:grid-cols-12 gap-2.5 sm:gap-3 items-center">
+                
+                {/* 1. BHK / Configuration Dropdown (3 cols) */}
+                <div className="md:col-span-3 relative">
+                  <div className="relative">
+                    <select
+                      id="hero-bhk-select"
+                      name="bhk"
+                      aria-label="Select BHK Configuration"
+                      value={bhk}
+                      onChange={(e) => setBhk(e.target.value)}
+                      className="w-full pl-3 pr-8 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#0073E6] transition-all cursor-pointer appearance-none"
+                    >
+                      <option value="1 BHK">1 BHK Apartment</option>
+                      <option value="2 BHK">2 BHK Apartment</option>
+                      <option value="2.5 BHK">2.5 BHK Apartment</option>
+                      <option value="3 BHK">3 BHK Apartment</option>
+                      <option value="3.5 BHK">3.5 BHK Apartment</option>
+                      <option value="4 BHK+">4 BHK+ Penthouse</option>
+                    </select>
+                    <ChevronDown className="w-3.5 h-3.5 text-slate-500 absolute right-3 top-3.5 pointer-events-none" />
+                  </div>
+                </div>
 
-            {/* Stat 3 */}
-            <div className="flex items-center space-x-4 pt-4 sm:pt-0 lg:pl-8">
-              <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center shrink-0">
-                <Star className="w-6 h-6 fill-amber-400" />
-              </div>
-              <div>
-                <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">4.8 / 5</div>
-                <div className="text-xs text-slate-500 font-medium">Verified Customer Rating</div>
-              </div>
-            </div>
+                {/* 2. Society Autocomplete Search (6 cols) */}
+                <div className="md:col-span-6 relative">
+                  <div className="relative">
+                    <input
+                      id="hero-society-input"
+                      name="societyQuery"
+                      aria-label="Search Apartment Society or Complex"
+                      type="text"
+                      value={societyQuery}
+                      onChange={(e) => handleSocietyInput(e.target.value)}
+                      placeholder='Search society (e.g. Prestige Shantiniketan, Sobha Dream Acres...)'
+                      className="w-full pl-9 pr-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#0073E6] transition-all shadow-2xs"
+                    />
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-3.5 pointer-events-none" />
+                  </div>
 
-            {/* Stat 4 */}
-            <div className="flex items-center space-x-4 pt-4 sm:pt-0 lg:pl-8">
-              <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                <ShieldCheck className="w-6 h-6" />
+
+                  {/* Autocomplete Dropdown List */}
+                  {showSuggestions && suggestions.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full mt-1 bg-white rounded-xl shadow-2xl border border-slate-200 z-50 max-h-56 overflow-y-auto py-1">
+                      {suggestions.map((item) => (
+                        <div
+                          key={item.id}
+                          onClick={() => handleSelectSociety(item)}
+                          className="px-3.5 py-2 hover:bg-blue-50 cursor-pointer flex items-center justify-between text-xs transition-colors"
+                        >
+                          <div>
+                            <p className="font-bold text-slate-900">{item.name}</p>
+                            <p className="text-[11px] text-slate-500">{item.locality} • {item.builder}</p>
+                          </div>
+                          <span className="text-[10px] text-[#0073E6] font-bold">Select</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* 3. Primary Action Button (3 cols) with attention glow */}
+                <div className="md:col-span-3">
+                  <button
+                    type="submit"
+                    className="w-full py-2.5 px-4 bg-[#0073E6] hover:bg-[#005BB5] text-white text-xs font-bold rounded-xl shadow-md hover:shadow-lg transition-all cursor-pointer flex items-center justify-center space-x-1.5 group relative"
+                  >
+                    <span>Post Property</span>
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-[#059669] text-white">
+                      FREE
+                    </span>
+                    <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                  </button>
+                </div>
+
+              </form>
+
+              {/* Bottom Quick Row: Popular Societies Pills */}
+              <div className="pt-2 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 text-xs text-slate-600">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-slate-400 font-semibold text-[11px]">Popular Societies:</span>
+                  {[
+                    'Prestige Shantiniketan',
+                    'Sobha Dream Acres',
+                    'Brigade Gateway',
+                    'Godrej Woodsman',
+                  ].map((soc) => (
+                    <button
+                      key={soc}
+                      type="button"
+                      onClick={() => {
+                        setSocietyQuery(soc);
+                        setShowSuggestions(false);
+                      }}
+                      className="px-2 py-0.5 bg-slate-50 hover:bg-blue-50 hover:text-[#0073E6] rounded-md text-[11px] font-medium transition-colors cursor-pointer border border-slate-200/60"
+                    >
+                      {soc}
+                    </button>
+                  ))}
+                </div>
+
+                <div>
+                  <button
+                    type="button"
+                    onClick={onExploreClick}
+                    className="inline-flex items-center text-[11px] font-bold text-[#0073E6] hover:underline cursor-pointer group"
+                  >
+                    <span>Looking to buy instead? Browse verified homes</span>
+                    <ArrowRight className="w-3 h-3 ml-1 group-hover:translate-x-0.5 transition-transform" />
+                  </button>
+                </div>
               </div>
-              <div>
-                <div className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">100%</div>
-                <div className="text-xs text-slate-500 font-medium">Transparent Resale Process</div>
-              </div>
+
             </div>
 
           </div>
         </div>
+
       </div>
 
     </div>
   );
 };
+
