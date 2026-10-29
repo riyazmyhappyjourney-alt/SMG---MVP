@@ -9,7 +9,8 @@ import {
   ArrowRight,
   CheckCircle2,
   Lock,
-  MessageCircle
+  MessageCircle,
+  Mouse
 } from 'lucide-react';
 import { searchSocieties, SocietyItem } from '../../data/bengaluruData';
 import { trackEvent } from '../../utils/analytics';
@@ -27,7 +28,7 @@ interface HeroSlideItem {
   tag?: string;
 }
 
-// Production asset backdrop strictly preserved for Suite 16 tests
+// Production asset backdrop strictly preserved for Suite 16 test contracts
 const DEFAULT_HERO_SLIDES: HeroSlideItem[] = [
   {
     id: 'slide-township-sunset',
@@ -57,8 +58,8 @@ const CURATED_SOCIETIES: SocietyItem[] = [
 
 /**
  * Custom hook for smooth, accessible count-up animation.
- * Respects prefers-reduced-motion by immediately returning the target value.
- * Runs once on mount over ~1.4 seconds with ease-out curve.
+ * Respects prefers-reduced-motion by immediately returning target value.
+ * Runs once on mount over specified duration with ease-out curve.
  */
 function useCountUp(target: number, durationMs: number = 1400): number {
   const [count, setCount] = useState<number>(() => {
@@ -105,10 +106,12 @@ export const Hero: React.FC<HeroProps> = ({
   onUnderstandProcessClick 
 }) => {
   const [slides, setSlides] = useState<HeroSlideItem[]>(DEFAULT_HERO_SLIDES);
-  const activeSlide = 0; // Stable, non-looping background matching reference visual composition
+  const activeSlide = 0;
 
-  // Animated count-up for "45 days" headline USP (0 -> 45 once, smooth ease-out)
+  // Animated Count-up values requested by the user
   const animatedDays = useCountUp(45, 1400);
+  const animatedSocieties = useCountUp(200, 1600);
+  const animatedFlatsSold = useCountUp(500, 1800);
 
   // Valuation Form State
   const [bhk, setBhk] = useState('');
@@ -226,7 +229,7 @@ export const Hero: React.FC<HeroProps> = ({
   return (
     <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 pb-12 font-['Montserrat',sans-serif]">
       
-      {/* 1. HERO MAIN CARD */}
+      {/* 1. HERO MAIN CARD (Rounded card matching reference image) */}
       <div 
         id="hero-valuation-card"
         className="relative rounded-3xl overflow-hidden bg-slate-950 text-white shadow-xl min-h-[480px] lg:min-h-[520px] flex items-center"
@@ -259,16 +262,8 @@ export const Hero: React.FC<HeroProps> = ({
             {/* LEFT COLUMN: Clean Headline and Supporting Copy */}
             <div className="lg:col-span-7 space-y-4 text-left">
               
-              {/* Eyebrow */}
-              <div className="flex items-center space-x-2 text-slate-300">
-                <span className="w-6 h-0.5 bg-[#0073E6] rounded-full" />
-                <span className="text-[11px] sm:text-xs font-bold tracking-widest uppercase text-blue-200">
-                  BENGALURU APARTMENT RESALE
-                </span>
-              </div>
-
-              {/* Main Headline: "Sell your flat in 45 days." with animated count-up */}
-              <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold text-white tracking-tight leading-[1.12]">
+              {/* Main Headline: "Sell your flat in 45 days." matching reference exactly */}
+              <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold text-white tracking-tight leading-[1.12]">
                 <span className="block text-white">Sell your flat</span>
                 <span className="text-white">
                   in{' '}
@@ -477,14 +472,50 @@ export const Hero: React.FC<HeroProps> = ({
 
       </div>
 
-      {/* 2. STATISTICS SECTION (Beneath Hero) */}
-      <div className="mt-8 bg-white rounded-2xl border border-slate-200/80 shadow-2xs p-6 sm:p-8">
+      {/* 2. TRUST METRIC BAR (Avatars + 7,200+ Homeowners matching Reference Image) */}
+      <div className="mt-8 mb-4 flex items-center justify-center space-x-3 text-center">
+        <div className="flex -space-x-2 overflow-hidden">
+          <img 
+            className="inline-block h-7 w-7 sm:h-8 sm:w-8 rounded-full ring-2 ring-white object-cover" 
+            src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=80&auto=format&fit=crop&q=80" 
+            alt="Verified Seller" 
+          />
+          <img 
+            className="inline-block h-7 w-7 sm:h-8 sm:w-8 rounded-full ring-2 ring-white object-cover" 
+            src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=80&auto=format&fit=crop&q=80" 
+            alt="Verified Seller" 
+          />
+          <img 
+            className="inline-block h-7 w-7 sm:h-8 sm:w-8 rounded-full ring-2 ring-white object-cover" 
+            src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=80&auto=format&fit=crop&q=80" 
+            alt="Verified Seller" 
+          />
+          <img 
+            className="inline-block h-7 w-7 sm:h-8 sm:w-8 rounded-full ring-2 ring-white object-cover" 
+            src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=80&auto=format&fit=crop&q=80" 
+            alt="Verified Seller" 
+          />
+          <div className="inline-flex h-7 w-7 sm:h-8 sm:w-8 rounded-full ring-2 ring-white bg-[#0073E6] text-white text-[11px] font-bold items-center justify-center">
+            +
+          </div>
+        </div>
+        <div className="text-xs sm:text-sm font-bold text-slate-800 tracking-wide uppercase">
+          <span>7,200+ HOMEOWNERS </span>
+          <span className="text-slate-400 font-semibold lowercase">have trusted </span>
+          <span className="text-[#0073E6] font-extrabold">SellMyGhar.in</span>
+        </div>
+      </div>
+
+      {/* 3. STATISTICS SECTION (Animated 45 days, 200+ Societies, 500+ Flats Sold matching Reference Layout) */}
+      <div className="mt-4 bg-white rounded-2xl border border-slate-200/80 shadow-2xs p-6 sm:p-8">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-0 divide-y md:divide-y-0 md:divide-x divide-slate-200">
           
           {/* Stat 1: 45 days / Average selling time */}
           <div className="flex flex-col items-center justify-center text-center px-4 py-2">
             <div className="flex items-baseline space-x-1.5">
-              <span className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">45</span>
+              <span className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight tabular-nums">
+                {animatedDays}
+              </span>
               <span className="text-lg sm:text-xl font-bold text-[#0073E6]">days</span>
             </div>
             <div className="text-[11px] sm:text-xs font-semibold tracking-wider text-slate-500 uppercase mt-1">
@@ -492,27 +523,36 @@ export const Hero: React.FC<HeroProps> = ({
             </div>
           </div>
 
-          {/* Stat 2: 320+ / Societies covered */}
+          {/* Stat 2: 200+ / Societies covered */}
           <div className="flex flex-col items-center justify-center text-center px-4 py-2 pt-6 md:pt-2">
-            <div className="text-3xl sm:text-4xl font-extrabold text-[#0073E6] tracking-tight">
-              320+
+            <div className="text-3xl sm:text-4xl font-extrabold text-[#0073E6] tracking-tight tabular-nums">
+              {animatedSocieties}+
             </div>
             <div className="text-[11px] sm:text-xs font-semibold tracking-wider text-slate-500 uppercase mt-1">
               Societies covered
             </div>
           </div>
 
-          {/* Stat 3: ₹1,000 Cr+ / In transactions */}
+          {/* Stat 3: 500+ / Flats Sold */}
           <div className="flex flex-col items-center justify-center text-center px-4 py-2 pt-6 md:pt-2">
-            <div className="flex items-baseline space-x-1.5">
-              <span className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight">₹1,000</span>
-              <span className="text-lg sm:text-xl font-bold text-[#0073E6]">Cr+</span>
+            <div className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight tabular-nums">
+              {animatedFlatsSold}+
             </div>
             <div className="text-[11px] sm:text-xs font-semibold tracking-wider text-slate-500 uppercase mt-1">
-              In transactions
+              Flats Sold
             </div>
           </div>
 
+        </div>
+
+        {/* Scroll to Explore Indicator (from Reference Image) */}
+        <div className="pt-6 sm:pt-8 flex flex-col items-center justify-center space-y-1.5 text-slate-400">
+          <div className="w-5 h-8 rounded-full border-2 border-slate-300 flex items-start justify-center p-1">
+            <div className="w-1 h-2 rounded-full bg-slate-400 animate-bounce" />
+          </div>
+          <span className="text-[10px] font-semibold tracking-widest uppercase">
+            Scroll to explore
+          </span>
         </div>
       </div>
 
