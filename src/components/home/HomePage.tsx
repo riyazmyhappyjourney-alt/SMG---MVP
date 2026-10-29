@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Header } from './Header';
 import { Hero } from './Hero';
-import { MobileHomeView } from './MobileHomeView';
 import { TrustedPartnersMarquee } from './TrustedPartnersMarquee';
 import { HoldingCostCalculator } from './HoldingCostCalculator';
 import { HowItWorks } from './HowItWorks';
@@ -147,33 +146,12 @@ export const HomePage: React.FC<HomePageProps> = ({
       />
 
       <main className="flex-1">
-        {/* Mobile Dedicated Experience (Exact match to Reference UI) */}
-        <MobileHomeView
+        {/* Responsive Hero Section matching user wireframe reference */}
+        <Hero
           onSellClick={() => handleStartSelling()}
           onExploreClick={() => redirectToBuyMyGhar()}
-          onSelectLocality={(loc) => {
-            setSelectedLocality(loc);
-            scrollToListings();
-          }}
-          onSearchQuery={(q) => {
-            setSearchQuery(q);
-            scrollToListings();
-          }}
-          onOpenSaved={() => setIsFavoritesModalOpen(true)}
-          onOpenBuyerModal={() => setIsBuyerModalOpen(true)}
-          onSelectProperty={(_proj, _loc, _bhk) => {
-            if (onNavigateToContact) onNavigateToContact();
-          }}
+          onUnderstandProcessClick={scrollToCalculator}
         />
-
-        {/* Desktop Hero Section: 45-day Proposition, Controlled Rolling Ticker, 99acres Inspired Quick Action Card */}
-        <div className="hidden md:block">
-          <Hero
-            onSellClick={() => handleStartSelling()}
-            onExploreClick={() => redirectToBuyMyGhar()}
-            onUnderstandProcessClick={scrollToCalculator}
-          />
-        </div>
 
         {/* 3. Trusted Partners Dynamic Marquee (Desktop layout) */}
         <div className="hidden md:block">
