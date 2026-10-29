@@ -64,6 +64,7 @@ import { AiSensyNotificationService } from './src/server/notifications/aisensy-s
 import { getDistinctCommunityPhoto } from './src/utils/propertyImages';
 export { getDistinctCommunityPhoto };
 import { PropertySuggestionsService } from './src/server/inventory/property-suggestions-service';
+import { verify99acresWebhookAuth, NinetyNineAcresLeadService } from './src/server/webhooks/ninety-nine-acres';
 
 const app = express();
 app.disable('x-powered-by');
@@ -383,6 +384,7 @@ app.use('/api', (req, res, next) => {
   const isAuthOrWebhook = 
     req.path.startsWith('/webhooks') ||
     req.path.includes('webhook') ||
+    req.path.includes('99acres') ||
     req.path.startsWith('/auth/login') ||
     req.path.startsWith('/auth/otp') ||
     req.path.startsWith('/auth/logout') ||
@@ -463,6 +465,8 @@ app.use('/uploads', express.static(localUploadsDir));
 const jsonDefault = express.json({ limit: '100kb' });
 // Upload-specific body parser for large file uploads (20mb)
 const jsonUpload = express.json({ limit: '20mb' });
+// Webhook-specific body parsers for third-party CRM lead webhooks (256kb)
+const webhookParser99acres = [express.json({ limit: '256kb' }), express.urlencoded({ extended: true, limit: '256kb' })];
 
 // ====================================================================
 // 2. RATE LIMITING HELPERS
@@ -630,6 +634,7 @@ async function initSchemaColumns() {
       CREATE INDEX IF NOT EXISTS idx_buyer_enquiries_status ON buyer_enquiries (lead_status);
       CREATE INDEX IF NOT EXISTS idx_buyer_enquiries_staff ON buyer_enquiries (assigned_staff_id);
       CREATE INDEX IF NOT EXISTS idx_buyer_enquiries_property ON buyer_enquiries (property_id);
+      CREATE INDEX IF NOT EXISTS idx_buyer_enquiries_ext_enq_id ON buyer_enquiries ((attribution->>'externalEnquiryId'));
 
       CREATE TABLE IF NOT EXISTS visits (
         id VARCHAR(64) PRIMARY KEY,
@@ -1271,32 +1276,36 @@ app.post('/api/auth/otp/verify', jsonDefault, rateLimit('otp-verify', 10, 900), 
         }
       }
 
-      // 2. Dispatch automated registration welcome email (if email was provided)
+      // 2. Dispatch automated registration welcome email in background (if email was provided)
       if (userEmail) {
-        try {
-          const onboardRes = await EmailNotificationService.handleUserOnboarding({
-            userId: authenticatedUser.uid,
-            name: userRecord?.display_name || name || `User ${normalizedPhone.slice(-4)}`,
-            email: userEmail,
-            role: authenticatedUser.roles[0] || 'OWNER',
-          });
-          console.info(`[OtpOnboardingEmail] Dispatched welcome onboarding for ${userEmail}: ${onboardRes.status}`);
-        } catch (onboardErr: any) {
-          console.warn('[OtpOnboardingEmail] Dispatch note:', onboardErr.message);
-        }
+        Promise.resolve().then(async () => {
+          try {
+            const onboardRes = await EmailNotificationService.handleUserOnboarding({
+              userId: authenticatedUser.uid,
+              name: userRecord?.display_name || name || `User ${normalizedPhone.slice(-4)}`,
+              email: userEmail,
+              role: authenticatedUser.roles[0] || 'OWNER',
+            });
+            console.info(`[OtpOnboardingEmail] Dispatched welcome onboarding for ${userEmail}: ${onboardRes.status}`);
+          } catch (onboardErr: any) {
+            console.warn('[OtpOnboardingEmail] Dispatch note:', onboardErr.message);
+          }
+        });
       }
 
-      // 3. Dispatch automated registration WhatsApp confirmation via AiSensy
-      try {
-        const waRes = await AiSensyNotificationService.handleUserRegistered({
-          userId: authenticatedUser.uid,
-          userName: userRecord?.display_name || name || 'Homeowner',
-          userPhone: normalizedPhone,
-        });
-        console.info(`[OtpRegistrationWhatsApp] Dispatched welcome WhatsApp for ${normalizedPhone}: ${waRes.status}`);
-      } catch (waErr: any) {
-        console.warn('[OtpRegistrationWhatsApp] Dispatch note:', waErr.message);
-      }
+      // 3. Dispatch automated registration WhatsApp confirmation in background via AiSensy
+      Promise.resolve().then(async () => {
+        try {
+          const waRes = await AiSensyNotificationService.handleUserRegistered({
+            userId: authenticatedUser.uid,
+            userName: userRecord?.display_name || name || 'Homeowner',
+            userPhone: normalizedPhone,
+          });
+          console.info(`[OtpRegistrationWhatsApp] Dispatched welcome WhatsApp for ${normalizedPhone}: ${waRes.status}`);
+        } catch (waErr: any) {
+          console.warn('[OtpRegistrationWhatsApp] Dispatch note:', waErr.message);
+        }
+      });
     }
 
     return res.json({
@@ -1308,6 +1317,7 @@ app.post('/api/auth/otp/verify', jsonDefault, rateLimit('otp-verify', 10, 900), 
         phone: normalizedPhone,
         email: authenticatedUser.email || null,
         roles: authenticatedUser.roles,
+        provider: 'phone',
         createdAt: userRecord?.created_at || new Date().toISOString(),
       },
     });
@@ -1656,6 +1666,7 @@ app.post('/api/auth/google/session', jsonDefault, rateLimit('google-session', 10
         email: userRecord.email,
         phone: userRecord.phone || undefined,
         roles: userRecord.roles,
+        provider: 'google',
         createdAt: userRecord.created_at || new Date().toISOString(),
       },
     });
@@ -1738,6 +1749,7 @@ app.get('/api/auth/me', async (req, res) => {
         email: u.email,
         phone: u.phone,
         roles: u.roles,
+        provider: (u.phone && !u.email) ? 'phone' : (u.email ? 'google' : 'phone'),
       }
     });
   } catch {
@@ -9399,6 +9411,56 @@ app.post(
     } catch (err: any) {
       console.warn('[AiSensyWebhook] Error processing callback:', err.message);
       return res.status(200).json({ success: false, error: err.message });
+    }
+  }
+);
+
+// ====================================================================
+// 10. 99acres Inbound Lead API / Webhook Integration
+// Supports POST from 99acres Push API via API key / Bearer / Secret / Query / Header
+// Primary REST API Endpoints:
+//   - https://sellmyghar.in/api/v1/leads/99acres
+//   - https://sellmyghar.in/api/leads/99acres
+//   - https://crm.sellmyghar.in/api/leads/99acres
+// Webhook Aliases:
+//   - https://sellmyghar.in/api/webhooks/99acres
+//   - https://crm.sellmyghar.in/api/webhooks/99acres
+// ====================================================================
+app.post(
+  [
+    '/api/v1/leads/99acres',
+    '/api/leads/99acres',
+    '/api/crm/leads/99acres',
+    '/api/webhooks/99acres',
+    '/api/crm/webhooks/99acres',
+  ],
+  webhookParser99acres,
+  rateLimit('webhook-99acres', 120, 60),
+  verify99acresWebhookAuth,
+  async (req: Request, res: Response) => {
+    const clientIp = getClientIp(req);
+    try {
+      const result = await NinetyNineAcresLeadService.handleWebhook(req.body, clientIp);
+      return res.status(result.status === 'CREATED' ? 201 : 200).json(result);
+    } catch (err: any) {
+      if (
+        err.message &&
+        (err.message.includes('Invalid Indian mobile') ||
+          err.message.includes('Missing buyer phone') ||
+          err.message.includes('Invalid 99acres payload'))
+      ) {
+        return res.status(400).json({
+          success: false,
+          error: 'INVALID_PAYLOAD',
+          message: err.message,
+        });
+      }
+      console.error('[99acresWebhook] Internal processing error:', err);
+      return res.status(500).json({
+        success: false,
+        error: 'SERVER_ERROR',
+        message: 'Failed to process 99acres webhook enquiry.',
+      });
     }
   }
 );

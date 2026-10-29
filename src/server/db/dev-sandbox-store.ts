@@ -2009,25 +2009,53 @@ class DevSandboxStore {
     if (cleanSql.includes('INSERT INTO buyer_enquiries')) {
       let be: DevBuyerEnquiry;
       if (cleanSql.includes('email') && cleanSql.includes('attribution')) {
-        be = {
-          id: params[0] || `enq-${Date.now()}`,
-          buyer_name: params[1],
-          phone: params[2],
-          email: params[3] || null,
-          preferred_locality_or_society: params[4],
-          bhk_type: params[5],
-          expected_price_inr: params[6] ? Number(params[6]) : null,
-          property_id: params[7] || null,
-          lead_status: params[8] || 'NEW',
-          assigned_staff_id: params[9] || null,
-          assigned_at: params[10] || null,
-          next_follow_up_at: params[11] || null,
-          follow_up_notes: params[12] || null,
-          notes: params[13] || null,
-          attribution: typeof params[14] === 'string' ? JSON.parse(params[14]) : params[14],
-          created_at: params[15] || new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
+        const attrRaw = params.find(p => typeof p === 'object' || (typeof p === 'string' && (p.startsWith('{') && p.includes('source'))));
+        let resolvedAttr: any = null;
+        try {
+          resolvedAttr = typeof attrRaw === 'string' ? JSON.parse(attrRaw) : attrRaw;
+        } catch {}
+
+        if (params.length < 14) {
+          be = {
+            id: params[0] || `enq-${Date.now()}`,
+            buyer_name: params[1],
+            phone: params[2],
+            email: params[3] || null,
+            preferred_locality_or_society: params[4],
+            bhk_type: params[5],
+            expected_price_inr: params[6] ? Number(params[6]) : null,
+            property_id: params[7] || null,
+            lead_status: 'NEW',
+            assigned_staff_id: null,
+            assigned_at: null,
+            next_follow_up_at: null,
+            follow_up_notes: null,
+            notes: (params[8] && typeof params[8] === 'string' && !params[8].startsWith('{')) ? params[8] : null,
+            attribution: resolvedAttr || (typeof params[params.length - 2] === 'string' ? JSON.parse(params[params.length - 2]) : params[params.length - 2]),
+            created_at: params[params.length - 1] || new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+        } else {
+          be = {
+            id: params[0] || `enq-${Date.now()}`,
+            buyer_name: params[1],
+            phone: params[2],
+            email: params[3] || null,
+            preferred_locality_or_society: params[4],
+            bhk_type: params[5],
+            expected_price_inr: params[6] ? Number(params[6]) : null,
+            property_id: params[7] || null,
+            lead_status: params[8] || 'NEW',
+            assigned_staff_id: params[9] || null,
+            assigned_at: params[10] || null,
+            next_follow_up_at: params[11] || null,
+            follow_up_notes: params[12] || null,
+            notes: params[13] || null,
+            attribution: resolvedAttr || (typeof params[14] === 'string' ? JSON.parse(params[14]) : params[14]),
+            created_at: params[15] || new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+        }
       } else {
         const hasProp = cleanSql.includes('property_id');
         be = {

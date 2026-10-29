@@ -60,37 +60,92 @@ class DevSmsProvider implements SmsProvider {
 
 class ProductionSmsProvider implements SmsProvider {
   isConfigured(): boolean {
-    // Bhash SMS Gateway configuration check (requires approved DLT registration)
-    const bhashUser = process.env.BHASH_SMS_USER;
-    const bhashPass = process.env.BHASH_SMS_PASSWORD;
-    const bhashSender = process.env.BHASH_SMS_SENDER_ID;
-    const bhashTemplate = process.env.BHASH_SMS_DLT_TEMPLATE_ID;
-    return Boolean(bhashUser && bhashPass && bhashSender && bhashTemplate);
+    const bhashUser = process.env.BHASH_SMS_USER || 'myhappyjourneytrans';
+    const bhashPass = process.env.BHASH_SMS_PASSWORD || '123456';
+    const bhashSender = process.env.BHASH_SMS_SENDER_ID || 'SMYGHR';
+    return Boolean(bhashUser && bhashPass && bhashSender);
   }
 
   getProviderName(): string {
-    return this.isConfigured()
-      ? 'Bhash SMS Gateway'
-      : 'Bhash SMS Gateway (Pending DLT Template Approval)';
+    return 'Bhash SMS Gateway';
   }
 
-  async sendOtp(phone: string, _otp: string): Promise<SmsDeliveryResult> {
+  async sendOtp(phone: string, otp: string): Promise<SmsDeliveryResult> {
     if (!this.isConfigured()) {
-      const config = getValidatedConfig();
-      if (!config.allowSandbox) {
-        throw new ConfigurationError(
-          'BHASH_SMS_DLT_TEMPLATE_ID',
-          'SMS fallback gateway is pending Indian DLT template registration. Primary OTP delivery is available via WhatsApp.'
-        );
-      }
-      throw new Error(
-        'SMS gateway is pending Indian DLT template registration. Primary OTP delivery is available via WhatsApp.'
-      );
+      throw new Error('Bhash SMS Gateway credentials are not configured.');
     }
 
-    // Future Bhash integration dispatch point:
-    // Once DLT sender ID and templates are approved, execute HTTPS request to Bhash API.
-    throw new Error('Bhash SMS gateway integration is deferred pending DLT approval.');
+    const cleanDigits = phone.replace(/\D/g, '').slice(-10);
+    if (!/^[6-9]\d{9}$/.test(cleanDigits)) {
+      throw new Error('Valid 10-digit Indian mobile number is required.');
+    }
+
+    const bhashUser = process.env.BHASH_SMS_USER || 'myhappyjourneytrans';
+    const bhashPass = process.env.BHASH_SMS_PASSWORD || '123456';
+    const bhashSender = process.env.BHASH_SMS_SENDER_ID || 'SMYGHR';
+    const priority = process.env.BHASH_SMS_PRIORITY || 'ndnd';
+    const stype = process.env.BHASH_SMS_STYPE || 'normal';
+
+    // DLT Approved Template: {#var#} is your OTP for your SellMyGhar account. Do not share it with anyone. It is valid for 5 minutes. Visit www.sellmyghar.in
+    const text = `${otp} is your OTP for your SellMyGhar account. Do not share it with anyone. It is valid for 5 minutes. Visit www.sellmyghar.in`;
+
+    const params = new URLSearchParams({
+      user: bhashUser,
+      pass: bhashPass,
+      sender: bhashSender,
+      phone: cleanDigits,
+      text,
+      priority,
+      stype,
+    });
+
+    const primaryUrl = `http://bhashsms.com/api/sendmsg.php?${params.toString()}`;
+
+    try {
+      const response = await fetch(primaryUrl, {
+        method: 'GET',
+        headers: {
+          'User-Agent': 'SellMyGhar-Auth/1.0',
+        },
+      });
+
+      const responseText = await response.text();
+      const trimmed = responseText.trim();
+
+      // Bhash SMS returns 'S.<msg_id>' on success (e.g. 'S.575318')
+      if (trimmed.startsWith('S.') || /^\d+$/.test(trimmed)) {
+        return {
+          success: true,
+          messageId: trimmed,
+        };
+      }
+
+      console.error(`[BhashSMS] Delivery rejected by gateway: ${trimmed}`);
+      return {
+        success: false,
+        error: `SMS gateway rejected message: ${trimmed}`,
+      };
+    } catch (networkErr: any) {
+      console.warn(`[BhashSMS] HTTP request failed (${networkErr?.message}), attempting HTTPS fallback...`);
+      try {
+        const httpsUrl = `https://bhashsms.com/api/sendmsg.php?${params.toString()}`;
+        const fallbackRes = await fetch(httpsUrl, { method: 'GET' });
+        const fallbackText = (await fallbackRes.text()).trim();
+        if (fallbackText.startsWith('S.') || /^\d+$/.test(fallbackText)) {
+          return {
+            success: true,
+            messageId: fallbackText,
+          };
+        }
+        return {
+          success: false,
+          error: `SMS gateway rejected message on fallback: ${fallbackText}`,
+        };
+      } catch (fallbackErr: any) {
+        console.error(`[BhashSMS] Transport error: ${fallbackErr?.message || fallbackErr}`);
+        throw new Error(`SMS delivery failed: ${networkErr?.message || 'Network error connecting to SMS gateway'}`);
+      }
+    }
   }
 }
 
@@ -103,7 +158,10 @@ export function getSmsProvider(): SmsProvider {
   if (testOverrideProvider) {
     return testOverrideProvider;
   }
-  const isProd = process.env.NODE_ENV === 'production';
+  if (process.env.RUNNING_TESTS === 'true') {
+    return devProviderInstance;
+  }
+  const isProd = process.env.NODE_ENV === 'production' || process.env.USE_REAL_SMS === 'true';
   return isProd ? prodProviderInstance : devProviderInstance;
 }
 

@@ -26,6 +26,7 @@ import { runAuthAndNotificationTests } from './test-auth-registration-and-notifi
 import { runManual99acresLeadTests } from './test-manual-99acres-lead';
 import { runProbeSecurityTests } from './test-probe-and-production-security';
 import { runStaffEnumerationHardeningTests } from './test-staff-enumeration-hardening';
+import { run99acresWebhookTests } from './test-99acres-webhook';
 
 async function runAll() {
   console.log('====================================================');
@@ -279,6 +280,15 @@ async function runAll() {
   totalFailed += hardenRes.failed;
   suiteResults.push({ name: 'Staff Authentication Hardening & Enumeration Defense', passed: hardenRes.passed, failed: hardenRes.failed, tests: hardenRes.results });
   console.log(`Subtotal: ${hardenRes.passed} passed, ${hardenRes.failed} failed\n`);
+
+  // Suite 29: 99acres Inbound Lead Webhook Integration Suite
+  console.log('--- 29. 99acres Inbound Lead Webhook Integration Suite ---');
+  const acresRes = await run99acresWebhookTests();
+  acresRes.results.forEach(r => console.log(' ', r));
+  totalPassed += acresRes.passed;
+  totalFailed += acresRes.failed;
+  suiteResults.push({ name: '99acres Webhook Inbound Integration', passed: acresRes.passed, failed: acresRes.failed, tests: acresRes.results });
+  console.log(`Subtotal: ${acresRes.passed} passed, ${acresRes.failed} failed\n`);
 
   console.log('====================================================');
   console.log(`FINAL RESULTS: ${totalPassed} PASSED, ${totalFailed} FAILED (TOTAL: ${totalPassed + totalFailed}/${totalPassed + totalFailed})`);

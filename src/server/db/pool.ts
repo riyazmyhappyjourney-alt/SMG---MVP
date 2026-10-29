@@ -48,6 +48,22 @@ export class SandboxDbClient extends EventEmitter implements DbConnection {
  */
 
 let poolInstance: pg.Pool | null = null;
+let devSandboxActive = false;
+
+export function activateDevSandbox(reason?: string): void {
+  if (!devSandboxActive) {
+    devSandboxActive = true;
+    logSandboxWarning(`[Dev Sandbox] Instant sandbox activated for local development${reason ? ` (${reason})` : ''}.`);
+  }
+}
+
+export function isDevSandboxActive(): boolean {
+  return devSandboxActive;
+}
+
+export function resetDevSandboxActive(): void {
+  devSandboxActive = false;
+}
 
 type TestQueryHandler = (text: string, params?: unknown[]) => Promise<{ rows: any[] } | null> | { rows: any[] } | null;
 let testQueryHandler: TestQueryHandler | null = null;
@@ -142,17 +158,26 @@ o/bKiIz+Fq8=
       connectionString: config.databaseUrl,
       max: 20,
       idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 10000,
+      connectionTimeoutMillis: config.allowSandbox && !config.isProduction ? 2500 : 10000,
       ssl: sslConfig,
     });
 
     const origConnect = realPool.connect.bind(realPool);
     (realPool as any).connect = function (...args: any[]) {
+      if (config.allowSandbox && devSandboxActive) {
+        const sandboxClient = new SandboxDbClient();
+        if (typeof args[0] === 'function') {
+          return args[0](null, sandboxClient, () => sandboxClient.release());
+        }
+        return Promise.resolve(sandboxClient);
+      }
+
       if (typeof args[0] === 'function') {
         const cb = args[0];
         return origConnect((err: any, client: any, release: any) => {
           if (err || !client) {
             if (config.allowSandbox) {
+              devSandboxActive = true;
               logSandboxWarning(`[Dev Sandbox] Database connection unavailable (${err?.message || 'connection failed'}) — falling back to sandbox client`);
               const sandboxClient = new SandboxDbClient();
               return cb(null, sandboxClient, () => sandboxClient.release());
@@ -189,6 +214,7 @@ o/bKiIz+Fq8=
         return client;
       }).catch((err: any) => {
         if (config.allowSandbox) {
+          devSandboxActive = true;
           logSandboxWarning(`[Dev Sandbox] Database connection unavailable (${err?.message || 'connection failed'}) — falling back to sandbox client`);
           return new SandboxDbClient();
         }
@@ -202,10 +228,14 @@ o/bKiIz+Fq8=
         const testRes = await testQueryHandler(text, params);
         if (testRes !== null) return testRes;
       }
+      if (config.allowSandbox && devSandboxActive) {
+        return devSandboxStore.handleQuery(text, (params as any[]) || []);
+      }
       try {
         return await (origPoolQuery as any)(text, params, ...rest);
       } catch (err: any) {
         if (config.allowSandbox) {
+          devSandboxActive = true;
           logSandboxWarning(`[Dev Sandbox] Database pool query unavailable (${err?.message || 'query failed'}) — falling back to sandbox store`);
           return devSandboxStore.handleQuery(text, (params as any[]) || []);
         }
@@ -243,7 +273,7 @@ export async function executeQuery<T = any>(text: string, params?: unknown[]): P
   }
 
   // 2. Direct sandbox interception BEFORE any connection attempt
-  if (isDummy && config.allowSandbox) {
+  if ((isDummy || devSandboxActive) && config.allowSandbox) {
     const res = devSandboxStore.handleQuery(text, (params as any[]) || []);
     return res as { rows: T[] };
   }
@@ -254,6 +284,7 @@ export async function executeQuery<T = any>(text: string, params?: unknown[]): P
     return res as { rows: T[] };
   } catch (err: any) {
     if (config.allowSandbox) {
+      devSandboxActive = true;
       logSandboxWarning(`[Dev Sandbox] Database connection unavailable (${err.message}) — falling back to sandbox store`);
       const res = devSandboxStore.handleQuery(text, (params as any[]) || []);
       return res as { rows: T[] };

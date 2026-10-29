@@ -612,6 +612,7 @@ export default function App() {
 
     return (
       <SellerFunnel
+        user={activeUser}
         onBackToHome={() => navigateTo('HOME')}
         onViewProperty={(pid) => {
           setSelectedPropertyId(pid);

@@ -95,18 +95,39 @@ export class OtpService {
     // Record in-memory for dev/test environments
     recordDevOtp(normalizedPhone, otpCode);
 
-    // 5. Deliver through WhatsApp (AiSensy) or SMS Provider fallback
+    // 5. Deliver through SMS Provider (Bhash SMS) or WhatsApp (AiSensy)
     let deliveredChannel: 'WHATSAPP' | 'SMS' = 'SMS';
-    let waDelivered = false;
+    let deliverySuccess = false;
 
-    if (channel !== 'SMS') {
+    // Bhash SMS is the primary OTP channel unless WhatsApp is explicitly requested or running tests
+    const isSmsPrimary = (process.env.OTP_PRIMARY_CHANNEL === 'SMS' || process.env.USE_REAL_SMS === 'true' || process.env.NODE_ENV === 'production') && process.env.RUNNING_TESTS !== 'true';
+    const shouldTrySmsFirst = channel === 'SMS' || (channel === 'AUTO' && isSmsPrimary);
+
+    if (shouldTrySmsFirst) {
+      try {
+        const smsProvider = getSmsProvider();
+        if (smsProvider.isConfigured()) {
+          const smsRes = await smsProvider.sendOtp(normalizedPhone, otpCode);
+          if (smsRes.success) {
+            deliverySuccess = true;
+            deliveredChannel = 'SMS';
+          } else {
+            console.warn(`[OtpService] Bhash SMS delivery status: ${smsRes.error || 'unspecified'}, falling back to WhatsApp.`);
+          }
+        }
+      } catch (err: any) {
+        console.warn(`[OtpService] SMS delivery exception: ${err?.message || err}, falling back to WhatsApp.`);
+      }
+    }
+
+    if (!deliverySuccess) {
       try {
         const waRes = await AiSensyNotificationService.handleOtpDelivery({
           phone: normalizedPhone,
           otpCode,
         });
         if (waRes.status === 'DELIVERED' || waRes.status === 'SIMULATED') {
-          waDelivered = true;
+          deliverySuccess = true;
           deliveredChannel = 'WHATSAPP';
         } else {
           console.warn(`[OtpService] WhatsApp delivery status: ${waRes.status} (${waRes.error || 'unspecified'}), falling back to SMS.`);
@@ -116,14 +137,17 @@ export class OtpService {
       }
     }
 
-    if (!waDelivered) {
+    if (!deliverySuccess) {
       const smsProvider = getSmsProvider();
       if (!smsProvider.isConfigured()) {
         throw new Error(
-          'WhatsApp OTP delivery is currently unavailable (WhatsApp service plan inactive). Please sign in with Google or try again shortly.'
+          'SMS OTP delivery is currently unavailable. Please sign in with Google or try again shortly.'
         );
       }
-      await smsProvider.sendOtp(normalizedPhone, otpCode);
+      const smsRes = await smsProvider.sendOtp(normalizedPhone, otpCode);
+      if (!smsRes.success) {
+        throw new Error(smsRes.error || 'Failed to dispatch SMS OTP. Please try again or use Google Sign-In.');
+      }
       deliveredChannel = 'SMS';
     }
 

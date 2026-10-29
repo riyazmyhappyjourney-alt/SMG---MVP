@@ -51,6 +51,7 @@ import {
 } from '../../utils/formSanitizer';
 import { trackFunnelStep, trackFunnelCompleted } from '../../utils/analytics';
 import { safeFetch } from '../../utils/safeApi';
+import { UserAuthProfile } from '../../types/user';
 
 export type PropertyKind = 'Flat / Apartment' | 'Gated Community Villa';
 export type FurnishingStatus = 'Furnished' | 'Semi-furnished' | 'Unfurnished';
@@ -64,6 +65,7 @@ export interface PhotoItem {
 }
 
 interface SellerFunnelProps {
+  user?: UserAuthProfile | null;
   onBackToHome?: () => void;
   onViewDashboard?: () => void;
   onViewProperty?: (propertyId: string) => void;
@@ -146,6 +148,7 @@ const YEARS_LIST = ['2026', '2027', '2028', '2029', '2030'];
 const DRAFT_STORAGE_KEY = 'sellmyghar_seller_draft_v3';
 
 export function SellerFunnel({
+  user,
   onBackToHome,
   onViewDashboard,
   onViewProperty,
@@ -238,6 +241,16 @@ export function SellerFunnel({
   const submittingRef = useRef<boolean>(false);
   const submissionKeyRef = useRef<string>('');
 
+  // Sync passed user prop
+  useEffect(() => {
+    if (user) {
+      setAuthSession({ authenticated: true, user });
+      if (user.name && !ownerName) setOwnerName(user.name);
+      if (user.phone && !ownerPhone) setOwnerPhone(user.phone.replace(/\D/g, '').slice(-10));
+      if (user.email && !ownerEmail) setOwnerEmail(user.email);
+    }
+  }, [user]);
+
   // Check active session on mount
   useEffect(() => {
     fetch('/api/auth/me', { credentials: 'include' })
@@ -248,12 +261,26 @@ export function SellerFunnel({
           if (data.user.name && !ownerName) setOwnerName(data.user.name);
           if (data.user.phone && !ownerPhone) setOwnerPhone(data.user.phone.replace(/\D/g, '').slice(-10));
           if (data.user.email && !ownerEmail) setOwnerEmail(data.user.email);
-        } else {
+        } else if (!user) {
           setAuthSession({ authenticated: false });
         }
       })
-      .catch(() => setAuthSession({ authenticated: false }));
-  }, []);
+      .catch(() => {
+        if (!user) setAuthSession({ authenticated: false });
+      });
+  }, [user]);
+
+  // Active user identity & Welcome text resolution
+  const currentUser = user || (authSession?.authenticated ? authSession.user : null);
+  const isGoogle = Boolean(
+    (currentUser as any)?.provider === 'google' ||
+    (currentUser?.email && !currentUser?.phone)
+  );
+  const welcomeText = currentUser
+    ? isGoogle
+      ? `Welcome ${currentUser.name ? currentUser.name.split(' ')[0] : 'User'}`
+      : 'Welcome User'
+    : null;
 
 
 
@@ -749,11 +776,21 @@ export function SellerFunnel({
             </span>
           </div>
 
-          <div className="flex items-center space-x-3 text-xs font-medium">
+          <div className="flex items-center space-x-2.5 text-xs font-medium">
+            {welcomeText && (
+              <div className="flex items-center space-x-1.5 px-3 py-1 rounded-full bg-white/15 border border-white/20 text-white shadow-xs">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="font-bold tracking-tight">{welcomeText}</span>
+              </div>
+            )}
             <span className="hidden sm:inline text-white/80">Post Resale Property</span>
-            {authSession?.user && (
-              <div className="w-8 h-8 rounded-full bg-white/20 text-white font-bold flex items-center justify-center text-xs">
-                {authSession.user.name?.slice(0, 2).toUpperCase() || 'SM'}
+            {currentUser && (
+              <div className="w-8 h-8 rounded-full bg-white/20 text-white font-bold flex items-center justify-center text-xs border border-white/25 shadow-xs overflow-hidden">
+                {(currentUser as any).avatar ? (
+                  <img src={(currentUser as any).avatar} alt={welcomeText || 'User'} className="w-full h-full object-cover" />
+                ) : (
+                  <span>{(currentUser.name || 'User').slice(0, 2).toUpperCase()}</span>
+                )}
               </div>
             )}
           </div>
@@ -856,6 +893,35 @@ export function SellerFunnel({
           
           <div className="bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-6 sm:p-8">
             
+            {/* Top Welcome Header Banner */}
+            {welcomeText && (
+              <div className="mb-5 p-3.5 sm:p-4 rounded-xl bg-gradient-to-r from-blue-50/90 via-sky-50/50 to-white border border-blue-100 flex items-center justify-between shadow-2xs">
+                <div className="flex items-center space-x-3">
+                  <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-[#0073E6] text-white flex items-center justify-center font-bold text-xs sm:text-sm shadow-xs shrink-0 overflow-hidden">
+                    {(currentUser as any)?.avatar ? (
+                      <img src={(currentUser as any).avatar} alt={welcomeText} className="w-full h-full object-cover" />
+                    ) : (
+                      <span>{(currentUser?.name || 'User').slice(0, 2).toUpperCase()}</span>
+                    )}
+                  </div>
+                  <div>
+                    <div className="flex items-center space-x-2">
+                      <h2 className="text-sm sm:text-base font-extrabold text-[#172033] font-['Montserrat']">
+                        {welcomeText}
+                      </h2>
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1 animate-pulse" />
+                        Verified {isGoogle ? 'Google Account' : 'Phone'}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 font-['Poppins'] mt-0.5">
+                      Welcome to SellMyGhar. Direct buyer enquiries for your property will be routed directly to you.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Desktop Back Navigation Link & Step Dot Tracker */}
             <div className="hidden lg:flex items-center justify-between pb-4 mb-5 border-b border-slate-100 font-['Montserrat']">
               <div>
