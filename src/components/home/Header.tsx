@@ -6,7 +6,6 @@ import {
   LayoutDashboard, 
   Phone,
   ArrowRight,
-  ChevronDown,
   KeyRound
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -58,17 +57,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   const handleNavClick = (target: string) => {
     setMobileMenuOpen(false);
-    if (target === 'buyers') {
-      const el = document.getElementById('listings');
-      if (el) el.scrollIntoView({ behavior: 'smooth' });
-      else window.location.hash = '#listings';
-    } else if (target === 'owners') {
-      scrollToHeroValuation();
-    } else if (target === 'societies') {
-      const el = document.getElementById('popular-societies') || document.getElementById('listings');
-      if (el) el.scrollIntoView({ behavior: 'smooth' });
-      else window.location.hash = '#listings';
-    } else if (target === 'how-it-works') {
+    if (target === 'how-it-works') {
       const el = document.getElementById('how-it-works');
       if (el) el.scrollIntoView({ behavior: 'smooth' });
       else window.location.hash = '#how-it-works';
@@ -85,10 +74,10 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="sticky top-0 z-40 bg-white border-b border-slate-200/80 shadow-2xs font-['Montserrat',sans-serif] w-full">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="w-full max-w-[1536px] mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-18 sm:h-20">
           
-          {/* Brand Logo & Bengaluru Subtitle (Matching Reference Image) */}
+          {/* Brand Logo & Bengaluru Subtitle matching reference design & font */}
           <a 
             href="/" 
             onClick={(e) => {
@@ -96,59 +85,31 @@ export const Header: React.FC<HeaderProps> = ({
               window.location.href = '/';
             }}
             className="flex items-center space-x-2.5 focus:outline-hidden group"
-            title="SellMyGhar.in - Home"
+            title="SellMyGhar.in - Bengaluru Apartment Resale"
           >
-            {/* Dual-color House Icon: Blue Roof & Orange Facade */}
+            {/* House Mark: Blue Roof & Orange Facade */}
             <div className="relative w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center shrink-0">
               <svg className="w-8 h-8 sm:w-9 sm:h-9" viewBox="0 0 36 36" fill="none">
-                {/* Roof in Blue */}
                 <path d="M18 3L4 14H8V30H28V14H32L18 3Z" fill="#0073E6"/>
-                {/* Facade cutout in Amber/Orange */}
                 <path d="M14 18H22V30H14V18Z" fill="#F97316"/>
                 <path d="M18 10L10 16.5V28H14V17H22V28H26V16.5L18 10Z" fill="#FFFFFF"/>
                 <path d="M16 20H20V30H16V20Z" fill="#F97316"/>
               </svg>
             </div>
 
-            <div className="flex flex-col">
-              <div className="flex items-baseline">
+            <div className="flex flex-col font-['Poppins',sans-serif]">
+              <div className="flex items-baseline leading-none">
                 <span className="text-slate-900 font-extrabold text-xl sm:text-2xl tracking-tight">SellMyGhar</span>
-                <span className="text-[#0073E6] font-extrabold text-lg sm:text-xl">.in</span>
+                <span className="text-[#0073E6] font-extrabold text-xl sm:text-2xl">.in</span>
               </div>
-              <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 tracking-wide">
+              <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 tracking-wide mt-0.5">
                 Bengaluru Apartment Resale
               </span>
             </div>
           </a>
 
-          {/* Desktop Navigation Links (Matching Reference Image) */}
-          <nav className="hidden lg:flex items-center space-x-6 text-xs sm:text-sm font-semibold text-slate-700">
-            <button
-              type="button"
-              onClick={() => handleNavClick('buyers')}
-              className="py-2 hover:text-[#0073E6] transition-colors cursor-pointer flex items-center space-x-1"
-            >
-              <span>For Buyers</span>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleNavClick('owners')}
-              className="py-2 hover:text-[#0073E6] transition-colors cursor-pointer flex items-center space-x-1"
-            >
-              <span>For Owners</span>
-              <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => handleNavClick('societies')}
-              className="py-2 hover:text-[#0073E6] transition-colors cursor-pointer"
-            >
-              Popular Societies
-            </button>
-
+          {/* Clean Desktop Navigation: Only Essential Links (No For Buyers, No For Owners, No Popular Societies) */}
+          <nav className="hidden lg:flex items-center space-x-8 text-xs sm:text-sm font-semibold text-slate-700">
             <button
               type="button"
               onClick={() => handleNavClick('how-it-works')}
@@ -182,19 +143,19 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           </nav>
 
-          {/* Right Action Items: Phone & Primary Button */}
+          {/* Right Action Items: Old Phone Number (+91 8217873708) & Primary Button */}
           <div className="flex items-center space-x-3 sm:space-x-5">
             
-            {/* Phone Number */}
+            {/* Real Verified Old Phone Number */}
             <a 
               href="tel:+918217873708" 
-              className="hidden md:inline-flex items-center space-x-2 text-xs sm:text-sm font-bold text-slate-800 hover:text-[#0073E6] transition-colors"
+              className="hidden md:inline-flex items-center space-x-2 text-xs sm:text-sm font-bold text-slate-800 hover:text-[#0073E6] transition-colors group"
               title="Call SellMyGhar RM Desk"
             >
-              <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-[#0073E6]">
+              <div className="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center text-[#0073E6] group-hover:bg-blue-100 transition-colors">
                 <Phone className="w-3.5 h-3.5 fill-current" />
               </div>
-              <span>+91 90360 12345</span>
+              <span>+91 8217873708</span>
             </a>
 
             {/* Primary Action Button */}
@@ -298,27 +259,6 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="grid grid-cols-1 gap-1 text-sm font-semibold text-slate-800">
               <button
                 type="button"
-                onClick={() => handleNavClick('buyers')}
-                className="w-full text-left py-2.5 px-3 rounded-lg hover:bg-slate-50 cursor-pointer"
-              >
-                For Buyers
-              </button>
-              <button
-                type="button"
-                onClick={() => handleNavClick('owners')}
-                className="w-full text-left py-2.5 px-3 rounded-lg hover:bg-slate-50 cursor-pointer"
-              >
-                For Owners
-              </button>
-              <button
-                type="button"
-                onClick={() => handleNavClick('societies')}
-                className="w-full text-left py-2.5 px-3 rounded-lg hover:bg-slate-50 cursor-pointer"
-              >
-                Popular Societies
-              </button>
-              <button
-                type="button"
                 onClick={() => handleNavClick('how-it-works')}
                 className="w-full text-left py-2.5 px-3 rounded-lg hover:bg-slate-50 cursor-pointer"
               >
@@ -364,7 +304,7 @@ export const Header: React.FC<HeaderProps> = ({
                 className="w-full py-2.5 rounded-xl border border-slate-200 text-slate-800 font-bold text-center text-xs flex items-center justify-center space-x-2"
               >
                 <Phone className="w-3.5 h-3.5 text-[#0073E6]" />
-                <span>Call RM Desk: +91 90360 12345</span>
+                <span>Call RM Desk: +91 8217873708</span>
               </a>
             </div>
           </motion.div>

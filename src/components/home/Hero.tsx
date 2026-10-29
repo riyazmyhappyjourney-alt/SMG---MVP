@@ -9,8 +9,7 @@ import {
   ArrowRight,
   CheckCircle2,
   Lock,
-  MessageCircle,
-  Mouse
+  MessageCircle
 } from 'lucide-react';
 import { searchSocieties, SocietyItem } from '../../data/bengaluruData';
 import { trackEvent } from '../../utils/analytics';
@@ -28,8 +27,14 @@ interface HeroSlideItem {
   tag?: string;
 }
 
-// Production asset backdrop strictly preserved for Suite 16 test contracts
+// Background slides preserving Suite 16 test contracts while featuring the reference image
 const DEFAULT_HERO_SLIDES: HeroSlideItem[] = [
+  {
+    id: 'slide-couple-moving',
+    url: '/images/hero-bengaluru-couple-moving.jpg',
+    alt: 'Happy Bengaluru Homeowners Celebrating Smooth Flat Resale',
+    tag: 'Homeowners',
+  },
   {
     id: 'slide-township-sunset',
     url: '/images/luxury-apartment-township-sunset.webp',
@@ -41,12 +46,6 @@ const DEFAULT_HERO_SLIDES: HeroSlideItem[] = [
     url: '/images/brigade-granada-clubhouse.webp',
     alt: 'Premium Society Clubhouse and Township Amenities in Bengaluru',
     tag: 'Society Amenities',
-  },
-  {
-    id: 'slide-night-community',
-    url: '/images/bengaluru-night-apartments.webp',
-    alt: 'Modern Residential Community in Bengaluru Tech Corridor',
-    tag: 'Residential Community',
   },
 ];
 
@@ -82,7 +81,6 @@ function useCountUp(target: number, durationMs: number = 1400): number {
       if (!startTimestamp) startTimestamp = timestamp;
       const elapsed = timestamp - startTimestamp;
       const progress = Math.min(elapsed / durationMs, 1);
-      // Ease-out cubic: decelerates smoothly to the final number
       const easeOut = 1 - Math.pow(1 - progress, 3);
       setCount(Math.round(easeOut * target));
 
@@ -227,22 +225,22 @@ export const Hero: React.FC<HeroProps> = ({
   };
 
   return (
-    <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 sm:pt-6 pb-12 font-['Montserrat',sans-serif]">
+    <div className="w-full max-w-[1536px] mx-auto px-2 sm:px-4 lg:px-6 pt-3 sm:pt-4 pb-12 font-['Montserrat',sans-serif]">
       
-      {/* 1. HERO MAIN CARD (Rounded card matching reference image) */}
+      {/* 1. HERO MAIN CARD (Edge-to-edge rounded card matching reference image) */}
       <div 
         id="hero-valuation-card"
-        className="relative rounded-3xl overflow-hidden bg-slate-950 text-white shadow-xl min-h-[480px] lg:min-h-[520px] flex items-center"
+        className="relative rounded-2xl sm:rounded-3xl overflow-hidden bg-slate-950 text-white shadow-2xl min-h-[500px] lg:min-h-[550px] flex items-center w-full"
       >
         
-        {/* Background Backdrop Image */}
+        {/* Exact Reference Hero Image (Happy Couple Moving with Boxes) */}
         <div className="absolute inset-0 w-full h-full">
           {slides.map((slide, idx) => (
             <img
               key={`${slide.url}-${idx}`}
               src={slide.url}
               alt={slide.alt}
-              className={`absolute inset-0 w-full h-full object-cover object-[center_35%] lg:object-[60%_30%] transition-opacity duration-700 ease-in-out ${
+              className={`absolute inset-0 w-full h-full object-cover object-[center_30%] lg:object-[65%_35%] transition-opacity duration-700 ease-in-out ${
                 idx === activeSlide ? 'opacity-100' : 'opacity-0 pointer-events-none'
               }`}
               loading={idx === 0 ? 'eager' : 'lazy'}
@@ -252,8 +250,8 @@ export const Hero: React.FC<HeroProps> = ({
           ))}
         </div>
 
-        {/* Subtle Dark Overlay for crisp text contrast */}
-        <div className="absolute inset-0 bg-gradient-to-r from-slate-950/92 via-slate-950/80 to-slate-950/50 pointer-events-none" />
+        {/* Subtle Vignette Gradient for crisp text contrast */}
+        <div className="absolute inset-0 bg-gradient-to-r from-slate-950/92 via-slate-950/75 to-slate-950/35 pointer-events-none" />
 
         {/* Content Layout: 2 Columns on Desktop, Clean Stack on Mobile */}
         <div className="relative z-10 w-full p-6 sm:p-10 lg:p-14">
@@ -262,8 +260,8 @@ export const Hero: React.FC<HeroProps> = ({
             {/* LEFT COLUMN: Clean Headline and Supporting Copy */}
             <div className="lg:col-span-7 space-y-4 text-left">
               
-              {/* Main Headline: "Sell your flat in 45 days." matching reference exactly */}
-              <h1 className="text-4xl sm:text-5xl md:text-6xl font-extrabold text-white tracking-tight leading-[1.12]">
+              {/* Main Headline: "Sell your flat in 45 days." matching reference font & colors */}
+              <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-extrabold text-white tracking-tight leading-[1.08]">
                 <span className="block text-white">Sell your flat</span>
                 <span className="text-white">
                   in{' '}
@@ -280,7 +278,7 @@ export const Hero: React.FC<HeroProps> = ({
               </h1>
 
               {/* Supporting Copy (No search bar, no secondary CTA) */}
-              <p className="text-sm sm:text-base text-slate-200 font-normal leading-relaxed max-w-xl pt-1">
+              <p className="text-sm sm:text-base md:text-lg text-slate-200 font-normal leading-relaxed max-w-xl pt-1">
                 A transparent resale process with verified buyers, legal diligence, and end-to-end support.
               </p>
             </div>
@@ -289,7 +287,7 @@ export const Hero: React.FC<HeroProps> = ({
             <div className="lg:col-span-5 flex justify-center lg:justify-end">
               <div 
                 id="hero-valuation-form"
-                className="w-full max-w-md bg-white rounded-2xl shadow-xl p-6 sm:p-7 text-slate-900 border border-slate-100"
+                className="w-full max-w-md bg-white rounded-2xl shadow-2xl p-6 sm:p-7 text-slate-900 border border-slate-100"
               >
                 {!isSubmitted ? (
                   <>
@@ -513,7 +511,7 @@ export const Hero: React.FC<HeroProps> = ({
           {/* Stat 1: 45 days / Average selling time */}
           <div className="flex flex-col items-center justify-center text-center px-4 py-2">
             <div className="flex items-baseline space-x-1.5">
-              <span className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight tabular-nums">
+              <span className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight tabular-nums">
                 {animatedDays}
               </span>
               <span className="text-lg sm:text-xl font-bold text-[#0073E6]">days</span>
@@ -525,7 +523,7 @@ export const Hero: React.FC<HeroProps> = ({
 
           {/* Stat 2: 200+ / Societies covered */}
           <div className="flex flex-col items-center justify-center text-center px-4 py-2 pt-6 md:pt-2">
-            <div className="text-3xl sm:text-4xl font-extrabold text-[#0073E6] tracking-tight tabular-nums">
+            <div className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-[#0073E6] tracking-tight tabular-nums">
               {animatedSocieties}+
             </div>
             <div className="text-[11px] sm:text-xs font-semibold tracking-wider text-slate-500 uppercase mt-1">
@@ -535,7 +533,7 @@ export const Hero: React.FC<HeroProps> = ({
 
           {/* Stat 3: 500+ / Flats Sold */}
           <div className="flex flex-col items-center justify-center text-center px-4 py-2 pt-6 md:pt-2">
-            <div className="text-3xl sm:text-4xl font-extrabold text-slate-900 tracking-tight tabular-nums">
+            <div className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight tabular-nums">
               {animatedFlatsSold}+
             </div>
             <div className="text-[11px] sm:text-xs font-semibold tracking-wider text-slate-500 uppercase mt-1">
