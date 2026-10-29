@@ -9429,14 +9429,29 @@ app.post(
 //   - https://sellmyghar.in/api/webhooks/99acres
 //   - https://crm.sellmyghar.in/api/webhooks/99acres
 // ====================================================================
+const NINE_NINE_ACRES_ROUTES = [
+  '/api/v1/leads/99acres',
+  '/api/leads/99acres',
+  '/api/crm/leads/99acres',
+  '/api/webhooks/99acres',
+  '/api/crm/webhooks/99acres',
+];
+
+// GET: Informational / Health check for browser visits and uptime monitors
+app.get(NINE_NINE_ACRES_ROUTES, (_req: Request, res: Response) => {
+  return res.status(200).json({
+    success: true,
+    service: 'SellMyGhar 99acres Lead Ingestion API',
+    status: 'ONLINE',
+    acceptedMethod: 'POST',
+    acceptedContentTypes: ['application/json', 'application/x-www-form-urlencoded'],
+    auth: 'API Key required via x-api-key header, Authorization: Bearer, or ?apiKey= query parameter',
+    docs: 'Send buyer enquiries via HTTP POST to this endpoint.',
+  });
+});
+
 app.post(
-  [
-    '/api/v1/leads/99acres',
-    '/api/leads/99acres',
-    '/api/crm/leads/99acres',
-    '/api/webhooks/99acres',
-    '/api/crm/webhooks/99acres',
-  ],
+  NINE_NINE_ACRES_ROUTES,
   webhookParser99acres,
   rateLimit('webhook-99acres', 120, 60),
   verify99acresWebhookAuth,

@@ -408,6 +408,20 @@ export async function run99acresWebhookTests(): Promise<{ passed: number; failed
     recordFail('11. 99acres Push API endpoint', err);
   }
 
+  // Test 12: GET request returns 200 OK with service ONLINE status
+  try {
+    const res = await dispatchRequest(app, '/api/v1/leads/99acres', {
+      method: 'GET',
+    });
+    assert(res.status === 200, `Expected 200 OK for GET check, got ${res.status}`);
+    const body = await res.json();
+    assert(body.status === 'ONLINE', 'Expected service status ONLINE');
+    assert(body.acceptedMethod === 'POST', 'Expected acceptedMethod POST');
+    recordPass('12. GET request on 99acres endpoint returns 200 OK with ONLINE status');
+  } catch (err) {
+    recordFail('12. GET request on 99acres endpoint', err);
+  }
+
   console.log(`\n99acres Webhook Inbound Integration Suite: ${passed} passed, ${failed} failed`);
   return { passed, failed, results };
 }
