@@ -426,6 +426,7 @@ export default function App() {
       (typeof window !== 'undefined' && sessionStorage.getItem('sellmyghar_auth_redirect') === 'SELLER_ASSISTED');
     return (
       <AuthPage
+        customerMobileLoginEnabled={true}
         intent={isPostPropertyIntent ? 'POST_PROPERTY' : 'GENERAL'}
         initialMode="SIGNIN"
         onBackToHome={() => {
@@ -599,6 +600,7 @@ export default function App() {
     if (!activeUser) {
       return (
         <AuthPage
+          customerMobileLoginEnabled={true}
           intent="POST_PROPERTY"
           initialMode="SIGNIN"
           onBackToHome={() => navigateTo('HOME')}

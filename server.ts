@@ -6960,7 +6960,10 @@ app.post('/api/crm/users', jsonDefault, authenticateUser, requireStaffMember, as
       'OVERVIEW', 'LEADS', 'PROPERTIES', 'VISITS', 'OFFERS',
       'TASKS', 'CALENDAR', 'REPORTS', 'TEAM', 'AUDIT_LOGS', 'SETTINGS'
     ];
-    const assignedModules: string[] = [...ALL_CRM_MODULES];
+    const validModules = new Set<string>(ALL_CRM_MODULES);
+    const assignedModules: string[] = Array.isArray(modules) && modules.length > 0
+      ? Array.from(new Set(['OVERVIEW', ...modules.filter((m: string) => validModules.has(m))]))
+      : [...ALL_CRM_MODULES];
 
     // 3. Password Complexity (Minimum 8 chars)
     if (typeof initialPassword !== 'string' || initialPassword.length < 8) {

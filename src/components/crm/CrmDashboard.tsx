@@ -548,11 +548,18 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
 
   // Employee Administration: Add Employee Modal State
   const [isAddUserOpen, setIsAddUserOpen] = useState<boolean>(false);
-  const [addUserForm, setAddUserForm] = useState({
+  const [addUserForm, setAddUserForm] = useState<{
+    fullName: string;
+    email: string;
+    phone: string;
+    initialPassword: string;
+    modules: CrmModule[];
+  }>({
     fullName: '',
     email: '',
     phone: '',
     initialPassword: '',
+    modules: ['LEADS', 'PROPERTIES', 'VISITS', 'OFFERS', 'TASKS', 'CALENDAR', 'REPORTS'],
   });
   const [isCreatingUser, setIsCreatingUser] = useState<boolean>(false);
 
@@ -1283,6 +1290,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
           email: addUserForm.email.trim().toLowerCase(),
           phone: addUserForm.phone.trim(),
           initialPassword: addUserForm.initialPassword,
+          modules: ['OVERVIEW', ...addUserForm.modules],
         })
       });
       const data = await res.json();
@@ -1294,6 +1302,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
           email: '',
           phone: '',
           initialPassword: '',
+          modules: ['LEADS', 'PROPERTIES', 'VISITS', 'OFFERS', 'TASKS', 'CALENDAR', 'REPORTS'],
         });
         refreshAll();
       } else {
@@ -5772,8 +5781,8 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
       {/* ============================================================== */}
       {isAddUserOpen && (
         <div className="fixed inset-0 z-50 overflow-hidden flex items-center justify-center bg-slate-900/40 backdrop-blur-xs p-4">
-          <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200/80 overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-200/80 bg-slate-50/50 flex items-center justify-between">
+          <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl border border-slate-200/80 overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="px-6 py-4 border-b border-slate-200/80 bg-slate-50/50 flex items-center justify-between shrink-0">
               <h3 className="font-bold text-sm text-slate-900 flex items-center space-x-2">
                 <UserPlus className="w-4 h-4 text-[#0073E6]" />
                 <span>Add Employee Account</span>
@@ -5787,12 +5796,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               </button>
             </div>
 
-            <form onSubmit={handleCreateUser} className="p-6 space-y-4 text-xs">
-              <div className="p-3 bg-blue-50/60 border border-blue-200/80 rounded-xl text-blue-900 text-[11px] leading-relaxed">
-                <span className="font-bold block mb-0.5">Strict Employee Access Policy</span>
-                Every authorized employee receives equal, standard operational access to all CRM functions (leads, properties, reserve prices, visits, offers, tasks, reports, team directory, and audit logs).
-              </div>
-
+            <form onSubmit={handleCreateUser} className="p-6 space-y-4 text-xs overflow-y-auto">
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                   Full Name *
@@ -5851,7 +5855,93 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 />
               </div>
 
-              <div className="pt-2 flex justify-end space-x-2">
+              {/* Module Permissions Selection */}
+              <div className="pt-2">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                    Module Permissions
+                  </label>
+                  <div className="flex items-center space-x-2 text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setAddUserForm((prev) => ({
+                          ...prev,
+                          modules: [
+                            'LEADS',
+                            'PROPERTIES',
+                            'VISITS',
+                            'OFFERS',
+                            'TASKS',
+                            'CALENDAR',
+                            'REPORTS',
+                            'TEAM',
+                            'AUDIT_LOGS',
+                            'SETTINGS',
+                          ],
+                        }))
+                      }
+                      className="text-[#0073E6] hover:underline font-bold cursor-pointer"
+                    >
+                      Select All
+                    </button>
+                    <span className="text-slate-300">|</span>
+                    <button
+                      type="button"
+                      onClick={() => setAddUserForm((prev) => ({ ...prev, modules: [] }))}
+                      className="text-slate-500 hover:underline font-bold cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+                <p className="text-[10px] text-slate-500 mb-2">
+                  Select which CRM sections this staff member is authorized to access:
+                </p>
+                <div className="grid grid-cols-2 gap-2 p-3 bg-slate-50 border border-slate-200/80 rounded-xl">
+                  {[
+                    { key: 'LEADS' as CrmModule, label: 'Leads Pipeline' },
+                    { key: 'PROPERTIES' as CrmModule, label: 'Properties & Inventory' },
+                    { key: 'VISITS' as CrmModule, label: 'Site Visits & Tours' },
+                    { key: 'OFFERS' as CrmModule, label: 'Offers & Negotiations' },
+                    { key: 'TASKS' as CrmModule, label: 'Tasks & Workbench' },
+                    { key: 'CALENDAR' as CrmModule, label: 'Calendar Schedule' },
+                    { key: 'REPORTS' as CrmModule, label: 'Reports & Analytics' },
+                    { key: 'TEAM' as CrmModule, label: 'Team Directory' },
+                    { key: 'AUDIT_LOGS' as CrmModule, label: 'Audit Logs' },
+                    { key: 'SETTINGS' as CrmModule, label: 'System Settings' },
+                  ].map(({ key, label }) => {
+                    const isChecked = addUserForm.modules.includes(key);
+                    return (
+                      <label
+                        key={key}
+                        className={`flex items-center space-x-2 p-2 rounded-lg border text-xs cursor-pointer select-none transition-all ${
+                          isChecked
+                            ? 'bg-blue-50/80 border-[#0073E6]/40 text-blue-900 font-semibold'
+                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {
+                            setAddUserForm((prev) => ({
+                              ...prev,
+                              modules: isChecked
+                                ? prev.modules.filter((m) => m !== key)
+                                : [...prev.modules, key],
+                            }));
+                          }}
+                          className="w-3.5 h-3.5 rounded text-[#0073E6] focus:ring-[#0073E6]"
+                        />
+                        <span className="truncate">{label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="pt-2 flex justify-end space-x-2 shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsAddUserOpen(false)}

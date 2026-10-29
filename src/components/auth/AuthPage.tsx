@@ -66,7 +66,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({
   onSuccess,
   onBackToHome,
   showSplashOnInit = false,
-  customerMobileLoginEnabled = false,
+  customerMobileLoginEnabled = true,
 }) => {
   const [mobileLoginAllowed, setMobileLoginAllowed] = useState<boolean>(customerMobileLoginEnabled);
   const [step, setStep] = useState<AuthStep>('WELCOME');

@@ -1246,6 +1246,7 @@ class DevSandboxStore {
         password_hash,
         token_version: 1,
         roles,
+        module_permissions: Array.isArray(params[6]) ? params[6] : (params[6] ? [params[6]] : ['OVERVIEW']),
         is_active: true,
         failed_login_attempts: 0,
         locked_until: null,
