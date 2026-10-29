@@ -5814,7 +5814,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 <input
                   type="email"
                   required
-                  placeholder="name@sellmyghar.in"
+                  placeholder="Enter email ID"
                   value={addUserForm.email}
                   onChange={(e) => setAddUserForm({ ...addUserForm, email: e.target.value })}
                   className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#0073E6]/20 focus:border-[#0073E6]"

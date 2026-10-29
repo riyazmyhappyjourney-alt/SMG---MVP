@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Lock, Mail, KeyRound, AlertCircle, ArrowRight, ShieldCheck, Loader2, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { Lock, Mail, KeyRound, AlertCircle, ArrowRight, Loader2, ArrowLeft, CheckCircle2 } from 'lucide-react';
 
 interface StaffLoginProps {
   onSuccess: (session: { user: any; token?: string }) => void;
@@ -161,11 +161,11 @@ export const StaffLogin: React.FC<StaffLoginProps> = ({ onSuccess, onBackToHome,
           <h2 className="text-2xl font-extrabold text-[#172033] tracking-tight">
             {mode === 'LOGIN' ? 'Staff Operations Portal' : 'Set New Password'}
           </h2>
-          <p className="text-xs text-slate-500 font-medium mt-1">
-            {mode === 'LOGIN' 
-              ? 'Restricted authentication for Bengaluru verification & CRM desk' 
-              : 'Choose a strong, compliant password for your staff account'}
-          </p>
+          {mode !== 'LOGIN' && (
+            <p className="text-xs text-slate-500 font-medium mt-1">
+              Choose a strong, compliant password for your staff account
+            </p>
+          )}
         </div>
 
         {/* Minimal Auth Card */}
@@ -202,7 +202,7 @@ export const StaffLogin: React.FC<StaffLoginProps> = ({ onSuccess, onBackToHome,
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="staff@sellmyghar.in"
+                    placeholder="Enter email ID"
                     className="w-full pl-10 pr-3.5 py-3 text-sm bg-slate-50/70 border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0073E6] focus:border-transparent transition-all"
                   />
                 </div>
@@ -318,14 +318,6 @@ export const StaffLogin: React.FC<StaffLoginProps> = ({ onSuccess, onBackToHome,
             </form>
           )}
 
-        </div>
-
-        {/* Security Assurance Footer */}
-        <div className="mt-6 text-center">
-          <p className="text-[11px] text-slate-400 inline-flex items-center space-x-1.5">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-            <span>Encrypted internal endpoint • Activity audited under DPDP rules</span>
-          </p>
         </div>
 
       </div>
