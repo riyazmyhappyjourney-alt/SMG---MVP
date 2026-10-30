@@ -257,9 +257,28 @@ const PIPELINE_STAGES: Array<{ key: LeadStatus; label: string; desc: string }> =
   { key: 'LOST', label: 'LOST', desc: 'Inquiry Dropped' },
 ];
 
+function parseUrlLeadId(): string | null {
+  try {
+    if (typeof window === 'undefined') return null;
+    const searchParams = new URLSearchParams(window.location.search);
+    const fromSearch = searchParams.get('leadId') || searchParams.get('lead') || searchParams.get('id');
+    if (fromSearch) return fromSearch;
+
+    const hash = window.location.hash || '';
+    if (hash.includes('?')) {
+      const hashParams = new URLSearchParams(hash.split('?')[1]);
+      const fromHash = hashParams.get('leadId') || hashParams.get('lead') || hashParams.get('id');
+      if (fromHash) return fromHash;
+    }
+  } catch {}
+  return null;
+}
+
 export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps) {
   // Navigation State
-  const [activeSection, setActiveSection] = useState<NavSection>('OVERVIEW');
+  const [activeSection, setActiveSection] = useState<NavSection>(() => {
+    return parseUrlLeadId() ? 'LEADS' : 'OVERVIEW';
+  });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<'SECURITY' | 'HERO_CMS' | 'PARTNER_CMS' | 'CAREERS_CMS' | 'EMAIL_TEMPLATE' | 'SUGGESTIONS_CSV'>('SECURITY');
 
@@ -529,10 +548,30 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
   const [taskSearch, setTaskSearch] = useState<string>('');
 
   // Selected Records for Drawers
-  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
+  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(() => {
+    return parseUrlLeadId();
+  });
   const [leadDetailData, setLeadDetailData] = useState<any>(null);
   const [leadDetailLoading, setLeadDetailLoading] = useState<boolean>(false);
   const [leadDetailError, setLeadDetailError] = useState<string | null>(null);
+
+  // Deep-link support: Automatically select lead and switch to LEADS section if leadId is in URL
+  useEffect(() => {
+    const handleUrlDeepLink = () => {
+      const deepLeadId = parseUrlLeadId();
+      if (deepLeadId) {
+        setActiveSection('LEADS');
+        setSelectedLeadId(deepLeadId);
+      }
+    };
+    handleUrlDeepLink();
+    window.addEventListener('hashchange', handleUrlDeepLink);
+    window.addEventListener('popstate', handleUrlDeepLink);
+    return () => {
+      window.removeEventListener('hashchange', handleUrlDeepLink);
+      window.removeEventListener('popstate', handleUrlDeepLink);
+    };
+  }, []);
 
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
   const [propertyDetailData, setPropertyDetailData] = useState<any>(null);

@@ -1744,8 +1744,8 @@ export class EmailNotificationService {
     const recipient = process.env.INTERNAL_ALERT_EMAIL || 'sellmyghar1@gmail.com';
     const idempotencyKey = `internal-intake-${data.id}`;
 
-    const baseUrl = process.env.APP_BASE_URL || process.env.APP_URL || 'http://localhost:3000';
-    const crmUrl = `${baseUrl}/#/crm?section=PROPERTIES&id=${data.id}`;
+    const crmBaseUrl = process.env.CRM_BASE_URL || 'https://crm.sellmyghar.in';
+    const crmUrl = `${crmBaseUrl}/#/crm?section=PROPERTIES&id=${data.id}`;
 
     const formattedPrice = data.priceOrRent >= 10000000
       ? `₹${(data.priceOrRent / 10000000).toFixed(2)} Crore`
@@ -1886,8 +1886,8 @@ export class EmailNotificationService {
     const recipient = recipientsList.join(', ');
     const idempotencyKey = `internal-lead-alert-${data.leadId}`;
 
-    const baseUrl = process.env.APP_BASE_URL || process.env.APP_URL || 'https://crm.sellmyghar.in';
-    const crmUrl = `${baseUrl}/#/crm?leadId=${encodeURIComponent(data.leadId)}`;
+    const crmBaseUrl = process.env.CRM_BASE_URL || 'https://crm.sellmyghar.in';
+    const crmUrl = `${crmBaseUrl}/#/crm?leadId=${encodeURIComponent(data.leadId)}`;
 
     let formattedBudget = 'Not Specified';
     if (data.budget) {

@@ -68,13 +68,7 @@ export function resolveRoute(path: string, hash: string, host: string, search: s
     return 'CRM';
   }
 
-  // 2. Localhost development shortcut
-  const isLocalhostCrm = host.includes('localhost') && (hash === '#/crm' || path === '/crm');
-  if (isLocalhostCrm) return 'CRM';
-
-  const localitySlug = parseLocalitySlug(path, hash);
-
-  // 3. Explicit application hash routes take highest precedence on public domain
+  // 2. Explicit application hash routes take highest precedence on public domain
   if (hash === '#/terms') return 'TERMS';
   if (hash === '#/privacy-policy' || hash === '#/privacy') return 'PRIVACY_POLICY';
   if (hash === '#/cookie-policy') return 'COOKIE_POLICY';
@@ -88,21 +82,25 @@ export function resolveRoute(path: string, hash: string, host: string, search: s
   if (hash === '#/dashboard' || hash === '#/seller-dashboard') return 'DASHBOARD';
   if (hash === '#/seller-assisted' || hash === '#/post-property') return 'SELLER_ASSISTED';
 
-  // 4. Property detail view (direct URL or hash)
+  // 2b. Hidden CRM route: accessible via direct link (#/crm, /crm, or query param)
+  if (hash === '#/crm' || hash.startsWith('#/crm?') || hash.startsWith('#/crm/') || path === '/crm' || path.startsWith('/crm/')) {
+    if (typeof window !== 'undefined' && !host.startsWith('crm.') && !host.includes('localhost')) {
+      const searchPart = window.location.search || '';
+      const hashPart = window.location.hash || '#/crm';
+      window.location.replace(`https://crm.sellmyghar.in/${searchPart}${hashPart}`);
+      return 'CRM';
+    }
+    return 'CRM';
+  }
+
+  // 3. Property detail view (direct URL or hash)
   if (hash.startsWith('#/property/') || path.startsWith('/property/')) {
     return 'PROPERTY_DETAIL';
   }
 
-  if (path === '/dashboard' || path === '/seller-dashboard') return 'DASHBOARD';
-  if (path === '/login' || path === '/register') return 'LOGIN';
-  if (path === '/reset-password') return 'RESET_PASSWORD';
-  if (path === '/consent') return 'CONSENT';
-  if (path === '/seller-assisted' || path === '/post-property') return 'SELLER_ASSISTED';
-
-  // 5. OAuth Callback route: explicit callback path OR OAuth provider redirect parameters (?code=, ?error=)
+  // 4. OAuth Callback route: explicit callback path OR OAuth provider redirect parameters (?code=, ?error=)
   const searchParams = new URLSearchParams(search);
   const hasOAuthCallbackQuery = searchParams.has('code') || searchParams.has('error') || searchParams.has('error_description');
-
   if (
     path === '/auth/callback' ||
     path.startsWith('/auth/callback') ||
@@ -112,6 +110,18 @@ export function resolveRoute(path: string, hash: string, host: string, search: s
   ) {
     return 'AUTH_CALLBACK';
   }
+
+  const localitySlug = parseLocalitySlug(path, hash);
+
+
+
+  if (path === '/dashboard' || path === '/seller-dashboard') return 'DASHBOARD';
+  if (path === '/login' || path === '/register') return 'LOGIN';
+  if (path === '/reset-password') return 'RESET_PASSWORD';
+  if (path === '/consent') return 'CONSENT';
+  if (path === '/seller-assisted' || path === '/post-property') return 'SELLER_ASSISTED';
+
+
 
   // 5. Legal and Company path routes
   if (path === '/terms') return 'TERMS';
@@ -258,9 +268,13 @@ export default function App() {
     setCurrentRoute(route);
     if (route === 'CRM') {
       if (window.location.hostname.startsWith('crm.') || window.location.hostname.includes('localhost')) {
-        window.location.hash = '/crm';
+        if (!window.location.hash || window.location.hash === '' || window.location.hash === '#/') {
+          window.location.hash = '/crm';
+        }
       } else {
-        window.location.href = `https://crm.${window.location.hostname.replace(/^www\./, '')}`;
+        const searchPart = window.location.search || '';
+        const hashPart = window.location.hash || '#/crm';
+        window.location.replace(`https://crm.sellmyghar.in/${searchPart}${hashPart}`);
       }
     } else if (route === 'DASHBOARD') {
       window.location.hash = '/dashboard';
