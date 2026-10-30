@@ -4804,11 +4804,126 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                       </button>
                     </div>
 
-                    {leadDetailData.lead.notes && (
-                      <div className="p-3.5 bg-slate-50/80 rounded-xl border border-slate-200/70 text-xs text-slate-700 whitespace-pre-wrap font-sans">
-                        {leadDetailData.lead.notes}
-                      </div>
-                    )}
+                    {(() => {
+                      const raw = leadDetailData.lead.notes || '';
+                      if (!raw.trim()) {
+                        return <p className="text-slate-400 italic text-[11px]">No notes recorded yet.</p>;
+                      }
+
+                      const lines = raw.split('\n').map((l: string) => l.trim()).filter(Boolean);
+                      const sourceLines: string[] = [];
+                      const interactionNotes: Array<{ rawTime?: string; formattedTime?: string; author: string; text: string }> = [];
+
+                      for (const line of lines) {
+                        if (line.startsWith('[Source:') || (line.includes('[Ext ID:') && line.includes('99acres'))) {
+                          sourceLines.push(line);
+                        } else {
+                          const match = line.match(/^\[(.*?) - (.*?)\]:\s*(.*)$/);
+                          if (match) {
+                            const rawTime = match[1];
+                            const authorId = match[2];
+                            const text = match[3];
+
+                            let formattedTime = rawTime;
+                            try {
+                              const d = new Date(rawTime);
+                              if (!isNaN(d.getTime())) {
+                                formattedTime = d.toLocaleDateString([], {
+                                  day: 'numeric',
+                                  month: 'short',
+                                  year: 'numeric'
+                                }) + ' at ' + d.toLocaleTimeString([], {
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                });
+                              }
+                            } catch {}
+
+                            const staff = staffList.find(s => s.id === authorId || s.email === authorId);
+                            const authorName = staff?.displayName || (authorId.includes('@') ? authorId.split('@')[0] : authorId);
+
+                            interactionNotes.push({
+                              rawTime,
+                              formattedTime,
+                              author: authorName,
+                              text
+                            });
+                          } else {
+                            interactionNotes.push({
+                              author: 'Note',
+                              text: line
+                            });
+                          }
+                        }
+                      }
+
+                      return (
+                        <div className="space-y-3">
+                          {/* Structured Inbound Ingestion Payload Table */}
+                          {sourceLines.map((sLine, sIdx) => {
+                            const parts = sLine.split('|').map((p: string) => p.trim());
+                            const kvList: Array<{ label: string; value: string }> = [];
+                            for (const p of parts) {
+                              if (p.includes(':')) {
+                                const idx = p.indexOf(':');
+                                const k = p.substring(0, idx).replace(/[\[\]]/g, '').trim();
+                                const v = p.substring(idx + 1).replace(/[\[\]]/g, '').trim();
+                                kvList.push({ label: k, value: v });
+                              }
+                            }
+
+                            return (
+                              <div key={`src-${sIdx}`} className="bg-slate-50 rounded-xl p-3 border border-slate-200/80 shadow-2xs">
+                                <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2 flex items-center justify-between">
+                                  <span className="flex items-center space-x-1.5">
+                                    <Layers className="w-3 h-3 text-[#0073E6]" />
+                                    <span>Inbound Ingestion Payload</span>
+                                  </span>
+                                  <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 text-[9px] font-bold">
+                                    External Webhook
+                                  </span>
+                                </div>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+                                  {kvList.map((kv, kIdx) => (
+                                    <div key={kIdx} className={`bg-white p-2 rounded-lg border border-slate-100 ${kv.label.toLowerCase() === 'message' ? 'sm:col-span-2' : ''}`}>
+                                      <span className="text-[10px] font-medium text-slate-400 block">{kv.label}</span>
+                                      <span className="font-semibold text-slate-800 break-words">{kv.value}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })}
+
+                          {/* Interaction Call Notes with Dividers and Timestamps */}
+                          {interactionNotes.length > 0 && (
+                            <div className="space-y-2.5">
+                              {interactionNotes.map((note, nIdx) => (
+                                <div key={`note-${nIdx}`} className="bg-white rounded-xl p-3.5 border border-slate-200/80 shadow-2xs">
+                                  <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-100 text-[11px]">
+                                    <div className="flex items-center space-x-1.5">
+                                      <div className="w-5 h-5 rounded-full bg-blue-100/70 text-[#0073E6] flex items-center justify-center font-bold text-[10px]">
+                                        {note.author[0] || 'U'}
+                                      </div>
+                                      <strong className="text-slate-900 font-semibold">{note.author}</strong>
+                                    </div>
+                                    {note.formattedTime && (
+                                      <span className="text-[10px] text-slate-400 font-mono flex items-center space-x-1">
+                                        <Clock className="w-3 h-3 text-slate-400" />
+                                        <span>{note.formattedTime}</span>
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-slate-700 text-xs leading-relaxed whitespace-pre-wrap font-medium">
+                                    {note.text}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Lead Attribution & Platform Metadata */}
@@ -5125,8 +5240,8 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                           >
                             <div>
                               <span className="font-semibold text-slate-800">{log.action}</span>
-                              <span className="text-slate-400 ml-1.5 text-[10px]">
-                                by {log.actor_role || log.actor_user_id?.slice(0, 8)}
+                              <span className="text-slate-500 ml-1.5 text-[10px]">
+                                by <strong className="text-slate-700 font-semibold">{log.actor_name || staffList.find(s => s.id === log.actor_user_id)?.displayName || (log.actor_user_id === 'system-webhook-99acres' ? '99acres Webhook' : (log.actor_role || log.actor_user_id))}</strong>
                               </span>
                             </div>
                             <span className="text-[10px] text-slate-400 font-mono">

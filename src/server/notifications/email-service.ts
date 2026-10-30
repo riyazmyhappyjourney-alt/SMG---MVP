@@ -20,7 +20,7 @@ export interface PublicationNotificationRecord {
   html_body: string;
   status: 'DELIVERED' | 'FAILED' | 'PENDING_CONFIGURATION' | 'SIMULATED';
   idempotency_key: string;
-  event_type?: 'PROPERTY_LISTED' | 'MEETING_SCHEDULED' | 'PROPERTY_APPROVED' | 'PROPERTY_PUBLISHED' | 'USER_WELCOME' | 'INTERNAL_PROPERTY_INTAKE' | 'TEST';
+  event_type?: 'PROPERTY_LISTED' | 'MEETING_SCHEDULED' | 'PROPERTY_APPROVED' | 'PROPERTY_PUBLISHED' | 'USER_WELCOME' | 'INTERNAL_PROPERTY_INTAKE' | 'INTERNAL_LEAD_ALERT' | 'TEST';
   provider_message_id?: string | null;
   provider_response?: string | null;
   error_message?: string | null;
@@ -744,15 +744,16 @@ export class EmailNotificationService {
     success: boolean;
   } {
     const resendApiKey = process.env.RESEND_API_KEY;
+    const brevoApiKey = process.env.BREVO_API_KEY || process.env.SENDINBLUE_API_KEY;
     const senderAddress = getFormattedSender('DEFAULT');
     const onboardingSenderAddress = getFormattedSender('ONBOARDING');
 
     const missing: string[] = [];
-    if (!resendApiKey) {
-      missing.push('RESEND_API_KEY');
+    if (!resendApiKey && !brevoApiKey) {
+      missing.push('RESEND_API_KEY or BREVO_API_KEY');
     }
 
-    const configured = missing.length === 0;
+    const configured = Boolean(resendApiKey || brevoApiKey);
     const isMock = Boolean(this.mockProvider);
 
     let providerDesc = 'Resend Production Email API (https://api.resend.com)';
@@ -761,9 +762,12 @@ export class EmailNotificationService {
     if (isMock) {
       providerDesc = 'Mocked Email Provider (Automated Test Mode)';
       detailsDesc = 'Mock email dispatcher active for automated unit and regression testing.';
+    } else if (brevoApiKey && !resendApiKey) {
+      providerDesc = 'Brevo Transactional Email API (https://api.brevo.com)';
+      detailsDesc = 'Brevo API authenticated (Free tier: 300 emails/day). Dispatches transactional emails via REST API.';
     } else if (!configured) {
-      providerDesc = 'Resend Sandbox Simulation Dispatcher (Awaiting RESEND_API_KEY)';
-      detailsDesc = 'RESEND_API_KEY is not configured in environment variables. Email events are captured and logged to the CRM audit ledger.';
+      providerDesc = 'Free Email Dispatcher Simulation (Awaiting RESEND_API_KEY or BREVO_API_KEY)';
+      detailsDesc = 'Neither RESEND_API_KEY nor BREVO_API_KEY is configured. Email events are captured and logged to the CRM audit ledger.';
     }
 
     return {
@@ -967,7 +971,7 @@ export class EmailNotificationService {
     recipient: string;
     subject: string;
     html: string;
-    eventType: 'PROPERTY_LISTED' | 'MEETING_SCHEDULED' | 'PROPERTY_APPROVED' | 'PROPERTY_PUBLISHED' | 'USER_WELCOME' | 'INTERNAL_PROPERTY_INTAKE' | 'TEST';
+    eventType: 'PROPERTY_LISTED' | 'MEETING_SCHEDULED' | 'PROPERTY_APPROVED' | 'PROPERTY_PUBLISHED' | 'USER_WELCOME' | 'INTERNAL_PROPERTY_INTAKE' | 'INTERNAL_LEAD_ALERT' | 'TEST';
     idempotencyKey: string;
     propertyId?: string | null;
     attachments?: EmailAttachment[];
@@ -1138,10 +1142,70 @@ export class EmailNotificationService {
         console.error(`[EmailNotificationService] Resend dispatch exception:`, errorMessage);
       }
     }
-    // 4. Simulated Fallback (when RESEND_API_KEY is not configured)
+    // 3b. Brevo (Sendinblue) Free Transactional REST API Dispatch (300 emails/day free)
+    else if (process.env.BREVO_API_KEY || process.env.SENDINBLUE_API_KEY) {
+      const brevoApiKey = process.env.BREVO_API_KEY || process.env.SENDINBLUE_API_KEY;
+      try {
+        const brevoPayload: Record<string, any> = {
+          sender: {
+            name: EMAIL_SENDER_CONFIG.displayName || 'SellMyGhar.in',
+            email: EMAIL_SENDER_CONFIG.senderEmail || 'notifications@sellmyghar.in',
+          },
+          to: [{ email: recipient }],
+          subject,
+          htmlContent: html,
+        };
+
+        if (attachments && attachments.length > 0) {
+          brevoPayload.attachment = attachments.map(att => ({
+            name: att.filename,
+            content: att.content,
+          }));
+        }
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 10000);
+
+        const brevoRes = await fetch('https://api.brevo.com/v3/smtp/email', {
+          method: 'POST',
+          headers: {
+            'api-key': brevoApiKey!,
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+          },
+          body: JSON.stringify(brevoPayload),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeout);
+
+        const responseText = await brevoRes.text();
+        let parsedJson: any = null;
+        try { parsedJson = JSON.parse(responseText); } catch {}
+
+        if (brevoRes.ok && (parsedJson?.messageId || parsedJson?.id)) {
+          finalStatus = 'DELIVERED';
+          providerMsgId = parsedJson.messageId || parsedJson.id;
+          providerResponse = responseText;
+          dispatchedSuccessfully = true;
+          console.info(`[EmailNotificationService] Dispatched via Brevo Free API: ID ${providerMsgId} to ${recipient}`);
+        } else {
+          finalStatus = 'FAILED';
+          errorMessage = parsedJson?.message || `HTTP ${brevoRes.status}: ${brevoRes.statusText}`;
+          providerResponse = responseText;
+          console.error(`[EmailNotificationService] Brevo API rejection (${brevoRes.status}): ${errorMessage}`);
+        }
+      } catch (brevoErr: any) {
+        finalStatus = 'FAILED';
+        errorMessage = brevoErr.name === 'AbortError' ? 'Brevo request timeout (10s)' : (brevoErr.message || 'Network error');
+        providerResponse = JSON.stringify({ error: errorMessage });
+        console.error(`[EmailNotificationService] Brevo dispatch exception:`, errorMessage);
+      }
+    }
+    // 4. Simulated Fallback (when neither RESEND_API_KEY nor BREVO_API_KEY is configured)
     else {
       finalStatus = 'SIMULATED';
-      providerResponse = 'Simulated dispatch: RESEND_API_KEY not configured in environment. Logged to CRM audit ledger.';
+      providerResponse = 'Simulated dispatch: Neither RESEND_API_KEY nor BREVO_API_KEY configured in environment. Logged to CRM audit ledger.';
       dispatchedSuccessfully = true;
       console.info(`[EmailNotificationService] Simulated email to ${recipient} (${eventType})`);
     }
@@ -1790,7 +1854,178 @@ export class EmailNotificationService {
   }
 
   // ====================================================================
-  // 7b. TRANSACTIONAL PASSWORD RESET EMAIL DISPATCH
+  // 7c. INBOUND CRM LEAD INSTANT EMAIL TRIGGER (99acres / Website / Inbound)
+  // ====================================================================
+
+  static async handleNewInboundLeadNotification(data: {
+    leadId: string;
+    source: string;
+    leadType: 'BUYER' | 'SELLER';
+    name: string;
+    phone: string;
+    email?: string | null;
+    locality?: string;
+    society?: string;
+    bhk?: string;
+    budget?: number | string | null;
+    message?: string | null;
+    externalEnquiryId?: string | null;
+    externalListingId?: string | null;
+    notes?: string | null;
+    createdAt?: string;
+  }): Promise<{ dispatched: boolean; status: string; error?: string }> {
+    const rawRecipient = process.env.INTERNAL_ALERT_EMAIL || 'sellmyghar1@gmail.com';
+    const recipients = rawRecipient.split(',').map(r => r.trim()).filter(Boolean);
+    const recipient = recipients[0] || 'sellmyghar1@gmail.com';
+    const idempotencyKey = `internal-lead-alert-${data.leadId}`;
+
+    const baseUrl = process.env.APP_BASE_URL || process.env.APP_URL || 'https://crm.sellmyghar.in';
+    const crmUrl = `${baseUrl}/#/crm?leadId=${encodeURIComponent(data.leadId)}`;
+
+    let formattedBudget = 'Not Specified';
+    if (data.budget) {
+      if (typeof data.budget === 'number') {
+        formattedBudget = data.budget >= 10000000
+          ? `₹${(data.budget / 10000000).toFixed(2)} Cr`
+          : data.budget >= 100000
+          ? `₹${(data.budget / 100000).toFixed(2)} L`
+          : `₹${data.budget.toLocaleString('en-IN')}`;
+      } else {
+        formattedBudget = String(data.budget);
+      }
+    }
+
+    const timeStr = new Date().toLocaleString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    });
+
+    const is99acres = String(data.source).toLowerCase().includes('99acres');
+    const sourceBadgeColor = is99acres ? '#D97706' : '#0073E6';
+    const sourceBgColor = is99acres ? '#FEF3C7' : '#EFF6FF';
+    const sourceBorderColor = is99acres ? '#FCD34D' : '#BFDBFE';
+
+    const subject = `[SellMyGhar CRM] New ${data.source} ${data.leadType} Lead: ${data.name} (${data.bhk || data.locality || 'Bengaluru'})`;
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>New CRM Inbound Lead Alert</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F4F6F9; margin: 0; padding: 24px; color: #172033; }
+    .card { background-color: #ffffff; max-width: 600px; margin: 0 auto; border-radius: 16px; border: 1px solid #E2E8F0; padding: 32px; box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
+    .header { border-bottom: 2px solid #0073E6; padding-bottom: 18px; margin-bottom: 24px; }
+    .brand { font-size: 22px; font-weight: 800; color: #172033; letter-spacing: -0.5px; }
+    .brand span { color: #0073E6; }
+    .title { color: #172033; font-size: 20px; font-weight: 800; margin: 12px 0 6px 0; }
+    .pill-wrap { display: flex; gap: 8px; margin-top: 8px; }
+    .pill { display: inline-block; padding: 4px 12px; font-size: 11px; font-weight: 800; border-radius: 20px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .pill-source { background-color: ${sourceBgColor}; color: ${sourceBadgeColor}; border: 1px solid ${sourceBorderColor}; }
+    .pill-type { background-color: #F1F5F9; color: #475569; border: 1px solid #E2E8F0; }
+    .grid { margin-top: 20px; width: 100%; border-collapse: collapse; }
+    .grid td { padding: 11px 12px; border-bottom: 1px solid #F1F5F9; font-size: 14px; }
+    .label { font-weight: 600; color: #64748B; width: 36%; }
+    .value { font-weight: 700; color: #172033; }
+    .highlight-val { color: #0073E6; font-size: 15px; }
+    .btn-wrap { text-align: center; margin-top: 28px; }
+    .btn { display: inline-block; background-color: #0073E6; color: #ffffff !important; text-decoration: none; font-weight: 700; font-size: 14px; padding: 13px 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,115,230,0.25); }
+    .notes-box { margin-top: 20px; padding: 14px 16px; background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; font-size: 13px; color: #334155; line-height: 1.5; }
+    .footer { margin-top: 24px; font-size: 12px; color: #94A3B8; text-align: center; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <div class="brand">SellMy<span>Ghar</span>.in</div>
+      <h2 class="title">New Inbound Lead Received</h2>
+      <div class="pill-wrap">
+        <span class="pill pill-source">${data.source}</span>
+        <span class="pill pill-type">${data.leadType}</span>
+      </div>
+    </div>
+    <p style="font-size: 14px; color: #475569; margin: 0 0 16px 0;">
+      A new verified lead has arrived in the SellMyGhar CRM. Immediate follow-up is recommended to maximize conversion.
+    </p>
+    <table class="grid">
+      <tr>
+        <td class="label">Lead Name</td>
+        <td class="value highlight-val">${data.name}</td>
+      </tr>
+      <tr>
+        <td class="label">Phone Number</td>
+        <td class="value"><a href="tel:${data.phone}" style="color: #0073E6; text-decoration: none;">${data.phone}</a></td>
+      </tr>
+      ${data.email ? `
+      <tr>
+        <td class="label">Email Address</td>
+        <td class="value"><a href="mailto:${data.email}" style="color: #0073E6; text-decoration: none;">${data.email}</a></td>
+      </tr>` : ''}
+      <tr>
+        <td class="label">Society / Apartment</td>
+        <td class="value">${data.society || 'Not specified'}</td>
+      </tr>
+      <tr>
+        <td class="label">Locality / Zone</td>
+        <td class="value">${data.locality || 'Bengaluru'}</td>
+      </tr>
+      <tr>
+        <td class="label">Configuration</td>
+        <td class="value">${data.bhk || 'Residential'}</td>
+      </tr>
+      <tr>
+        <td class="label">Budget / Price</td>
+        <td class="value" style="color: #15803D;">${formattedBudget}</td>
+      </tr>
+      ${data.externalEnquiryId ? `
+      <tr>
+        <td class="label">External Lead ID</td>
+        <td class="value" style="font-family: monospace; font-size: 12px;">${data.externalEnquiryId}</td>
+      </tr>` : ''}
+      ${data.externalListingId ? `
+      <tr>
+        <td class="label">External Listing ID</td>
+        <td class="value" style="font-family: monospace; font-size: 12px;">${data.externalListingId}</td>
+      </tr>` : ''}
+      <tr>
+        <td class="label">Ingestion Time</td>
+        <td class="value">${timeStr} (IST)</td>
+      </tr>
+    </table>
+
+    ${data.message || data.notes ? `
+    <div class="notes-box">
+      <strong>Inbound Query / Notes:</strong><br/>
+      ${(data.message || data.notes || '').replace(/</g, '&lt;').replace(/>/g, '&gt;')}
+    </div>` : ''}
+
+    <div class="btn-wrap">
+      <a href="${crmUrl}" class="btn" target="_blank" rel="noopener">Open Lead in CRM Desk &rarr;</a>
+    </div>
+
+    <div class="footer">
+      Automated instant lead notification &bull; SellMyGhar Operations &bull; RM Desk: +91 8217873708
+    </div>
+  </div>
+</body>
+</html>
+    `.trim();
+
+    return this.dispatchEmail({
+      recipient,
+      subject,
+      html,
+      eventType: 'INTERNAL_LEAD_ALERT',
+      idempotencyKey,
+      propertyId: null,
+      fromAddress: process.env.RESEND_FROM_EMAIL || 'SellMyGhar CRM <notifications@sellmyghar.in>',
+    });
+  }
+
+  // ====================================================================
+  // 7d. TRANSACTIONAL PASSWORD RESET EMAIL DISPATCH
   // ====================================================================
 
   static async sendPasswordResetEmail(args: {

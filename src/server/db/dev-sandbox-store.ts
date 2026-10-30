@@ -2661,7 +2661,15 @@ class DevSandboxStore {
         l.target_entity_id === targetId || 
         (params[1] && l.target_entity_id === params[1]) ||
         (l.diff_summary && l.diff_summary.propertyId === targetId)
-      );
+      ).map(l => {
+        const staff = Array.from(this.users.values()).find(u => u.id === l.actor_id);
+        return {
+          ...l,
+          actor_user_id: l.actor_id,
+          actor_name: staff?.display_name || (l.actor_id === 'system-webhook-99acres' ? '99acres Webhook' : l.actor_id),
+          created_at: l.timestamp
+        };
+      });
       return { rows: filtered };
     }
 

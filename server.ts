@@ -2039,6 +2039,25 @@ app.post('/api/leads', jsonDefault, rateLimit('leads-submit', 5, 900), async (re
         ]
       );
 
+      try {
+        await EmailNotificationService.handleNewInboundLeadNotification({
+          leadId,
+          source: 'SellMyGhar Website',
+          leadType: 'SELLER',
+          name: fullName.trim(),
+          phone: normalizedPhone,
+          email: req.body.email || null,
+          locality: finalLocality,
+          society: finalSociety,
+          bhk: validBhk,
+          budget: req.body.expected_price_inr || req.body.expectedPrice || null,
+          notes: areaNote ? `Area: ${areaNote}` : null,
+          createdAt: new Date().toISOString(),
+        });
+      } catch (sellerAlertErr: any) {
+        console.warn('[LeadAlert] Seller notification error:', sellerAlertErr.message);
+      }
+
       return res.status(201).json({
         success: true,
         type: 'SELLER',
@@ -2133,6 +2152,25 @@ app.post('/api/leads', jsonDefault, rateLimit('leads-submit', 5, 900), async (re
         } catch (onboardErr: any) {
           console.warn('[LeadOnboardingEmail] Dispatch note:', onboardErr.message);
         }
+      }
+
+      try {
+        await EmailNotificationService.handleNewInboundLeadNotification({
+          leadId: enquiryId,
+          source: 'SellMyGhar Website',
+          leadType: 'BUYER',
+          name: fullName.trim(),
+          phone: normalizedPhone,
+          email: declaredEmail,
+          locality: finalLocality,
+          society: finalSociety,
+          bhk: validBhk,
+          budget: req.body.expected_price_inr || req.body.expectedPrice || req.body.budget || null,
+          notes: buyerNote,
+          createdAt: new Date().toISOString(),
+        });
+      } catch (buyerAlertErr: any) {
+        console.warn('[LeadAlert] Buyer notification error:', buyerAlertErr.message);
       }
 
       return res.status(201).json({
@@ -7512,10 +7550,22 @@ app.get('/api/crm/leads/:id/details', authenticateUser, requireStaffMember, asyn
     const offers = (offersRes.rows || []).map((o: any) => ({ ...o }));
 
     const auditRes = await executeQuery(`
-      SELECT id, action, actor_id AS actor_user_id, ip_address AS client_ip, diff_summary, timestamp AS created_at
-      FROM audit_logs
-      WHERE target_entity_id = $1 OR (target_entity_id = $2 AND $2 IS NOT NULL)
-      ORDER BY timestamp DESC LIMIT 20;
+      SELECT 
+        al.id, 
+        al.action, 
+        al.actor_id AS actor_user_id, 
+        CASE 
+          WHEN al.actor_id = 'system-webhook-99acres' THEN '99acres Webhook'
+          WHEN al.actor_id LIKE 'system%' THEN 'System Automation'
+          ELSE COALESCE(u.display_name, u.email, al.actor_id)
+        END AS actor_name,
+        al.ip_address AS client_ip, 
+        al.diff_summary, 
+        al.timestamp AS created_at
+      FROM audit_logs al
+      LEFT JOIN users u ON u.id = al.actor_id
+      WHERE al.target_entity_id = $1 OR (al.target_entity_id = $2 AND $2 IS NOT NULL)
+      ORDER BY al.timestamp DESC LIMIT 30;
     `, [id, lead.property_id || null]);
     const auditLogs = auditRes.rows || [];
 

@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import crypto from 'crypto';
 import { executeQuery, withTransaction } from '../db/pool';
 import { recordAuditEvent } from '../audit/logger';
+import { EmailNotificationService } from '../notifications/email-service';
 
 /**
  * 99acres Webhook Lead Integration Service
@@ -804,6 +805,29 @@ export class NinetyNineAcresLeadService {
     processed99acresEnquiryCache.set(lead.externalEnquiryId, Date.now());
 
     console.info(`[99acres Webhook] Created buyer lead ${leadId} (Ext ID: ${lead.externalEnquiryId}, Name: ${lead.fullName}, Phone: ${maskPhone(lead.phone)})`);
+
+    // 9. Dispatch instant CRM lead email trigger (SellMyGhar operations alert)
+    try {
+      await EmailNotificationService.handleNewInboundLeadNotification({
+        leadId,
+        source: '99acres',
+        leadType: 'BUYER',
+        name: lead.fullName,
+        phone: lead.phone,
+        email: lead.email,
+        locality: lead.locality,
+        society: lead.society,
+        bhk: lead.bhk,
+        budget: lead.budget,
+        message: lead.message,
+        externalEnquiryId: lead.externalEnquiryId,
+        externalListingId: lead.externalListingId,
+        notes: finalNotes,
+        createdAt: lead.enquiryDate,
+      });
+    } catch (emailErr: any) {
+      console.warn('[99acres Webhook] Inbound lead email alert notice:', emailErr.message);
+    }
 
     return {
       success: true,
