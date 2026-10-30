@@ -422,6 +422,45 @@ export async function run99acresWebhookTests(): Promise<{ passed: number; failed
     recordFail('12. GET request on 99acres endpoint', err);
   }
 
+  // Test 13: 99acres XML format ingestion
+  const uniqueXmlEnqId = `99AC-XML-${Date.now()}`;
+  try {
+    const xmlPayload = `<?xml version="1.0"?>
+    <my99response ActionStatus="true">
+      <Resp>
+        <QryDtl TblId="${uniqueXmlEnqId}" ResType="LEAD">
+          <ProdId Status="active" Type="LP-B">76236277</ProdId>
+          <CmpctLabl>3 BHK Apartment in Whitefield Bengaluru</CmpctLabl>
+          <QryInfo>Looking for immediate purchase, budget 1.8 Cr.</QryInfo>
+          <RcvdOn>2026-10-30 10:15:00</RcvdOn>
+        </QryDtl>
+        <CntctDtl>
+          <Name>Rahul Sharma</Name>
+          <Email>rahul.sharma@example.com</Email>
+          <Phone>9988112233</Phone>
+        </CntctDtl>
+      </Resp>
+    </my99response>`;
+
+    const res = await dispatchRequest(app, '/api/v1/leads/99acres', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/xml',
+        'x-api-key': TEST_SECRET,
+      },
+      body: xmlPayload,
+    });
+    assert(res.status === 201, `Expected 201 for XML payload, got ${res.status}`);
+    const body = await res.json();
+    assert(body.success === true, 'Expected success: true for XML payload');
+    assert(body.lead.name === 'Rahul Sharma', 'Name parsed from XML <Name>');
+    assert(body.lead.phone === '+919988112233', 'Phone parsed from XML <Phone>');
+    assert(body.lead.society === '3 BHK Apartment in Whitefield Bengaluru', 'Society parsed from <CmpctLabl>');
+    recordPass('13. 99acres native XML payload ingestion succeeds with 201 and normalized CRM lead');
+  } catch (err) {
+    recordFail('13. 99acres native XML payload ingestion', err);
+  }
+
   console.log(`\n99acres Webhook Inbound Integration Suite: ${passed} passed, ${failed} failed`);
   return { passed, failed, results };
 }

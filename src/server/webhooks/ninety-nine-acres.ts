@@ -212,19 +212,64 @@ export function verify99acresWebhookAuth(req: Request, res: Response, next: Next
 /**
  * Core Service: 99acres Webhook Ingestion & CRM Lead Integration
  */
+/**
+ * Helper to recursively parse XML tags into flat key-value object (tolerates 99acres XML formats)
+ */
+function parseXmlTags(xml: string): Record<string, any> {
+  const result: Record<string, any> = {};
+  if (!xml || typeof xml !== 'string') return result;
+
+  const tblIdMatch = xml.match(/TblId=["']([^"']+)["']/i);
+  if (tblIdMatch) result.TblId = tblIdMatch[1];
+  const prodIdMatch = xml.match(/<ProdId[^>]*>([^<]+)<\/ProdId>/i);
+  if (prodIdMatch) result.ProdId = prodIdMatch[1].trim();
+
+  const tagRegex = /<([a-zA-Z0-9_:-]+)(?:\s+[^>]*?)?>([\s\S]*?)<\/\1>/g;
+  let match;
+  while ((match = tagRegex.exec(xml)) !== null) {
+    const tagName = match[1];
+    const content = match[2].trim();
+    if (content.includes('<') && content.includes('>')) {
+      Object.assign(result, parseXmlTags(content));
+    } else {
+      result[tagName] = content;
+    }
+  }
+  return result;
+}
+
 export class NinetyNineAcresLeadService {
   /**
    * Normalizes incoming raw payloads from 99acres webhook pushes.
-   * Tolerates flat JSON, nested data/lead envelopes, camelCase, snake_case, and urlencoded fields.
+   * Tolerates flat JSON, nested data/lead envelopes, XML payloads, camelCase, snake_case, and urlencoded fields.
    */
   static parsePayload(rawBody: any): Normalized99acresLead {
-    if (!rawBody || typeof rawBody !== 'object') {
-      throw new Error('Payload must be a valid JSON object or urlencoded form body.');
+    let candidate = rawBody;
+    if (typeof rawBody === 'string') {
+      const trimmed = rawBody.trim();
+      if (trimmed.startsWith('<') || trimmed.includes('<Resp>') || trimmed.includes('<my99response>')) {
+        candidate = parseXmlTags(trimmed);
+      } else {
+        try {
+          candidate = JSON.parse(trimmed);
+        } catch {
+          throw new Error('Payload must be a valid JSON object, XML document, or urlencoded form body.');
+        }
+      }
+    } else if (rawBody && typeof rawBody === 'object') {
+      if (typeof rawBody.xml === 'string') {
+        const parsedXml = parseXmlTags(rawBody.xml);
+        candidate = { ...rawBody, ...parsedXml };
+      } else if (typeof rawBody.XML === 'string') {
+        const parsedXml = parseXmlTags(rawBody.XML);
+        candidate = { ...rawBody, ...parsedXml };
+      }
+    } else {
+      throw new Error('Payload must be a valid JSON object, XML document, or urlencoded form body.');
     }
 
     // Unpack nested envelopes recursively (e.g. data.lead, payload.enquiry, response.data)
-    let candidate = rawBody;
-    const mergedContext: Record<string, any> = { ...rawBody };
+    const mergedContext: Record<string, any> = typeof candidate === 'object' && candidate ? { ...candidate } : {};
     while (candidate && typeof candidate === 'object') {
       if (candidate.lead && typeof candidate.lead === 'object') {
         Object.assign(mergedContext, candidate);
@@ -324,6 +369,9 @@ export class NinetyNineAcresLeadService {
 
     // 4. External Enquiry ID (99acres Enquiry / Query / Lead ID)
     const rawEnqId =
+      base.TblId ||
+      base.tblId ||
+      base.tbl_id ||
       base.enquiryId ||
       base.enquiry_id ||
       base.leadId ||
@@ -350,6 +398,9 @@ export class NinetyNineAcresLeadService {
 
     // 5. External Listing / Property ID
     const rawListingId =
+      base.ProdId ||
+      base.prodId ||
+      base.prod_id ||
       base.Property_ID ||
       base.PropertyId ||
       base.Listing_ID ||
@@ -372,6 +423,9 @@ export class NinetyNineAcresLeadService {
 
     // 6. Locality & Society / Project Name
     const rawSociety =
+      base.CmpctLabl ||
+      base.cmpctLabl ||
+      base.cmpct_labl ||
       base.society ||
       base.societyName ||
       base.society_name ||

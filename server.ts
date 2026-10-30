@@ -465,8 +465,11 @@ app.use('/uploads', express.static(localUploadsDir));
 const jsonDefault = express.json({ limit: '100kb' });
 // Upload-specific body parser for large file uploads (20mb)
 const jsonUpload = express.json({ limit: '20mb' });
-// Webhook-specific body parsers for third-party CRM lead webhooks (256kb)
-const webhookParser99acres = [express.json({ limit: '256kb' }), express.urlencoded({ extended: true, limit: '256kb' })];
+const webhookParser99acres = [
+  express.json({ limit: '256kb' }),
+  express.urlencoded({ extended: true, limit: '256kb' }),
+  express.text({ type: ['*/xml', 'text/xml', 'application/xml', 'text/plain'], limit: '256kb' }),
+];
 
 // ====================================================================
 // 2. RATE LIMITING HELPERS
