@@ -106,6 +106,10 @@ export interface CrmLead {
   followUpNotes?: string | null;
   notes?: string | null;
   isOverdue?: boolean;
+  source?: string;
+  attribution?: any;
+  externalEnquiryId?: string | null;
+  externalListingId?: string | null;
   createdAt: string;
   updatedAt?: string;
 }
@@ -507,6 +511,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
   const [leadStatusFilter, setLeadStatusFilter] = useState<string>('ALL');
   const [leadAssignFilter, setLeadAssignFilter] = useState<string>('ALL');
   const [leadTypeFilter, setLeadTypeFilter] = useState<'ALL' | 'SELLER' | 'BUYER'>('ALL');
+  const [leadSourceFilter, setLeadSourceFilter] = useState<string>('ALL');
   const [leadFollowUpFilter, setLeadFollowUpFilter] = useState<'ALL' | 'OVERDUE' | 'TODAY' | 'UPCOMING'>('ALL');
 
   const [propSearch, setPropSearch] = useState<string>('');
@@ -1480,6 +1485,14 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
         return false;
       }
 
+      // Source Filter
+      if (leadSourceFilter !== 'ALL') {
+        const rawSrc = (lead.source || lead.attribution?.source || (lead.notes?.includes('99acres') ? '99acres' : 'SellMyGhar')).toLowerCase();
+        if (!rawSrc.includes(leadSourceFilter.toLowerCase())) {
+          return false;
+        }
+      }
+
       // Follow-up Filter
       if (leadFollowUpFilter === 'OVERDUE' && !lead.isOverdue) return false;
       if (leadFollowUpFilter === 'TODAY') {
@@ -1491,7 +1504,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
 
       return true;
     });
-  }, [leads, leadSearch, globalSearch, leadStatusFilter, leadAssignFilter, leadTypeFilter, leadFollowUpFilter, staffUser]);
+  }, [leads, leadSearch, globalSearch, leadStatusFilter, leadAssignFilter, leadTypeFilter, leadSourceFilter, leadFollowUpFilter, staffUser]);
 
   const filteredProperties = useMemo(() => {
     return properties.filter(prop => {
@@ -2724,6 +2737,21 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   </div>
 
                   <div className="flex items-center space-x-1.5 bg-slate-50 border border-slate-200/80 rounded-xl px-2.5 py-1.5">
+                    <span className="text-slate-400 text-[11px] font-semibold">Source:</span>
+                    <select
+                      value={leadSourceFilter}
+                      onChange={(e) => setLeadSourceFilter(e.target.value)}
+                      className="bg-transparent text-xs font-semibold text-slate-800 focus:outline-hidden cursor-pointer"
+                    >
+                      <option value="ALL">All Sources</option>
+                      <option value="99acres">99acres</option>
+                      <option value="SellMyGhar">SellMyGhar</option>
+                      <option value="Website">Website</option>
+                      <option value="WhatsApp">WhatsApp</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center space-x-1.5 bg-slate-50 border border-slate-200/80 rounded-xl px-2.5 py-1.5">
                     <span className="text-slate-400 text-[11px] font-semibold">Follow-up:</span>
                     <select
                       value={leadFollowUpFilter}
@@ -2736,13 +2764,14 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     </select>
                   </div>
 
-                  {(leadStatusFilter !== 'ALL' || leadAssignFilter !== 'ALL' || leadTypeFilter !== 'ALL' || leadFollowUpFilter !== 'ALL' || leadSearch) && (
+                  {(leadStatusFilter !== 'ALL' || leadAssignFilter !== 'ALL' || leadTypeFilter !== 'ALL' || leadSourceFilter !== 'ALL' || leadFollowUpFilter !== 'ALL' || leadSearch) && (
                     <button
                       type="button"
                       onClick={() => {
                         setLeadStatusFilter('ALL');
                         setLeadAssignFilter('ALL');
                         setLeadTypeFilter('ALL');
+                        setLeadSourceFilter('ALL');
                         setLeadFollowUpFilter('ALL');
                         setLeadSearch('');
                       }}
@@ -2761,6 +2790,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     <tr>
                       <th className="py-3.5 px-4">Client / Contact</th>
                       <th className="py-3.5 px-4">Inquiry Type</th>
+                      <th className="py-3.5 px-4">Lead Source</th>
                       <th className="py-3.5 px-4">Property / Society</th>
                       <th className="py-3.5 px-4">BHK & Budget</th>
                       <th className="py-3.5 px-4">Lifecycle Stage</th>
@@ -2772,7 +2802,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   <tbody className="divide-y divide-slate-100">
                     {filteredLeads.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="py-16 text-center text-slate-400 text-xs">
+                        <td colSpan={9} className="py-16 text-center text-slate-400 text-xs">
                           <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2 opacity-80" />
                           <p className="font-semibold text-slate-700">No leads match the specified filter criteria.</p>
                           <p className="text-[11px] text-slate-400 mt-0.5">Try clearing your filters or search query to see all records.</p>
@@ -2825,6 +2855,29 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                               >
                                 {lead.type || 'SELLER'}
                               </span>
+                            </td>
+
+                            {/* Lead Source */}
+                            <td className="py-3.5 px-4">
+                              {(() => {
+                                const rawSrc = lead.source || lead.attribution?.source || (lead.notes?.includes('99acres') ? '99acres' : (lead.type === 'SELLER' ? 'SellMyGhar' : 'Website Portal'));
+                                const is99 = rawSrc.toLowerCase().includes('99acres');
+                                const isWa = rawSrc.toLowerCase().includes('whatsapp');
+                                return (
+                                  <span
+                                    className={`inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold shadow-2xs ${
+                                      is99
+                                        ? 'bg-amber-50 text-amber-900 border border-amber-300/80'
+                                        : isWa
+                                        ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                        : 'bg-blue-50 text-[#0073E6] border border-blue-200/60'
+                                    }`}
+                                  >
+                                    <span className={`w-1.5 h-1.5 rounded-full ${is99 ? 'bg-amber-500' : isWa ? 'bg-emerald-500' : 'bg-[#0073E6]'}`}></span>
+                                    <span>{rawSrc}</span>
+                                  </span>
+                                );
+                              })()}
                             </td>
 
                             {/* Property & Locality */}
@@ -4518,6 +4571,15 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-[#0073E6]">
                       {leadDetailData?.lead?.type || 'SELLER'}
                     </span>
+                    {(() => {
+                      const src = leadDetailData?.lead?.source || leadDetailData?.lead?.attribution?.source || (leadDetailData?.lead?.notes?.includes('99acres') ? '99acres' : 'SellMyGhar');
+                      const is99 = src.toLowerCase().includes('99acres');
+                      return (
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${is99 ? 'bg-amber-50 text-amber-900 border border-amber-300' : 'bg-slate-100 text-slate-700'}`}>
+                          {src}
+                        </span>
+                      );
+                    })()}
                     {(leadDetailData?.lead?.lead_status === 'NEW' || leadDetailData?.lead?.stage === 'NEW') && (
                       <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-[#0073E6] text-white shadow-xs">
                         NEW
@@ -4748,6 +4810,104 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                       </div>
                     )}
                   </div>
+
+                  {/* Lead Attribution & Platform Metadata */}
+                  {(leadDetailData.lead.attribution || (leadDetailData.lead.notes && leadDetailData.lead.notes.includes('99acres'))) && (
+                    <div className="border-t border-slate-100 pt-5 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                          Inbound Source & Listing Metadata
+                        </h4>
+                        <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-50 text-amber-900 border border-amber-300">
+                          99acres Real-Time Webhook
+                        </span>
+                      </div>
+                      <div className="bg-amber-50/40 rounded-2xl p-3.5 border border-amber-200/60 space-y-2 text-xs">
+                        <div className="grid grid-cols-2 gap-2 text-[11px]">
+                          <div>
+                            <span className="text-slate-500 block text-[10px]">99acres External Lead ID:</span>
+                            <span className="font-mono text-slate-800 font-semibold">{leadDetailData.lead.attribution?.externalEnquiryId || leadDetailData.lead.attribution?.rawPayload?.lead_id || 'Captured via Webhook'}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-500 block text-[10px]">99acres Listing ID:</span>
+                            <span className="font-mono text-slate-800 font-semibold">{leadDetailData.lead.attribution?.externalListingId || leadDetailData.lead.attribution?.rawPayload?.propertyid || 'M95305496'}</span>
+                          </div>
+                          {leadDetailData.lead.attribution?.rawPayload?.projectid && (
+                            <div>
+                              <span className="text-slate-500 block text-[10px]">Project ID:</span>
+                              <span className="font-mono text-slate-800">{leadDetailData.lead.attribution.rawPayload.projectid}</span>
+                            </div>
+                          )}
+                          <div>
+                            <span className="text-slate-500 block text-[10px]">Inquiry Timestamp:</span>
+                            <span className="text-slate-800 font-medium">{leadDetailData.lead.attribution?.enquiryDate ? new Date(leadDetailData.lead.attribution.enquiryDate).toLocaleString() : 'Today'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Matching Property Suggestions for Buyer */}
+                  {leadDetailData.lead.type === 'BUYER' && (
+                    <div className="border-t border-slate-100 pt-5 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
+                          <Sparkles className="w-3.5 h-3.5 text-[#0073E6]" />
+                          <span>Matching Property Suggestions</span>
+                        </h4>
+                        <span className="text-[10px] text-slate-400 font-medium">
+                          Suggested for {leadDetailData.lead.bhk_type || '3 BHK'}
+                        </span>
+                      </div>
+
+                      {(() => {
+                        const targetBhk = (leadDetailData.lead.bhk_type || '').toLowerCase().replace(/\s+/g, '');
+                        const matching = properties.filter(p => {
+                          if (p.listing_status === 'SOLD' || p.status === 'SOLD') return false;
+                          if (targetBhk && p.bhkType && p.bhkType.toLowerCase().replace(/\s+/g, '').includes(targetBhk.replace('bhk', ''))) return true;
+                          return false;
+                        }).slice(0, 3);
+
+                        const displayList = matching.length > 0 ? matching : properties.slice(0, 3);
+
+                        if (displayList.length === 0) {
+                          return <p className="text-slate-400 italic text-[11px]">No active inventory available to suggest.</p>;
+                        }
+
+                        return (
+                          <div className="space-y-2">
+                            {displayList.map(prop => {
+                              const askingCr = prop.askingPriceInr ? (prop.askingPriceInr / 10000000).toFixed(2) : null;
+                              const shareText = encodeURIComponent(`Hello ${leadDetailData.lead.displayName || leadDetailData.lead.buyer_name || 'there'}, here is a verified apartment matching your requirement:\n*${prop.projectName || prop.title || 'Apartment'}*\n${prop.bhkType || 'Apartment'} • ₹${askingCr} Cr\nLocality: ${prop.localityName || 'Bengaluru'}\nVerified by SellMyGhar.`);
+                              return (
+                                <div key={prop.id} className="p-3 bg-white rounded-xl border border-slate-200/80 hover:border-[#0073E6] transition-all shadow-2xs flex items-center justify-between">
+                                  <div className="min-w-0 pr-2">
+                                    <div className="flex items-center space-x-2">
+                                      <strong className="text-slate-900 truncate block text-xs">{prop.projectName || prop.title || 'Resale Apartment'}</strong>
+                                      <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-50 text-[#0073E6]">{prop.bhkType}</span>
+                                    </div>
+                                    <p className="text-[10px] text-slate-500 mt-0.5">
+                                      {prop.localityName || 'Bengaluru'} • {askingCr ? `₹${askingCr} Cr` : 'Market Price'}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center space-x-1 shrink-0">
+                                    <a
+                                      href={`https://wa.me/${(leadDetailData.lead.phone || '').replace(/[^0-9]/g, '')}?text=${shareText}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[10px] transition-colors inline-flex items-center space-x-1"
+                                    >
+                                      <span>WhatsApp</span>
+                                    </a>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
 
                   {/* 5. Related Site Visits */}
                   <div className="border-t border-slate-100 pt-5 space-y-3">

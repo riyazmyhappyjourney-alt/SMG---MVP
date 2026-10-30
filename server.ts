@@ -4862,7 +4862,10 @@ app.get('/api/crm/leads', authenticateUser, requireStaffMember, async (req: Requ
         notes: r.notes,
         email: r.email || r.attribution?.email || null,
         attribution: r.attribution || null,
-        source: r.attribution?.source || (r.lead_type === 'SELLER' ? 'SellMyGhar' : 'Inbound Enquiry'),
+        source: r.attribution?.source || 
+          (r.notes && r.notes.includes('99acres') ? '99acres' : 
+          (r.notes && r.notes.toLowerCase().includes('hero_valuation') ? 'Website Hero' : 
+          (r.lead_type === 'SELLER' ? 'SellMyGhar' : 'Website Portal'))),
         externalEnquiryId: r.attribution?.externalEnquiryId || null,
         externalListingId: r.attribution?.externalListingId || null,
         isOverdue,
@@ -7525,6 +7528,7 @@ app.get('/api/crm/leads/:id/details', authenticateUser, requireStaffMember, asyn
         ownerName: lead.owner_name || lead.buyer_name || lead.name || 'Customer',
         owner_name: lead.owner_name || lead.buyer_name || lead.name || 'Customer',
         buyer_name: lead.buyer_name || lead.owner_name || lead.name || 'Customer',
+        source: lead.attribution?.source || (lead.notes && lead.notes.includes('99acres') ? '99acres' : (leadType === 'SELLER' ? 'SellMyGhar' : 'Website Portal')),
         isOverdue: Boolean(lead.next_follow_up_at && new Date(lead.next_follow_up_at).getTime() < Date.now())
       },
       property,
