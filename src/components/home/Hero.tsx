@@ -200,25 +200,38 @@ export const Hero: React.FC<HeroProps> = ({
 
     setIsSubmitting(true);
     try {
-      await fetch('/api/leads', {
+      const parsedLocality = societyQuery.includes('(') ? societyQuery.split('(')[1].replace(')', '').trim() : 'Bengaluru';
+      const cleanBhk = bhk ? bhk.replace(/\s+/g, '').replace('Apartment', '').replace('Penthouse', '').trim() : '3BHK';
+
+      const res = await fetch('/api/leads', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          intent: 'SELL',
+          fullName: customerName.trim() || 'Apartment Homeowner',
+          name: customerName.trim() || 'Apartment Homeowner',
           phone: `+91${cleanPhone}`,
-          name: customerName.trim() || undefined,
-          bhk: bhk || 'Not specified',
+          societyName: societyQuery.trim(),
           society: societyQuery.trim(),
+          locality: parsedLocality || 'Bengaluru',
+          localityOrSociety: societyQuery.trim(),
+          bhkType: cleanBhk,
+          bhk: bhk || '3 BHK',
+          intent: 'SELL',
+          listing_intent: 'SELL',
           source: 'hero_valuation_form',
-          notes: 'Free Resale Valuation Request from Homepage Hero'
+          notes: `Free Resale Valuation Request for ${societyQuery.trim()} (${bhk || 'Not specified'})`
         }),
       });
 
+      if (!res.ok) {
+        const errData = await res.json().catch(() => null);
+        throw new Error(errData?.error || 'Failed to submit valuation request. Please try again.');
+      }
+
       trackEvent('HERO_VALUATION_SUBMITTED', { society: societyQuery, bhk });
       setIsSubmitted(true);
-    } catch {
-      // Graceful local fallback for offline development mode
-      setIsSubmitted(true);
+    } catch (err: any) {
+      setFormError(err.message || 'Unable to submit valuation request. Please verify details.');
     } finally {
       setIsSubmitting(false);
     }

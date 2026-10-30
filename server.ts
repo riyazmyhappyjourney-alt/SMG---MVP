@@ -1944,9 +1944,12 @@ app.post('/api/leads', jsonDefault, rateLimit('leads-submit', 5, 900), async (re
     const { 
       phone, 
       societyName, 
+      society,
+      apartment_society_name,
       locality, 
       localityOrSociety, 
       bhkType, 
+      bhk,
       builtUpSqft, 
       intent 
     } = req.body;
@@ -1957,7 +1960,7 @@ app.post('/api/leads', jsonDefault, rateLimit('leads-submit', 5, 900), async (re
       req.body.name || 
       req.body.buyer_name || 
       req.body.client_name || 
-      ''
+      (req.body.source === 'hero_valuation_form' ? 'Apartment Homeowner' : '')
     ).trim();
 
     if (!rawName || rawName.length < 2) {
@@ -1970,14 +1973,15 @@ app.post('/api/leads', jsonDefault, rateLimit('leads-submit', 5, 900), async (re
       return res.status(400).json({ error: 'Please enter a valid 10-digit Indian mobile number.' });
     }
 
-    const finalSociety = (societyName || localityOrSociety || '').trim();
+    const finalSociety = (societyName || society || apartment_society_name || localityOrSociety || '').trim();
     if (!finalSociety || finalSociety.length < 2) {
       return res.status(400).json({ error: 'Apartment / Society name is required.' });
     }
 
     const finalLocality = (locality || 'Bengaluru').trim();
+    const rawBhk = String(bhkType || bhk || '3BHK').replace(/\s+/g, '').toUpperCase();
     const allowedBhks = ['1BHK', '2BHK', '2.5BHK', '3BHK', '3.5BHK', '4BHK+', '4BHK or 4.5BHK+'];
-    const validBhk = allowedBhks.includes(bhkType) ? bhkType : '3BHK';
+    const validBhk = allowedBhks.find(b => rawBhk.startsWith(b.replace('+', ''))) || (allowedBhks.includes(rawBhk) ? rawBhk : '3BHK');
     const isSeller = intent === 'SELL' || intent === 'SELLER';
     const normalizedPhone = `+91${cleanPhone}`;
     const clientIp = getClientIp(req);
