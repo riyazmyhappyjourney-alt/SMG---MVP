@@ -21,6 +21,7 @@ import { CookiePolicyPage } from './components/legal/CookiePolicyPage';
 import { CareersPage } from './components/company/CareersPage';
 import { AboutUsPage } from './components/company/AboutUsPage';
 import { FaqPage } from './components/company/FaqPage';
+import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { initGA4, trackPageView } from './utils/analytics';
 
 export type AppRoute = 
@@ -572,17 +573,19 @@ export default function App() {
     }
 
     return (
-      <CrmDashboard
-        staffUser={staffSession.user}
-        onLogout={handleStaffLogout}
-        onExit={() => {
-          if (window.location.hostname.startsWith('crm.') || window.location.hostname.startsWith('crm-')) {
-            window.location.replace('https://sellmyghar.in');
-          } else {
-            navigateTo('HOME');
-          }
-        }}
-      />
+      <ErrorBoundary onReset={() => window.location.reload()}>
+        <CrmDashboard
+          staffUser={staffSession.user}
+          onLogout={handleStaffLogout}
+          onExit={() => {
+            if (window.location.hostname.startsWith('crm.') || window.location.hostname.startsWith('crm-')) {
+              window.location.replace('https://sellmyghar.in');
+            } else {
+              navigateTo('HOME');
+            }
+          }}
+        />
+      </ErrorBoundary>
     );
   }
 

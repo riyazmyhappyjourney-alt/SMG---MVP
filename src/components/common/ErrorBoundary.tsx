@@ -51,9 +51,17 @@ export class ErrorBoundary extends Component<Props, State> {
               <AlertTriangle className="w-7 h-7" />
             </div>
             <h1 className="text-xl font-bold text-slate-900 mb-2">Something went wrong</h1>
-            <p className="text-xs text-slate-500 mb-6 font-['Poppins'] leading-relaxed">
+            <p className="text-xs text-slate-500 mb-4 font-['Poppins'] leading-relaxed">
               We encountered an unexpected display issue while rendering this page. You can safely reload or return to the homepage.
             </p>
+            {this.state.error && (
+              <div className="mb-6 p-4 bg-rose-50 border border-rose-200 rounded-xl text-left font-mono text-[11px] text-rose-800 overflow-x-auto max-h-48 shadow-inner">
+                <div className="font-bold text-rose-900">{this.state.error.name}: {this.state.error.message}</div>
+                {this.state.error.stack && (
+                  <pre className="text-[10px] text-rose-600 mt-2 whitespace-pre-wrap">{this.state.error.stack}</pre>
+                )}
+              </div>
+            )}
             <div className="flex flex-col sm:flex-row gap-3 justify-center font-semibold text-xs">
               <button
                 type="button"

@@ -138,6 +138,8 @@ export interface AuthenticatedUser {
   uid: string; // Auth Subject ID
   phone: string;
   email: string | null;
+  displayName?: string;
+  display_name?: string;
   roles: AppRole[];
   permissions?: Permission[];
   tokenVersion?: number;

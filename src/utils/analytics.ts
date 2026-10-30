@@ -29,6 +29,8 @@ export type AnalyticsEventType =
   | 'PROPERTY_VIEW'
   | 'ENQUIRY_SUBMIT'
   | 'HOW_IT_WORKS_CTA_CLICK'
+  | 'CTA_BANNER_CLICK'
+  | 'HERO_VALUATION_SUBMITTED'
   | 'AUTH_EVENT';
 
 export interface AnalyticsEvent {
