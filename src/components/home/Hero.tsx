@@ -225,12 +225,12 @@ export const Hero: React.FC<HeroProps> = ({
   };
 
   return (
-    <div className="w-full max-w-[1536px] mx-auto px-2 sm:px-4 lg:px-6 pt-3 sm:pt-4 pb-12 font-['Montserrat',sans-serif]">
+    <div className="w-full mx-auto px-0 pt-0 pb-10 sm:pb-14 font-['Montserrat',sans-serif]">
       
-      {/* 1. HERO MAIN CARD (Edge-to-edge rounded card matching reference image) */}
+      {/* 1. HERO MAIN CARD (Edge-to-edge full width matching reference image) */}
       <div 
         id="hero-valuation-card"
-        className="relative rounded-2xl sm:rounded-3xl overflow-hidden bg-slate-950 text-white shadow-2xl min-h-[500px] lg:min-h-[550px] flex items-center w-full"
+        className="relative overflow-hidden bg-slate-950 text-white shadow-2xl min-h-[520px] lg:min-h-[580px] flex items-center w-full"
       >
         
         {/* Exact Reference Hero Image (Happy Couple Moving with Boxes) */}
@@ -254,8 +254,8 @@ export const Hero: React.FC<HeroProps> = ({
         <div className="absolute inset-0 bg-gradient-to-r from-slate-950/92 via-slate-950/75 to-slate-950/35 pointer-events-none" />
 
         {/* Content Layout: 2 Columns on Desktop, Clean Stack on Mobile */}
-        <div className="relative z-10 w-full p-6 sm:p-10 lg:p-14">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10 items-center">
+        <div className="relative z-10 w-full max-w-[1536px] mx-auto px-4 sm:px-8 lg:px-14 py-8 sm:py-12 lg:py-16">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
             
             {/* LEFT COLUMN: Clean Headline and Supporting Copy */}
             <div className="lg:col-span-7 space-y-4 text-left">

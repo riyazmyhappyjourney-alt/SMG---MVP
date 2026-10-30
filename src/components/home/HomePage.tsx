@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { Header } from './Header';
 import { Hero } from './Hero';
-import { TrustedPartnersMarquee } from './TrustedPartnersMarquee';
-import { HoldingCostCalculator } from './HoldingCostCalculator';
 import { HowItWorks } from './HowItWorks';
-import { ListedProperties } from './ListedProperties';
+import { CustomerReviewsSection } from './CustomerReviewsSection';
+import { CtaBanner } from './CtaBanner';
 import { Footer } from './Footer';
 import { BuyerSearchPopupModal } from './BuyerSearchPopupModal';
 import { FavoritesModal } from './FavoritesModal';
@@ -153,31 +152,16 @@ export const HomePage: React.FC<HomePageProps> = ({
           onUnderstandProcessClick={scrollToCalculator}
         />
 
-        {/* 2. Trusted Partners Dynamic Marquee */}
-        <div className="hidden md:block">
-          <TrustedPartnersMarquee />
-        </div>
-
-        {/* 3. "How It Works" Seller Journey */}
-        <div id="how-it-works" className="bg-white border-y border-slate-200/60 my-8 py-4">
+        {/* 2. "How It Works" 4-Step Milestone Journey */}
+        <div id="how-it-works" className="bg-white border-y border-slate-200/60 my-6 sm:my-8 py-2 sm:py-4">
           <HowItWorks onPostProperty={handlePostProperty} />
         </div>
 
-        {/* 5. Financial Cost of an Unsold Flat Calculator (Desktop Only per spec) */}
-        <div className="hidden md:block">
-          <HoldingCostCalculator onExploreSellingOptions={() => handleStartSelling()} />
-        </div>
+        {/* 3. Verified Customer Reviews & Testimonials with Animations */}
+        <CustomerReviewsSection />
 
-        {/* 6. Verified Resale Inventory (Desktop layout) */}
-        <div id="listings" className="hidden md:block">
-          <ListedProperties
-            onSelectProperty={(_proj, _loc, _bhk) => {
-              if (onNavigateToContact) onNavigateToContact();
-            }}
-            searchQuery={searchQuery}
-            externalLocality={selectedLocality}
-          />
-        </div>
+        {/* 4. Panoramic CTA Banner matching approved reference image */}
+        <CtaBanner />
 
       </main>
 

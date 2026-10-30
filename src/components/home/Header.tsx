@@ -77,32 +77,22 @@ export const Header: React.FC<HeaderProps> = ({
       <div className="w-full max-w-[1536px] mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-18 sm:h-20">
           
-          {/* Brand Logo & Bengaluru Subtitle matching reference design & font */}
+          {/* Brand Logo Wordmark matching previous design */}
           <a 
             href="/" 
             onClick={(e) => {
               e.preventDefault();
               window.location.href = '/';
             }}
-            className="flex items-center space-x-2.5 focus:outline-hidden group"
+            className="flex items-center focus:outline-hidden group"
             title="SellMyGhar.in - Bengaluru Apartment Resale"
           >
-            {/* House Mark: Blue Roof & Orange Facade */}
-            <div className="relative w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center shrink-0">
-              <svg className="w-8 h-8 sm:w-9 sm:h-9" viewBox="0 0 36 36" fill="none">
-                <path d="M18 3L4 14H8V30H28V14H32L18 3Z" fill="#0073E6"/>
-                <path d="M14 18H22V30H14V18Z" fill="#F97316"/>
-                <path d="M18 10L10 16.5V28H14V17H22V28H26V16.5L18 10Z" fill="#FFFFFF"/>
-                <path d="M16 20H20V30H16V20Z" fill="#F97316"/>
-              </svg>
-            </div>
-
             <div className="flex flex-col font-['Poppins',sans-serif]">
               <div className="flex items-baseline leading-none">
-                <span className="text-slate-900 font-extrabold text-xl sm:text-2xl tracking-tight">SellMyGhar</span>
-                <span className="text-[#0073E6] font-extrabold text-xl sm:text-2xl">.in</span>
+                <span className="text-slate-900 font-extrabold text-2xl sm:text-3xl tracking-tight">SellMyGhar</span>
+                <span className="text-[#0073E6] font-extrabold text-2xl sm:text-3xl ml-0.5">.in</span>
               </div>
-              <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 tracking-wide mt-0.5">
+              <span className="text-[10px] sm:text-[11px] font-semibold text-slate-500 tracking-wide mt-1">
                 Bengaluru Apartment Resale
               </span>
             </div>
