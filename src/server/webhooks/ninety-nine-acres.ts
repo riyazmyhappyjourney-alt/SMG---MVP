@@ -774,31 +774,31 @@ export class NinetyNineAcresLeadService {
           lead.enquiryDate || new Date().toISOString(),
         ]
       );
-
-      // Record Audit Event
-      try {
-        await client.query(
-          `INSERT INTO audit_logs (
-            id, action, actor_id, target_entity, target_entity_id, client_ip, diff_summary, timestamp
-          ) VALUES ($1, 'LEAD_CREATED', 'system-webhook-99acres', 'buyer_enquiries', $2, $3, $4, NOW());`,
-          [
-            `audit-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`,
-            leadId,
-            clientIp,
-            JSON.stringify({
-              source: '99acres',
-              externalEnquiryId: lead.externalEnquiryId,
-              buyerName: lead.fullName,
-              phone: maskPhone(lead.phone),
-              leadType: 'BUYER',
-              createdVia: 'WEBHOOK_99ACRES',
-            }),
-          ]
-        );
-      } catch (auditErr: any) {
-        console.warn('[99acres Webhook] Audit log notice:', auditErr.message);
-      }
     });
+
+    // Record Audit Event (executed safely outside main lead transaction)
+    try {
+      await executeQuery(
+        `INSERT INTO audit_logs (
+          id, action, actor_id, target_entity, target_entity_id, ip_address, diff_summary, timestamp
+        ) VALUES ($1, 'LEAD_CREATED', 'system-webhook-99acres', 'buyer_enquiries', $2, $3, $4, NOW());`,
+        [
+          `audit-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`,
+          leadId,
+          clientIp,
+          JSON.stringify({
+            source: '99acres',
+            externalEnquiryId: lead.externalEnquiryId,
+            buyerName: lead.fullName,
+            phone: maskPhone(lead.phone),
+            leadType: 'BUYER',
+            createdVia: 'WEBHOOK_99ACRES',
+          }),
+        ]
+      );
+    } catch (auditErr: any) {
+      console.warn('[99acres Webhook] Audit log notice:', auditErr.message);
+    }
 
     // 8. Register in replay cache
     processed99acresEnquiryCache.set(lead.externalEnquiryId, Date.now());
