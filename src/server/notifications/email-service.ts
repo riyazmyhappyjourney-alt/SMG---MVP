@@ -1056,9 +1056,13 @@ export class EmailNotificationService {
     // 3. Resend Production REST API Dispatch
     else if (apiKey) {
       try {
+        const recipientList = recipient.includes(',')
+          ? recipient.split(',').map(r => r.trim()).filter(Boolean)
+          : [recipient.trim()];
+
         const payload: Record<string, any> = {
           from: fromAddress,
-          to: [recipient],
+          to: recipientList,
           subject,
           html,
         };
@@ -1874,9 +1878,12 @@ export class EmailNotificationService {
     notes?: string | null;
     createdAt?: string;
   }): Promise<{ dispatched: boolean; status: string; error?: string }> {
-    const rawRecipient = process.env.INTERNAL_ALERT_EMAIL || 'sellmyghar1@gmail.com';
-    const recipients = rawRecipient.split(',').map(r => r.trim()).filter(Boolean);
-    const recipient = recipients[0] || 'sellmyghar1@gmail.com';
+    const configuredAlertEmails = (process.env.INTERNAL_ALERT_EMAIL || '')
+      .split(',')
+      .map(r => r.trim())
+      .filter(Boolean);
+    const recipientsList = Array.from(new Set(['sellmyghar1@gmail.com', ...configuredAlertEmails]));
+    const recipient = recipientsList.join(', ');
     const idempotencyKey = `internal-lead-alert-${data.leadId}`;
 
     const baseUrl = process.env.APP_BASE_URL || process.env.APP_URL || 'https://crm.sellmyghar.in';
