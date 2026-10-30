@@ -396,11 +396,10 @@ export class NinetyNineAcresLeadService {
       externalEnquiryId = `99A-GEN-${hash}`;
     }
 
-    // 5. External Listing / Property ID
+    // 5. External Listing / Property ID (99acres propertyid / projectid)
     const rawListingId =
-      base.ProdId ||
-      base.prodId ||
-      base.prod_id ||
+      base.propertyid ||
+      base.projectid ||
       base.Property_ID ||
       base.PropertyId ||
       base.Listing_ID ||
@@ -409,6 +408,9 @@ export class NinetyNineAcresLeadService {
       base.listing_id ||
       base.propertyId ||
       base.property_id ||
+      base.ProdId ||
+      base.prodId ||
+      base.prod_id ||
       base.propId ||
       base.prop_id ||
       base.project_id ||
@@ -421,7 +423,20 @@ export class NinetyNineAcresLeadService {
       ? String(rawListingId).trim().slice(0, 128)
       : null;
 
-    // 6. Locality & Society / Project Name
+    // 6. Locality & Society / Project Name (99acres address: "whietfield, Bangalore East")
+    const rawAddress = base.address || base.Address;
+    let extractedAddressSociety: string | null = null;
+    let extractedAddressLocality: string | null = null;
+    if (typeof rawAddress === 'string' && rawAddress.trim()) {
+      const parts = rawAddress.split(',').map((p: string) => p.trim()).filter(Boolean);
+      if (parts.length > 1) {
+        extractedAddressSociety = parts[0];
+        extractedAddressLocality = parts.slice(1).join(', ');
+      } else {
+        extractedAddressLocality = rawAddress.trim();
+      }
+    }
+
     const rawSociety =
       base.CmpctLabl ||
       base.cmpctLabl ||
@@ -434,7 +449,8 @@ export class NinetyNineAcresLeadService {
       base.projectName ||
       base.project_name ||
       base.ProjectName ||
-      base.Society;
+      base.Society ||
+      extractedAddressSociety;
 
     const rawLocality =
       base.locality ||
@@ -444,7 +460,9 @@ export class NinetyNineAcresLeadService {
       base.Location ||
       base.subLocality ||
       base.sub_locality ||
-      base.Locality;
+      base.Locality ||
+      extractedAddressLocality ||
+      rawAddress;
 
     const resolvedSociety = (typeof rawSociety === 'string' && rawSociety.trim())
       ? rawSociety.trim().slice(0, 255)
@@ -454,21 +472,35 @@ export class NinetyNineAcresLeadService {
       ? rawLocality.trim().slice(0, 255)
       : resolvedSociety;
 
-    // 7. BHK Configuration
+    // 7. BHK Configuration (99acres: "property": "0BHK" or notes: "3bhk in...")
     const rawBhk =
       base.bhk ||
       base.bhkType ||
       base.bhk_type ||
       base.bedroom ||
       base.bedrooms ||
-      base.BHK;
+      base.BHK ||
+      base.property;
 
     let bhk = '3 BHK';
     if (typeof rawBhk === 'string' && rawBhk.trim()) {
       const b = rawBhk.trim();
-      bhk = /^\d+$/.test(b) ? `${b} BHK` : b.slice(0, 20);
-    } else if (typeof rawBhk === 'number') {
+      if (/^[1-9]\d*$/.test(b)) {
+        bhk = `${b} BHK`;
+      } else if (/^[1-9]\d*\s*bhk/i.test(b)) {
+        bhk = b.toUpperCase().replace(/\s*BHK/i, ' BHK');
+      } else if (b.toUpperCase() !== '0BHK' && b.toUpperCase() !== '0 BHK') {
+        bhk = b.slice(0, 20);
+      }
+    } else if (typeof rawBhk === 'number' && rawBhk > 0) {
       bhk = `${rawBhk} BHK`;
+    }
+
+    // Fallback: extract BHK from notes or about if property is 0BHK or missing
+    const combinedNotes = `${base.notes || ''} ${base.about || ''} ${base.Query_Info || ''} ${base.message || ''}`;
+    const bhkMatch = combinedNotes.match(/([1-5])\s*bhk/i);
+    if (bhkMatch && (bhk === '3 BHK' || bhk === '0 BHK' || bhk === '0BHK')) {
+      bhk = `${bhkMatch[1]} BHK`;
     }
 
     // 8. Budget
@@ -491,8 +523,10 @@ export class NinetyNineAcresLeadService {
       }
     }
 
-    // 9. Query / Message
+    // 9. Query / Message (99acres: notes, about, Query_Info)
     const rawMessage =
+      base.notes ||
+      base.about ||
       base.Query_Info ||
       base.QueryInfo ||
       base.query_info ||
@@ -510,8 +544,11 @@ export class NinetyNineAcresLeadService {
       ? rawMessage.trim().slice(0, 2000)
       : null;
 
-    // 10. Enquiry Date
+    // 10. Enquiry Date (99acres: responseDate: "2026-10-29 11:10:41")
     const rawDate =
+      base.responseDate ||
+      base.response_date ||
+      base.ResponseDate ||
       base.RcvdOn ||
       base.Timestamp ||
       base.timestamp ||

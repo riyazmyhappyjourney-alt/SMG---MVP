@@ -461,6 +461,44 @@ export async function run99acresWebhookTests(): Promise<{ passed: number; failed
     recordFail('13. 99acres native XML payload ingestion', err);
   }
 
+  // Test 14: Exact 99acres real-world production payload schema
+  const exact99acresPayload = {
+    lead_id: `602fb900b17fda0008c83bc1-${Date.now()}`,
+    name: 'XYZ',
+    phone: '+918989898989',
+    email: 'xyz@gmail.com',
+    property: '0BHK',
+    budget: '79030030',
+    about: '',
+    address: 'whietfield, Bangalore East',
+    notes: '3bhk in whiefield bangalore',
+    projectid: '6538',
+    propertyid: 'X7588333',
+    responseDate: '2026-10-29 11:10:41',
+  };
+
+  try {
+    const res = await dispatchRequest(app, '/api/v1/leads/99acres', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': TEST_SECRET,
+      },
+      body: exact99acresPayload,
+    });
+    assert(res.status === 201, `Expected 201 for real 99acres payload, got ${res.status}`);
+    const body = await res.json();
+    assert(body.success === true, 'Expected success: true');
+    assert(body.lead.name === 'XYZ', 'Name parsed correctly');
+    assert(body.lead.phone === '+918989898989', 'Phone normalized');
+    assert(body.lead.bhk === '3 BHK', 'BHK parsed from notes (3bhk)');
+    assert(body.lead.society.toLowerCase().includes('whietfield'), 'Society extracted from address');
+    assert(body.externalEnquiryId === exact99acresPayload.lead_id, 'lead_id preserved');
+    recordPass('14. Exact 99acres production payload parsed and ingested seamlessly with 201 CREATED');
+  } catch (err) {
+    recordFail('14. Exact 99acres production payload ingestion', err);
+  }
+
   console.log(`\n99acres Webhook Inbound Integration Suite: ${passed} passed, ${failed} failed`);
   return { passed, failed, results };
 }
