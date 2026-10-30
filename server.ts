@@ -5417,6 +5417,21 @@ const updateLeadStatusHandler = async (req: Request, res: Response) => {
       }
     });
 
+    try {
+      await EmailNotificationService.handleLeadStatusChangedNotification({
+        leadId: updatedLead?.id || id,
+        leadType: isSeller ? 'SELLER' : 'BUYER',
+        name: updatedLead?.owner_name || updatedLead?.buyer_name || 'Customer',
+        phone: updatedLead?.phone || '',
+        previousStatus: prevStatus,
+        newStatus: targetStatus,
+        updatedBy: req.user?.display_name || req.user?.email || 'CRM Staff',
+        note: note || null,
+      });
+    } catch (statusEmailErr: any) {
+      console.warn('[CrmLeadStatusEmail] Notification dispatch notice:', statusEmailErr.message);
+    }
+
     return res.json({
       success: true,
       message: `Lead status updated to ${targetStatus}`,
@@ -5517,6 +5532,24 @@ const assignLeadHandler = async (req: Request, res: Response) => {
         newStatus: updatedLead.lead_status
       }
     });
+
+    try {
+      await EmailNotificationService.handleLeadAssignedNotification({
+        leadId: updatedLead.id,
+        leadType: isSeller ? 'SELLER' : 'BUYER',
+        name: updatedLead.owner_name || updatedLead.buyer_name || 'Customer',
+        phone: updatedLead.phone,
+        society: updatedLead.apartment_society_name || updatedLead.preferred_locality_or_society,
+        bhk: updatedLead.bhk_type,
+        assignedStaffName: staffUser.display_name || staffUser.email,
+        assignedStaffEmail: staffUser.email,
+        assignedStaffPhone: staffUser.phone,
+        assignedBy: req.user?.display_name || req.user?.email || 'CRM Admin',
+        status: updatedLead.lead_status,
+      });
+    } catch (assignEmailErr: any) {
+      console.warn('[CrmLeadAssignEmail] Notification dispatch notice:', assignEmailErr.message);
+    }
 
     return res.json({
       success: true,

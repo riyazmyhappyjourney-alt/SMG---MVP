@@ -3,6 +3,8 @@ import { AlertTriangle, RotateCcw, Home } from 'lucide-react';
 
 interface Props {
   children: ReactNode;
+  fallback?: ReactNode;
+  onReset?: () => void;
 }
 
 interface State {
@@ -21,12 +23,16 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error('Uncaught React application error:', error, errorInfo);
+    console.error('Uncaught React error caught by ErrorBoundary:', error, errorInfo);
   }
 
   private handleReset = () => {
     this.setState({ hasError: false, error: null });
-    window.location.href = '/';
+    if (this.props.onReset) {
+      this.props.onReset();
+    } else {
+      window.location.href = '/';
+    }
   };
 
   private handleReload = () => {
@@ -35,6 +41,9 @@ export class ErrorBoundary extends Component<Props, State> {
 
   public render() {
     if (this.state.hasError) {
+      if (this.props.fallback) {
+        return this.props.fallback;
+      }
       return (
         <div className="min-h-screen bg-[#F4F6F9] flex items-center justify-center p-4 font-['Montserrat']">
           <div className="max-w-md w-full bg-white rounded-2xl shadow-xl border border-slate-200 p-8 text-center">

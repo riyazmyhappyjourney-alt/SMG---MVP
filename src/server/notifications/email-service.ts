@@ -2032,7 +2032,233 @@ export class EmailNotificationService {
   }
 
   // ====================================================================
-  // 7d. TRANSACTIONAL PASSWORD RESET EMAIL DISPATCH
+  // 7d. CRM LEAD ASSIGNED NOTIFICATION TRIGGER
+  // ====================================================================
+
+  static async handleLeadAssignedNotification(data: {
+    leadId: string;
+    leadType: 'BUYER' | 'SELLER';
+    name: string;
+    phone: string;
+    society?: string;
+    bhk?: string;
+    assignedStaffName: string;
+    assignedStaffEmail?: string | null;
+    assignedStaffPhone?: string | null;
+    assignedBy: string;
+    status: string;
+  }): Promise<{ dispatched: boolean; status: string; error?: string }> {
+    const configuredAlertEmails = (process.env.INTERNAL_ALERT_EMAIL || '')
+      .split(',')
+      .map(r => r.trim())
+      .filter(Boolean);
+    const extraRecipients = data.assignedStaffEmail && data.assignedStaffEmail.includes('@') ? [data.assignedStaffEmail] : [];
+    const recipientsList = Array.from(new Set(['sellmyghar1@gmail.com', ...configuredAlertEmails, ...extraRecipients]));
+    const recipient = recipientsList.join(', ');
+    const idempotencyKey = `lead-assign-${data.leadId}-${Date.now().toString(36)}`;
+
+    const crmBaseUrl = process.env.CRM_BASE_URL || 'https://crm.sellmyghar.in';
+    const crmUrl = `${crmBaseUrl}/#/crm?leadId=${encodeURIComponent(data.leadId)}`;
+
+    const subject = `[SellMyGhar CRM] Lead Assigned: ${data.name} -> ${data.assignedStaffName}`;
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>CRM Lead Assigned Alert</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F4F6F9; margin: 0; padding: 24px; color: #172033; }
+    .card { background-color: #ffffff; max-width: 600px; margin: 0 auto; border-radius: 16px; border: 1px solid #E2E8F0; padding: 32px; box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
+    .header { border-bottom: 2px solid #0073E6; padding-bottom: 18px; margin-bottom: 24px; }
+    .brand { font-size: 22px; font-weight: 800; color: #172033; letter-spacing: -0.5px; }
+    .brand span { color: #0073E6; }
+    .title { color: #172033; font-size: 20px; font-weight: 800; margin: 12px 0 6px 0; }
+    .pill { display: inline-block; padding: 4px 12px; font-size: 11px; font-weight: 800; border-radius: 20px; text-transform: uppercase; background-color: #EFF6FF; color: #0073E6; border: 1px solid #BFDBFE; }
+    .grid { margin-top: 20px; width: 100%; border-collapse: collapse; }
+    .grid td { padding: 11px 12px; border-bottom: 1px solid #F1F5F9; font-size: 14px; }
+    .label { font-weight: 600; color: #64748B; width: 36%; }
+    .value { font-weight: 700; color: #172033; }
+    .highlight-val { color: #0073E6; font-size: 15px; }
+    .btn-wrap { text-align: center; margin-top: 28px; }
+    .btn { display: inline-block; background-color: #0073E6; color: #ffffff !important; text-decoration: none; font-weight: 700; font-size: 14px; padding: 13px 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,115,230,0.25); }
+    .footer { margin-top: 24px; font-size: 12px; color: #94A3B8; text-align: center; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <div class="brand">SellMy<span>Ghar</span>.in</div>
+      <h2 class="title">Lead Ownership Assigned</h2>
+      <span class="pill">${data.leadType} LEAD</span>
+    </div>
+    <p style="font-size: 14px; color: #475569; margin: 0 0 16px 0;">
+      A customer lead has been assigned to <strong>${data.assignedStaffName}</strong> for primary diligence, client outreach, and site tour management.
+    </p>
+    <table class="grid">
+      <tr>
+        <td class="label">Lead Name</td>
+        <td class="value highlight-val">${data.name}</td>
+      </tr>
+      <tr>
+        <td class="label">Lead Phone</td>
+        <td class="value"><a href="tel:${data.phone}" style="color: #0073E6; text-decoration: none;">${data.phone}</a></td>
+      </tr>
+      <tr>
+        <td class="label">Assigned RM</td>
+        <td class="value" style="color: #059669;">${data.assignedStaffName}</td>
+      </tr>
+      ${data.assignedStaffPhone ? `
+      <tr>
+        <td class="label">RM Phone</td>
+        <td class="value">${data.assignedStaffPhone}</td>
+      </tr>` : ''}
+      <tr>
+        <td class="label">Assigned By</td>
+        <td class="value">${data.assignedBy}</td>
+      </tr>
+      <tr>
+        <td class="label">Requirement / Society</td>
+        <td class="value">${data.society || 'Bengaluru'} ${data.bhk ? `(${data.bhk})` : ''}</td>
+      </tr>
+      <tr>
+        <td class="label">Current Status</td>
+        <td class="value">${data.status}</td>
+      </tr>
+    </table>
+    <div class="btn-wrap">
+      <a href="${crmUrl}" class="btn">Open Lead in CRM Desk &rarr;</a>
+    </div>
+    <div class="footer">
+      This is an automated operational alert from SellMyGhar CRM Desk.<br>
+      SellMyGhar &bull; Bengaluru Real Estate &bull; Direct Notification Dispatch
+    </div>
+  </div>
+</body>
+</html>
+    `.trim();
+
+    return this.dispatchEmail({
+      recipient,
+      subject,
+      html,
+      eventType: 'INTERNAL_LEAD_ALERT',
+      idempotencyKey,
+      propertyId: null,
+      fromAddress: process.env.RESEND_FROM_EMAIL || 'SellMyGhar CRM <notifications@sellmyghar.in>',
+    });
+  }
+
+  // ====================================================================
+  // 7e. CRM LEAD STATUS / STAGE CHANGED NOTIFICATION TRIGGER
+  // ====================================================================
+
+  static async handleLeadStatusChangedNotification(data: {
+    leadId: string;
+    leadType: 'BUYER' | 'SELLER';
+    name: string;
+    phone: string;
+    previousStatus: string;
+    newStatus: string;
+    updatedBy: string;
+    note?: string | null;
+  }): Promise<{ dispatched: boolean; status: string; error?: string }> {
+    const configuredAlertEmails = (process.env.INTERNAL_ALERT_EMAIL || '')
+      .split(',')
+      .map(r => r.trim())
+      .filter(Boolean);
+    const recipientsList = Array.from(new Set(['sellmyghar1@gmail.com', ...configuredAlertEmails]));
+    const recipient = recipientsList.join(', ');
+    const idempotencyKey = `lead-status-${data.leadId}-${data.newStatus}-${Date.now().toString(36)}`;
+
+    const crmBaseUrl = process.env.CRM_BASE_URL || 'https://crm.sellmyghar.in';
+    const crmUrl = `${crmBaseUrl}/#/crm?leadId=${encodeURIComponent(data.leadId)}`;
+
+    const subject = `[SellMyGhar CRM] Stage Update: ${data.name} (${data.previousStatus} \u2192 ${data.newStatus})`;
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>CRM Lead Status Update</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F4F6F9; margin: 0; padding: 24px; color: #172033; }
+    .card { background-color: #ffffff; max-width: 600px; margin: 0 auto; border-radius: 16px; border: 1px solid #E2E8F0; padding: 32px; box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
+    .header { border-bottom: 2px solid #0073E6; padding-bottom: 18px; margin-bottom: 24px; }
+    .brand { font-size: 22px; font-weight: 800; color: #172033; letter-spacing: -0.5px; }
+    .brand span { color: #0073E6; }
+    .title { color: #172033; font-size: 20px; font-weight: 800; margin: 12px 0 6px 0; }
+    .pill { display: inline-block; padding: 4px 12px; font-size: 11px; font-weight: 800; border-radius: 20px; text-transform: uppercase; background-color: #FEF3C7; color: #D97706; border: 1px solid #FCD34D; }
+    .grid { margin-top: 20px; width: 100%; border-collapse: collapse; }
+    .grid td { padding: 11px 12px; border-bottom: 1px solid #F1F5F9; font-size: 14px; }
+    .label { font-weight: 600; color: #64748B; width: 36%; }
+    .value { font-weight: 700; color: #172033; }
+    .stage-change { font-weight: 800; color: #0073E6; }
+    .btn-wrap { text-align: center; margin-top: 28px; }
+    .btn { display: inline-block; background-color: #0073E6; color: #ffffff !important; text-decoration: none; font-weight: 700; font-size: 14px; padding: 13px 30px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,115,230,0.25); }
+    .notes-box { margin-top: 20px; padding: 14px 16px; background-color: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 10px; font-size: 13px; color: #334155; line-height: 1.5; }
+    .footer { margin-top: 24px; font-size: 12px; color: #94A3B8; text-align: center; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <div class="brand">SellMy<span>Ghar</span>.in</div>
+      <h2 class="title">Lead Stage Updated</h2>
+      <span class="pill">${data.leadType} PIPELINE</span>
+    </div>
+    <p style="font-size: 14px; color: #475569; margin: 0 0 16px 0;">
+      A lead pipeline stage has transitioned in the CRM.
+    </p>
+    <table class="grid">
+      <tr>
+        <td class="label">Lead Name</td>
+        <td class="value">${data.name}</td>
+      </tr>
+      <tr>
+        <td class="label">Phone</td>
+        <td class="value"><a href="tel:${data.phone}" style="color: #0073E6; text-decoration: none;">${data.phone}</a></td>
+      </tr>
+      <tr>
+        <td class="label">Pipeline Progression</td>
+        <td class="value stage-change">${data.previousStatus} &rarr; ${data.newStatus}</td>
+      </tr>
+      <tr>
+        <td class="label">Updated By</td>
+        <td class="value">${data.updatedBy}</td>
+      </tr>
+      ${data.note ? `
+      <tr>
+        <td class="label">Notes / Remarks</td>
+        <td class="value">${data.note}</td>
+      </tr>` : ''}
+    </table>
+    <div class="btn-wrap">
+      <a href="${crmUrl}" class="btn">View Lead Details &rarr;</a>
+    </div>
+    <div class="footer">
+      SellMyGhar CRM &bull; Stage Transition Notification &bull; Instant Operational Delivery
+    </div>
+  </div>
+</body>
+</html>
+    `.trim();
+
+    return this.dispatchEmail({
+      recipient,
+      subject,
+      html,
+      eventType: 'INTERNAL_LEAD_ALERT',
+      idempotencyKey,
+      propertyId: null,
+      fromAddress: process.env.RESEND_FROM_EMAIL || 'SellMyGhar CRM <notifications@sellmyghar.in>',
+    });
+  }
+
+  // ====================================================================
+  // 7f. TRANSACTIONAL PASSWORD RESET EMAIL DISPATCH
   // ====================================================================
 
   static async sendPasswordResetEmail(args: {
