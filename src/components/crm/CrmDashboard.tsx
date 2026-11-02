@@ -6049,13 +6049,16 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
           onClose={() => setIsAddLeadModalOpen(false)}
           initialSource={addLeadInitialSource}
           initialType={addLeadInitialType}
+          currentStaffId={staffUser?.id || staffUser?.uid}
           staffList={staffList}
           properties={properties}
           crmFetch={crmFetch}
           onLeadCreated={(newLeadId) => {
+            setLeadAssignFilter('ALL');
+            setLeadStatusFilter('ALL');
             loadLeads();
             setSelectedLeadId(newLeadId);
-            showToast('Lead created successfully!', 'success');
+            showToast('Lead created successfully! Reflected in pipeline.', 'success');
           }}
         />
       )}

@@ -27,6 +27,7 @@ interface ManualLeadModalProps {
   onClose: () => void;
   initialSource?: string;
   initialType?: 'BUYER' | 'SELLER';
+  currentStaffId?: string;
   staffList: CrmStaff[];
   properties: CrmProperty[];
   onLeadCreated: (newLeadId: string) => void;
@@ -52,6 +53,7 @@ export const ManualLeadModal: React.FC<ManualLeadModalProps> = ({
   onClose,
   initialSource = '99acres',
   initialType = 'BUYER',
+  currentStaffId,
   staffList,
   properties,
   onLeadCreated,
@@ -82,7 +84,7 @@ export const ManualLeadModal: React.FC<ManualLeadModalProps> = ({
   const [additionalRequirements, setAdditionalRequirements] = useState('');
 
   // Assignment & Follow-up State
-  const [assignedStaffId, setAssignedStaffId] = useState('');
+  const [assignedStaffId, setAssignedStaffId] = useState(currentStaffId || '');
   const [initialStage, setInitialStage] = useState<LeadStatus>('NEW');
   const [nextFollowUpAt, setNextFollowUpAt] = useState('');
   const [followUpNotes, setFollowUpNotes] = useState('');
@@ -108,6 +110,7 @@ export const ManualLeadModal: React.FC<ManualLeadModalProps> = ({
     if (isOpen) {
       setSource(initialSource);
       setLeadType(initialType);
+      setAssignedStaffId(currentStaffId || '');
       setError(null);
       setDuplicateMatches([]);
       setDuplicateAcknowledged(false);
@@ -115,7 +118,7 @@ export const ManualLeadModal: React.FC<ManualLeadModalProps> = ({
       now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
       setEnquiryDate(now.toISOString().slice(0, 16));
     }
-  }, [isOpen, initialSource, initialType]);
+  }, [isOpen, initialSource, initialType, currentStaffId]);
 
   // Sync society & locality if inventory property is selected
   useEffect(() => {
@@ -696,10 +699,11 @@ export const ManualLeadModal: React.FC<ManualLeadModalProps> = ({
                   <option value="">-- Unassigned (General Desk Queue) --</option>
                   {staffList.map((s) => {
                     const label = s.displayName || s.name || s.email;
+                    const isMe = s.id === currentStaffId;
                     const primaryRole = ((s as any).role || s.roles?.[0] || 'STAFF').replace('STAFF_', '');
                     return (
                       <option key={s.id} value={s.id}>
-                        {label} ({primaryRole})
+                        {label}{isMe ? ' (You)' : ''} ({primaryRole})
                       </option>
                     );
                   })}
