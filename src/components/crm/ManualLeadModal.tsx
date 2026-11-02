@@ -96,6 +96,12 @@ export const ManualLeadModal: React.FC<ManualLeadModalProps> = ({
   const [duplicateCheckLoading, setDuplicateCheckLoading] = useState(false);
   const [duplicateAcknowledged, setDuplicateAcknowledged] = useState(false);
   const duplicateTimeoutRef = useRef<any>(null);
+  const modalBodyRef = useRef<HTMLFormElement>(null);
+
+  const showError = (msg: string) => {
+    setError(msg);
+    modalBodyRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   // Reset form when modal opens or initialSource changes
   useEffect(() => {
@@ -197,18 +203,18 @@ export const ManualLeadModal: React.FC<ManualLeadModalProps> = ({
 
     // 1. Validation
     if (!fullName.trim()) {
-      setError('Full name is required.');
+      showError('Full name is required.');
       return;
     }
 
     const cleanPhone = phone.replace(/\D/g, '').slice(-10);
     if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
-      setError('Please enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9.');
+      showError('Please enter a valid 10-digit Indian mobile number starting with 6, 7, 8, or 9.');
       return;
     }
 
     if (duplicateMatches.length > 0 && !duplicateAcknowledged) {
-      setError('A matching lead was found. Please review the duplicate alert above before proceeding.');
+      showError('A matching lead was found. Please review the duplicate alert above before proceeding.');
       return;
     }
 
@@ -253,7 +259,7 @@ export const ManualLeadModal: React.FC<ManualLeadModalProps> = ({
         onLeadCreated(data.leadId);
       }
     } catch (err: any) {
-      setError(err.message || 'Error creating lead. Please check network and permissions.');
+      showError(err.message || 'Error creating lead. Please check network and permissions.');
     } finally {
       setLoading(false);
     }
@@ -297,7 +303,7 @@ export const ManualLeadModal: React.FC<ManualLeadModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-5 space-y-6 text-xs">
+        <form ref={modalBodyRef} onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-6 py-5 space-y-6 text-xs">
           
           {/* Error Banner */}
           {error && (
@@ -747,20 +753,26 @@ export const ManualLeadModal: React.FC<ManualLeadModalProps> = ({
           </div>
 
           {/* Modal Footer */}
-          <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
+          <div className="pt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-2.5">
             <button
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer"
+              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer w-full sm:w-auto text-center"
             >
               Cancel
             </button>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center space-x-2.5 w-full sm:w-auto justify-end">
+              {error && (
+                <div className="flex items-center space-x-1.5 text-rose-600 text-[11px] font-semibold max-w-xs truncate" title={error}>
+                  <ShieldAlert className="w-3.5 h-3.5 shrink-0 text-rose-500" />
+                  <span className="truncate">{error}</span>
+                </div>
+              )}
               <button
                 type="submit"
                 disabled={loading}
-                className="inline-flex items-center space-x-1.5 px-5 py-2.5 rounded-xl bg-[#0073E6] hover:bg-[#005bb5] text-white text-xs font-bold shadow-sm transition-all disabled:opacity-50 cursor-pointer"
+                className="inline-flex items-center justify-center space-x-1.5 px-5 py-2.5 rounded-xl bg-[#0073E6] hover:bg-[#005bb5] text-white text-xs font-bold shadow-sm transition-all disabled:opacity-50 cursor-pointer w-full sm:w-auto"
               >
                 {loading ? (
                   <>

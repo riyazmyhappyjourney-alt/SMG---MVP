@@ -5158,18 +5158,22 @@ app.post('/api/crm/leads', jsonDefault, authenticateUser, requirePermissionMiddl
           ]
         );
       }
+    });
 
-      // Record Audit Event inside transaction
-      await client.query(
+    // Record Audit Event (executed safely outside main lead transaction)
+    const actorRole = (req.user?.roles && req.user.roles[0]) ? String(req.user.roles[0]) : 'STAFF';
+    try {
+      await executeQuery(
         `INSERT INTO audit_logs (
-          id, action, actor_id, target_entity, target_entity_id, client_ip, diff_summary, timestamp
-        ) VALUES ($1, 'LEAD_MANUALLY_CREATED', $2, $3, $4, $5, $6, NOW());`,
+          id, actor_id, actor_role, action, target_entity, target_entity_id, ip_address, diff_summary, timestamp
+        ) VALUES ($1, $2, $3, 'LEAD_MANUALLY_CREATED', $4, $5, $6, $7, NOW());`,
         [
           `audit-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`,
           req.user!.uid,
+          actorRole,
           isSeller ? 'seller_leads' : 'buyer_enquiries',
           createdId,
-          clientIp,
+          clientIp || '127.0.0.1',
           JSON.stringify({
             source: attributionPayload.source,
             externalEnquiryId: attributionPayload.externalEnquiryId,
@@ -5181,7 +5185,57 @@ app.post('/api/crm/leads', jsonDefault, authenticateUser, requirePermissionMiddl
           })
         ]
       );
-    });
+    } catch (auditErr: any) {
+      console.warn('[CreateCrmLead] Audit log notice:', auditErr.message);
+    }
+
+    // Real-time zero-setup email trigger to sellmyghar1@gmail.com
+    try {
+      await EmailNotificationService.handleNewInboundLeadNotification({
+        leadId: createdId,
+        source: attributionPayload.source,
+        leadType: isSeller ? 'SELLER' : 'BUYER',
+        name: fullName.trim(),
+        phone: normalizedPhone,
+        email: normalizedEmail,
+        locality: resolvedLocality,
+        society: resolvedSociety,
+        bhk: resolvedBhk,
+        budget: resolvedBudget,
+        message: message ? String(message).trim() : null,
+        externalEnquiryId: attributionPayload.externalEnquiryId,
+        externalListingId: attributionPayload.externalListingId,
+        notes: finalNotes || null,
+        createdAt: enquiryDate || new Date().toISOString(),
+      });
+    } catch (emailErr: any) {
+      console.warn('[CreateCrmLead] Lead creation alert email notice:', emailErr.message);
+    }
+
+    // Trigger assignment alert if staff was assigned during creation
+    if (assignedStaffId) {
+      try {
+        const staffRes = await executeQuery('SELECT id, display_name, email, phone FROM users WHERE id = $1 LIMIT 1;', [assignedStaffId]);
+        const staffUser = staffRes.rows[0];
+        if (staffUser) {
+          await EmailNotificationService.handleLeadAssignedNotification({
+            leadId: createdId,
+            leadType: isSeller ? 'SELLER' : 'BUYER',
+            name: fullName.trim(),
+            phone: normalizedPhone,
+            society: resolvedSociety,
+            bhk: resolvedBhk,
+            assignedStaffName: staffUser.display_name || staffUser.email,
+            assignedStaffEmail: staffUser.email,
+            assignedStaffPhone: staffUser.phone,
+            assignedBy: (req.user as any)?.display_name || req.user?.email || 'CRM Admin',
+            status: validStage,
+          });
+        }
+      } catch (assignEmailErr: any) {
+        console.warn('[CreateCrmLead] Staff assignment alert notice:', assignEmailErr.message);
+      }
+    }
 
     return res.status(201).json({
       success: true,
