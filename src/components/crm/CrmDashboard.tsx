@@ -530,7 +530,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
   const [globalSearch, setGlobalSearch] = useState<string>('');
   const [leadSearch, setLeadSearch] = useState<string>('');
   const [leadStatusFilter, setLeadStatusFilter] = useState<string>('ALL');
-  const [leadAssignFilter, setLeadAssignFilter] = useState<string>('ALL');
+  const [leadAssignFilter, setLeadAssignFilter] = useState<string>('ASSIGNED');
   const [leadTypeFilter, setLeadTypeFilter] = useState<'ALL' | 'SELLER' | 'BUYER'>('ALL');
   const [leadSourceFilter, setLeadSourceFilter] = useState<string>('ALL');
   const [leadFollowUpFilter, setLeadFollowUpFilter] = useState<'ALL' | 'OVERDUE' | 'TODAY' | 'UPCOMING'>('ALL');
@@ -1513,8 +1513,11 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
       }
 
       // Assign Filter
-      if (leadAssignFilter === 'ME') {
-        if (lead.assignedStaffId !== (staffUser?.uid || 'usr-admin-compliance-01')) return false;
+      if (leadAssignFilter === 'ASSIGNED') {
+        if (!lead.assignedStaffId) return false;
+      } else if (leadAssignFilter === 'ME') {
+        const currentStaffId = staffUser?.id || staffUser?.uid;
+        if (lead.assignedStaffId !== currentStaffId) return false;
       } else if (leadAssignFilter === 'UNASSIGNED') {
         if (lead.assignedStaffId) return false;
       } else if (leadAssignFilter !== 'ALL') {
@@ -2709,6 +2712,77 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 </div>
               </div>
 
+              {/* Assignment Scope Tabs */}
+              <div className="flex items-center space-x-2 overflow-x-auto pb-1 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setLeadAssignFilter('ASSIGNED')}
+                  className={`px-3.5 py-1.5 rounded-xl font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
+                    leadAssignFilter === 'ASSIGNED'
+                      ? 'bg-[#0073E6] text-white shadow-xs'
+                      : 'bg-white border border-slate-200/80 text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  <span>Assigned Leads</span>
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${
+                    leadAssignFilter === 'ASSIGNED' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                  }`}>
+                    {leads.filter(l => Boolean(l.assignedStaffId)).length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setLeadAssignFilter('ME')}
+                  className={`px-3.5 py-1.5 rounded-xl font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
+                    leadAssignFilter === 'ME'
+                      ? 'bg-[#0073E6] text-white shadow-xs'
+                      : 'bg-white border border-slate-200/80 text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  <span>Assigned to Me</span>
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${
+                    leadAssignFilter === 'ME' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                  }`}>
+                    {leads.filter(l => l.assignedStaffId === (staffUser?.id || staffUser?.uid)).length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setLeadAssignFilter('UNASSIGNED')}
+                  className={`px-3.5 py-1.5 rounded-xl font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
+                    leadAssignFilter === 'UNASSIGNED'
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'bg-white border border-slate-200/80 text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  <span>Unassigned Inquiries</span>
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${
+                    leadAssignFilter === 'UNASSIGNED' ? 'bg-white/20 text-white' : 'bg-amber-50 text-amber-700'
+                  }`}>
+                    {leads.filter(l => !l.assignedStaffId).length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setLeadAssignFilter('ALL')}
+                  className={`px-3.5 py-1.5 rounded-xl font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
+                    leadAssignFilter === 'ALL'
+                      ? 'bg-slate-900 text-white shadow-xs'
+                      : 'bg-white border border-slate-200/80 text-slate-700 hover:bg-slate-50'
+                  }`}
+                >
+                  <span>All Pipeline</span>
+                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${
+                    leadAssignFilter === 'ALL' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                  }`}>
+                    {leads.length}
+                  </span>
+                </button>
+              </div>
+
               {/* Dedicated Search & Filter Control Bar */}
               <div className="p-3 bg-white rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 text-xs">
                 {/* Search Input */}
@@ -2755,9 +2829,10 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                       onChange={(e) => setLeadAssignFilter(e.target.value)}
                       className="bg-transparent text-xs font-semibold text-slate-800 focus:outline-hidden cursor-pointer"
                     >
-                      <option value="ALL">All Staff</option>
+                      <option value="ASSIGNED">Assigned Leads Only</option>
                       <option value="ME">Assigned to Me</option>
                       <option value="UNASSIGNED">Unassigned Only</option>
+                      <option value="ALL">All Pipeline (Inc. Unassigned)</option>
                       {staffList.map(s => (
                         <option key={s.id} value={s.id}>{s.displayName}</option>
                       ))}
@@ -2805,12 +2880,12 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     </select>
                   </div>
 
-                  {(leadStatusFilter !== 'ALL' || leadAssignFilter !== 'ALL' || leadTypeFilter !== 'ALL' || leadSourceFilter !== 'ALL' || leadFollowUpFilter !== 'ALL' || leadSearch) && (
+                  {(leadStatusFilter !== 'ALL' || leadAssignFilter !== 'ASSIGNED' || leadTypeFilter !== 'ALL' || leadSourceFilter !== 'ALL' || leadFollowUpFilter !== 'ALL' || leadSearch) && (
                     <button
                       type="button"
                       onClick={() => {
                         setLeadStatusFilter('ALL');
-                        setLeadAssignFilter('ALL');
+                        setLeadAssignFilter('ASSIGNED');
                         setLeadTypeFilter('ALL');
                         setLeadSourceFilter('ALL');
                         setLeadFollowUpFilter('ALL');

@@ -4826,7 +4826,7 @@ app.get('/api/crm/leads', authenticateUser, requireStaffMember, async (req: Requ
     `;
     const buyerParams: any[] = [];
 
-    // All approved staff members have access to the complete leads pipeline
+    // Filter by assignment
     if (filterAssigned) {
       if (filterAssigned === 'me') {
         sellerParams.push(req.user!.uid);
@@ -4836,6 +4836,9 @@ app.get('/api/crm/leads', authenticateUser, requireStaffMember, async (req: Requ
       } else if (filterAssigned === 'unassigned') {
         sellerQuery += ` AND sl.assigned_staff_id IS NULL`;
         buyerQuery += ` AND be.assigned_staff_id IS NULL`;
+      } else if (filterAssigned === 'assigned' || filterAssigned === 'only_assigned' || filterAssigned === 'true') {
+        sellerQuery += ` AND sl.assigned_staff_id IS NOT NULL`;
+        buyerQuery += ` AND be.assigned_staff_id IS NOT NULL`;
       } else {
         sellerParams.push(filterAssigned);
         sellerQuery += ` AND sl.assigned_staff_id = $${sellerParams.length}`;
