@@ -760,27 +760,9 @@ async function initSchemaColumns() {
     const hasStaff = Boolean(existingStaff.rows && existingStaff.rows.length > 0);
     const hasAdmin = Boolean(existingAdmin.rows && existingAdmin.rows.length > 0);
 
-    // Fail-Closed: If privileged account does not exist and env secret is missing, abort startup
-    if (!hasStaff && !staffPass) {
-      throw new Error('[CONFIGURATION ERROR] Privileged staff account does not exist and INITIAL_STAFF_PASSWORD is not set in environment.');
-    }
+    // Fail-Closed: If privileged admin account does not exist and env secret is missing, abort startup
     if (!hasAdmin && !adminPass) {
       throw new Error('[CONFIGURATION ERROR] Privileged admin account does not exist and INITIAL_ADMIN_PASSWORD is not set in environment.');
-    }
-
-    if (!hasStaff && staffPass) {
-      const staffHash = await hashPassword(staffPass);
-      await executeQuery(`
-        INSERT INTO users (id, phone, email, display_name, password_hash, roles, is_active, created_at, updated_at)
-        VALUES 
-          ($1, $2, $3, $4, $5, '{STAFF_VERIFICATION_AGENT}', true, NOW(), NOW()),
-          ('usr-staff-intake-01', '+919800000002', 'intake@sellmyghar.in', 'Sneha Reddy (Lead Intake)', $5, '{STAFF_INTAKE_AGENT}', true, NOW(), NOW()),
-          ('usr-staff-closer-01', '+919800000003', 'closer@sellmyghar.in', 'Vikram Sethi (Deal Closer)', $5, '{STAFF_DEAL_CLOSER}', true, NOW(), NOW())
-        ON CONFLICT (phone) DO NOTHING;
-      `, ['usr-staff-verification-01', staffPhone, 'staff@sellmyghar.in', 'Verification Desk Staff', staffHash]);
-      console.info('[SellMyGhar DB] Privileged staff account bootstrapped from environment secret.');
-    } else {
-      console.info('[SellMyGhar DB] Privileged staff account already exists. Preserving existing password hash.');
     }
 
     if (!hasAdmin && adminPass) {
@@ -789,10 +771,38 @@ async function initSchemaColumns() {
         INSERT INTO users (id, phone, email, display_name, password_hash, roles, is_active, created_at, updated_at)
         VALUES ($1, $2, $3, $4, $5, '{STAFF_SUPER_ADMIN}', true, NOW(), NOW())
         ON CONFLICT (phone) DO NOTHING;
-      `, ['usr-admin-compliance-01', adminPhone, 'admin@sellmyghar.in', 'Compliance Super Admin', adminHash]);
+      `, ['usr-admin-compliance-01', adminPhone, 'admin@sellmyghar.in', 'Super Admin', adminHash]);
       console.info('[SellMyGhar DB] Privileged admin account bootstrapped from environment secret.');
     } else {
       console.info('[SellMyGhar DB] Privileged admin account already exists. Preserving existing password hash.');
+    }
+
+    // Purge mock demo staff users from CRM so only admin-created real users exist
+    try {
+      await executeQuery(`
+        UPDATE seller_leads 
+        SET assigned_staff_id = NULL 
+        WHERE assigned_staff_id IN ('usr-staff-intake-01', 'usr-staff-closer-01', 'usr-staff-verification-01');
+
+        UPDATE buyer_enquiries 
+        SET assigned_staff_id = NULL 
+        WHERE assigned_staff_id IN ('usr-staff-intake-01', 'usr-staff-closer-01', 'usr-staff-verification-01');
+
+        UPDATE properties 
+        SET assigned_rm_id = NULL 
+        WHERE assigned_rm_id IN ('usr-staff-intake-01', 'usr-staff-closer-01', 'usr-staff-verification-01');
+
+        DELETE FROM users 
+        WHERE id IN ('usr-staff-intake-01', 'usr-staff-closer-01', 'usr-staff-verification-01')
+           OR LOWER(email) IN ('intake@sellmyghar.in', 'closer@sellmyghar.in', 'staff@sellmyghar.in');
+
+        UPDATE users 
+        SET display_name = 'Super Admin' 
+        WHERE id = 'usr-admin-compliance-01' AND display_name = 'Compliance Super Admin';
+      `);
+      console.info('[SellMyGhar DB] Purged mock demo staff accounts (Sneha Reddy, Vikram Sethi, Verification Desk).');
+    } catch (cleanupErr) {
+      console.warn('[SellMyGhar DB] Mock staff cleanup non-blocking notice:', cleanupErr);
     }
 
     // Repair: accounts that exist but have NO password hash can never log in. Backfill from env secrets.
@@ -5889,7 +5899,12 @@ app.get(['/api/crm/staff', '/api/crm/users'], authenticateUser, requireStaffMemb
       ORDER BY display_name ASC;
     `);
 
-    const staff = staffRes.rows.map(s => {
+    const MOCK_STAFF_IDS = new Set(['usr-staff-intake-01', 'usr-staff-closer-01', 'usr-staff-verification-01']);
+    const MOCK_STAFF_EMAILS = new Set(['intake@sellmyghar.in', 'closer@sellmyghar.in', 'staff@sellmyghar.in']);
+
+    const staff = staffRes.rows
+      .filter(s => !MOCK_STAFF_IDS.has(s.id) && !MOCK_STAFF_EMAILS.has((s.email || '').toLowerCase()))
+      .map(s => {
       const legacyPerms = resolveLegacyModulePermissions(s.roles || []);
       const userPerms = (s.module_permissions && s.module_permissions.length > 0) ? s.module_permissions : legacyPerms;
       return {

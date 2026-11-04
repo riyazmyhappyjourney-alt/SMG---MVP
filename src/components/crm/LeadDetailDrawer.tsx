@@ -114,11 +114,13 @@ export function LeadDetailDrawer({
   const displayName = rawName || 'Customer Details';
   const initialChar = (displayName[0] || 'C').toUpperCase();
 
-  const rawSrc = lead?.source || lead?.attribution?.source || (typeof lead?.notes === 'string' && lead.notes.includes('99acres') ? '99acres' : (typeof lead?.notes === 'string' && lead.notes.toLowerCase().includes('magicbricks') ? 'Magicbricks' : (typeof lead?.notes === 'string' && lead.notes.toLowerCase().includes('facebook') ? 'Facebook Ads' : 'SellMyGhar')));
+  const rawSrc = lead?.source || lead?.attribution?.source || (typeof lead?.notes === 'string' && lead.notes.includes('99acres') ? '99acres' : (typeof lead?.notes === 'string' && lead.notes.toLowerCase().includes('magicbricks') ? 'Magicbricks' : (typeof lead?.notes === 'string' && (lead.notes.toLowerCase().includes('facebook') || lead.notes.toLowerCase().includes('meta')) ? 'Facebook Ads' : 'SellMyGhar')));
   const src = typeof rawSrc === 'string' ? rawSrc : (typeof rawSrc === 'object' && rawSrc !== null ? ((rawSrc as any).name || (rawSrc as any).source || 'SellMyGhar') : 'SellMyGhar');
   const is99 = typeof src === 'string' && src.toLowerCase().includes('99acres');
   const isMb = typeof src === 'string' && src.toLowerCase().includes('magicbricks');
-  const isFb = typeof src === 'string' && (src.toLowerCase().includes('facebook') || src.toLowerCase().includes('meta'));
+  const isFb = typeof src === 'string' && (src.toLowerCase().includes('facebook') || src.toLowerCase().includes('meta') || src.toLowerCase().includes('instagram'));
+  const isHousing = typeof src === 'string' && src.toLowerCase().includes('housing');
+  const isWebsite = !is99 && !isMb && !isFb && !isHousing;
 
   return (
     <div 
@@ -143,7 +145,17 @@ export function LeadDetailDrawer({
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-[#0073E6]">
                   {lead?.type || 'SELLER'}
                 </span>
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${is99 ? 'bg-amber-50 text-amber-900 border border-amber-300' : isMb ? 'bg-rose-50 text-rose-900 border border-rose-300' : 'bg-slate-100 text-slate-700'}`}>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                  isFb 
+                    ? 'bg-blue-50 text-[#1877F2] border border-blue-300' 
+                    : isMb 
+                    ? 'bg-rose-50 text-rose-900 border border-rose-300' 
+                    : is99 
+                    ? 'bg-amber-50 text-amber-900 border border-amber-300' 
+                    : isHousing 
+                    ? 'bg-purple-50 text-purple-900 border border-purple-300' 
+                    : 'bg-emerald-50 text-emerald-800 border border-emerald-300'
+                }`}>
                   {src}
                 </span>
                 {(lead?.lead_status === 'NEW' || lead?.stage === 'NEW') && (
@@ -497,42 +509,118 @@ export function LeadDetailDrawer({
               </div>
 
               {/* Lead Attribution & Platform Metadata */}
-              {(lead.attribution || (typeof lead.notes === 'string' && (lead.notes.includes('99acres') || lead.notes.toLowerCase().includes('magicbricks')))) && (
-                <div className="border-t border-slate-100 pt-5 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                      Inbound Source & Listing Metadata
-                    </h4>
-                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${isFb ? 'bg-blue-50 text-[#1877F2] border border-blue-300' : isMb ? 'bg-rose-50 text-rose-900 border border-rose-300' : 'bg-amber-50 text-amber-900 border border-amber-300'}`}>
-                      {isFb ? 'Facebook Lead Ads Webhook' : isMb ? 'Magicbricks Real-Time Push API' : '99acres Real-Time Webhook'}
-                    </span>
-                  </div>
-                  <div className={`${isFb ? 'bg-blue-50/40 border-blue-200/60' : isMb ? 'bg-rose-50/40 border-rose-200/60' : 'bg-amber-50/40 border-amber-200/60'} rounded-2xl p-3.5 border space-y-2 text-xs`}>
-                    <div className="grid grid-cols-2 gap-2 text-[11px]">
+              <div className="border-t border-slate-100 pt-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                    Inbound Source & Listing Metadata
+                  </h4>
+                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                    isFb 
+                      ? 'bg-blue-50 text-[#1877F2] border border-blue-300' 
+                      : isMb 
+                      ? 'bg-rose-50 text-rose-900 border border-rose-300' 
+                      : is99 
+                      ? 'bg-amber-50 text-amber-900 border border-amber-300' 
+                      : isHousing 
+                      ? 'bg-purple-50 text-purple-900 border border-purple-300' 
+                      : 'bg-emerald-50 text-emerald-800 border border-emerald-300'
+                  }`}>
+                    {isFb 
+                      ? 'Facebook Lead Ads Webhook' 
+                      : isMb 
+                      ? 'Magicbricks Real-Time Push API' 
+                      : is99 
+                      ? '99acres Real-Time Webhook' 
+                      : isHousing 
+                      ? 'Housing.com Portal Lead' 
+                      : 'SellMyGhar Direct Portal'}
+                  </span>
+                </div>
+                <div className={`${
+                  isFb 
+                    ? 'bg-blue-50/40 border-blue-200/60' 
+                    : isMb 
+                    ? 'bg-rose-50/40 border-rose-200/60' 
+                    : is99 
+                    ? 'bg-amber-50/40 border-amber-200/60' 
+                    : isHousing 
+                    ? 'bg-purple-50/40 border-purple-200/60' 
+                    : 'bg-emerald-50/40 border-emerald-200/60'
+                } rounded-2xl p-3.5 border space-y-2 text-xs`}>
+                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    <div>
+                      <span className="text-slate-500 block text-[10px]">
+                        {isFb 
+                          ? 'Meta Lead ID:' 
+                          : isMb 
+                          ? 'Magicbricks Lead ID:' 
+                          : is99 
+                          ? '99acres External Lead ID:' 
+                          : isHousing 
+                          ? 'Housing Inquiry ID:' 
+                          : 'Portal Submission Ref:'}
+                      </span>
+                      <span className="font-mono text-slate-800 font-semibold truncate block">
+                        {isFb 
+                          ? (lead.attribution?.externalEnquiryId || lead.attribution?.rawPayload?.leadgen_id || 'Captured via Meta')
+                          : isMb 
+                          ? (lead.attribution?.externalEnquiryId || lead.attribution?.rawPayload?.LeadId || 'Captured via Magicbricks')
+                          : is99 
+                          ? (lead.attribution?.externalEnquiryId || lead.attribution?.rawPayload?.propertyid || 'Captured via 99acres')
+                          : isHousing 
+                          ? (lead.attribution?.externalEnquiryId || 'Captured via Housing')
+                          : (selectedLeadId || lead.id || 'SMG-DIRECT-WEB')}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-500 block text-[10px]">
+                        {isFb 
+                          ? 'Meta Form / Campaign:' 
+                          : isMb 
+                          ? 'Project / Locality:' 
+                          : is99 
+                          ? '99acres Listing ID:' 
+                          : isHousing 
+                          ? 'Project / Locality:' 
+                          : 'Inbound Channel:'}
+                      </span>
+                      <span className="font-mono text-slate-800 font-semibold truncate block">
+                        {isFb 
+                          ? (lead.attribution?.rawPayload?.form_id ? `Form: ${lead.attribution.rawPayload.form_id}` : (lead.society || 'Lead Ad Campaign'))
+                          : isMb 
+                          ? (lead.attribution?.externalListingId || lead.attribution?.rawPayload?.ProjectName || lead.attribution?.rawPayload?.Locality || lead.society || 'N/A')
+                          : is99 
+                          ? (lead.attribution?.externalListingId || lead.attribution?.rawPayload?.propertyid || 'N/A')
+                          : isHousing 
+                          ? (lead.society || lead.locality || 'Bangalore')
+                          : 'Direct Web Submission (sellmyghar.in)'}
+                      </span>
+                    </div>
+                    {is99 && lead.attribution?.rawPayload?.projectid && (
                       <div>
-                        <span className="text-slate-500 block text-[10px]">{isFb ? 'Meta Lead ID:' : isMb ? 'Magicbricks Lead ID:' : '99acres External Lead ID:'}</span>
-                        <span className="font-mono text-slate-800 font-semibold">{lead.attribution?.externalEnquiryId || lead.attribution?.rawPayload?.lead_id || lead.attribution?.rawPayload?.LeadId || lead.attribution?.rawPayload?.id || 'Captured via API'}</span>
+                        <span className="text-slate-500 block text-[10px]">Project ID:</span>
+                        <span className="font-mono text-slate-800">{String(lead.attribution.rawPayload.projectid)}</span>
                       </div>
+                    )}
+                    {isWebsite && (
                       <div>
-                        <span className="text-slate-500 block text-[10px]">{isMb ? 'Project / Locality:' : '99acres Listing ID:'}</span>
-                        <span className="font-mono text-slate-800 font-semibold">{lead.attribution?.externalListingId || lead.attribution?.rawPayload?.propertyid || lead.attribution?.rawPayload?.ProjectName || lead.attribution?.rawPayload?.Locality || 'N/A'}</span>
-                      </div>
-                      {lead.attribution?.rawPayload?.projectid && (
-                        <div>
-                          <span className="text-slate-500 block text-[10px]">Project ID:</span>
-                          <span className="font-mono text-slate-800">{String(lead.attribution.rawPayload.projectid)}</span>
-                        </div>
-                      )}
-                      <div>
-                        <span className="text-slate-500 block text-[10px]">Inquiry Timestamp:</span>
+                        <span className="text-slate-500 block text-[10px]">Attribution / Campaign:</span>
                         <span className="text-slate-800 font-medium">
-                          {lead.attribution?.enquiryDate ? formatReadableDate(lead.attribution.enquiryDate) : 'Today'}
+                          {lead.attribution?.utm_source || lead.attribution?.campaign || 'Organic Direct Search'}
                         </span>
                       </div>
+                    )}
+                    <div>
+                      <span className="text-slate-500 block text-[10px]">Inquiry Timestamp:</span>
+                      <span className="text-slate-800 font-medium">
+                        {lead.attribution?.enquiryDate 
+                          ? formatReadableDate(lead.attribution.enquiryDate) 
+                          : (lead.createdAt || lead.created_at ? formatReadableDate(lead.createdAt || lead.created_at) : 'Today')}
+                      </span>
                     </div>
                   </div>
                 </div>
-              )}
+              </div>
 
               {/* Matching Property Suggestions for Buyer */}
               {lead.type === 'BUYER' && (

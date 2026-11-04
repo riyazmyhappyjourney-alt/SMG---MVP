@@ -745,7 +745,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               image: primaryImg,
               images: (p.images && p.images.length > 0) ? p.images : [{ id: 'img-0', url: primaryImg, is_featured: true }],
               verificationBadge: p.verificationTier ? p.verificationTier.replace('LEVEL_', 'L').replace(/_/g, ' ') : 'VERIFIED',
-              assignedRm: p.assignedRm || 'Sneha Reddy',
+              assignedRm: p.assignedRm || 'Unassigned',
               assignedRmPhone: p.assignedRmPhone,
               ownerId: p.ownerId,
               ownerName: p.ownerName,
