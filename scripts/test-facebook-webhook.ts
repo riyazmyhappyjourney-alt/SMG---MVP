@@ -339,6 +339,38 @@ export async function runFacebookWebhookTests(): Promise<{ passed: number; faile
     recordFail('12. Database persistence', err);
   }
 
+  // Test 13: Meta Mock Test Ping (ID 444444444444 from Developer Portal)
+  try {
+    const mockPing = {
+      object: 'page',
+      entry: [
+        {
+          id: '1037956866071171',
+          time: Math.floor(Date.now() / 1000),
+          changes: [
+            {
+              field: 'leadgen',
+              value: {
+                created_time: Math.floor(Date.now() / 1000),
+                leadgen_id: `444444444444_${Date.now()}`,
+                page_id: '1037956866071171',
+                form_id: '444444444444',
+              },
+            },
+          ],
+        },
+      ],
+    };
+
+    const res = await FacebookLeadService.handleWebhook(mockPing);
+    assert(res.success === true, 'Mock test handled successfully');
+    assert(res.status === 'CREATED', 'Mock test created test lead');
+    assert(res.lead?.phone === '+919999999999', 'Test phone assigned to mock lead');
+    recordPass('13. Meta mock test ping (leadgen_id 444444444444) creates test lead with 201');
+  } catch (err) {
+    recordFail('13. Meta mock test ping', err);
+  }
+
   console.log(`\nFacebook Lead Ads Webhook Suite Complete: ${passed} passed, ${failed} failed.`);
   return { passed, failed, results };
 }

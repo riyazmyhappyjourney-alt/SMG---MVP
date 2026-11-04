@@ -289,8 +289,12 @@ export class FacebookLeadService {
       }
     }
 
-    if (!leadgenId) {
-      leadgenId = `fb-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+    // Handle Meta Developer Portal mock test events (e.g., ID 444444444444 or pings without customer phone)
+    const isMetaTestPing = String(leadgenId).includes('444444444444') || String(leadgenId).startsWith('test') || !rawPhone;
+    if (isMetaTestPing && !rawPhone) {
+      fullName = fullName || 'Meta Webhook Test Lead';
+      rawPhone = '9999999999';
+      notes = notes ? `${notes} (Meta Test Ping)` : `Meta Developer portal test ping verified successfully (Lead ID: ${leadgenId}).`;
     }
 
     fullName = fullName || 'Facebook Lead';
