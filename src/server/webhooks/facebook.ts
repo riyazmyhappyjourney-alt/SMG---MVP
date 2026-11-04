@@ -485,20 +485,34 @@ export class FacebookLeadService {
 
     // 6. Email alert to sales desk (non-blocking)
     try {
-      void EmailNotificationService.sendGenericEmail({
-        to: 'operations@sellmyghar.in',
-        subject: `[New Facebook Lead] ${lead.fullName} (${maskPhone(lead.phone)})`,
-        html: `
-          <h2>New Facebook Ads Lead Received</h2>
-          <p><strong>Name:</strong> ${lead.fullName}</p>
-          <p><strong>Phone:</strong> ${lead.phone}</p>
-          <p><strong>Email:</strong> ${lead.email || 'N/A'}</p>
-          <p><strong>Meta Lead ID:</strong> ${lead.leadgenId}</p>
-          <p><strong>Form:</strong> ${lead.formName || lead.formId || 'Default Lead Form'}</p>
-          <p><a href="https://sellmyghar.in/crm/leads">View in SellMyGhar CRM</a></p>
-        `,
+      void EmailNotificationService.handleNewInboundLeadNotification({
+        leadId,
+        source: 'Facebook Ads',
+        leadType: 'BUYER',
+        name: lead.fullName,
+        phone: lead.phone,
+        email: lead.email,
+        locality: lead.city || undefined,
+        notes: finalNotes,
+        externalEnquiryId,
       }).catch(() => {});
     } catch {}
+
+    // 7. Automated Thank You Email to Customer
+    if (lead.email && !lead.email.includes('@meta.com') && !lead.email.includes('@example.com')) {
+      try {
+        void EmailNotificationService.handleMetaLeadThankYouEmail({
+          name: lead.fullName,
+          email: lead.email,
+          phone: lead.phone,
+          formName: lead.formName,
+        }).catch((err: any) => {
+          console.warn('[FacebookLeadService] Thank you email dispatch warning:', err.message);
+        });
+      } catch (err: any) {
+        console.warn('[FacebookLeadService] Thank you email trigger warning:', err.message);
+      }
+    }
 
     return {
       success: true,

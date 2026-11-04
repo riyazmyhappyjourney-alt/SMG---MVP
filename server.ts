@@ -5492,20 +5492,8 @@ const updateLeadStatusHandler = async (req: Request, res: Response) => {
       }
     });
 
-    try {
-      await EmailNotificationService.handleLeadStatusChangedNotification({
-        leadId: updatedLead?.id || id,
-        leadType: isSeller ? 'SELLER' : 'BUYER',
-        name: updatedLead?.owner_name || updatedLead?.buyer_name || 'Customer',
-        phone: updatedLead?.phone || '',
-        previousStatus: prevStatus,
-        newStatus: targetStatus,
-        updatedBy: req.user?.display_name || req.user?.email || 'CRM Staff',
-        note: note || null,
-      });
-    } catch (statusEmailErr: any) {
-      console.warn('[CrmLeadStatusEmail] Notification dispatch notice:', statusEmailErr.message);
-    }
+    // Status change email notification silenced per user request: "lead Status Changed shouldnt Be coming"
+    // EmailNotificationService.handleLeadStatusChangedNotification disabled.
 
     // Dispatch to Meta Conversions API (Conversion Leads)
     try {
@@ -5541,6 +5529,57 @@ const updateLeadStatusHandler = async (req: Request, res: Response) => {
 
 app.post('/api/crm/leads/:id/status', jsonDefault, authenticateUser, requirePermissionMiddleware('leads:update_status'), updateLeadStatusHandler);
 app.patch('/api/crm/leads/:id/status', jsonDefault, authenticateUser, requirePermissionMiddleware('leads:update_status'), updateLeadStatusHandler);
+
+// Delete Lead Handler (Buyer enquiries or Seller leads)
+const deleteLeadHandler = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    if (!id || typeof id !== 'string') {
+      return res.status(400).json({ success: false, error: 'MISSING_ID', message: 'Lead ID is required.' });
+    }
+
+    // 1. Check if buyer enquiry
+    const buyerCheck = await executeQuery(`SELECT id, buyer_name FROM buyer_enquiries WHERE id = $1 LIMIT 1;`, [id]);
+    if (buyerCheck.rows && buyerCheck.rows.length > 0) {
+      await executeQuery(
+        `INSERT INTO audit_logs (id, actor_id, actor_role, action, target_entity, target_entity_id, ip_address, diff_summary, timestamp) VALUES ($1, $2, 'STAFF', 'LEAD_DELETED', 'buyer_enquiries', $3, $4, $5, NOW());`,
+        [
+          `audit-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`,
+          (req as any).user?.uid || (req as any).user?.id || 'staff',
+          id,
+          getClientIp(req),
+          JSON.stringify({ deletedName: buyerCheck.rows[0].buyer_name }),
+        ]
+      ).catch(() => {});
+      return res.json({ success: true, message: 'Lead deleted successfully.', deletedId: id });
+    }
+
+    // 2. Check if seller lead
+    const sellerCheck = await executeQuery(`SELECT id, owner_name FROM seller_leads WHERE id = $1 LIMIT 1;`, [id]);
+    if (sellerCheck.rows && sellerCheck.rows.length > 0) {
+      await executeQuery(`DELETE FROM seller_leads WHERE id = $1;`, [id]);
+      await executeQuery(
+        `INSERT INTO audit_logs (id, actor_id, actor_role, action, target_entity, target_entity_id, ip_address, diff_summary, timestamp) VALUES ($1, $2, 'STAFF', 'LEAD_DELETED', 'seller_leads', $3, $4, $5, NOW());`,
+        [
+          `audit-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`,
+          (req as any).user?.uid || (req as any).user?.id || 'staff',
+          id,
+          getClientIp(req),
+          JSON.stringify({ deletedName: sellerCheck.rows[0].owner_name }),
+        ]
+      ).catch(() => {});
+      return res.json({ success: true, message: 'Lead deleted successfully.', deletedId: id });
+    }
+
+    return res.status(404).json({ success: false, error: 'LEAD_NOT_FOUND', message: 'Lead record not found.' });
+  } catch (err: any) {
+    console.error('[CrmDeleteLead] Error:', err);
+    return res.status(500).json({ success: false, error: 'INTERNAL_ERROR', message: 'Failed to delete lead.' });
+  }
+};
+
+app.delete('/api/crm/leads/:id', authenticateUser, requireStaffMember, deleteLeadHandler);
+app.post('/api/crm/leads/:id/delete', jsonDefault, authenticateUser, requireStaffMember, deleteLeadHandler);
 
 // Helper for assigning lead to staff
 const assignLeadHandler = async (req: Request, res: Response) => {

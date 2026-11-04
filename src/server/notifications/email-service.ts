@@ -971,7 +971,7 @@ export class EmailNotificationService {
     recipient: string;
     subject: string;
     html: string;
-    eventType: 'PROPERTY_LISTED' | 'MEETING_SCHEDULED' | 'PROPERTY_APPROVED' | 'PROPERTY_PUBLISHED' | 'USER_WELCOME' | 'INTERNAL_PROPERTY_INTAKE' | 'INTERNAL_LEAD_ALERT' | 'TEST';
+    eventType: 'PROPERTY_LISTED' | 'MEETING_SCHEDULED' | 'PROPERTY_APPROVED' | 'PROPERTY_PUBLISHED' | 'USER_WELCOME' | 'INTERNAL_PROPERTY_INTAKE' | 'INTERNAL_LEAD_ALERT' | 'CUSTOMER_THANK_YOU' | 'TEST';
     idempotencyKey: string;
     propertyId?: string | null;
     attachments?: EmailAttachment[];
@@ -2254,6 +2254,90 @@ export class EmailNotificationService {
       idempotencyKey,
       propertyId: null,
       fromAddress: process.env.RESEND_FROM_EMAIL || 'SellMyGhar CRM <notifications@sellmyghar.in>',
+    });
+  }
+
+  // ====================================================================
+  // 7g. META LEAD ADS (FACEBOOK / INSTAGRAM) CUSTOMER THANK YOU EMAIL
+  // ====================================================================
+
+  static async handleMetaLeadThankYouEmail(data: {
+    name: string;
+    email: string;
+    phone?: string;
+    formName?: string | null;
+  }): Promise<{ dispatched: boolean; status: string; error?: string }> {
+    if (!data.email || data.email.includes('@meta.com') || data.email.includes('@example.com')) {
+      return { dispatched: false, status: 'SKIPPED_INVALID_OR_TEST_EMAIL' };
+    }
+
+    const recipient = data.email.trim().toLowerCase();
+    const idempotencyKey = `meta-lead-thanks-${recipient}-${Date.now().toString(36)}`;
+    const firstName = data.name ? data.name.split(' ')[0] : 'there';
+    const subject = `Thank You for Reaching Out to SellMyGhar!`;
+
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Thank You - SellMyGhar</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #F8FAFC; margin: 0; padding: 24px; color: #1E293B; }
+    .card { background-color: #ffffff; max-width: 580px; margin: 0 auto; border-radius: 16px; border: 1px solid #E2E8F0; padding: 36px; box-shadow: 0 4px 16px rgba(0,0,0,0.04); }
+    .header { border-bottom: 2px solid #0073E6; padding-bottom: 18px; margin-bottom: 24px; text-align: left; }
+    .brand { font-size: 24px; font-weight: 800; color: #0F172A; letter-spacing: -0.5px; }
+    .brand span { color: #0073E6; }
+    .greeting { font-size: 18px; font-weight: 700; color: #0F172A; margin-bottom: 12px; }
+    .body-text { font-size: 15px; line-height: 1.6; color: #334155; margin-bottom: 16px; }
+    .highlight-box { background-color: #F0F7FF; border: 1px solid #BAE6FD; border-radius: 12px; padding: 18px 20px; margin: 24px 0; }
+    .highlight-title { font-weight: 700; font-size: 14px; color: #0369A1; margin-bottom: 6px; }
+    .highlight-desc { font-size: 13px; color: #0C4A6E; line-height: 1.5; margin: 0; }
+    .btn-wrap { text-align: center; margin: 30px 0 20px 0; }
+    .btn { display: inline-block; background-color: #0073E6; color: #ffffff !important; text-decoration: none; font-weight: 700; font-size: 14px; padding: 14px 32px; border-radius: 10px; box-shadow: 0 4px 12px rgba(0,115,230,0.25); }
+    .contact-info { font-size: 13px; color: #64748B; margin-top: 24px; line-height: 1.5; }
+    .footer { margin-top: 32px; padding-top: 20px; border-top: 1px solid #F1F5F9; font-size: 12px; color: #94A3B8; text-align: center; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="header">
+      <div class="brand">SellMy<span>Ghar</span>.in</div>
+    </div>
+    <div class="greeting">Hi ${firstName},</div>
+    <p class="body-text">
+      Thank you for contacting us through Facebook / Instagram! We have successfully received your property inquiry.
+    </p>
+    <div class="highlight-box">
+      <div class="highlight-title">What Happens Next?</div>
+      <p class="highlight-desc">
+        A dedicated SellMyGhar Bengaluru property advisor is reviewing your requirements. We will contact you shortly to provide you with verified property insights, realistic pricing trends, and dedicated guidance.
+      </p>
+    </div>
+    <div class="btn-wrap">
+      <a href="https://sellmyghar.in" class="btn">Explore SellMyGhar &rarr;</a>
+    </div>
+    <div class="contact-info">
+      <strong>Need immediate assistance?</strong><br>
+      You can reach our Bengaluru advisory team directly on WhatsApp or phone at <a href="tel:+918047360000" style="color: #0073E6; text-decoration: none;">+91 80 4736 0000</a> or reply directly to this email.
+    </div>
+    <div class="footer">
+      SellMyGhar &bull; Verified Bengaluru Real Estate &bull; JP Nagar Phase 5, Bengaluru 560078<br>
+      RERA Registered Advisory &bull; &copy; 2026 SellMyGhar.in
+    </div>
+  </div>
+</body>
+</html>
+    `.trim();
+
+    return this.dispatchEmail({
+      recipient,
+      subject,
+      html,
+      eventType: 'CUSTOMER_THANK_YOU',
+      idempotencyKey,
+      propertyId: null,
+      fromAddress: process.env.RESEND_FROM_EMAIL || 'SellMyGhar <notifications@sellmyghar.in>',
     });
   }
 

@@ -7,7 +7,8 @@ import {
   Calendar,
   Clock,
   Layers,
-  Sparkles
+  Sparkles,
+  Trash2
 } from 'lucide-react';
 import { LeadStatus } from '../../core/types/entities';
 import { CrmStaff, CrmProperty } from './CrmDashboard';
@@ -59,6 +60,7 @@ export interface LeadDetailDrawerProps {
   setNewFollowUpNote: (val: string) => void;
   newCallNote: string;
   setNewCallNote: (val: string) => void;
+  handleDeleteLead?: (leadId: string) => void;
 }
 
 export function LeadDetailDrawer({
@@ -91,7 +93,8 @@ export function LeadDetailDrawer({
   newFollowUpNote,
   setNewFollowUpNote,
   newCallNote,
-  setNewCallNote
+  setNewCallNote,
+  handleDeleteLead
 }: LeadDetailDrawerProps) {
   const lead = leadDetailData?.lead || {};
   const visits: any[] = Array.isArray(leadDetailData?.visits) ? leadDetailData.visits : [];
@@ -175,6 +178,16 @@ export function LeadDetailDrawer({
                   <MessageSquare className="w-4 h-4" />
                 </button>
               </>
+            )}
+            {handleDeleteLead && (
+              <button
+                type="button"
+                onClick={() => handleDeleteLead(selectedLeadId)}
+                title="Delete Lead"
+                className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 transition-colors cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
             )}
             <button
               type="button"

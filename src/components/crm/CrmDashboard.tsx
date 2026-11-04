@@ -987,6 +987,28 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
     }
   };
 
+  // Delete Lead
+  const handleDeleteLead = async (leadId: string) => {
+    if (!window.confirm('Are you sure you want to delete this lead? This action cannot be undone.')) {
+      return;
+    }
+    try {
+      const res = await crmFetch(`/api/crm/leads/${leadId}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast('Lead deleted successfully', 'success');
+        setSelectedLeadId(null);
+        refreshAll();
+      } else {
+        showToast(data.message || 'Failed to delete lead', 'error');
+      }
+    } catch {
+      showToast('Network error deleting lead', 'error');
+    }
+  };
+
   // 2. Assign Lead to Staff
   const handleAssignLead = async (leadId: string, staffId: string) => {
     try {
@@ -4761,6 +4783,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
             setNewFollowUpNote={setNewFollowUpNote}
             newCallNote={newCallNote}
             setNewCallNote={setNewCallNote}
+            handleDeleteLead={handleDeleteLead}
           />
         </ErrorBoundary>
       )}
