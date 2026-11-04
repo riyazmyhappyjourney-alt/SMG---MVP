@@ -51,7 +51,7 @@ interface DuplicateMatch {
 export const ManualLeadModal: React.FC<ManualLeadModalProps> = ({
   isOpen,
   onClose,
-  initialSource = '99acres',
+  initialSource = 'SellMyGhar Portal',
   initialType = 'BUYER',
   currentStaffId,
   staffList,
@@ -275,37 +275,20 @@ export const ManualLeadModal: React.FC<ManualLeadModalProps> = ({
         {/* Modal Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white">
           <div className="flex items-center space-x-3">
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center shadow-xs ${
-              source === '99acres' 
-                ? 'bg-[#0073E6]/10 text-[#0073E6]' 
-                : source.toLowerCase().includes('magicbricks')
-                ? 'bg-rose-50 text-rose-600'
-                : 'bg-slate-100 text-slate-700'
-            }`}>
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center shadow-xs bg-[#0073E6]/10 text-[#0073E6]">
               <Building2 className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center space-x-2">
                 <h3 className="text-base font-bold text-slate-900">
-                  {source === '99acres' 
-                    ? 'Add 99acres Lead' 
-                    : source.toLowerCase().includes('magicbricks')
-                    ? 'Add Magicbricks Lead'
-                    : 'Manual Lead Intake'}
+                  Add New Lead
                 </h3>
-                {source === '99acres' && (
-                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-blue-50 text-[#0073E6] border border-blue-200 uppercase tracking-wide">
-                    99acres
-                  </span>
-                )}
-                {source.toLowerCase().includes('magicbricks') && (
-                  <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-rose-50 text-rose-700 border border-rose-200 uppercase tracking-wide">
-                    Magicbricks
-                  </span>
-                )}
+                <span className="px-2 py-0.5 text-[10px] font-bold rounded-full bg-blue-50 text-[#0073E6] border border-blue-200 uppercase tracking-wide">
+                  {source}
+                </span>
               </div>
               <p className="text-xs text-slate-500 font-medium mt-0.5">
-                Record an external inquiry or manual contact into the central SellMyGhar pipeline
+                Record an inbound enquiry or manual contact into the central SellMyGhar pipeline
               </p>
             </div>
           </div>
@@ -491,15 +474,17 @@ export const ManualLeadModal: React.FC<ManualLeadModalProps> = ({
                 <select
                   value={source}
                   onChange={(e) => setSource(e.target.value)}
-                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#0073E6] focus:border-transparent transition-all"
+                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#0073E6] focus:border-transparent transition-all font-semibold"
                 >
-                  <option value="Facebook Ads">Facebook Lead Ads (Meta)</option>
+                  <option value="Facebook Ads">Facebook Ads (Meta)</option>
+                  <option value="Instagram Ads">Instagram Ads</option>
                   <option value="99acres">99acres.com</option>
                   <option value="Magicbricks">Magicbricks</option>
                   <option value="Housing.com">Housing.com</option>
-                  <option value="SellMyGhar Portal">SellMyGhar Direct Portal</option>
+                  <option value="SellMyGhar Portal">SellMyGhar Portal / Direct</option>
                   <option value="Phone Call">Direct Phone Call / WhatsApp</option>
                   <option value="Referral">Client Referral / Corporate</option>
+                  <option value="Walk-in">Walk-in / Office Visit</option>
                   <option value="Other">Other External Source</option>
                 </select>
               </div>
@@ -586,7 +571,7 @@ export const ManualLeadModal: React.FC<ManualLeadModalProps> = ({
               {/* External Listing ID */}
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  External {source === '99acres' ? '99acres' : source.toLowerCase().includes('magicbricks') ? 'Magicbricks' : 'Portal'} Listing ID <span className="text-slate-400 font-normal">(Optional)</span>
+                  External Listing / Property ID <span className="text-slate-400 font-normal">(Optional)</span>
                 </label>
                 <input
                   type="text"
@@ -800,7 +785,7 @@ export const ManualLeadModal: React.FC<ManualLeadModalProps> = ({
                 ) : (
                   <>
                     <CheckCircle2 className="w-4 h-4" />
-                    <span>Create {source === '99acres' ? '99acres' : source.toLowerCase().includes('magicbricks') ? 'Magicbricks' : ''} Lead</span>
+                    <span>Create Lead</span>
                   </>
                 )}
               </button>

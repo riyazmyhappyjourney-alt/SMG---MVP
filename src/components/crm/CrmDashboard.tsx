@@ -2625,24 +2625,6 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleOpenAddLead('99acres', 'BUYER')}
-                    className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-200/90 text-amber-900 text-xs font-bold shadow-2xs transition-all cursor-pointer"
-                    title="Quickly record an inbound lead from 99acres.com"
-                  >
-                    <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0 animate-pulse" />
-                    <span>Add 99acres Lead</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleOpenAddLead('Magicbricks', 'BUYER')}
-                    className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200/90 text-rose-900 text-xs font-bold shadow-2xs transition-all cursor-pointer"
-                    title="Quickly record an inbound lead from Magicbricks.com"
-                  >
-                    <span className="w-2 h-2 rounded-full bg-rose-600 shrink-0 animate-pulse" />
-                    <span>Add Magicbricks Lead</span>
-                  </button>
-                  <button
-                    type="button"
                     onClick={() => handleOpenAddLead('SellMyGhar Portal', 'BUYER')}
                     className="inline-flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-[#0073E6] hover:bg-[#005bb5] text-white text-xs font-bold shadow-sm transition-all cursor-pointer"
                   >
