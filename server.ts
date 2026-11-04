@@ -66,6 +66,7 @@ export { getDistinctCommunityPhoto };
 import { PropertySuggestionsService } from './src/server/inventory/property-suggestions-service';
 import { verify99acresWebhookAuth, NinetyNineAcresLeadService } from './src/server/webhooks/ninety-nine-acres';
 import { verifyMagicbricksWebhookAuth, MagicbricksLeadService } from './src/server/webhooks/magicbricks';
+import { verifyFacebookWebhookGet, verifyFacebookWebhookPost, FacebookLeadService } from './src/server/webhooks/facebook';
 import { MetaConversionsApiService } from './src/server/integrations/meta-conversions-api';
 
 const app = express();
@@ -399,6 +400,7 @@ app.use('/api', (req, res, next) => {
     req.path.includes('webhook') ||
     req.path.includes('99acres') ||
     req.path.includes('magicbricks') ||
+    req.path.includes('facebook') ||
     req.path.includes('meta') ||
     req.path.startsWith('/auth/login') ||
     req.path.startsWith('/auth/otp') ||
@@ -7678,6 +7680,7 @@ app.get('/api/crm/leads/:id/details', authenticateUser, requireStaffMember, asyn
         CASE 
           WHEN al.actor_id = 'system-webhook-99acres' THEN '99acres Webhook'
           WHEN al.actor_id = 'system-webhook-magicbricks' THEN 'Magicbricks Webhook'
+          WHEN al.actor_id = 'system-webhook-facebook' THEN 'Facebook Ads Webhook'
           WHEN al.actor_id LIKE 'system%' THEN 'System Automation'
           ELSE COALESCE(u.display_name, u.email, al.actor_id)
         END AS actor_name,
@@ -9724,6 +9727,62 @@ app.post(
         success: false,
         error: 'SERVER_ERROR',
         message: 'Failed to process Magicbricks webhook enquiry.',
+      });
+    }
+  }
+);
+
+// ====================================================================
+// 10b. Meta (Facebook) Lead Ads Inbound Webhook Endpoints
+// Handshake: GET /api/v1/leads/facebook (Meta Hub verification challenge)
+// Ingestion: POST /api/v1/leads/facebook (Meta real-time lead notification)
+// Aliases:
+//   - https://sellmyghar.in/api/v1/leads/facebook
+//   - https://sellmyghar.in/api/leads/facebook
+//   - https://crm.sellmyghar.in/api/leads/facebook
+//   - https://sellmyghar.in/api/webhooks/facebook
+//   - https://crm.sellmyghar.in/api/webhooks/facebook
+// ====================================================================
+const FACEBOOK_WEBHOOK_ROUTES = [
+  '/api/v1/leads/facebook',
+  '/api/leads/facebook',
+  '/api/crm/leads/facebook',
+  '/api/webhooks/facebook',
+  '/api/crm/webhooks/facebook',
+];
+
+// GET: Meta Webhook verification handshake or health check
+app.get(FACEBOOK_WEBHOOK_ROUTES, verifyFacebookWebhookGet);
+
+// POST: Meta Webhook Leadgen notification & lead creation
+app.post(
+  FACEBOOK_WEBHOOK_ROUTES,
+  webhookParser99acres,
+  rateLimit('webhook-facebook', 120, 60),
+  verifyFacebookWebhookPost,
+  async (req: Request, res: Response) => {
+    const clientIp = getClientIp(req);
+    try {
+      const result = await FacebookLeadService.handleWebhook(req.body, clientIp);
+      return res.status(result.status === 'CREATED' ? 201 : 200).json(result);
+    } catch (err: any) {
+      if (
+        err.message &&
+        (err.message.includes('Invalid Indian mobile') ||
+          err.message.includes('Missing buyer phone') ||
+          err.message.includes('Invalid Facebook lead payload'))
+      ) {
+        return res.status(400).json({
+          success: false,
+          error: 'INVALID_PAYLOAD',
+          message: err.message,
+        });
+      }
+      console.error('[FacebookWebhook] Internal processing error:', err);
+      return res.status(500).json({
+        success: false,
+        error: 'SERVER_ERROR',
+        message: 'Failed to process Facebook lead webhook.',
       });
     }
   }

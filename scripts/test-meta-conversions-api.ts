@@ -76,6 +76,11 @@ export async function runMetaConversionsApiTests(): Promise<{ passed: number; fa
 
   // Test 5: Graceful fallback when no access token configured
   try {
+    const savedToken = process.env.META_ACCESS_TOKEN;
+    const savedCapiToken = process.env.META_CONVERSIONS_API_TOKEN;
+    delete process.env.META_ACCESS_TOKEN;
+    delete process.env.META_CONVERSIONS_API_TOKEN;
+
     const res = await MetaConversionsApiService.sendLeadEvent({
       eventName: 'Lead',
       phone: '9876543210',
@@ -83,6 +88,9 @@ export async function runMetaConversionsApiTests(): Promise<{ passed: number; fa
     });
     assert(res.skipped === true, 'Expected skipped: true when token unconfigured');
     recordPass('5. Safe non-blocking execution when access token is not set');
+
+    if (savedToken) process.env.META_ACCESS_TOKEN = savedToken;
+    if (savedCapiToken) process.env.META_CONVERSIONS_API_TOKEN = savedCapiToken;
   } catch (err) {
     recordFail('5. Token fallback', err);
   }

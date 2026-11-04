@@ -29,6 +29,7 @@ import { runStaffEnumerationHardeningTests } from './test-staff-enumeration-hard
 import { run99acresWebhookTests } from './test-99acres-webhook';
 import { runMagicbricksWebhookTests } from './test-magicbricks-webhook';
 import { runMetaConversionsApiTests } from './test-meta-conversions-api';
+import { runFacebookWebhookTests } from './test-facebook-webhook';
 
 async function runAll() {
   console.log('====================================================');
@@ -308,7 +309,14 @@ async function runAll() {
   totalPassed += metaRes.passed;
   totalFailed += metaRes.failed;
   suiteResults.push({ name: 'Meta Conversions API & CRM Conversion Leads', passed: metaRes.passed, failed: metaRes.failed, tests: metaRes.results });
-  console.log(`Subtotal: ${metaRes.passed} passed, ${metaRes.failed} failed\n`);
+  // Suite 32: Meta (Facebook) Lead Ads Inbound Webhook Suite
+  console.log('--- 32. Meta (Facebook) Lead Ads Inbound Webhook Suite ---');
+  const fbWebhookRes = await runFacebookWebhookTests();
+  fbWebhookRes.results.forEach(r => console.log(' ', r));
+  totalPassed += fbWebhookRes.passed;
+  totalFailed += fbWebhookRes.failed;
+  suiteResults.push({ name: 'Meta (Facebook) Lead Ads Inbound Webhook', passed: fbWebhookRes.passed, failed: fbWebhookRes.failed, tests: fbWebhookRes.results });
+  console.log(`Subtotal: ${fbWebhookRes.passed} passed, ${fbWebhookRes.failed} failed\n`);
 
   console.log('====================================================');
   console.log(`FINAL RESULTS: ${totalPassed} PASSED, ${totalFailed} FAILED (TOTAL: ${totalPassed + totalFailed}/${totalPassed + totalFailed})`);

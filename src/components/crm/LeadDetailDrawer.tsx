@@ -111,10 +111,11 @@ export function LeadDetailDrawer({
   const displayName = rawName || 'Customer Details';
   const initialChar = (displayName[0] || 'C').toUpperCase();
 
-  const rawSrc = lead?.source || lead?.attribution?.source || (typeof lead?.notes === 'string' && lead.notes.includes('99acres') ? '99acres' : (typeof lead?.notes === 'string' && lead.notes.toLowerCase().includes('magicbricks') ? 'Magicbricks' : 'SellMyGhar'));
+  const rawSrc = lead?.source || lead?.attribution?.source || (typeof lead?.notes === 'string' && lead.notes.includes('99acres') ? '99acres' : (typeof lead?.notes === 'string' && lead.notes.toLowerCase().includes('magicbricks') ? 'Magicbricks' : (typeof lead?.notes === 'string' && lead.notes.toLowerCase().includes('facebook') ? 'Facebook Ads' : 'SellMyGhar')));
   const src = typeof rawSrc === 'string' ? rawSrc : (typeof rawSrc === 'object' && rawSrc !== null ? ((rawSrc as any).name || (rawSrc as any).source || 'SellMyGhar') : 'SellMyGhar');
   const is99 = typeof src === 'string' && src.toLowerCase().includes('99acres');
   const isMb = typeof src === 'string' && src.toLowerCase().includes('magicbricks');
+  const isFb = typeof src === 'string' && (src.toLowerCase().includes('facebook') || src.toLowerCase().includes('meta'));
 
   return (
     <div 
@@ -489,14 +490,14 @@ export function LeadDetailDrawer({
                     <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                       Inbound Source & Listing Metadata
                     </h4>
-                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${isMb ? 'bg-rose-50 text-rose-900 border border-rose-300' : 'bg-amber-50 text-amber-900 border border-amber-300'}`}>
-                      {isMb ? 'Magicbricks Real-Time Push API' : '99acres Real-Time Webhook'}
+                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${isFb ? 'bg-blue-50 text-[#1877F2] border border-blue-300' : isMb ? 'bg-rose-50 text-rose-900 border border-rose-300' : 'bg-amber-50 text-amber-900 border border-amber-300'}`}>
+                      {isFb ? 'Facebook Lead Ads Webhook' : isMb ? 'Magicbricks Real-Time Push API' : '99acres Real-Time Webhook'}
                     </span>
                   </div>
-                  <div className={`${isMb ? 'bg-rose-50/40 border-rose-200/60' : 'bg-amber-50/40 border-amber-200/60'} rounded-2xl p-3.5 border space-y-2 text-xs`}>
+                  <div className={`${isFb ? 'bg-blue-50/40 border-blue-200/60' : isMb ? 'bg-rose-50/40 border-rose-200/60' : 'bg-amber-50/40 border-amber-200/60'} rounded-2xl p-3.5 border space-y-2 text-xs`}>
                     <div className="grid grid-cols-2 gap-2 text-[11px]">
                       <div>
-                        <span className="text-slate-500 block text-[10px]">{isMb ? 'Magicbricks Lead ID:' : '99acres External Lead ID:'}</span>
+                        <span className="text-slate-500 block text-[10px]">{isFb ? 'Meta Lead ID:' : isMb ? 'Magicbricks Lead ID:' : '99acres External Lead ID:'}</span>
                         <span className="font-mono text-slate-800 font-semibold">{lead.attribution?.externalEnquiryId || lead.attribution?.rawPayload?.lead_id || lead.attribution?.rawPayload?.LeadId || lead.attribution?.rawPayload?.id || 'Captured via API'}</span>
                       </div>
                       <div>

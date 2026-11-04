@@ -2869,6 +2869,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                       className="bg-transparent text-xs font-semibold text-slate-800 focus:outline-hidden cursor-pointer"
                     >
                       <option value="ALL">All Sources</option>
+                      <option value="Facebook">Facebook Ads</option>
                       <option value="99acres">99acres</option>
                       <option value="Magicbricks">Magicbricks</option>
                       <option value="SellMyGhar">SellMyGhar</option>
@@ -2986,14 +2987,17 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                             {/* Lead Source */}
                             <td className="py-3.5 px-4">
                               {(() => {
-                                const rawSrc = lead.source || lead.attribution?.source || (lead.notes?.includes('99acres') ? '99acres' : (lead.notes?.toLowerCase().includes('magicbricks') ? 'Magicbricks' : (lead.type === 'SELLER' ? 'SellMyGhar' : 'Website Portal')));
+                                const rawSrc = lead.source || lead.attribution?.source || (lead.notes?.includes('99acres') ? '99acres' : (lead.notes?.toLowerCase().includes('magicbricks') ? 'Magicbricks' : (lead.notes?.toLowerCase().includes('facebook') ? 'Facebook Ads' : (lead.type === 'SELLER' ? 'SellMyGhar' : 'Website Portal'))));
                                 const is99 = rawSrc.toLowerCase().includes('99acres');
                                 const isMb = rawSrc.toLowerCase().includes('magicbricks');
+                                const isFb = rawSrc.toLowerCase().includes('facebook') || rawSrc.toLowerCase().includes('meta');
                                 const isWa = rawSrc.toLowerCase().includes('whatsapp');
                                 return (
                                   <span
                                     className={`inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold shadow-2xs ${
-                                      is99
+                                      isFb
+                                        ? 'bg-blue-50 text-[#1877F2] border border-blue-300'
+                                        : is99
                                         ? 'bg-amber-50 text-amber-900 border border-amber-300/80'
                                         : isMb
                                         ? 'bg-rose-50 text-rose-900 border border-rose-300/80'
@@ -3002,7 +3006,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                                         : 'bg-blue-50 text-[#0073E6] border border-blue-200/60'
                                     }`}
                                   >
-                                    <span className={`w-1.5 h-1.5 rounded-full ${is99 ? 'bg-amber-500' : isMb ? 'bg-rose-600' : isWa ? 'bg-emerald-500' : 'bg-[#0073E6]'}`}></span>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${isFb ? 'bg-[#1877F2]' : is99 ? 'bg-amber-500' : isMb ? 'bg-rose-600' : isWa ? 'bg-emerald-500' : 'bg-[#0073E6]'}`}></span>
                                     <span>{rawSrc}</span>
                                   </span>
                                 );

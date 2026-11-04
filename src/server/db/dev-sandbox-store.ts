@@ -2666,7 +2666,7 @@ class DevSandboxStore {
         return {
           ...l,
           actor_user_id: l.actor_id,
-          actor_name: staff?.display_name || (l.actor_id === 'system-webhook-99acres' ? '99acres Webhook' : (l.actor_id === 'system-webhook-magicbricks' ? 'Magicbricks Webhook' : l.actor_id)),
+          actor_name: staff?.display_name || (l.actor_id === 'system-webhook-99acres' ? '99acres Webhook' : (l.actor_id === 'system-webhook-magicbricks' ? 'Magicbricks Webhook' : (l.actor_id === 'system-webhook-facebook' ? 'Facebook Ads Webhook' : l.actor_id))),
           created_at: l.timestamp
         };
       });

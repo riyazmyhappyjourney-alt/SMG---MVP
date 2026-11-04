@@ -493,6 +493,7 @@ export const ManualLeadModal: React.FC<ManualLeadModalProps> = ({
                   onChange={(e) => setSource(e.target.value)}
                   className="w-full px-3 py-2 text-xs border border-slate-200 rounded-lg text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-[#0073E6] focus:border-transparent transition-all"
                 >
+                  <option value="Facebook Ads">Facebook Lead Ads (Meta)</option>
                   <option value="99acres">99acres.com</option>
                   <option value="Magicbricks">Magicbricks</option>
                   <option value="Housing.com">Housing.com</option>
@@ -506,7 +507,7 @@ export const ManualLeadModal: React.FC<ManualLeadModalProps> = ({
               {/* External Enquiry ID */}
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                  External Enquiry ID <span className="text-slate-400 font-normal">(e.g. 99acres or Magicbricks Lead ID)</span>
+                  External Enquiry ID <span className="text-slate-400 font-normal">(e.g. Meta Lead ID, 99acres, or Magicbricks)</span>
                 </label>
                 <input
                   type="text"
