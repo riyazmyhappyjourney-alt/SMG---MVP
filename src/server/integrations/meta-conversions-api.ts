@@ -152,7 +152,7 @@ export class MetaConversionsApiService {
         payload.test_event_code = testCode;
       }
 
-      const url = `https://graph.facebook.com/v21.0/${encodeURIComponent(datasetId)}/events?access_token=${encodeURIComponent(accessToken)}`;
+      const url = `https://graph.facebook.com/v26.0/${encodeURIComponent(datasetId)}/events?access_token=${encodeURIComponent(accessToken)}`;
 
       const res = await fetch(url, {
         method: 'POST',
