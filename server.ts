@@ -207,12 +207,23 @@ app.use((req, res, next) => {
   res.setHeader('X-Frame-Options', 'DENY');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
   res.setHeader('X-Permitted-Cross-Domain-Policies', 'none');
-  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  // Allow cross-origin openers (such as Meta Event Setup Tool / OAuth popups) on public web pages
+  const isCrmRoute = req.path.startsWith('/crm') || req.path.startsWith('/api/crm');
+  if (isCrmRoute) {
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  } else {
+    res.setHeader('Cross-Origin-Opener-Policy', 'unsafe-none');
+  }
+
+  const fbScripts = "https://connect.facebook.net https://www.facebook.com https://*.facebook.com https://*.fbcdn.net";
+  const fbConnect = "https://www.facebook.com https://*.facebook.com https://*.fbcdn.net";
+  const fbImages = "https://www.facebook.com https://*.facebook.com https://*.fbcdn.net";
+
   res.setHeader(
     'Content-Security-Policy',
     isProd
-      ? "default-src 'self'; script-src 'self' 'unsafe-inline' https://connect.facebook.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: blob: https://www.facebook.com; connect-src 'self' https: https://www.facebook.com; frame-ancestors 'none';"
-      : "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://connect.facebook.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: blob: https://www.facebook.com; connect-src 'self' https: ws: wss: https://www.facebook.com; frame-ancestors 'none';"
+      ? `default-src 'self'; script-src 'self' 'unsafe-inline' ${fbScripts}; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://*.facebook.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: blob: ${fbImages}; connect-src 'self' https: ${fbConnect}; frame-ancestors 'none';`
+      : `default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' ${fbScripts}; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://*.facebook.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: https: blob: ${fbImages}; connect-src 'self' https: ws: wss: ${fbConnect}; frame-ancestors 'none';`
   );
   res.setHeader(
     'Permissions-Policy',
