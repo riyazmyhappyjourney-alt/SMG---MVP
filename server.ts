@@ -66,6 +66,7 @@ export { getDistinctCommunityPhoto };
 import { PropertySuggestionsService } from './src/server/inventory/property-suggestions-service';
 import { verify99acresWebhookAuth, NinetyNineAcresLeadService } from './src/server/webhooks/ninety-nine-acres';
 import { verifyMagicbricksWebhookAuth, MagicbricksLeadService } from './src/server/webhooks/magicbricks';
+import { MetaConversionsApiService } from './src/server/integrations/meta-conversions-api';
 
 const app = express();
 app.disable('x-powered-by');
@@ -387,6 +388,7 @@ app.use('/api', (req, res, next) => {
     req.path.includes('webhook') ||
     req.path.includes('99acres') ||
     req.path.includes('magicbricks') ||
+    req.path.includes('meta') ||
     req.path.startsWith('/auth/login') ||
     req.path.startsWith('/auth/otp') ||
     req.path.startsWith('/auth/logout') ||
@@ -5492,6 +5494,21 @@ const updateLeadStatusHandler = async (req: Request, res: Response) => {
       console.warn('[CrmLeadStatusEmail] Notification dispatch notice:', statusEmailErr.message);
     }
 
+    // Dispatch to Meta Conversions API (Conversion Leads)
+    try {
+      const leadEmail = updatedLead?.email || (typeof updatedLead?.attribution === 'object' ? updatedLead?.attribution?.email : null);
+      const leadPhone = updatedLead?.phone;
+      const metaLeadId = (typeof updatedLead?.attribution === 'object' ? updatedLead?.attribution?.metaLeadId || updatedLead?.attribution?.lead_id : null);
+      MetaConversionsApiService.sendLeadEvent({
+        stage: targetStatus,
+        leadId: metaLeadId,
+        phone: leadPhone,
+        email: leadEmail,
+      }).catch((capiErr: any) => console.warn('[MetaCAPI] Status trigger notice:', capiErr.message));
+    } catch {
+      // Non-blocking
+    }
+
     return res.json({
       success: true,
       message: `Lead status updated to ${targetStatus}`,
@@ -9700,6 +9717,34 @@ app.post(
     }
   }
 );
+
+// ====================================================================
+// 10c. Meta Conversions API & CRM Conversion Leads Test Endpoint
+// Allows testing server-to-server Conversions API events directly to Meta
+// ====================================================================
+app.post('/api/crm/integrations/meta/test-event', jsonDefault, async (req: Request, res: Response) => {
+  const { test_event_code, event_name = 'Lead', phone, email, access_token, dataset_id } = req.body;
+
+  if (access_token) {
+    process.env.META_ACCESS_TOKEN = String(access_token).trim();
+  }
+  if (dataset_id) {
+    process.env.META_DATASET_ID = String(dataset_id).trim();
+  }
+
+  const result = await MetaConversionsApiService.sendLeadEvent({
+    eventName: event_name,
+    testEventCode: test_event_code || 'TEST37321',
+    phone: phone || '+919876543210',
+    email: email || 'lead@sellmyghar.in',
+  });
+
+  return res.status(result.success ? 200 : (result.skipped ? 200 : 400)).json({
+    ...result,
+    datasetId: MetaConversionsApiService.getDatasetId(),
+    hasAccessToken: Boolean(MetaConversionsApiService.getAccessToken()),
+  });
+});
 
 export interface RemoteUrlValidationResult {
   valid: boolean;

@@ -28,6 +28,7 @@ import { runProbeSecurityTests } from './test-probe-and-production-security';
 import { runStaffEnumerationHardeningTests } from './test-staff-enumeration-hardening';
 import { run99acresWebhookTests } from './test-99acres-webhook';
 import { runMagicbricksWebhookTests } from './test-magicbricks-webhook';
+import { runMetaConversionsApiTests } from './test-meta-conversions-api';
 
 async function runAll() {
   console.log('====================================================');
@@ -299,6 +300,15 @@ async function runAll() {
   totalFailed += mbRes.failed;
   suiteResults.push({ name: 'Magicbricks Webhook Inbound Integration', passed: mbRes.passed, failed: mbRes.failed, tests: mbRes.results });
   console.log(`Subtotal: ${mbRes.passed} passed, ${mbRes.failed} failed\n`);
+
+  // Suite 31: Meta Conversions API & CRM Conversion Leads Suite
+  console.log('--- 31. Meta Conversions API & CRM Conversion Leads Suite ---');
+  const metaRes = await runMetaConversionsApiTests();
+  metaRes.results.forEach(r => console.log(' ', r));
+  totalPassed += metaRes.passed;
+  totalFailed += metaRes.failed;
+  suiteResults.push({ name: 'Meta Conversions API & CRM Conversion Leads', passed: metaRes.passed, failed: metaRes.failed, tests: metaRes.results });
+  console.log(`Subtotal: ${metaRes.passed} passed, ${metaRes.failed} failed\n`);
 
   console.log('====================================================');
   console.log(`FINAL RESULTS: ${totalPassed} PASSED, ${totalFailed} FAILED (TOTAL: ${totalPassed + totalFailed}/${totalPassed + totalFailed})`);
