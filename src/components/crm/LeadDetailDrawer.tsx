@@ -111,9 +111,10 @@ export function LeadDetailDrawer({
   const displayName = rawName || 'Customer Details';
   const initialChar = (displayName[0] || 'C').toUpperCase();
 
-  const rawSrc = lead?.source || lead?.attribution?.source || (typeof lead?.notes === 'string' && lead.notes.includes('99acres') ? '99acres' : 'SellMyGhar');
-  const src = typeof rawSrc === 'string' ? rawSrc : (typeof rawSrc === 'object' && rawSrc !== null ? ((rawSrc as any).name || (rawSrc as any).source || '99acres') : 'SellMyGhar');
+  const rawSrc = lead?.source || lead?.attribution?.source || (typeof lead?.notes === 'string' && lead.notes.includes('99acres') ? '99acres' : (typeof lead?.notes === 'string' && lead.notes.toLowerCase().includes('magicbricks') ? 'Magicbricks' : 'SellMyGhar'));
+  const src = typeof rawSrc === 'string' ? rawSrc : (typeof rawSrc === 'object' && rawSrc !== null ? ((rawSrc as any).name || (rawSrc as any).source || 'SellMyGhar') : 'SellMyGhar');
   const is99 = typeof src === 'string' && src.toLowerCase().includes('99acres');
+  const isMb = typeof src === 'string' && src.toLowerCase().includes('magicbricks');
 
   return (
     <div 
@@ -138,7 +139,7 @@ export function LeadDetailDrawer({
                 <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-[#0073E6]">
                   {lead?.type || 'SELLER'}
                 </span>
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${is99 ? 'bg-amber-50 text-amber-900 border border-amber-300' : 'bg-slate-100 text-slate-700'}`}>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${is99 ? 'bg-amber-50 text-amber-900 border border-amber-300' : isMb ? 'bg-rose-50 text-rose-900 border border-rose-300' : 'bg-slate-100 text-slate-700'}`}>
                   {src}
                 </span>
                 {(lead?.lead_status === 'NEW' || lead?.stage === 'NEW') && (
@@ -482,25 +483,25 @@ export function LeadDetailDrawer({
               </div>
 
               {/* Lead Attribution & Platform Metadata */}
-              {(lead.attribution || (typeof lead.notes === 'string' && lead.notes.includes('99acres'))) && (
+              {(lead.attribution || (typeof lead.notes === 'string' && (lead.notes.includes('99acres') || lead.notes.toLowerCase().includes('magicbricks')))) && (
                 <div className="border-t border-slate-100 pt-5 space-y-3">
                   <div className="flex items-center justify-between">
                     <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                       Inbound Source & Listing Metadata
                     </h4>
-                    <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-amber-50 text-amber-900 border border-amber-300">
-                      99acres Real-Time Webhook
+                    <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${isMb ? 'bg-rose-50 text-rose-900 border border-rose-300' : 'bg-amber-50 text-amber-900 border border-amber-300'}`}>
+                      {isMb ? 'Magicbricks Real-Time Push API' : '99acres Real-Time Webhook'}
                     </span>
                   </div>
-                  <div className="bg-amber-50/40 rounded-2xl p-3.5 border border-amber-200/60 space-y-2 text-xs">
+                  <div className={`${isMb ? 'bg-rose-50/40 border-rose-200/60' : 'bg-amber-50/40 border-amber-200/60'} rounded-2xl p-3.5 border space-y-2 text-xs`}>
                     <div className="grid grid-cols-2 gap-2 text-[11px]">
                       <div>
-                        <span className="text-slate-500 block text-[10px]">99acres External Lead ID:</span>
-                        <span className="font-mono text-slate-800 font-semibold">{lead.attribution?.externalEnquiryId || lead.attribution?.rawPayload?.lead_id || 'Captured via Webhook'}</span>
+                        <span className="text-slate-500 block text-[10px]">{isMb ? 'Magicbricks Lead ID:' : '99acres External Lead ID:'}</span>
+                        <span className="font-mono text-slate-800 font-semibold">{lead.attribution?.externalEnquiryId || lead.attribution?.rawPayload?.lead_id || lead.attribution?.rawPayload?.LeadId || lead.attribution?.rawPayload?.id || 'Captured via API'}</span>
                       </div>
                       <div>
-                        <span className="text-slate-500 block text-[10px]">99acres Listing ID:</span>
-                        <span className="font-mono text-slate-800 font-semibold">{lead.attribution?.externalListingId || lead.attribution?.rawPayload?.propertyid || 'M95305496'}</span>
+                        <span className="text-slate-500 block text-[10px]">{isMb ? 'Project / Locality:' : '99acres Listing ID:'}</span>
+                        <span className="font-mono text-slate-800 font-semibold">{lead.attribution?.externalListingId || lead.attribution?.rawPayload?.propertyid || lead.attribution?.rawPayload?.ProjectName || lead.attribution?.rawPayload?.Locality || 'N/A'}</span>
                       </div>
                       {lead.attribution?.rawPayload?.projectid && (
                         <div>
@@ -798,7 +799,7 @@ export function LeadDetailDrawer({
                         <div>
                           <span className="font-semibold text-slate-800">{log.action}</span>
                           <span className="text-slate-500 ml-1.5 text-[10px]">
-                            by <strong className="text-slate-700 font-semibold">{log.actor_name || staffList.find(s => s.id === log.actor_user_id)?.displayName || (log.actor_user_id === 'system-webhook-99acres' ? '99acres Webhook' : (log.actor_role || log.actor_user_id))}</strong>
+                            by <strong className="text-slate-700 font-semibold">{log.actor_name || staffList.find(s => s.id === log.actor_user_id)?.displayName || (log.actor_user_id === 'system-webhook-99acres' ? '99acres Webhook' : (log.actor_user_id === 'system-webhook-magicbricks' ? 'Magicbricks Webhook' : (log.actor_role || log.actor_user_id)))}</strong>
                           </span>
                         </div>
                         <span className="text-[10px] text-slate-400 font-mono">

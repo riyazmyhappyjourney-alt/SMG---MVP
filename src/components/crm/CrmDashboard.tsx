@@ -1531,7 +1531,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
 
       // Source Filter
       if (leadSourceFilter !== 'ALL') {
-        const rawSrc = (lead.source || lead.attribution?.source || (lead.notes?.includes('99acres') ? '99acres' : 'SellMyGhar')).toLowerCase();
+        const rawSrc = (lead.source || lead.attribution?.source || (lead.notes?.includes('99acres') ? '99acres' : (lead.notes?.toLowerCase().includes('magicbricks') ? 'Magicbricks' : 'SellMyGhar'))).toLowerCase();
         if (!rawSrc.includes(leadSourceFilter.toLowerCase())) {
           return false;
         }
@@ -2612,6 +2612,15 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   </button>
                   <button
                     type="button"
+                    onClick={() => handleOpenAddLead('Magicbricks', 'BUYER')}
+                    className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200/90 text-rose-900 text-xs font-bold shadow-2xs transition-all cursor-pointer"
+                    title="Quickly record an inbound lead from Magicbricks.com"
+                  >
+                    <span className="w-2 h-2 rounded-full bg-rose-600 shrink-0 animate-pulse" />
+                    <span>Add Magicbricks Lead</span>
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => handleOpenAddLead('SellMyGhar Portal', 'BUYER')}
                     className="inline-flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-[#0073E6] hover:bg-[#005bb5] text-white text-xs font-bold shadow-sm transition-all cursor-pointer"
                   >
@@ -2861,6 +2870,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     >
                       <option value="ALL">All Sources</option>
                       <option value="99acres">99acres</option>
+                      <option value="Magicbricks">Magicbricks</option>
                       <option value="SellMyGhar">SellMyGhar</option>
                       <option value="Website">Website</option>
                       <option value="WhatsApp">WhatsApp</option>
@@ -2976,20 +2986,23 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                             {/* Lead Source */}
                             <td className="py-3.5 px-4">
                               {(() => {
-                                const rawSrc = lead.source || lead.attribution?.source || (lead.notes?.includes('99acres') ? '99acres' : (lead.type === 'SELLER' ? 'SellMyGhar' : 'Website Portal'));
+                                const rawSrc = lead.source || lead.attribution?.source || (lead.notes?.includes('99acres') ? '99acres' : (lead.notes?.toLowerCase().includes('magicbricks') ? 'Magicbricks' : (lead.type === 'SELLER' ? 'SellMyGhar' : 'Website Portal')));
                                 const is99 = rawSrc.toLowerCase().includes('99acres');
+                                const isMb = rawSrc.toLowerCase().includes('magicbricks');
                                 const isWa = rawSrc.toLowerCase().includes('whatsapp');
                                 return (
                                   <span
                                     className={`inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold shadow-2xs ${
                                       is99
                                         ? 'bg-amber-50 text-amber-900 border border-amber-300/80'
+                                        : isMb
+                                        ? 'bg-rose-50 text-rose-900 border border-rose-300/80'
                                         : isWa
                                         ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
                                         : 'bg-blue-50 text-[#0073E6] border border-blue-200/60'
                                     }`}
                                   >
-                                    <span className={`w-1.5 h-1.5 rounded-full ${is99 ? 'bg-amber-500' : isWa ? 'bg-emerald-500' : 'bg-[#0073E6]'}`}></span>
+                                    <span className={`w-1.5 h-1.5 rounded-full ${is99 ? 'bg-amber-500' : isMb ? 'bg-rose-600' : isWa ? 'bg-emerald-500' : 'bg-[#0073E6]'}`}></span>
                                     <span>{rawSrc}</span>
                                   </span>
                                 );

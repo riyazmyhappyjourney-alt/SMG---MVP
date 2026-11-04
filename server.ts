@@ -65,6 +65,7 @@ import { getDistinctCommunityPhoto } from './src/utils/propertyImages';
 export { getDistinctCommunityPhoto };
 import { PropertySuggestionsService } from './src/server/inventory/property-suggestions-service';
 import { verify99acresWebhookAuth, NinetyNineAcresLeadService } from './src/server/webhooks/ninety-nine-acres';
+import { verifyMagicbricksWebhookAuth, MagicbricksLeadService } from './src/server/webhooks/magicbricks';
 
 const app = express();
 app.disable('x-powered-by');
@@ -385,6 +386,7 @@ app.use('/api', (req, res, next) => {
     req.path.startsWith('/webhooks') ||
     req.path.includes('webhook') ||
     req.path.includes('99acres') ||
+    req.path.includes('magicbricks') ||
     req.path.startsWith('/auth/login') ||
     req.path.startsWith('/auth/otp') ||
     req.path.startsWith('/auth/logout') ||
@@ -4905,8 +4907,9 @@ app.get('/api/crm/leads', authenticateUser, requireStaffMember, async (req: Requ
         attribution: r.attribution || null,
         source: r.attribution?.source || 
           (r.notes && r.notes.includes('99acres') ? '99acres' : 
+          (r.notes && r.notes.toLowerCase().includes('magicbricks') ? 'Magicbricks' :
           (r.notes && r.notes.toLowerCase().includes('hero_valuation') ? 'Website Hero' : 
-          (r.lead_type === 'SELLER' ? 'SellMyGhar' : 'Website Portal'))),
+          (r.lead_type === 'SELLER' ? 'SellMyGhar' : 'Website Portal')))),
         externalEnquiryId: r.attribution?.externalEnquiryId || null,
         externalListingId: r.attribution?.externalListingId || null,
         isOverdue,
@@ -7646,6 +7649,7 @@ app.get('/api/crm/leads/:id/details', authenticateUser, requireStaffMember, asyn
         al.actor_id AS actor_user_id, 
         CASE 
           WHEN al.actor_id = 'system-webhook-99acres' THEN '99acres Webhook'
+          WHEN al.actor_id = 'system-webhook-magicbricks' THEN 'Magicbricks Webhook'
           WHEN al.actor_id LIKE 'system%' THEN 'System Automation'
           ELSE COALESCE(u.display_name, u.email, al.actor_id)
         END AS actor_name,
@@ -7668,7 +7672,7 @@ app.get('/api/crm/leads/:id/details', authenticateUser, requireStaffMember, asyn
         ownerName: lead.owner_name || lead.buyer_name || lead.name || 'Customer',
         owner_name: lead.owner_name || lead.buyer_name || lead.name || 'Customer',
         buyer_name: lead.buyer_name || lead.owner_name || lead.name || 'Customer',
-        source: lead.attribution?.source || (lead.notes && lead.notes.includes('99acres') ? '99acres' : (leadType === 'SELLER' ? 'SellMyGhar' : 'Website Portal')),
+        source: lead.attribution?.source || (lead.notes && lead.notes.includes('99acres') ? '99acres' : (lead.notes && lead.notes.toLowerCase().includes('magicbricks') ? 'Magicbricks' : (leadType === 'SELLER' ? 'SellMyGhar' : 'Website Portal'))),
         isOverdue: Boolean(lead.next_follow_up_at && new Date(lead.next_follow_up_at).getTime() < Date.now())
       },
       property,
@@ -9627,6 +9631,71 @@ app.post(
         success: false,
         error: 'SERVER_ERROR',
         message: 'Failed to process 99acres webhook enquiry.',
+      });
+    }
+  }
+);
+
+// ====================================================================
+// 10b. Magicbricks Inbound Lead API / Webhook Integration
+// Supports POST from Magicbricks Push API via API key / Bearer / Secret / Query / Header
+// Primary REST API Endpoints:
+//   - https://sellmyghar.in/api/v1/leads/magicbricks
+//   - https://sellmyghar.in/api/leads/magicbricks
+//   - https://crm.sellmyghar.in/api/leads/magicbricks
+// Webhook Aliases:
+//   - https://sellmyghar.in/api/webhooks/magicbricks
+//   - https://crm.sellmyghar.in/api/webhooks/magicbricks
+// ====================================================================
+const MAGICBRICKS_ROUTES = [
+  '/api/v1/leads/magicbricks',
+  '/api/leads/magicbricks',
+  '/api/crm/leads/magicbricks',
+  '/api/webhooks/magicbricks',
+  '/api/crm/webhooks/magicbricks',
+];
+
+// GET: Informational / Health check for browser visits and Magicbricks ping / validation checks
+app.get(MAGICBRICKS_ROUTES, (_req: Request, res: Response) => {
+  return res.status(200).json({
+    success: true,
+    service: 'SellMyGhar Magicbricks Lead Ingestion API',
+    status: 'ONLINE',
+    acceptedMethod: 'POST',
+    acceptedContentTypes: ['application/json', 'application/x-www-form-urlencoded', 'application/xml', 'text/xml'],
+    auth: 'API Key required via x-api-key header, Authorization: Bearer, or ?apiKey= query parameter',
+    docs: 'Send buyer enquiries via HTTP POST to this endpoint.',
+  });
+});
+
+app.post(
+  MAGICBRICKS_ROUTES,
+  webhookParser99acres,
+  rateLimit('webhook-magicbricks', 120, 60),
+  verifyMagicbricksWebhookAuth,
+  async (req: Request, res: Response) => {
+    const clientIp = getClientIp(req);
+    try {
+      const result = await MagicbricksLeadService.handleWebhook(req.body, clientIp);
+      return res.status(result.status === 'CREATED' ? 201 : 200).json(result);
+    } catch (err: any) {
+      if (
+        err.message &&
+        (err.message.includes('Invalid Indian mobile') ||
+          err.message.includes('Missing buyer phone') ||
+          err.message.includes('Invalid Magicbricks payload'))
+      ) {
+        return res.status(400).json({
+          success: false,
+          error: 'INVALID_PAYLOAD',
+          message: err.message,
+        });
+      }
+      console.error('[MagicbricksWebhook] Internal processing error:', err);
+      return res.status(500).json({
+        success: false,
+        error: 'SERVER_ERROR',
+        message: 'Failed to process Magicbricks webhook enquiry.',
       });
     }
   }
