@@ -185,7 +185,7 @@ export class FacebookLeadService {
    * Fetches full lead field data from Meta Graph API using leadgen_id
    */
   static async fetchLeadFromGraphApi(leadgenId: string): Promise<Record<string, any> | null> {
-    const accessToken = MetaConversionsApiService.getAccessToken();
+    const accessToken = process.env.META_PAGE_ACCESS_TOKEN || MetaConversionsApiService.getAccessToken();
     if (!accessToken) {
       return null;
     }
@@ -224,6 +224,7 @@ export class FacebookLeadService {
     let email = payload.email ? String(payload.email).trim().toLowerCase() : null;
     let city = payload.city || payload.locality || null;
     let notes = payload.notes || payload.message || null;
+    const customQuestions: string[] = [];
 
     // 1. Check for standard Meta Webhook envelope: entry[].changes[].value
     if (Array.isArray(payload.entry) && payload.entry.length > 0) {
@@ -262,12 +263,14 @@ export class FacebookLeadService {
           email = email || String(val).trim().toLowerCase();
         } else if (name.includes('city') || name.includes('locality')) {
           city = city || String(val).trim();
+        } else {
+          customQuestions.push(`${field.name}: ${val}`);
         }
       }
     }
 
     // 4. If we have a leadgen_id but missing name or phone, try Graph API
-    if (leadgenId && (!fullName || !rawPhone)) {
+    if (leadgenId && (!fullName || !rawPhone || String(rawPhone).includes('test lead'))) {
       const graphData = await this.fetchLeadFromGraphApi(leadgenId);
       if (graphData && Array.isArray(graphData.field_data)) {
         formId = formId || graphData.form_id;
@@ -284,17 +287,37 @@ export class FacebookLeadService {
             email = email || String(val).trim().toLowerCase();
           } else if (name.includes('city') || name.includes('locality')) {
             city = city || String(val).trim();
+          } else {
+            customQuestions.push(`${field.name}: ${val}`);
           }
         }
       }
     }
 
-    // Handle Meta Developer Portal mock test events (e.g., ID 444444444444 or pings without customer phone)
-    const isMetaTestPing = String(leadgenId).includes('444444444444') || String(leadgenId).startsWith('test') || !rawPhone;
-    if (isMetaTestPing && !rawPhone) {
-      fullName = fullName || 'Meta Webhook Test Lead';
-      rawPhone = '9999999999';
-      notes = notes ? `${notes} (Meta Test Ping)` : `Meta Developer portal test ping verified successfully (Lead ID: ${leadgenId}).`;
+    if (customQuestions.length > 0) {
+      const qSummary = customQuestions.join(' | ');
+      notes = notes ? `${notes}\n[Form Answers]: ${qSummary}` : `[Form Answers]: ${qSummary}`;
+    }
+
+    // Handle Meta Developer Portal mock test events (e.g., ID 444444444444 or test lead placeholders)
+    const isMetaTestPing =
+      String(leadgenId).includes('444444444444') ||
+      String(leadgenId).startsWith('test') ||
+      String(rawPhone).includes('test lead') ||
+      String(fullName).includes('test lead') ||
+      !rawPhone;
+
+    if (isMetaTestPing) {
+      if (!rawPhone || String(rawPhone).includes('test lead')) {
+        rawPhone = '9999999999';
+      }
+      if (!fullName || String(fullName).includes('test lead')) {
+        fullName = 'Meta Test Lead (Sellmyflat)';
+      }
+      if (!email || String(email).includes('test lead')) {
+        email = email || 'test@meta.com';
+      }
+      notes = notes ? `${notes} (Meta Verified Test)` : `Meta Lead Ads Test Tool lead verified successfully (Lead ID: ${leadgenId}).`;
     }
 
     fullName = fullName || 'Facebook Lead';
