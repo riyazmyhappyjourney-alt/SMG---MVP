@@ -189,6 +189,25 @@ export function trackEvent(
       (window as any).gtag('event', type.toLowerCase(), cleanProps || {});
     }
 
+    // Dispatch to Meta (Facebook) Pixel if initialized
+    if (typeof window !== 'undefined' && typeof (window as any).fbq === 'function') {
+      try {
+        if (type === 'PAGE_VIEW') {
+          (window as any).fbq('track', 'PageView');
+        } else if (type === 'ENQUIRY_SUBMIT' || type === 'SELLER_FUNNEL_COMPLETE' || type === 'HERO_VALUATION_SUBMITTED') {
+          (window as any).fbq('track', 'Lead', cleanProps || {});
+        } else if (type === 'PROPERTY_VIEW') {
+          (window as any).fbq('track', 'ViewContent', cleanProps || {});
+        } else if (type === 'PROPERTY_SEARCH') {
+          (window as any).fbq('track', 'Search', cleanProps || {});
+        } else if (type === 'SELLER_CONSULTATION_CLICK') {
+          (window as any).fbq('track', 'Contact', cleanProps || {});
+        }
+      } catch {
+        // Non-blocking
+      }
+    }
+
     if (typeof process !== 'undefined' && process.env?.NODE_ENV !== 'production' && process.env?.RUNNING_TESTS !== 'true') {
       console.debug(`[Telemetry] ${type}`, cleanProps || {});
     }
@@ -293,3 +312,22 @@ export function trackAuthEvent(action: 'LOGIN_SUCCESS' | 'LOGIN_FAILURE' | 'LOGO
     action,
   });
 }
+
+/**
+ * Direct Meta Pixel helper for custom ad conversion tracking.
+ * Safe no-op if ad blockers or scripts are not loaded.
+ */
+export function trackMetaPixel(eventName: string, params?: Record<string, any>): void {
+  try {
+    if (typeof window !== 'undefined' && typeof (window as any).fbq === 'function') {
+      if (params) {
+        (window as any).fbq('track', eventName, params);
+      } else {
+        (window as any).fbq('track', eventName);
+      }
+    }
+  } catch {
+    // Non-blocking
+  }
+}
+
