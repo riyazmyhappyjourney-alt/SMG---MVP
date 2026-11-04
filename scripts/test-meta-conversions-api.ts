@@ -65,11 +65,11 @@ export async function runMetaConversionsApiTests(): Promise<{ passed: number; fa
     recordFail('3. Stage mapping', err);
   }
 
-  // Test 4: Default dataset resolution points to 2267605403809678
+  // Test 4: Default dataset resolution points to 1501343261902642
   try {
     const datasetId = MetaConversionsApiService.getDatasetId();
-    assert(datasetId === '2267605403809678', `Expected dataset ID 2267605403809678, got ${datasetId}`);
-    recordPass('4. Meta Dataset ID defaults to 2267605403809678');
+    assert(datasetId === '1501343261902642', `Expected dataset ID 1501343261902642, got ${datasetId}`);
+    recordPass('4. Meta Dataset ID defaults to 1501343261902642');
   } catch (err) {
     recordFail('4. Dataset ID resolution', err);
   }
