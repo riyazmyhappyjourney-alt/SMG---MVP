@@ -1798,11 +1798,11 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
 
 
   return (
-    <div className="flex h-screen bg-[#F4F6F9] text-[#172033] font-['Poppins',sans-serif] overflow-hidden select-none">
+    <div className="flex h-screen bg-[#F8FAFC] text-slate-800 font-sans antialiased overflow-hidden select-none">
       {/* Toast Notification */}
       {toastMessage && (
         <div
-          className={`fixed top-4 right-4 z-[100] px-4 py-3 rounded-xl shadow-lg border text-xs font-semibold flex items-center space-x-2 transition-all duration-200 ${
+          className={`fixed top-4 right-4 z-[100] px-3.5 py-2.5 rounded-md shadow-md border text-xs font-medium flex items-center space-x-2 transition-all duration-200 ${
             toastMessage.type === 'success'
               ? 'bg-emerald-50 text-emerald-900 border-emerald-300'
               : toastMessage.type === 'error'
@@ -1824,7 +1824,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
       {/* Mobile Backdrop Overlay */}
       {mobileMenuOpen && (
         <div
-          className="fixed inset-0 bg-black/60 backdrop-blur-xs z-40 md:hidden transition-opacity"
+          className="fixed inset-0 bg-black/50 z-40 md:hidden transition-opacity"
           onClick={() => setMobileMenuOpen(false)}
           aria-hidden="true"
         />
@@ -1834,53 +1834,53 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
       {/* LEFT NAVIGATION SIDEBAR                                         */}
       {/* ============================================================== */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-72 bg-white border-r border-slate-200/80 flex flex-col justify-between shrink-0 shadow-2xl md:shadow-2xs transition-transform duration-300 md:static md:w-64 md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 w-64 md:w-60 bg-white border-r border-slate-200 flex flex-col justify-between shrink-0 shadow-lg md:shadow-none transition-transform duration-200 md:static md:translate-x-0 ${
           mobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
       >
         <div>
           {/* Brand Header */}
-          <div className="h-16 px-5 border-b border-slate-200/80 flex items-center justify-between">
-            <div className="flex items-center space-x-3">
+          <div className="h-14 px-4 border-b border-slate-200 flex items-center justify-between">
+            <div className="flex items-center space-x-2.5">
               <img
                 src="/logo.png"
                 alt="SellMyGhar"
-                className="h-9 w-auto object-contain"
+                className="h-8 w-auto object-contain"
               />
-              <div className="border-l border-slate-200/90 pl-2.5">
-                <h1 className="font-extrabold text-xs tracking-tight text-[#172033] uppercase">CRM Portal</h1>
-                <p className="text-[10px] text-slate-400 font-medium tracking-wide">Operations</p>
+              <div className="border-l border-slate-200 pl-2">
+                <h1 className="font-bold text-xs tracking-tight text-slate-900 uppercase">Sales & CRM</h1>
+                <p className="text-[10px] text-slate-400 font-normal">Operations Desk</p>
               </div>
             </div>
             <div className="flex items-center space-x-1.5">
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200/80">
+              <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200">
                 v2.6
               </span>
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(false)}
-                className="p-1 text-slate-400 hover:text-slate-700 md:hidden rounded-lg hover:bg-slate-100 cursor-pointer"
+                className="p-1 text-slate-400 hover:text-slate-700 md:hidden rounded hover:bg-slate-100 cursor-pointer"
                 aria-label="Close navigation"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
           </div>
 
           {/* Navigation Items (11 Sections) */}
-          <nav className="p-3 space-y-1 overflow-y-auto max-h-[calc(100vh-210px)]">
+          <nav className="p-2 space-y-0.5 overflow-y-auto max-h-[calc(100vh-190px)]">
             {/* 1. Overview */}
             {hasAccess('OVERVIEW') && (
               <button
                 type="button"
                 onClick={() => handleSelectSection('OVERVIEW')}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-medium transition-colors cursor-pointer ${
                   activeSection === 'OVERVIEW'
-                    ? 'bg-[#0073E6] text-white shadow-xs'
-                    : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
+                    ? 'bg-[#0176D3] text-white shadow-2xs font-semibold'
+                    : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2.5">
                   <LayoutDashboard className="w-4 h-4 shrink-0" />
                   <span>Overview</span>
                 </div>
@@ -1892,18 +1892,18 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               <button
                 type="button"
                 onClick={() => handleSelectSection('LEADS')}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-medium transition-colors cursor-pointer ${
                   activeSection === 'LEADS'
-                    ? 'bg-[#0073E6] text-white shadow-xs'
-                    : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
+                    ? 'bg-[#0176D3] text-white shadow-2xs font-semibold'
+                    : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2.5">
                   <Users className="w-4 h-4 shrink-0" />
                   <span>Leads</span>
                 </div>
                 <span
-                  className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                  className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${
                     activeSection === 'LEADS' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
                   }`}
                 >
@@ -1917,18 +1917,18 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               <button
                 type="button"
                 onClick={() => handleSelectSection('PROPERTIES')}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-medium transition-colors cursor-pointer ${
                   activeSection === 'PROPERTIES'
-                    ? 'bg-[#0073E6] text-white shadow-xs'
-                    : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
+                    ? 'bg-[#0176D3] text-white shadow-2xs font-semibold'
+                    : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2.5">
                   <Building2 className="w-4 h-4 shrink-0" />
                   <span>Properties</span>
                 </div>
                 <span
-                  className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                  className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${
                     activeSection === 'PROPERTIES' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
                   }`}
                 >
@@ -1942,18 +1942,18 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               <button
                 type="button"
                 onClick={() => handleSelectSection('VISITS')}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-medium transition-colors cursor-pointer ${
                   activeSection === 'VISITS'
-                    ? 'bg-[#0073E6] text-white shadow-xs'
-                    : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
+                    ? 'bg-[#0176D3] text-white shadow-2xs font-semibold'
+                    : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2.5">
                   <CalendarCheck className="w-4 h-4 shrink-0" />
                   <span>Visits</span>
                 </div>
                 <span
-                  className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                  className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${
                     activeSection === 'VISITS' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
                   }`}
                 >
@@ -1967,18 +1967,18 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               <button
                 type="button"
                 onClick={() => handleSelectSection('OFFERS')}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-medium transition-colors cursor-pointer ${
                   activeSection === 'OFFERS'
-                    ? 'bg-[#0073E6] text-white shadow-xs'
-                    : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
+                    ? 'bg-[#0176D3] text-white shadow-2xs font-semibold'
+                    : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2.5">
                   <Tag className="w-4 h-4 shrink-0" />
                   <span>Offers</span>
                 </div>
                 <span
-                  className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                  className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${
                     activeSection === 'OFFERS' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
                   }`}
                 >
@@ -1992,19 +1992,19 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               <button
                 type="button"
                 onClick={() => handleSelectSection('TASKS')}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-medium transition-colors cursor-pointer ${
                   activeSection === 'TASKS'
-                    ? 'bg-[#0073E6] text-white shadow-xs'
-                    : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
+                    ? 'bg-[#0176D3] text-white shadow-2xs font-semibold'
+                    : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2.5">
                   <Clock className="w-4 h-4 shrink-0" />
                   <span>Tasks</span>
                 </div>
                 {tasks.overdue.length > 0 && (
                   <span
-                    className={`px-2 py-0.5 text-[10px] font-bold rounded-full ${
+                    className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${
                       activeSection === 'TASKS' ? 'bg-rose-500 text-white' : 'bg-rose-100 text-rose-700'
                     }`}
                   >
@@ -2019,13 +2019,13 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               <button
                 type="button"
                 onClick={() => handleSelectSection('CALENDAR')}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-medium transition-colors cursor-pointer ${
                   activeSection === 'CALENDAR'
-                    ? 'bg-[#0073E6] text-white shadow-xs'
-                    : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
+                    ? 'bg-[#0176D3] text-white shadow-2xs font-semibold'
+                    : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2.5">
                   <Calendar className="w-4 h-4 shrink-0" />
                   <span>Calendar</span>
                 </div>
@@ -2037,13 +2037,13 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               <button
                 type="button"
                 onClick={() => handleSelectSection('TEAM')}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-medium transition-colors cursor-pointer ${
                   activeSection === 'TEAM'
-                    ? 'bg-[#0073E6] text-white shadow-xs'
-                    : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
+                    ? 'bg-[#0176D3] text-white shadow-2xs font-semibold'
+                    : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2.5">
                   <ShieldCheck className="w-4 h-4 shrink-0" />
                   <span>Team</span>
                 </div>
@@ -2055,13 +2055,13 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               <button
                 type="button"
                 onClick={() => handleSelectSection('REPORTS')}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-medium transition-colors cursor-pointer ${
                   activeSection === 'REPORTS'
-                    ? 'bg-[#0073E6] text-white shadow-xs'
-                    : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
+                    ? 'bg-[#0176D3] text-white shadow-2xs font-semibold'
+                    : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2.5">
                   <BarChart3 className="w-4 h-4 shrink-0" />
                   <span>Reports</span>
                 </div>
@@ -2073,13 +2073,13 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               <button
                 type="button"
                 onClick={() => handleSelectSection('AUDIT')}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-medium transition-colors cursor-pointer ${
                   activeSection === 'AUDIT'
-                    ? 'bg-[#0073E6] text-white shadow-xs'
-                    : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
+                    ? 'bg-[#0176D3] text-white shadow-2xs font-semibold'
+                    : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2.5">
                   <ShieldAlert className="w-4 h-4 shrink-0" />
                   <span>Audit Logs</span>
                 </div>
@@ -2091,13 +2091,13 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               <button
                 type="button"
                 onClick={() => handleSelectSection('SETTINGS')}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-medium transition-colors cursor-pointer ${
                   activeSection === 'SETTINGS'
-                    ? 'bg-[#0073E6] text-white shadow-xs'
-                    : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
+                    ? 'bg-[#0176D3] text-white shadow-2xs font-semibold'
+                    : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
-                <div className="flex items-center space-x-3">
+                <div className="flex items-center space-x-2.5">
                   <Settings className="w-4 h-4 shrink-0" />
                   <span>Settings</span>
                 </div>
@@ -2107,19 +2107,18 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
         </div>
 
         {/* Sidebar Footer: Employee Profile & Logout */}
-        <div className="p-3 border-t border-slate-200/80 bg-slate-50/50 space-y-2">
-
+        <div className="p-3 border-t border-slate-200 bg-slate-50/70">
           {/* User Profile */}
-          <div className="flex items-center justify-between px-1">
-            <div className="flex items-center space-x-2.5 min-w-0">
-              <div className="w-8 h-8 rounded-full bg-[#172033] text-white flex items-center justify-center text-xs font-bold shrink-0">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2 min-w-0">
+              <div className="w-7 h-7 rounded-full bg-slate-800 text-white flex items-center justify-center text-xs font-semibold shrink-0">
                 {(staffUser?.displayName || 'Admin')[0]}
               </div>
               <div className="min-w-0">
-                <p className="text-xs font-bold text-slate-800 truncate">
+                <p className="text-xs font-semibold text-slate-800 truncate">
                   {staffUser?.displayName || 'Operations Staff'}
                 </p>
-                <p className="text-[10px] text-slate-400 truncate">
+                <p className="text-[10px] text-slate-500 truncate">
                   {staffUser?.email || 'staff@sellmyghar.in'}
                 </p>
               </div>
@@ -2130,9 +2129,9 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 type="button"
                 onClick={onLogout}
                 title="Log out from CRM"
-                className="p-1.5 rounded-lg hover:bg-slate-200/80 text-slate-500 hover:text-slate-800 transition-colors cursor-pointer"
+                className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition-colors cursor-pointer"
               >
-                <LogOut className="w-4 h-4" />
+                <LogOut className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
@@ -2144,37 +2143,37 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
       {/* ============================================================== */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Compact Aligned Header */}
-        <header className="h-16 bg-white border-b border-slate-200/80 px-3 sm:px-6 flex items-center justify-between shrink-0 z-10">
+        <header className="h-14 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between shrink-0 z-10">
           {/* Breadcrumb / Title & Mobile Hamburger */}
           <div className="flex items-center space-x-2 sm:space-x-3 text-xs min-w-0">
             <button
               type="button"
               onClick={() => setMobileMenuOpen(true)}
-              className="p-2 -ml-1 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-xl border border-slate-200 md:hidden cursor-pointer shrink-0"
+              className="p-1.5 -ml-1 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-md border border-slate-300 md:hidden cursor-pointer shrink-0"
               aria-label="Open CRM Navigation Menu"
               title="Open Menu"
             >
               <Menu className="w-4 h-4" />
             </button>
             <div className="flex items-center space-x-1.5 sm:space-x-2 min-w-0">
-              <span className="text-slate-400 font-medium hidden sm:inline">SellMyGhar /</span>
-              <span className="text-slate-900 font-bold capitalize truncate">
+              <span className="text-slate-400 font-normal text-xs hidden sm:inline">SellMyGhar /</span>
+              <span className="text-slate-900 font-semibold text-sm capitalize truncate">
                 {activeSection.toLowerCase().replace('_', ' ')}
               </span>
             </div>
           </div>
 
           {/* Search, Refresh & Global Actions */}
-          <div className="flex items-center space-x-1.5 sm:space-x-3 shrink-0">
+          <div className="flex items-center space-x-2 sm:space-x-2.5 shrink-0">
             {/* Global Search Input */}
             <div className="relative">
-              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 placeholder="Search CRM..."
                 value={globalSearch}
                 onChange={(e) => setGlobalSearch(e.target.value)}
-                className="pl-8 sm:pl-9 pr-6 sm:pr-8 py-1.5 sm:py-2 bg-slate-50 border border-slate-200/80 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:border-[#0073E6] focus:outline-hidden w-28 sm:w-56 focus:w-44 sm:focus:w-72 transition-all"
+                className="pl-8 pr-6 py-1.5 bg-white border border-slate-300 rounded-md text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:border-[#0176D3] focus:ring-1 focus:ring-[#0176D3] focus:outline-none w-28 sm:w-56 focus:w-44 sm:focus:w-72 transition-all shadow-2xs"
               />
               {globalSearch && (
                 <button
@@ -2193,7 +2192,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               onClick={refreshAll}
               disabled={isRefreshing}
               title={`Last synced: ${lastSyncTime}`}
-              className="inline-flex items-center space-x-1 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl border border-slate-200/80 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer disabled:opacity-50"
+              className="inline-flex items-center space-x-1.5 px-2.5 py-1.5 rounded-md border border-slate-300 bg-white text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors cursor-pointer disabled:opacity-50 shadow-2xs"
             >
               <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${isRefreshing ? 'animate-spin' : ''}`} />
               <span className="text-[11px] text-slate-500 font-normal hidden lg:inline">{lastSyncTime}</span>
@@ -2206,11 +2205,11 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 onClick={() => setIsNotificationsOpen(prev => !prev)}
                 title="Operational Notifications"
                 aria-label={`Notifications (${unreadNotificationCount} unread)`}
-                className="relative p-1.5 sm:p-2 rounded-xl border border-slate-200/80 hover:bg-slate-50 text-slate-600 hover:text-slate-900 transition-colors cursor-pointer"
+                className="relative p-1.5 rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-900 transition-colors cursor-pointer shadow-2xs"
               >
                 <Bell className="w-4 h-4 text-slate-600" />
                 {unreadNotificationCount > 0 && (
-                  <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 bg-[#0073E6] text-white text-[10px] font-extrabold rounded-full flex items-center justify-center border-2 border-white animate-pulse">
+                  <span className="absolute -top-1 -right-1 min-w-[16px] h-[16px] px-1 bg-[#0176D3] text-white text-[9px] font-bold rounded-full flex items-center justify-center border border-white">
                     {unreadNotificationCount > 9 ? '9+' : unreadNotificationCount}
                   </span>
                 )}
@@ -2218,7 +2217,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
 
               {/* Notification Dropdown Panel */}
               {isNotificationsOpen && (
-                <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-xl border border-slate-200 z-50 overflow-hidden">
+                <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-lg shadow-lg border border-slate-200 z-50 overflow-hidden">
                   <div className="p-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
                     <div className="flex items-center space-x-2">
                       <span className="text-xs font-bold text-[#172033] uppercase tracking-wider">
@@ -2479,13 +2478,16 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               </div>
 
               {/* Lead Pipeline Progression Bar */}
-              <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 space-y-3.5">
+              <div className="bg-white rounded-md border border-slate-200 shadow-2xs p-4 space-y-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-bold text-slate-900">Lead Pipeline</h3>
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900">Lead Pipeline</h3>
+                    <p className="text-[11px] text-slate-500 font-normal">Active customer opportunities across stages</p>
+                  </div>
                   <button
                     type="button"
                     onClick={() => setActiveSection('LEADS')}
-                    className="text-xs font-bold text-[#0073E6] hover:underline flex items-center cursor-pointer"
+                    className="text-xs font-medium text-[#0176D3] hover:underline flex items-center cursor-pointer"
                   >
                     View All Leads ({leads.length}) <ChevronRight className="w-3.5 h-3.5 ml-1" />
                   </button>
@@ -2502,26 +2504,26 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                           setLeadStatusFilter(stage.key);
                           setActiveSection('LEADS');
                         }}
-                        className={`p-3 rounded-xl border text-left transition-all cursor-pointer hover:shadow-2xs ${
+                        className={`p-3 rounded-md border text-left transition-colors cursor-pointer shadow-2xs ${
                           stage.key === 'CONVERTED'
-                            ? 'bg-emerald-50/60 border-emerald-200 hover:border-emerald-400'
+                            ? 'bg-emerald-50/60 border-emerald-300 hover:border-emerald-500'
                             : stage.key === 'LOST'
-                            ? 'bg-rose-50/80 border-rose-200 hover:border-rose-400 text-rose-700'
-                            : 'bg-white border-slate-200/80 hover:border-[#0073E6]'
+                            ? 'bg-rose-50/80 border-rose-300 hover:border-rose-500 text-rose-700'
+                            : 'bg-white border-slate-200 hover:border-[#0176D3]'
                         }`}
                       >
-                        <div className={`flex items-center justify-between text-[10px] font-bold uppercase tracking-wider mb-1 ${
-                          stage.key === 'LOST' ? 'text-rose-500' : 'text-slate-400'
+                        <div className={`flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider mb-1 ${
+                          stage.key === 'LOST' ? 'text-rose-600' : 'text-slate-500'
                         }`}>
                           <span>{stage.label}</span>
                         </div>
-                        <div className={`text-xl font-bold ${
+                        <div className={`text-xl font-bold tabular-nums ${
                           stage.key === 'LOST' ? 'text-rose-700' : stage.key === 'CONVERTED' ? 'text-emerald-800' : 'text-slate-900'
                         }`}>
                           {count}
                         </div>
-                        <p className={`text-[10px] mt-1 truncate ${
-                          stage.key === 'LOST' ? 'text-rose-600 font-medium' : 'text-slate-500'
+                        <p className={`text-[11px] mt-0.5 truncate ${
+                          stage.key === 'LOST' ? 'text-rose-600 font-medium' : 'text-slate-500 font-normal'
                         }`}>
                           {stage.desc}
                         </p>
@@ -2744,24 +2746,33 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               {/* Module Header & Operational Context */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-xl font-bold tracking-tight text-[#172033]">Leads & Inquiries</h2>
+                  <div className="flex items-center space-x-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                    <span>Leads</span>
+                  </div>
+                  <div className="flex items-center space-x-2 mt-0.5">
+                    <h2 className="text-xl font-bold tracking-tight text-slate-900">All Leads</h2>
+                    <ChevronDown className="w-4 h-4 text-slate-500" />
+                  </div>
+                  <p className="text-xs text-slate-500 font-normal mt-0.5">
+                    {filteredLeads.length} items • Filtered by active criteria • Updated moments ago
+                  </p>
                 </div>
                 <div className="flex items-center space-x-2">
                   <button
                     type="button"
                     onClick={() => handleExportCsv('leads')}
-                    className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-xl bg-white border border-slate-200/80 text-slate-700 hover:bg-slate-50 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+                    className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-md bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-medium shadow-2xs transition-colors cursor-pointer"
                   >
-                    <Download className="w-3.5 h-3.5 text-[#0073E6]" />
+                    <Download className="w-3.5 h-3.5 text-slate-500" />
                     <span className="hidden sm:inline">Export Leads CSV</span>
                     <span className="sm:hidden">Export</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => handleOpenAddLead('SellMyGhar Portal', 'BUYER')}
-                    className="inline-flex items-center space-x-1.5 px-4 py-2 rounded-xl bg-[#0073E6] hover:bg-[#005bb5] text-white text-xs font-bold shadow-sm transition-all cursor-pointer"
+                    className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-md bg-[#0176D3] hover:bg-[#005fb2] text-white text-xs font-semibold shadow-2xs transition-all cursor-pointer"
                   >
-                    <Plus className="w-4 h-4" />
+                    <Plus className="w-3.5 h-3.5" />
                     <span>Add Lead</span>
                   </button>
                 </div>
@@ -2771,105 +2782,105 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2.5">
                 <div
                   onClick={() => setLeadStatusFilter('ALL')}
-                  className={`p-3.5 rounded-xl border transition-all cursor-pointer shadow-2xs ${
+                  className={`p-3 rounded-md border transition-all cursor-pointer shadow-2xs ${
                     leadStatusFilter === 'ALL'
-                      ? 'bg-blue-50/50 border-[#0073E6] ring-1 ring-[#0073E6]/30'
-                      : 'bg-white border-slate-200/80 hover:border-slate-300'
+                      ? 'bg-blue-50/50 border-[#0176D3] ring-1 ring-[#0176D3]'
+                      : 'bg-white border-slate-200 hover:border-slate-300'
                   }`}
                 >
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Total Pipeline</span>
-                  <div className="text-2xl font-bold text-slate-900 mt-0.5">{leads.length}</div>
-                  <span className="text-[10px] text-slate-500 font-medium mt-0.5 block">All active inquiries</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">Total Pipeline</span>
+                  <div className="text-2xl font-bold text-slate-900 mt-0.5 tabular-nums">{leads.length}</div>
+                  <span className="text-[11px] text-slate-500 font-normal mt-0.5 block">All active inquiries</span>
                 </div>
 
                 <div
                   onClick={() => setLeadStatusFilter('NEW')}
-                  className={`p-3.5 rounded-xl border transition-all cursor-pointer shadow-2xs ${
+                  className={`p-3 rounded-md border transition-all cursor-pointer shadow-2xs ${
                     leadStatusFilter === 'NEW'
-                      ? 'bg-blue-50/50 border-[#0073E6] ring-1 ring-[#0073E6]/30'
-                      : 'bg-white border-slate-200/80 hover:border-slate-300'
+                      ? 'bg-blue-50/50 border-[#0176D3] ring-1 ring-[#0176D3]'
+                      : 'bg-white border-slate-200 hover:border-slate-300'
                   }`}
                 >
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">New Registrations</span>
-                  <div className="text-2xl font-bold text-slate-900 mt-0.5">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">New Inbound</span>
+                  <div className="text-2xl font-bold text-slate-900 mt-0.5 tabular-nums">
                     {leads.filter(l => l.stage === 'NEW').length}
                   </div>
-                  <span className="text-[10px] text-[#0073E6] font-semibold mt-0.5 block">Fresh inbound</span>
+                  <span className="text-[11px] text-[#0176D3] font-medium mt-0.5 block">Fresh registrations</span>
                 </div>
 
                 <div
                   onClick={() => setLeadStatusFilter('CONTACTED')}
-                  className={`p-3.5 rounded-xl border transition-all cursor-pointer shadow-2xs ${
+                  className={`p-3 rounded-md border transition-all cursor-pointer shadow-2xs ${
                     leadStatusFilter === 'CONTACTED'
-                      ? 'bg-indigo-50/50 border-indigo-500 ring-1 ring-indigo-500/30'
-                      : 'bg-white border-slate-200/80 hover:border-slate-300'
+                      ? 'bg-indigo-50/50 border-indigo-500 ring-1 ring-indigo-500'
+                      : 'bg-white border-slate-200 hover:border-slate-300'
                   }`}
                 >
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Contacted</span>
-                  <div className="text-2xl font-bold text-slate-900 mt-0.5">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">Contacted</span>
+                  <div className="text-2xl font-bold text-slate-900 mt-0.5 tabular-nums">
                     {leads.filter(l => l.stage === 'CONTACTED').length}
                   </div>
-                  <span className="text-[10px] text-indigo-700 font-semibold mt-0.5 block">Initial outreach</span>
+                  <span className="text-[11px] text-indigo-700 font-medium mt-0.5 block">Initial outreach</span>
                 </div>
 
                 <div
                   onClick={() => setLeadStatusFilter('FOLLOW_UP')}
-                  className={`p-3.5 rounded-xl border transition-all cursor-pointer shadow-2xs ${
+                  className={`p-3 rounded-md border transition-all cursor-pointer shadow-2xs ${
                     leadStatusFilter === 'FOLLOW_UP'
-                      ? 'bg-amber-50/50 border-amber-500 ring-1 ring-amber-500/30'
-                      : 'bg-white border-slate-200/80 hover:border-slate-300'
+                      ? 'bg-amber-50/50 border-amber-500 ring-1 ring-amber-500'
+                      : 'bg-white border-slate-200 hover:border-slate-300'
                   }`}
                 >
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">In Follow-up</span>
-                  <div className="text-2xl font-bold text-amber-900 mt-0.5">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">In Follow-up</span>
+                  <div className="text-2xl font-bold text-amber-900 mt-0.5 tabular-nums">
                     {leads.filter(l => l.stage === 'FOLLOW_UP').length}
                   </div>
-                  <span className="text-[10px] text-amber-700 font-semibold mt-0.5 block">Active diligence</span>
+                  <span className="text-[11px] text-amber-700 font-medium mt-0.5 block">Active diligence</span>
                 </div>
 
                 <div
                   onClick={() => setLeadStatusFilter('SITE_VISIT')}
-                  className={`p-3.5 rounded-xl border transition-all cursor-pointer shadow-2xs ${
+                  className={`p-3 rounded-md border transition-all cursor-pointer shadow-2xs ${
                     leadStatusFilter === 'SITE_VISIT'
-                      ? 'bg-sky-50/50 border-sky-500 ring-1 ring-sky-500/30'
-                      : 'bg-white border-slate-200/80 hover:border-slate-300'
+                      ? 'bg-sky-50/50 border-sky-500 ring-1 ring-sky-500'
+                      : 'bg-white border-slate-200 hover:border-slate-300'
                   }`}
                 >
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Site Visits</span>
-                  <div className="text-2xl font-bold text-sky-900 mt-0.5">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">Site Visits</span>
+                  <div className="text-2xl font-bold text-sky-900 mt-0.5 tabular-nums">
                     {leads.filter(l => l.stage === 'SITE_VISIT').length}
                   </div>
-                  <span className="text-[10px] text-sky-700 font-semibold mt-0.5 block">Physical tours</span>
+                  <span className="text-[11px] text-sky-700 font-medium mt-0.5 block">Physical tours</span>
                 </div>
 
                 <div
                   onClick={() => setLeadStatusFilter('CONVERTED')}
-                  className={`p-3.5 rounded-xl border transition-all cursor-pointer shadow-2xs ${
+                  className={`p-3 rounded-md border transition-all cursor-pointer shadow-2xs ${
                     leadStatusFilter === 'CONVERTED'
-                      ? 'bg-emerald-50/50 border-emerald-500 ring-1 ring-emerald-500/30'
-                      : 'bg-white border-slate-200/80 hover:border-slate-300'
+                      ? 'bg-emerald-50/50 border-emerald-500 ring-1 ring-emerald-500'
+                      : 'bg-white border-slate-200 hover:border-slate-300'
                   }`}
                 >
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Converted</span>
-                  <div className="text-2xl font-bold text-emerald-800 mt-0.5">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">Converted</span>
+                  <div className="text-2xl font-bold text-emerald-800 mt-0.5 tabular-nums">
                     {leads.filter(l => l.stage === 'CONVERTED').length}
                   </div>
-                  <span className="text-[10px] text-emerald-700 font-semibold mt-0.5 block">Deals closed</span>
+                  <span className="text-[11px] text-emerald-700 font-medium mt-0.5 block">Deals closed</span>
                 </div>
 
                 <div
                   onClick={() => setLeadStatusFilter('LOST')}
-                  className={`p-3.5 rounded-xl border transition-all cursor-pointer shadow-2xs ${
+                  className={`p-3 rounded-md border transition-all cursor-pointer shadow-2xs ${
                     leadStatusFilter === 'LOST'
-                      ? 'bg-rose-50 border-rose-500 ring-1 ring-rose-500/30'
-                      : 'bg-white border-slate-200/80 hover:border-rose-300'
+                      ? 'bg-rose-50 border-rose-500 ring-1 ring-rose-500'
+                      : 'bg-white border-slate-200 hover:border-rose-300'
                   }`}
                 >
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600 block">Lost Leads</span>
-                  <div className="text-2xl font-bold text-rose-700 mt-0.5">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-rose-600 block">Lost Leads</span>
+                  <div className="text-2xl font-bold text-rose-700 mt-0.5 tabular-nums">
                     {leads.filter(l => l.stage === 'LOST').length}
                   </div>
-                  <span className="text-[10px] text-rose-600 font-semibold mt-0.5 block">Inquiry dropped</span>
+                  <span className="text-[11px] text-rose-600 font-medium mt-0.5 block">Inquiry dropped</span>
                 </div>
               </div>
 
@@ -2879,14 +2890,14 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   <button
                     type="button"
                     onClick={() => setLeadAssignFilter('ALL')}
-                    className={`px-3.5 py-1.5 rounded-xl font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
+                    className={`px-3 py-1.5 rounded-md font-medium flex items-center space-x-1.5 transition-all cursor-pointer ${
                       leadAssignFilter === 'ALL'
-                        ? 'bg-slate-900 text-white shadow-xs'
-                        : 'bg-white border border-slate-200/80 text-slate-700 hover:bg-slate-50'
+                        ? 'bg-slate-900 text-white shadow-2xs font-semibold'
+                        : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'
                     }`}
                   >
                     <span>All Pipeline</span>
-                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${
+                    <span className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${
                       leadAssignFilter === 'ALL' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
                     }`}>
                       {leads.length}
@@ -2896,14 +2907,14 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   <button
                     type="button"
                     onClick={() => setLeadAssignFilter('ASSIGNED')}
-                    className={`px-3.5 py-1.5 rounded-xl font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
+                    className={`px-3 py-1.5 rounded-md font-medium flex items-center space-x-1.5 transition-all cursor-pointer ${
                       leadAssignFilter === 'ASSIGNED'
-                        ? 'bg-[#0073E6] text-white shadow-xs'
-                        : 'bg-white border border-slate-200/80 text-slate-700 hover:bg-slate-50'
+                        ? 'bg-[#0176D3] text-white shadow-2xs font-semibold'
+                        : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'
                     }`}
                   >
                     <span>Assigned Leads</span>
-                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${
+                    <span className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${
                       leadAssignFilter === 'ASSIGNED' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
                     }`}>
                       {leads.filter(l => Boolean(l.assignedStaffId)).length}
@@ -2913,14 +2924,14 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   <button
                     type="button"
                     onClick={() => setLeadAssignFilter('ME')}
-                    className={`px-3.5 py-1.5 rounded-xl font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
+                    className={`px-3 py-1.5 rounded-md font-medium flex items-center space-x-1.5 transition-all cursor-pointer ${
                       leadAssignFilter === 'ME'
-                        ? 'bg-[#0073E6] text-white shadow-xs'
-                        : 'bg-white border border-slate-200/80 text-slate-700 hover:bg-slate-50'
+                        ? 'bg-[#0176D3] text-white shadow-2xs font-semibold'
+                        : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'
                     }`}
                   >
                     <span>Assigned to Me</span>
-                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${
+                    <span className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${
                       leadAssignFilter === 'ME' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
                     }`}>
                       {leads.filter(l => l.assignedStaffId === (staffUser?.id || staffUser?.uid)).length}
@@ -2930,14 +2941,14 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   <button
                     type="button"
                     onClick={() => setLeadAssignFilter('UNASSIGNED')}
-                    className={`px-3.5 py-1.5 rounded-xl font-bold flex items-center space-x-1.5 transition-all cursor-pointer ${
+                    className={`px-3 py-1.5 rounded-md font-medium flex items-center space-x-1.5 transition-all cursor-pointer ${
                       leadAssignFilter === 'UNASSIGNED'
-                        ? 'bg-amber-600 text-white shadow-xs'
-                        : 'bg-white border border-slate-200/80 text-slate-700 hover:bg-slate-50'
+                        ? 'bg-amber-600 text-white shadow-2xs font-semibold'
+                        : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'
                     }`}
                   >
                     <span>Unassigned Inquiries</span>
-                    <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${
+                    <span className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${
                       leadAssignFilter === 'UNASSIGNED' ? 'bg-white/20 text-white' : 'bg-amber-50 text-amber-700'
                     }`}>
                       {leads.filter(l => !l.assignedStaffId).length}
@@ -2946,9 +2957,9 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 </div>
               ) : (
                 <div className="flex items-center space-x-2 text-xs">
-                  <div className="px-3.5 py-1.5 rounded-xl font-bold bg-slate-900 text-white shadow-xs flex items-center space-x-1.5">
+                  <div className="px-3 py-1.5 rounded-md font-semibold bg-slate-900 text-white shadow-2xs flex items-center space-x-1.5">
                     <span>My Assigned Leads</span>
-                    <span className="px-1.5 py-0.5 rounded-full text-[10px] font-extrabold bg-white/20 text-white">
+                    <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-white/20 text-white">
                       {filteredLeads.length}
                     </span>
                   </div>
@@ -2956,22 +2967,22 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               )}
 
               {/* Dedicated Search & Filter Control Bar */}
-              <div className="p-3 bg-white rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 text-xs">
+              <div className="p-2.5 bg-white rounded-md border border-slate-200 shadow-2xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 text-xs">
                 {/* Search Input */}
                 <div className="relative flex-1 max-w-md">
-                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     type="text"
-                    placeholder="Search leads by client name, phone, society, locality..."
+                    placeholder="Search this list by name, phone, society, locality..."
                     value={leadSearch}
                     onChange={(e) => setLeadSearch(e.target.value)}
-                    className="w-full bg-slate-50/70 border border-slate-200/80 rounded-xl pl-9 pr-8 py-2 text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:border-[#0073E6] focus:outline-hidden"
+                    className="w-full bg-white border border-slate-300 rounded-md pl-8 pr-7 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:border-[#0176D3] focus:ring-1 focus:ring-[#0176D3] focus:outline-none shadow-2xs"
                   />
                   {leadSearch && (
                     <button
                       type="button"
                       onClick={() => setLeadSearch('')}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -2980,12 +2991,12 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
 
                 {/* Filter Controls */}
                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="flex items-center space-x-1.5 bg-slate-50 border border-slate-200/80 rounded-xl px-2.5 py-1.5">
-                    <span className="text-slate-400 text-[11px] font-semibold">Stage:</span>
+                  <div className="flex items-center space-x-1.5 bg-white border border-slate-300 rounded-md px-2.5 py-1 shadow-2xs">
+                    <span className="text-slate-500 text-[11px] font-medium">Stage:</span>
                     <select
                       value={leadStatusFilter}
                       onChange={(e) => setLeadStatusFilter(e.target.value)}
-                      className="bg-transparent text-xs font-semibold text-slate-800 focus:outline-hidden cursor-pointer"
+                      className="bg-transparent text-xs font-medium text-slate-800 focus:outline-none cursor-pointer"
                     >
                       <option value="ALL">All Stages</option>
                       {PIPELINE_STAGES.map(s => (
@@ -2995,12 +3006,12 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   </div>
 
                   {isAdmin && (
-                    <div className="flex items-center space-x-1.5 bg-slate-50 border border-slate-200/80 rounded-xl px-2.5 py-1.5">
-                      <span className="text-slate-400 text-[11px] font-semibold">Assigned:</span>
+                    <div className="flex items-center space-x-1.5 bg-white border border-slate-300 rounded-md px-2.5 py-1 shadow-2xs">
+                      <span className="text-slate-500 text-[11px] font-medium">Assigned:</span>
                       <select
                         value={leadAssignFilter}
                         onChange={(e) => setLeadAssignFilter(e.target.value)}
-                        className="bg-transparent text-xs font-semibold text-slate-800 focus:outline-hidden cursor-pointer"
+                        className="bg-transparent text-xs font-medium text-slate-800 focus:outline-none cursor-pointer"
                       >
                         <option value="ALL">All Pipeline (All Leads)</option>
                         <option value="ASSIGNED">Assigned Leads Only</option>
@@ -3013,12 +3024,12 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     </div>
                   )}
 
-                  <div className="flex items-center space-x-1.5 bg-slate-50 border border-slate-200/80 rounded-xl px-2.5 py-1.5">
-                    <span className="text-slate-400 text-[11px] font-semibold">Type:</span>
+                  <div className="flex items-center space-x-1.5 bg-white border border-slate-300 rounded-md px-2.5 py-1 shadow-2xs">
+                    <span className="text-slate-500 text-[11px] font-medium">Type:</span>
                     <select
                       value={leadTypeFilter}
                       onChange={(e) => setLeadTypeFilter(e.target.value as any)}
-                      className="bg-transparent text-xs font-semibold text-slate-800 focus:outline-hidden cursor-pointer"
+                      className="bg-transparent text-xs font-medium text-slate-800 focus:outline-none cursor-pointer"
                     >
                       <option value="ALL">All Inquiries</option>
                       <option value="SELLER">Seller Leads</option>
@@ -3026,12 +3037,12 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     </select>
                   </div>
 
-                  <div className="flex items-center space-x-1.5 bg-slate-50 border border-slate-200/80 rounded-xl px-2.5 py-1.5">
-                    <span className="text-slate-400 text-[11px] font-semibold">Source:</span>
+                  <div className="flex items-center space-x-1.5 bg-white border border-slate-300 rounded-md px-2.5 py-1 shadow-2xs">
+                    <span className="text-slate-500 text-[11px] font-medium">Source:</span>
                     <select
                       value={leadSourceFilter}
                       onChange={(e) => setLeadSourceFilter(e.target.value)}
-                      className="bg-transparent text-xs font-semibold text-slate-800 focus:outline-hidden cursor-pointer"
+                      className="bg-transparent text-xs font-medium text-slate-800 focus:outline-none cursor-pointer"
                     >
                       <option value="ALL">All Sources</option>
                       <option value="Facebook">Facebook Ads</option>
@@ -3043,12 +3054,12 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     </select>
                   </div>
 
-                  <div className="flex items-center space-x-1.5 bg-slate-50 border border-slate-200/80 rounded-xl px-2.5 py-1.5">
-                    <span className="text-slate-400 text-[11px] font-semibold">Follow-up:</span>
+                  <div className="flex items-center space-x-1.5 bg-white border border-slate-300 rounded-md px-2.5 py-1 shadow-2xs">
+                    <span className="text-slate-500 text-[11px] font-medium">Follow-up:</span>
                     <select
                       value={leadFollowUpFilter}
                       onChange={(e) => setLeadFollowUpFilter(e.target.value as any)}
-                      className="bg-transparent text-xs font-semibold text-slate-800 focus:outline-hidden cursor-pointer"
+                      className="bg-transparent text-xs font-medium text-slate-800 focus:outline-none cursor-pointer"
                     >
                       <option value="ALL">All Tasks</option>
                       <option value="OVERDUE">Overdue Only</option>
@@ -3067,7 +3078,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                         setLeadFollowUpFilter('ALL');
                         setLeadSearch('');
                       }}
-                      className="text-[#0073E6] hover:underline text-xs font-bold px-2 py-1 cursor-pointer"
+                      className="text-[#0176D3] hover:underline text-xs font-semibold px-2 py-1 cursor-pointer"
                     >
                       Reset Filters
                     </button>
@@ -3076,32 +3087,33 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               </div>
 
               {/* Leads Table Container */}
-              <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-x-auto">
-                <table className="w-full min-w-[760px] text-left text-xs divide-y divide-slate-100">
-                  <thead className="bg-slate-50/70 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+              <div className="bg-white rounded-md border border-slate-200 shadow-2xs overflow-x-auto">
+                <table className="w-full min-w-[760px] text-left text-xs border-collapse">
+                  <thead className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-600 uppercase tracking-wider">
                     <tr>
-                      <th className="py-3.5 px-4">Client / Contact</th>
-                      <th className="py-3.5 px-4">Inquiry Type</th>
-                      <th className="py-3.5 px-4">Lead Source</th>
-                      <th className="py-3.5 px-4">Property / Society</th>
-                      <th className="py-3.5 px-4">BHK & Budget</th>
-                      <th className="py-3.5 px-4">Lifecycle Stage</th>
-                      <th className="py-3.5 px-4">Relationship Manager</th>
-                      <th className="py-3.5 px-4">Follow-up Due</th>
-                      <th className="py-3.5 px-4 text-right">Actions</th>
+                      <th className="py-2.5 px-3.5 w-10 text-slate-400 font-normal">#</th>
+                      <th className="py-2.5 px-3.5">Client / Contact</th>
+                      <th className="py-2.5 px-3.5">Inquiry Type</th>
+                      <th className="py-2.5 px-3.5">Lead Source</th>
+                      <th className="py-2.5 px-3.5">Property / Society</th>
+                      <th className="py-2.5 px-3.5">BHK & Budget</th>
+                      <th className="py-2.5 px-3.5">Lifecycle Stage</th>
+                      <th className="py-2.5 px-3.5">Relationship Manager</th>
+                      <th className="py-2.5 px-3.5">Follow-up Due</th>
+                      <th className="py-2.5 px-3.5 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {filteredLeads.length === 0 ? (
                       <tr>
-                        <td colSpan={9} className="py-16 text-center text-slate-400 text-xs">
+                        <td colSpan={10} className="py-16 text-center text-slate-400 text-xs">
                           <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2 opacity-80" />
                           <p className="font-semibold text-slate-700">No leads match the specified filter criteria.</p>
                           <p className="text-[11px] text-slate-400 mt-0.5">Try clearing your filters or search query to see all records.</p>
                         </td>
                       </tr>
                     ) : (
-                      filteredLeads.map((lead) => {
+                      filteredLeads.map((lead, idx) => {
                         const clientName = lead.displayName || lead.ownerName || lead.name || lead.buyer_name || lead.client_name || 'Client';
                         const isNewLead = lead.stage === 'NEW';
 
@@ -3111,44 +3123,40 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                             onClick={() => setSelectedLeadId(lead.id)}
                             className={`transition-colors cursor-pointer group ${
                               isNewLead
-                                ? 'bg-blue-50/40 hover:bg-blue-50/70 border-l-4 border-l-[#0073E6]'
+                                ? 'bg-blue-50/40 hover:bg-blue-50/70 border-l-3 border-l-[#0176D3]'
                                 : 'hover:bg-slate-50/70'
                             }`}
                           >
+                            {/* Row Index */}
+                            <td className="py-2.5 px-3.5 text-[11px] text-slate-400 font-normal tabular-nums">
+                              {idx + 1}
+                            </td>
+
                             {/* Client / Contact */}
-                            <td className="py-3.5 px-4 font-['Poppins',sans-serif]">
-                              <div className="flex items-center space-x-3">
-                                <div className={`w-8 h-8 rounded-full border flex items-center justify-center font-semibold text-xs shrink-0 ${
-                                  isNewLead
-                                    ? 'bg-[#0073E6] text-white border-[#0073E6]'
-                                    : 'bg-slate-100 border-slate-200 text-slate-700'
-                                }`}>
-                                  {clientName[0] || 'L'}
-                                </div>
-                                <div className="min-w-0">
-                                  <p className="font-semibold text-slate-900 group-hover:text-[#0073E6] transition-colors truncate text-xs">
-                                    {clientName}
-                                  </p>
-                                  <p className="text-[11px] text-slate-500 font-mono">
-                                    {lead.phone}
-                                  </p>
-                                </div>
+                            <td className="py-2.5 px-3.5">
+                              <div className="min-w-0">
+                                <p className="font-semibold text-[#0176D3] group-hover:text-[#005fb2] hover:underline transition-colors truncate text-xs">
+                                  {clientName}
+                                </p>
+                                <p className="text-[11px] text-slate-500 font-normal mt-0.5">
+                                  {lead.phone}
+                                </p>
                               </div>
                             </td>
 
                             {/* Inquiry Type */}
-                            <td className="py-3.5 px-4 font-['Poppins',sans-serif]">
-                              <span className="text-xs font-semibold text-slate-800">
+                            <td className="py-2.5 px-3.5">
+                              <span className="text-xs font-medium text-slate-700">
                                 {lead.type === 'BUYER' ? 'Buyer' : 'Seller'}
                               </span>
                             </td>
 
                             {/* Lead Source */}
-                            <td className="py-3.5 px-4 font-['Poppins',sans-serif]">
+                            <td className="py-2.5 px-3.5">
                               {(() => {
                                 const rawSrc = lead.source || lead.attribution?.source || (lead.notes?.includes('99acres') ? '99acres' : (lead.notes?.toLowerCase().includes('magicbricks') ? 'Magicbricks' : (lead.notes?.toLowerCase().includes('facebook') ? 'Facebook Ads' : (lead.type === 'SELLER' ? 'SellMyGhar' : 'Website Portal'))));
                                 return (
-                                  <span className="text-xs font-medium text-slate-600">
+                                  <span className="text-xs font-normal text-slate-600">
                                     {rawSrc}
                                   </span>
                                 );
@@ -3156,44 +3164,44 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                             </td>
 
                             {/* Property & Locality */}
-                            <td className="py-3.5 px-4 font-['Poppins',sans-serif] text-slate-700">
+                            <td className="py-2.5 px-3.5 text-slate-700">
                               <div className="font-medium text-slate-900 truncate max-w-[180px] text-xs">
                                 {lead.society || 'Residential Unit'}
                               </div>
-                              <div className="text-[11px] text-slate-400 truncate max-w-[180px]">
+                              <div className="text-[11px] text-slate-500 truncate max-w-[180px]">
                                 {lead.locality}
                               </div>
                             </td>
 
                             {/* BHK & Budget */}
-                            <td className="py-3.5 px-4 font-['Poppins',sans-serif] text-slate-700">
-                              <div className="font-semibold text-slate-900 text-xs">{lead.bhk || '2 BHK'}</div>
-                              <div className="text-[11px] text-slate-500 font-medium">{lead.expectedPrice || 'Market'}</div>
+                            <td className="py-2.5 px-3.5 text-slate-700">
+                              <div className="font-medium text-slate-900 text-xs">{lead.bhk || '2 BHK'}</div>
+                              <div className="text-[11px] text-slate-500">{lead.expectedPrice || 'Market'}</div>
                             </td>
 
                             {/* Lifecycle Stage */}
-                            <td className="py-3.5 px-4 font-['Poppins',sans-serif]">
+                            <td className="py-2.5 px-3.5">
                               {isNewLead ? (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-[#0073E6] border border-blue-200">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-50 text-[#0176D3] border border-blue-200">
                                   New Lead
                                 </span>
                               ) : lead.stage === 'LOST' ? (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
                                   LOST
                                 </span>
                               ) : lead.stage === 'CONVERTED' ? (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                                   CONVERTED
                                 </span>
                               ) : (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
                                   {lead.stage}
                                 </span>
                               )}
                             </td>
 
                             {/* Assigned Staff */}
-                            <td className="py-3.5 px-4 font-['Poppins',sans-serif] text-slate-600">
+                            <td className="py-2.5 px-3.5 text-slate-600">
                               {lead.assignedStaffName ? (
                                 <span className="text-xs font-medium text-slate-800">{lead.assignedStaffName}</span>
                               ) : (
@@ -3201,47 +3209,47 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                               )}
                             </td>
 
-                          {/* Follow-up Due */}
-                          <td className="py-3.5 px-4">
-                            {lead.nextFollowUpAt ? (
-                              <div>
-                                <span
-                                  className={`text-[11px] font-semibold ${
-                                    lead.isOverdue ? 'text-rose-700 font-bold' : 'text-slate-800'
-                                  }`}
-                                >
-                                  {new Date(lead.nextFollowUpAt).toLocaleDateString([], {
-                                    month: 'short',
-                                    day: 'numeric',
-                                    year: 'numeric'
-                                  })}
-                                </span>
-                                {lead.isOverdue && (
-                                  <span className="block text-[10px] text-rose-600 font-bold">OVERDUE</span>
-                                )}
-                              </div>
-                            ) : (
-                              <span className="text-slate-400">—</span>
-                            )}
-                          </td>
+                            {/* Follow-up Due */}
+                            <td className="py-2.5 px-3.5">
+                              {lead.nextFollowUpAt ? (
+                                <div>
+                                  <span
+                                    className={`text-xs ${
+                                      lead.isOverdue ? 'text-rose-700 font-semibold' : 'text-slate-700 font-normal'
+                                    }`}
+                                  >
+                                    {new Date(lead.nextFollowUpAt).toLocaleDateString([], {
+                                      month: 'short',
+                                      day: 'numeric',
+                                      year: 'numeric'
+                                    })}
+                                  </span>
+                                  {lead.isOverdue && (
+                                    <span className="block text-[10px] text-rose-600 font-semibold">OVERDUE</span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-slate-400">—</span>
+                              )}
+                            </td>
 
-                          {/* Actions */}
-                          <td className="py-3.5 px-4 text-right">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setSelectedLeadId(lead.id);
-                              }}
-                              className="px-3 py-1.5 rounded-lg bg-[#0073E6] hover:bg-[#005BB5] text-white font-semibold text-[11px] transition-colors cursor-pointer shadow-2xs inline-flex items-center space-x-1"
-                            >
-                              <span>Manage Lead</span>
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
+                            {/* Actions */}
+                            <td className="py-2.5 px-3.5 text-right">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedLeadId(lead.id);
+                                }}
+                                className="px-2.5 py-1 rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs transition-colors cursor-pointer shadow-2xs inline-flex items-center space-x-1"
+                              >
+                                <span>Manage</span>
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
                   </tbody>
                 </table>
 
@@ -3277,15 +3285,24 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               {/* Module Header & Operational Context */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-xl font-bold tracking-tight text-[#172033]">Properties Inventory</h2>
+                  <div className="flex items-center space-x-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                    <span>Properties</span>
+                  </div>
+                  <div className="flex items-center space-x-2 mt-0.5">
+                    <h2 className="text-xl font-bold tracking-tight text-slate-900">All Properties</h2>
+                    <ChevronDown className="w-4 h-4 text-slate-500" />
+                  </div>
+                  <p className="text-xs text-slate-500 font-normal mt-0.5">
+                    {filteredProperties.length} items • Managed inventory catalog
+                  </p>
                 </div>
                 <div className="flex items-center space-x-2">
                   <button
                     type="button"
                     onClick={() => handleExportCsv('properties')}
-                    className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-white border border-slate-200/80 text-slate-700 hover:bg-slate-50 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+                    className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-md bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-medium shadow-2xs transition-colors cursor-pointer"
                   >
-                    <Download className="w-3.5 h-3.5 text-[#0073E6]" />
+                    <Download className="w-3.5 h-3.5 text-slate-500" />
                     <span>Export CSV</span>
                   </button>
                   <button
@@ -3294,7 +3311,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                       setEditingProperty(null);
                       setIsPropertyEditorOpen(true);
                     }}
-                    className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl bg-[#0073E6] text-white text-xs font-bold shadow-xs hover:bg-[#005BB5] cursor-pointer"
+                    className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-md bg-[#0176D3] text-white text-xs font-semibold shadow-2xs hover:bg-[#005fb2] cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Add Property Listing</span>
@@ -3306,80 +3323,80 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 <div
                   onClick={() => setPropStatusFilter('ALL')}
-                  className={`p-3.5 rounded-xl border transition-all cursor-pointer shadow-2xs ${
+                  className={`p-3 rounded-md border transition-all cursor-pointer shadow-2xs ${
                     propStatusFilter === 'ALL'
-                      ? 'bg-blue-50/50 border-[#0073E6] ring-1 ring-[#0073E6]/30'
-                      : 'bg-white border-slate-200/80 hover:border-slate-300'
+                      ? 'bg-blue-50/50 border-[#0176D3] ring-1 ring-[#0176D3]'
+                      : 'bg-white border-slate-200 hover:border-slate-300'
                   }`}
                 >
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Total Portfolio</span>
-                  <div className="text-2xl font-bold text-slate-900 mt-0.5">{properties.length}</div>
-                  <span className="text-[10px] text-slate-500 font-medium mt-0.5 block">Managed units</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">Total Portfolio</span>
+                  <div className="text-2xl font-bold text-slate-900 mt-0.5 tabular-nums">{properties.length}</div>
+                  <span className="text-[11px] text-slate-500 font-normal mt-0.5 block">Managed units</span>
                 </div>
 
                 <div
                   onClick={() => setPropStatusFilter('PUBLISHED')}
-                  className={`p-3.5 rounded-xl border transition-all cursor-pointer shadow-2xs ${
+                  className={`p-3 rounded-md border transition-all cursor-pointer shadow-2xs ${
                     propStatusFilter === 'PUBLISHED'
-                      ? 'bg-emerald-50/50 border-emerald-500 ring-1 ring-emerald-500/30'
-                      : 'bg-white border-slate-200/80 hover:border-slate-300'
+                      ? 'bg-emerald-50/50 border-emerald-500 ring-1 ring-emerald-500'
+                      : 'bg-white border-slate-200 hover:border-slate-300'
                   }`}
                 >
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Published Active</span>
-                  <div className="text-2xl font-bold text-emerald-800 mt-0.5">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">Published Active</span>
+                  <div className="text-2xl font-bold text-emerald-800 mt-0.5 tabular-nums">
                     {properties.filter(p => p.status === 'PUBLISHED').length}
                   </div>
-                  <span className="text-[10px] text-emerald-700 font-semibold mt-0.5 block">Live on marketplace</span>
+                  <span className="text-[11px] text-emerald-700 font-medium mt-0.5 block">Live on marketplace</span>
                 </div>
 
                 <div
                   onClick={() => setPropStatusFilter(propStatusFilter === 'VERIFIED' ? 'ALL' : 'VERIFIED')}
-                  className={`p-3.5 rounded-xl border transition-all cursor-pointer shadow-2xs ${
+                  className={`p-3 rounded-md border transition-all cursor-pointer shadow-2xs ${
                     propStatusFilter === 'VERIFIED'
-                      ? 'bg-blue-50/50 border-[#0073E6] ring-1 ring-[#0073E6]/30'
-                      : 'bg-white border-slate-200/80 hover:border-slate-300'
+                      ? 'bg-blue-50/50 border-[#0176D3] ring-1 ring-[#0176D3]'
+                      : 'bg-white border-slate-200 hover:border-slate-300'
                   }`}
                 >
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Verified Tier</span>
-                  <div className="text-2xl font-bold text-[#0073E6] mt-0.5">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">Verified Tier</span>
+                  <div className="text-2xl font-bold text-[#0176D3] mt-0.5 tabular-nums">
                     {properties.filter(p => (p.verificationBadge && p.verificationBadge !== 'NONE') || p.verificationTier === 'LEVEL_2_DOCS_REVIEWED' || p.verificationTier === 'LEVEL_3_PHYSICALLY_INSPECTED').length}
                   </div>
-                  <span className="text-[10px] text-blue-700 font-semibold mt-0.5 block">Level 1 & 2 audited</span>
+                  <span className="text-[11px] text-blue-700 font-medium mt-0.5 block">Level 1 & 2 audited</span>
                 </div>
 
                 <div
                   onClick={() => setPropStatusFilter('SOLD')}
-                  className={`p-3.5 rounded-xl border transition-all cursor-pointer shadow-2xs ${
+                  className={`p-3 rounded-md border transition-all cursor-pointer shadow-2xs ${
                     propStatusFilter === 'SOLD'
-                      ? 'bg-slate-100 border-slate-500 ring-1 ring-slate-500/30'
-                      : 'bg-white border-slate-200/80 hover:border-slate-300'
+                      ? 'bg-slate-100 border-slate-500 ring-1 ring-slate-500'
+                      : 'bg-white border-slate-200 hover:border-slate-300'
                   }`}
                 >
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Closed / Sold</span>
-                  <div className="text-2xl font-bold text-slate-800 mt-0.5">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">Closed / Sold</span>
+                  <div className="text-2xl font-bold text-slate-800 mt-0.5 tabular-nums">
                     {properties.filter(p => p.status === 'SOLD').length}
                   </div>
-                  <span className="text-[10px] text-slate-500 font-medium mt-0.5 block">Completed deals</span>
+                  <span className="text-[11px] text-slate-500 font-normal mt-0.5 block">Completed deals</span>
                 </div>
               </div>
 
               {/* Dedicated Search & Filter Control Bar */}
-              <div className="p-3 bg-white rounded-2xl border border-slate-200/80 shadow-2xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 text-xs">
+              <div className="p-2.5 bg-white rounded-md border border-slate-200 shadow-2xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 text-xs">
                 {/* Search Input */}
                 <div className="relative flex-1 max-w-md">
-                  <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     type="text"
                     placeholder="Search properties by project, title, locality, developer..."
                     value={propSearch}
                     onChange={(e) => setPropSearch(e.target.value)}
-                    className="w-full bg-slate-50/70 border border-slate-200/80 rounded-xl pl-9 pr-8 py-2 text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:border-[#0073E6] focus:outline-hidden"
+                    className="w-full bg-white border border-slate-300 rounded-md pl-8 pr-7 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:border-[#0176D3] focus:ring-1 focus:ring-[#0176D3] focus:outline-none shadow-2xs"
                   />
                   {propSearch && (
                     <button
                       type="button"
                       onClick={() => setPropSearch('')}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
@@ -3388,12 +3405,12 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
 
                 {/* Filter Controls */}
                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="flex items-center space-x-1.5 bg-slate-50 border border-slate-200/80 rounded-xl px-2.5 py-1.5">
-                    <span className="text-slate-400 text-[11px] font-semibold">Status:</span>
+                  <div className="flex items-center space-x-1.5 bg-white border border-slate-300 rounded-md px-2.5 py-1 shadow-2xs">
+                    <span className="text-slate-500 text-[11px] font-medium">Status:</span>
                     <select
                       value={propStatusFilter}
                       onChange={(e) => setPropStatusFilter(e.target.value)}
-                      className="bg-transparent text-xs font-semibold text-slate-800 focus:outline-hidden cursor-pointer"
+                      className="bg-transparent text-xs font-medium text-slate-800 focus:outline-none cursor-pointer"
                     >
                       <option value="ALL">All Statuses</option>
                       <option value="PUBLISHED">Published</option>
@@ -3405,12 +3422,12 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     </select>
                   </div>
 
-                  <div className="flex items-center space-x-1.5 bg-slate-50 border border-slate-200/80 rounded-xl px-2.5 py-1.5">
-                    <span className="text-slate-400 text-[11px] font-semibold">BHK:</span>
+                  <div className="flex items-center space-x-1.5 bg-white border border-slate-300 rounded-md px-2.5 py-1 shadow-2xs">
+                    <span className="text-slate-500 text-[11px] font-medium">BHK:</span>
                     <select
                       value={propBhkFilter}
                       onChange={(e) => setPropBhkFilter(e.target.value)}
-                      className="bg-transparent text-xs font-semibold text-slate-800 focus:outline-hidden cursor-pointer"
+                      className="bg-transparent text-xs font-medium text-slate-800 focus:outline-none cursor-pointer"
                     >
                       <option value="ALL">All BHK</option>
                       <option value="1BHK">1 BHK</option>
@@ -3428,7 +3445,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                         setPropBhkFilter('ALL');
                         setPropSearch('');
                       }}
-                      className="text-[#0073E6] hover:underline text-xs font-bold px-2 py-1 cursor-pointer"
+                      className="text-[#0176D3] hover:underline text-xs font-semibold px-2 py-1 cursor-pointer"
                     >
                       Reset Filters
                     </button>
@@ -3437,18 +3454,18 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               </div>
 
               {/* Properties Table */}
-              <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-x-auto">
-                <table className="w-full min-w-[760px] text-left text-xs divide-y divide-slate-100">
-                  <thead className="bg-slate-50/70 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+              <div className="bg-white rounded-md border border-slate-200 shadow-2xs overflow-x-auto">
+                <table className="w-full min-w-[760px] text-left text-xs border-collapse">
+                  <thead className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-600 uppercase tracking-wider">
                     <tr>
-                      <th className="py-3.5 px-4">Property / Project</th>
-                      <th className="py-3.5 px-4">Locality</th>
-                      <th className="py-3.5 px-4">BHK & Area</th>
-                      <th className="py-3.5 px-4">Asking Price</th>
-                      <th className="py-3.5 px-4">Verification</th>
-                      <th className="py-3.5 px-4">Listing Status</th>
-                      <th className="py-3.5 px-4">Assigned RM</th>
-                      <th className="py-3.5 px-4 text-right">Actions</th>
+                      <th className="py-2.5 px-3.5">Property / Project</th>
+                      <th className="py-2.5 px-3.5">Locality</th>
+                      <th className="py-2.5 px-3.5">BHK & Area</th>
+                      <th className="py-2.5 px-3.5">Asking Price</th>
+                      <th className="py-2.5 px-3.5">Verification</th>
+                      <th className="py-2.5 px-3.5">Listing Status</th>
+                      <th className="py-2.5 px-3.5">Assigned RM</th>
+                      <th className="py-2.5 px-3.5 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -3467,12 +3484,12 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                           onClick={() => setSelectedPropertyId(prop.id)}
                           className="hover:bg-slate-50/70 transition-colors cursor-pointer group"
                         >
-                          <td className="py-3.5 px-4">
-                            <div className="flex items-center space-x-3">
+                          <td className="py-2.5 px-3.5">
+                            <div className="flex items-center space-x-2.5">
                               <img
                                 src={prop.image}
                                 alt={prop.projectName}
-                                className="w-10 h-10 rounded-xl object-cover border border-slate-200/80 shrink-0 shadow-2xs"
+                                className="w-9 h-9 rounded-md object-cover border border-slate-200 shrink-0 shadow-2xs"
                                 onError={(e) => {
                                   const target = e.target as HTMLImageElement;
                                   if (!target.dataset.hasFallback) {
@@ -3482,54 +3499,54 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                                 }}
                               />
                               <div className="min-w-0">
-                                <p className="font-bold text-slate-900 group-hover:text-[#0073E6] transition-colors truncate">
+                                <p className="font-semibold text-[#0176D3] group-hover:text-[#005fb2] hover:underline transition-colors truncate text-xs">
                                   {prop.projectName}
                                 </p>
-                                <p className="text-[10px] text-slate-400 truncate">{prop.title || prop.id}</p>
+                                <p className="text-[10px] text-slate-500 truncate">{prop.title || prop.id}</p>
                               </div>
                             </div>
                           </td>
-                          <td className="py-3.5 px-4 text-slate-600 truncate max-w-[150px]">
+                          <td className="py-2.5 px-3.5 text-slate-600 truncate max-w-[150px]">
                             {prop.localityName}
                           </td>
-                          <td className="py-3.5 px-4 text-slate-700">
-                            <div className="font-bold text-slate-900">{prop.bhkType}</div>
-                            <div className="text-[10px] text-slate-400">{prop.superBuiltUpSqft} sq.ft</div>
+                          <td className="py-2.5 px-3.5 text-slate-700">
+                            <div className="font-medium text-slate-900 text-xs">{prop.bhkType}</div>
+                            <div className="text-[10px] text-slate-500">{prop.superBuiltUpSqft} sq.ft</div>
                           </td>
-                          <td className="py-3.5 px-4 font-bold text-slate-900">
+                          <td className="py-2.5 px-3.5 font-medium text-slate-900">
                             ₹{(prop.askingPriceInr / 10000000).toFixed(2)} Cr
-                            <div className="text-[10px] text-slate-400 font-normal">
+                            <div className="text-[10px] text-slate-500 font-normal">
                               ₹{prop.pricePerSqft}/sqft
                             </div>
                           </td>
-                          <td className="py-3.5 px-4">
-                            <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-blue-50 text-[#0073E6] border border-blue-200/60">
+                          <td className="py-2.5 px-3.5">
+                            <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-[#0176D3] border border-blue-200">
                               {prop.verificationBadge}
                             </span>
                           </td>
-                          <td className="py-3.5 px-4">
+                          <td className="py-2.5 px-3.5">
                             <span
-                              className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                              className={`px-2 py-0.5 rounded text-[10px] font-medium border ${
                                 prop.status === 'PUBLISHED'
-                                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200/60'
+                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
                                   : prop.status === 'PAUSED'
-                                  ? 'bg-amber-50 text-amber-800 border border-amber-200/60'
+                                  ? 'bg-amber-50 text-amber-800 border-amber-200'
                                   : prop.status === 'SOLD'
-                                  ? 'bg-slate-100 text-slate-800 border border-slate-200/60'
-                                  : 'bg-slate-100 text-slate-700 border border-slate-200/60'
+                                  ? 'bg-slate-100 text-slate-800 border-slate-200'
+                                  : 'bg-slate-100 text-slate-700 border-slate-200'
                               }`}
                             >
                               {prop.status}
                             </span>
                           </td>
-                          <td className="py-3.5 px-4 text-slate-600">
+                          <td className="py-2.5 px-3.5 text-slate-600">
                             {prop.assignedRm ? (
                               <span className="font-medium text-slate-800">{prop.assignedRm}</span>
                             ) : (
                               <span className="text-slate-400 italic">Unassigned</span>
                             )}
                           </td>
-                          <td className="py-3.5 px-4 text-right space-x-1.5">
+                          <td className="py-2.5 px-3.5 text-right space-x-1">
                             <button
                               type="button"
                               onClick={(e) => {
@@ -3537,7 +3554,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                                 setEditingProperty(prop);
                                 setIsPropertyEditorOpen(true);
                               }}
-                              className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 text-[11px] font-bold rounded-lg transition-colors cursor-pointer shadow-2xs"
+                              className="px-2.5 py-1 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium rounded-md border border-slate-300 transition-colors cursor-pointer shadow-2xs"
                             >
                               Edit
                             </button>
@@ -3548,10 +3565,10 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                                 setSelectedPropertyId(prop.id);
                                 setIsBrochureModalOpen(true);
                               }}
-                              className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200/80 text-[11px] font-bold rounded-lg transition-colors cursor-pointer shadow-2xs inline-flex items-center space-x-1"
+                              className="px-2.5 py-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-medium rounded-md transition-colors cursor-pointer shadow-2xs inline-flex items-center space-x-1"
                               title="Generate Editorial A4 Property Presentation Brochure"
                             >
-                              <FileText className="w-3 h-3 text-[#B68A4A]" />
+                              <FileText className="w-3 h-3 text-slate-500" />
                               <span>Brochure</span>
                             </button>
                             <button
@@ -3560,7 +3577,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                                 e.stopPropagation();
                                 setSelectedPropertyId(prop.id);
                               }}
-                              className="px-2.5 py-1 bg-[#0073E6] text-white text-[11px] font-bold rounded-lg hover:bg-[#005BB5] transition-colors cursor-pointer shadow-2xs"
+                              className="px-2.5 py-1 bg-[#0176D3] text-white text-xs font-medium rounded-md hover:bg-[#005fb2] transition-colors cursor-pointer shadow-2xs"
                             >
                               Details
                             </button>
@@ -3572,20 +3589,20 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 </table>
 
                 {/* Table Footer / Pagination */}
-                <div className="px-5 py-3.5 bg-slate-50/60 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
+                <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
                   <div className="flex items-center space-x-2">
                     <span>
-                      Showing <strong className="text-slate-800 tabular-nums">{filteredProperties.length}</strong> of{' '}
-                      <strong className="text-slate-800 tabular-nums">{properties.length}</strong> property listings
+                      Showing <strong className="text-slate-800 font-semibold tabular-nums">{filteredProperties.length}</strong> of{' '}
+                      <strong className="text-slate-800 font-semibold tabular-nums">{properties.length}</strong> property listings
                     </span>
                   </div>
                   <div className="flex items-center space-x-2">
                     <span className="text-[11px] text-slate-400">Page 1 of 1</span>
-                    <div className="inline-flex rounded-lg border border-slate-200/80 shadow-2xs overflow-hidden">
-                      <button disabled className="px-2.5 py-1 bg-white text-slate-300 text-xs font-semibold cursor-not-allowed">
+                    <div className="inline-flex rounded-md border border-slate-300 shadow-2xs overflow-hidden">
+                      <button disabled className="px-2.5 py-1 bg-white text-slate-300 text-xs font-medium cursor-not-allowed">
                         Previous
                       </button>
-                      <button disabled className="px-2.5 py-1 bg-white text-slate-300 text-xs font-semibold border-l border-slate-200/80 cursor-not-allowed">
+                      <button disabled className="px-2.5 py-1 bg-white text-slate-300 text-xs font-medium border-l border-slate-300 cursor-not-allowed">
                         Next
                       </button>
                     </div>

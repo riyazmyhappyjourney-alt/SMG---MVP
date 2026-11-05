@@ -214,48 +214,48 @@ export function LeadDetailDrawer({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Drawer Header */}
-        <div className="px-6 py-4 border-b border-slate-200/80 flex items-center justify-between bg-white shrink-0">
-          <div className="flex items-center space-x-3.5">
-            <div className="w-10 h-10 rounded-full bg-[#0073E6] text-white flex items-center justify-center font-bold text-sm shadow-xs shrink-0">
+        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-white shrink-0">
+          <div className="flex items-center space-x-3">
+            <div className="w-9 h-9 rounded-full bg-slate-800 text-white flex items-center justify-center font-semibold text-xs shrink-0 shadow-2xs">
               {initialChar}
             </div>
             <div>
-              <h3 className="text-base font-semibold text-slate-900 font-['Poppins',sans-serif] max-w-[240px] truncate">
+              <h3 className="text-base font-semibold text-slate-900 max-w-[240px] truncate">
                 {displayName}
               </h3>
-              <div className="flex items-center flex-wrap gap-2 mt-0.5 font-['Poppins',sans-serif] text-xs text-slate-500">
-                <span className="font-semibold text-slate-800">
+              <div className="flex items-center flex-wrap gap-2 mt-0.5 text-xs text-slate-500 font-normal">
+                <span className="font-medium text-slate-800">
                   {lead?.type === 'BUYER' ? 'Buyer' : 'Seller'}
                 </span>
                 <span className="text-slate-300">•</span>
-                <span className="text-slate-600 font-medium">
+                <span className="text-slate-600 font-normal">
                   {src}
                 </span>
                 {(lead?.lead_status === 'NEW' || lead?.stage === 'NEW') ? (
                   <>
                     <span className="text-slate-300">•</span>
-                    <span className="text-blue-600 font-semibold text-[11px]">
+                    <span className="text-blue-600 font-medium text-[11px]">
                       New Lead
                     </span>
                   </>
                 ) : (lead?.lead_status === 'LOST' || lead?.stage === 'LOST') ? (
                   <>
                     <span className="text-slate-300">•</span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                    <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
                       Lost Lead
                     </span>
                   </>
                 ) : (lead?.lead_status === 'CONVERTED' || lead?.stage === 'CONVERTED') ? (
                   <>
                     <span className="text-slate-300">•</span>
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                       Converted
                     </span>
                   </>
                 ) : (
                   <>
                     <span className="text-slate-300">•</span>
-                    <span className="text-slate-600 font-semibold text-[11px]">
+                    <span className="text-slate-600 font-medium text-[11px]">
                       {lead?.lead_status || lead?.stage}
                     </span>
                   </>
@@ -264,15 +264,15 @@ export function LeadDetailDrawer({
                 <span className="font-mono text-[11px] text-slate-400">{selectedLeadId}</span>
               </div>
               {/* Enquired Property Pill in Header */}
-              <div className="flex items-center space-x-1.5 mt-1 text-xs text-slate-700 font-medium font-['Poppins',sans-serif]">
-                <Building2 className="w-3.5 h-3.5 text-[#0073E6] shrink-0" />
-                <span className="font-bold text-slate-900 truncate max-w-[220px]" title={resolvedPropertyName}>
+              <div className="flex items-center space-x-1.5 mt-1 text-xs text-slate-700 font-medium">
+                <Building2 className="w-3.5 h-3.5 text-[#0176D3] shrink-0" />
+                <span className="font-semibold text-slate-900 truncate max-w-[220px]" title={resolvedPropertyName}>
                   {resolvedPropertyName}
                 </span>
                 {resolvedBhk && resolvedBhk !== 'Configuration N/A' && (
                   <>
                     <span className="text-slate-300">•</span>
-                    <span className="text-slate-600 font-semibold">{resolvedBhk}</span>
+                    <span className="text-slate-600 font-medium">{resolvedBhk}</span>
                   </>
                 )}
               </div>
@@ -348,7 +348,7 @@ export function LeadDetailDrawer({
           ) : (
             <>
               {/* 1. Quick Requirements & Contact Strip */}
-              <div className="bg-slate-50/80 rounded-2xl p-4 border border-slate-200/60 space-y-3">
+              <div className="bg-slate-50/80 rounded-md p-3.5 border border-slate-200 space-y-3">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                   <div>
                     <span className="text-slate-400 text-[10px] block font-medium">Budget / Expected</span>
@@ -398,30 +398,30 @@ export function LeadDetailDrawer({
               </div>
 
               {/* 2. Target Property / Enquired Property Details Card */}
-              <div className="bg-white rounded-2xl p-4 border border-blue-200/80 shadow-xs space-y-3 bg-linear-to-b from-blue-50/50 to-white">
+              <div className="bg-white rounded-md p-3.5 border border-slate-200 shadow-2xs space-y-3">
                 <div className="flex items-center justify-between">
-                  <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center space-x-1.5 font-['Poppins',sans-serif]">
-                    <Building2 className="w-4 h-4 text-[#0073E6]" />
+                  <h4 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider flex items-center space-x-1.5">
+                    <Building2 className="w-3.5 h-3.5 text-[#0176D3]" />
                     <span>Property Inquired About</span>
                   </h4>
                   {property ? (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80 flex items-center space-x-1">
+                    <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center space-x-1">
                       <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                       <span>Connected Listing</span>
                     </span>
                   ) : (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200/80">
+                    <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-blue-50 text-blue-700 border border-blue-200">
                       Inbound Enquiry
                     </span>
                   )}
                 </div>
 
                 {/* Main Property Headline */}
-                <div className="bg-white rounded-xl p-3.5 border border-slate-200/70 shadow-2xs space-y-2.5">
+                <div className="bg-slate-50/70 rounded-md p-3 border border-slate-200 space-y-2">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm font-bold text-slate-900 font-['Poppins',sans-serif] flex items-center space-x-1.5">
-                        <Home className="w-4 h-4 text-[#0073E6] shrink-0" />
+                      <div className="text-sm font-semibold text-slate-900 flex items-center space-x-1.5">
+                        <Home className="w-4 h-4 text-[#0176D3] shrink-0" />
                         <span className="truncate">{resolvedPropertyName}</span>
                       </div>
                       <div className="text-xs text-slate-500 flex items-center space-x-1 mt-0.5">
@@ -430,10 +430,10 @@ export function LeadDetailDrawer({
                       </div>
                     </div>
                     <div className="text-right shrink-0">
-                      <span className="text-[10px] text-slate-400 font-semibold block uppercase">
+                      <span className="text-[10px] text-slate-500 font-medium block uppercase tracking-wider">
                         {lead.type === 'SELLER' ? 'Asking Price' : 'Budget'}
                       </span>
-                      <span className="text-sm font-extrabold text-[#0073E6] font-['Poppins',sans-serif]">
+                      <span className="text-sm font-bold text-[#0176D3] tabular-nums">
                         {resolvedPrice}
                       </span>
                     </div>
@@ -585,7 +585,7 @@ export function LeadDetailDrawer({
                   </span>
                 </div>
 
-                <div className="bg-slate-50/70 rounded-2xl p-4 border border-slate-200/70 space-y-4">
+                <div className="bg-slate-50/70 rounded-md p-3.5 border border-slate-200 space-y-3.5">
                   {/* Step 1: Inbound Capture */}
                   <div className="flex items-start space-x-3">
                     <div className="w-6 h-6 rounded-full bg-blue-100 text-[#0073E6] flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
@@ -927,12 +927,12 @@ export function LeadDetailDrawer({
               </div>
 
               {/* Lead Attribution & Platform Metadata */}
-              <div className="border-t border-slate-100 pt-5 space-y-3">
-                <div className="flex items-center justify-between font-['Poppins',sans-serif]">
-                  <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+              <div className="border-t border-slate-200 pt-4 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
                     Inbound Source & Listing Metadata
                   </h4>
-                  <span className="text-xs font-semibold text-slate-700">
+                  <span className="text-xs font-medium text-slate-700">
                     {isFb 
                       ? 'Facebook Lead Ads Webhook' 
                       : isMb 
@@ -946,15 +946,15 @@ export function LeadDetailDrawer({
                 </div>
                 <div className={`${
                   isFb 
-                    ? 'bg-blue-50/40 border-blue-200/60' 
+                    ? 'bg-blue-50/40 border-blue-200' 
                     : isMb 
-                    ? 'bg-rose-50/40 border-rose-200/60' 
+                    ? 'bg-rose-50/40 border-rose-200' 
                     : is99 
-                    ? 'bg-amber-50/40 border-amber-200/60' 
+                    ? 'bg-amber-50/40 border-amber-200' 
                     : isHousing 
-                    ? 'bg-purple-50/40 border-purple-200/60' 
-                    : 'bg-emerald-50/40 border-emerald-200/60'
-                } rounded-2xl p-3.5 border space-y-2 text-xs`}>
+                    ? 'bg-purple-50/40 border-purple-200' 
+                    : 'bg-emerald-50/40 border-emerald-200'
+                } rounded-md p-3 border space-y-2 text-xs`}>
                   <div className="grid grid-cols-2 gap-2 text-[11px]">
                     <div>
                       <span className="text-slate-500 block text-[10px]">
