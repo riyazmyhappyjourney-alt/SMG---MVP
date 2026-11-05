@@ -51,7 +51,8 @@ import {
   FileText,
   Printer,
   Bell,
-  Menu
+  Menu,
+  Upload
 } from 'lucide-react';
 import { StaffRole, CrmModule, ALL_CRM_MODULES, resolveLegacyModulePermissions } from '../../core/types/auth';
 import { LeadStatus } from '../../core/types/entities';
