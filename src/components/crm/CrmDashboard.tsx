@@ -2506,15 +2506,25 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                           stage.key === 'CONVERTED'
                             ? 'bg-emerald-50/60 border-emerald-200 hover:border-emerald-400'
                             : stage.key === 'LOST'
-                            ? 'bg-slate-50 border-slate-200 hover:border-slate-400 text-slate-500'
+                            ? 'bg-rose-50/80 border-rose-200 hover:border-rose-400 text-rose-700'
                             : 'bg-white border-slate-200/80 hover:border-[#0073E6]'
                         }`}
                       >
-                        <div className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                        <div className={`flex items-center justify-between text-[10px] font-bold uppercase tracking-wider mb-1 ${
+                          stage.key === 'LOST' ? 'text-rose-500' : 'text-slate-400'
+                        }`}>
                           <span>{stage.label}</span>
                         </div>
-                        <div className="text-xl font-bold text-slate-900">{count}</div>
-                        <p className="text-[10px] text-slate-500 mt-1 truncate">{stage.desc}</p>
+                        <div className={`text-xl font-bold ${
+                          stage.key === 'LOST' ? 'text-rose-700' : stage.key === 'CONVERTED' ? 'text-emerald-800' : 'text-slate-900'
+                        }`}>
+                          {count}
+                        </div>
+                        <p className={`text-[10px] mt-1 truncate ${
+                          stage.key === 'LOST' ? 'text-rose-600 font-medium' : 'text-slate-500'
+                        }`}>
+                          {stage.desc}
+                        </p>
                       </button>
                     );
                   })}
@@ -2708,7 +2718,13 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                               Assigned: {lead.assignedStaffName || 'Unassigned'}
                             </p>
                           </div>
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-[#0073E6] shrink-0">
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shrink-0 ${
+                            lead.stage === 'LOST'
+                              ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                              : lead.stage === 'CONVERTED'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : 'bg-blue-100 text-[#0073E6]'
+                          }`}>
                             {lead.stage}
                           </span>
                         </div>
@@ -2752,7 +2768,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               </div>
 
               {/* Operational KPI Summary Strip */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2.5">
                 <div
                   onClick={() => setLeadStatusFilter('ALL')}
                   className={`p-3.5 rounded-xl border transition-all cursor-pointer shadow-2xs ${
@@ -2839,6 +2855,21 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     {leads.filter(l => l.stage === 'CONVERTED').length}
                   </div>
                   <span className="text-[10px] text-emerald-700 font-semibold mt-0.5 block">Deals closed</span>
+                </div>
+
+                <div
+                  onClick={() => setLeadStatusFilter('LOST')}
+                  className={`p-3.5 rounded-xl border transition-all cursor-pointer shadow-2xs ${
+                    leadStatusFilter === 'LOST'
+                      ? 'bg-rose-50 border-rose-500 ring-1 ring-rose-500/30'
+                      : 'bg-white border-slate-200/80 hover:border-rose-300'
+                  }`}
+                >
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-rose-600 block">Lost Leads</span>
+                  <div className="text-2xl font-bold text-rose-700 mt-0.5">
+                    {leads.filter(l => l.stage === 'LOST').length}
+                  </div>
+                  <span className="text-[10px] text-rose-600 font-semibold mt-0.5 block">Inquiry dropped</span>
                 </div>
               </div>
 
@@ -3143,11 +3174,19 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                             {/* Lifecycle Stage */}
                             <td className="py-3.5 px-4 font-['Poppins',sans-serif]">
                               {isNewLead ? (
-                                <span className="text-xs font-semibold text-[#0073E6]">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-50 text-[#0073E6] border border-blue-200">
                                   New Lead
                                 </span>
+                              ) : lead.stage === 'LOST' ? (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs">
+                                  LOST
+                                </span>
+                              ) : lead.stage === 'CONVERTED' ? (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-2xs">
+                                  CONVERTED
+                                </span>
                               ) : (
-                                <span className="text-xs font-medium text-slate-700">
+                                <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
                                   {lead.stage}
                                 </span>
                               )}
@@ -4487,12 +4526,22 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     return (
                       <div key={stage.key} className="space-y-1 text-xs">
                         <div className="flex justify-between font-semibold">
-                          <span>{stage.label}</span>
-                          <span className="text-slate-500">{count} ({pct}%)</span>
+                          <span className={stage.key === 'LOST' ? 'text-rose-600 font-bold' : stage.key === 'CONVERTED' ? 'text-emerald-700 font-bold' : 'text-slate-800'}>
+                            {stage.label}
+                          </span>
+                          <span className={`font-medium ${stage.key === 'LOST' ? 'text-rose-600' : 'text-slate-500'}`}>
+                            {count} ({pct}%)
+                          </span>
                         </div>
                         <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
                           <div
-                            className="bg-[#0073E6] h-2 rounded-full transition-all duration-300"
+                            className={`h-2 rounded-full transition-all duration-300 ${
+                              stage.key === 'LOST'
+                                ? 'bg-rose-500'
+                                : stage.key === 'CONVERTED'
+                                ? 'bg-emerald-500'
+                                : 'bg-[#0073E6]'
+                            }`}
                             style={{ width: `${pct}%` }}
                           />
                         </div>

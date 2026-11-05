@@ -231,11 +231,32 @@ export function LeadDetailDrawer({
                 <span className="text-slate-600 font-medium">
                   {src}
                 </span>
-                {(lead?.lead_status === 'NEW' || lead?.stage === 'NEW') && (
+                {(lead?.lead_status === 'NEW' || lead?.stage === 'NEW') ? (
                   <>
                     <span className="text-slate-300">•</span>
                     <span className="text-blue-600 font-semibold text-[11px]">
                       New Lead
+                    </span>
+                  </>
+                ) : (lead?.lead_status === 'LOST' || lead?.stage === 'LOST') ? (
+                  <>
+                    <span className="text-slate-300">•</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                      Lost Lead
+                    </span>
+                  </>
+                ) : (lead?.lead_status === 'CONVERTED' || lead?.stage === 'CONVERTED') ? (
+                  <>
+                    <span className="text-slate-300">•</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      Converted
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <span className="text-slate-300">•</span>
+                    <span className="text-slate-600 font-semibold text-[11px]">
+                      {lead?.lead_status || lead?.stage}
                     </span>
                   </>
                 )}
@@ -623,12 +644,24 @@ export function LeadDetailDrawer({
 
                   {/* Step 3: Current Lifecycle Milestone */}
                   <div className="flex items-start space-x-3">
-                    <div className="w-6 h-6 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5 ${
+                      (lead.lead_status || lead.stage) === 'LOST'
+                        ? 'bg-rose-100 text-rose-700 border border-rose-300'
+                        : (lead.lead_status || lead.stage) === 'CONVERTED'
+                        ? 'bg-emerald-100 text-emerald-700 border border-emerald-300'
+                        : 'bg-purple-100 text-purple-700'
+                    }`}>
                       3
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between flex-wrap gap-1">
-                        <strong className="text-slate-900 font-semibold text-xs">
+                        <strong className={`font-semibold text-xs ${
+                          (lead.lead_status || lead.stage) === 'LOST'
+                            ? 'text-rose-700 font-bold'
+                            : (lead.lead_status || lead.stage) === 'CONVERTED'
+                            ? 'text-emerald-700 font-bold'
+                            : 'text-slate-900'
+                        }`}>
                           Current Stage: {lead.lead_status || lead.stage || 'NEW'}
                         </strong>
                         {lead.updated_at && (
@@ -637,7 +670,9 @@ export function LeadDetailDrawer({
                           </span>
                         )}
                       </div>
-                      <p className="text-[11px] text-slate-600 mt-0.5">
+                      <p className={`text-[11px] mt-0.5 ${
+                        (lead.lead_status || lead.stage) === 'LOST' ? 'text-rose-600 font-medium' : 'text-slate-600'
+                      }`}>
                         {PIPELINE_STAGES.find(s => s.key === (lead.lead_status || lead.stage))?.desc || 'Lead active in pipeline'}
                       </p>
                     </div>
@@ -682,10 +717,18 @@ export function LeadDetailDrawer({
                     <select
                       value={lead.lead_status || lead.stage || 'NEW'}
                       onChange={(e) => handleUpdateLeadStatus(selectedLeadId, e.target.value as LeadStatus)}
-                      className="w-full bg-white border border-slate-200/80 rounded-xl px-3 py-2 font-bold text-xs text-slate-800 shadow-2xs"
+                      className={`w-full border rounded-xl px-3 py-2 font-bold text-xs shadow-2xs transition-colors ${
+                        (lead.lead_status || lead.stage) === 'LOST'
+                          ? 'bg-rose-50 border-rose-300 text-rose-700'
+                          : (lead.lead_status || lead.stage) === 'CONVERTED'
+                          ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
+                          : 'bg-white border-slate-200/80 text-slate-800'
+                      }`}
                     >
                       {PIPELINE_STAGES.map(s => (
-                        <option key={s.key} value={s.key}>{s.label} ({s.desc})</option>
+                        <option key={s.key} value={s.key} className={s.key === 'LOST' ? 'text-rose-600 font-bold' : ''}>
+                          {s.label} ({s.desc})
+                        </option>
                       ))}
                     </select>
                   </div>

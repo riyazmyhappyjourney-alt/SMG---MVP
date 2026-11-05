@@ -879,7 +879,11 @@ export const TasksKanbanModule: React.FC<TasksKanbanModuleProps> = ({
                             {formatPhoneNumber(l.phone)}
                           </p>
                         </div>
-                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
+                        <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded border ${
+                          (l.lead_status || l.stage) === 'LOST'
+                            ? 'text-rose-700 bg-rose-50 border-rose-200'
+                            : 'text-emerald-700 bg-emerald-50 border-emerald-200'
+                        }`}>
                           {l.lead_status || 'COMPLETED'}
                         </span>
                       </div>
