@@ -338,53 +338,22 @@ export const Hero: React.FC<HeroProps> = ({
                         <ChevronDown className="w-4 h-4 text-slate-400 absolute right-3 top-3.5 pointer-events-none" />
                       </div>
 
-                      {/* Field 2: Apartment / Society Name Autocomplete */}
-                      <div className="relative" ref={societyBoxRef}>
+                      {/* Field 2: Apartment / Society Name */}
+                      <div className="relative">
                         <div className="relative">
                           <input
                             id="hero-society-input"
                             name="societyQuery"
-                            aria-label="Search Apartment / Society Name"
+                            aria-label="Apartment / Society Name"
                             type="text"
+                            autoComplete="off"
                             value={societyQuery}
-                            onFocus={() => {
-                              if (societyQuery.trim().length >= 2) {
-                                setShowSuggestions(true);
-                              }
-                            }}
-                            onChange={(e) => handleSocietyInput(e.target.value)}
-                            placeholder="Search Apartment / Society Name"
+                            onChange={(e) => setSocietyQuery(e.target.value)}
+                            placeholder="Apartment / Society Name"
                             className="w-full pl-9 pr-3.5 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0073E6] transition-all"
                           />
-                          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3.5 pointer-events-none" />
+                          <Building2 className="w-4 h-4 text-slate-400 absolute left-3 top-3.5 pointer-events-none" />
                         </div>
-
-                        {/* Society Autocomplete Dropdown List */}
-                        {showSuggestions && societyQuery.trim().length >= 2 && suggestions.length > 0 && (
-                          <div className="absolute left-0 right-0 top-full mt-1 bg-white rounded-xl shadow-xl border border-slate-100 py-1.5 z-50 max-h-56 overflow-y-auto">
-                            {suggestions.map((item) => (
-                              <button
-                                key={item.id}
-                                type="button"
-                                onClick={() => handleSelectSociety(item)}
-                                className="w-full px-3 py-2 text-left hover:bg-blue-50/70 transition-colors flex items-center space-x-3 cursor-pointer group"
-                              >
-                                <div className="w-7 h-7 rounded-lg bg-blue-100/70 text-[#0073E6] flex items-center justify-center shrink-0 group-hover:bg-[#0073E6] group-hover:text-white transition-colors">
-                                  <Building2 className="w-3.5 h-3.5" />
-                                </div>
-                                <div className="truncate">
-                                  <div className="text-xs font-bold text-slate-800 group-hover:text-[#0073E6] truncate">
-                                    {item.name}
-                                  </div>
-                                  <div className="text-[10px] text-slate-400 flex items-center space-x-1">
-                                    <MapPin className="w-2.5 h-2.5" />
-                                    <span>{item.locality}</span>
-                                  </div>
-                                </div>
-                              </button>
-                            ))}
-                          </div>
-                        )}
                       </div>
 
                       {/* Field 3: Customer Name */}
