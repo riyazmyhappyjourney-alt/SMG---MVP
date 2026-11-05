@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Building2,
   Home,
@@ -23,8 +23,12 @@ import {
   FileCheck2,
   Tag,
   Shield,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Copy,
+  Eye,
+  Check
 } from 'lucide-react';
+import { BrokerageAgreementModal } from './BrokerageAgreementModal';
 import {
   formatIndianCurrency,
   formatReadableDate,
@@ -75,6 +79,9 @@ export function PropertyDetailDrawer({
   const visits: any[] = propertyDetailData?.visits || [];
   const offers: any[] = propertyDetailData?.offers || [];
 
+  const [isAgreementModalOpen, setIsAgreementModalOpen] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+
   const displayTitle = property?.title || property?.projectName || property?.apartment_society_name || 'Property Specifications';
   const bhk = property?.bhk_type || property?.bhkType || property?.bhk || '2 BHK';
   const locality = property?.locality || property?.localityName || property?.project_locality_id || 'Bengaluru';
@@ -94,10 +101,11 @@ export function PropertyDetailDrawer({
   const brokerageStatus = property?.brokerage_agreement_status || 'DRAFT';
 
   return (
-    <div 
-      className="fixed inset-0 z-50 overflow-hidden flex justify-end bg-slate-900/40 backdrop-blur-xs transition-opacity"
-      onClick={onClose}
-    >
+    <>
+      <div 
+        className="fixed inset-0 z-50 overflow-hidden flex justify-end bg-slate-900/40 backdrop-blur-xs transition-opacity"
+        onClick={onClose}
+      >
       <div 
         className="w-full sm:max-w-lg lg:max-w-xl bg-white shadow-2xl h-full flex flex-col justify-between border-l border-slate-200/80 animate-in slide-in-from-right duration-200"
         onClick={(e) => e.stopPropagation()}
@@ -476,17 +484,71 @@ export function PropertyDetailDrawer({
                     </div>
                   )}
 
-                  {brokerageStatus !== 'SIGNED' && onInitiateBrokerageAgreement && (
-                    <div className="pt-2 border-t border-slate-200/60 flex justify-end">
+                  {brokerageStatus === 'SENT' ? (
+                    <div className="pt-2.5 border-t border-slate-200/60 flex flex-wrap items-center justify-between gap-2">
                       <button
                         type="button"
-                        onClick={() => onInitiateBrokerageAgreement(selectedPropertyId)}
-                        className="px-3 py-1.5 bg-[#0073E6] hover:bg-[#005BB5] text-white font-semibold text-xs rounded-md shadow-2xs cursor-pointer flex items-center space-x-1.5"
+                        onClick={() => setIsAgreementModalOpen(true)}
+                        className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-md shadow-2xs cursor-pointer flex items-center space-x-1.5"
                       >
-                        <FileCheck2 className="w-3.5 h-3.5" />
-                        <span>Send Aadhaar eSign Agreement</span>
+                        <Eye className="w-3.5 h-3.5 text-[#0176D3]" />
+                        <span>View / Preview Agreement</span>
+                      </button>
+
+                      <div className="flex items-center space-x-1.5">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const url = `${typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}/esign/brokerage/${selectedPropertyId}?token=demo`;
+                            navigator.clipboard.writeText(url);
+                            setLinkCopied(true);
+                            setTimeout(() => setLinkCopied(false), 2500);
+                          }}
+                          className="px-2.5 py-1.5 bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold text-xs rounded-md shadow-2xs cursor-pointer flex items-center space-x-1"
+                        >
+                          {linkCopied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-slate-500" />}
+                          <span>{linkCopied ? 'Link Copied!' : 'Copy Link'}</span>
+                        </button>
+                        {onInitiateBrokerageAgreement && (
+                          <button
+                            type="button"
+                            onClick={() => onInitiateBrokerageAgreement(selectedPropertyId)}
+                            className="px-3 py-1.5 bg-[#0073E6] hover:bg-[#005BB5] text-white font-semibold text-xs rounded-md shadow-2xs cursor-pointer flex items-center space-x-1.5"
+                          >
+                            <FileCheck2 className="w-3.5 h-3.5" />
+                            <span>Resend</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ) : brokerageStatus === 'SIGNED' ? (
+                    <div className="pt-2.5 border-t border-slate-200/60 flex items-center justify-between">
+                      <span className="text-[11px] text-emerald-700 font-medium flex items-center space-x-1">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Executed via Aadhaar OTP</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setIsAgreementModalOpen(true)}
+                        className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-semibold text-xs rounded-md shadow-2xs cursor-pointer flex items-center space-x-1.5"
+                      >
+                        <FileCheck2 className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>View Signed Agreement</span>
                       </button>
                     </div>
+                  ) : (
+                    onInitiateBrokerageAgreement && (
+                      <div className="pt-2 border-t border-slate-200/60 flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => onInitiateBrokerageAgreement(selectedPropertyId)}
+                          className="px-3 py-1.5 bg-[#0073E6] hover:bg-[#005BB5] text-white font-semibold text-xs rounded-md shadow-2xs cursor-pointer flex items-center space-x-1.5"
+                        >
+                          <FileCheck2 className="w-3.5 h-3.5" />
+                          <span>Send Aadhaar eSign Agreement</span>
+                        </button>
+                      </div>
+                    )
                   )}
                 </div>
               </div>
@@ -608,5 +670,19 @@ export function PropertyDetailDrawer({
         </div>
       </div>
     </div>
+
+    {/* Brokerage Agreement Viewer & Simulation Modal */}
+    {isAgreementModalOpen && (
+      <BrokerageAgreementModal
+        isOpen={isAgreementModalOpen}
+        onClose={() => setIsAgreementModalOpen(false)}
+        property={property}
+        owner={owner}
+        onSignComplete={() => {
+          onRetry(selectedPropertyId);
+        }}
+      />
+    )}
+  </>
   );
 }
