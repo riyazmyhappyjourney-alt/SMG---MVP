@@ -399,8 +399,15 @@ app.use('/api', (req, res, next) => {
     return next();
   }
 
-  // Exempt webhooks, public auth handshake endpoints, and dev role-switching endpoints
-  const isAuthOrWebhook = 
+  // Exempt public lead intake forms, webhooks, public auth handshake endpoints, and dev role-switching endpoints
+  const isPublicOrExempt = 
+    req.path.startsWith('/leads') ||
+    req.path.startsWith('/buyer-enquiries') ||
+    req.path.startsWith('/contact') ||
+    req.path.startsWith('/feedback') ||
+    req.path.startsWith('/valuation') ||
+    req.path.startsWith('/enquiries') ||
+    req.path.startsWith('/careers/apply') ||
     req.path.startsWith('/webhooks') ||
     req.path.includes('webhook') ||
     req.path.includes('99acres') ||
@@ -415,7 +422,7 @@ app.use('/api', (req, res, next) => {
     req.path.startsWith('/auth/google') ||
     req.path.startsWith('/dev/');
 
-  if (isAuthOrWebhook) {
+  if (isPublicOrExempt) {
     return next();
   }
 

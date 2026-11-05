@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { searchSocieties, SocietyItem } from '../../data/bengaluruData';
 import { trackEvent } from '../../utils/analytics';
+import { safeFetch } from '../../utils/safeApi';
 
 interface HeroProps {
   onSellClick: () => void;
@@ -203,7 +204,7 @@ export const Hero: React.FC<HeroProps> = ({
       const parsedLocality = societyQuery.includes('(') ? societyQuery.split('(')[1].replace(')', '').trim() : 'Bengaluru';
       const cleanBhk = bhk ? bhk.replace(/\s+/g, '').replace('Apartment', '').replace('Penthouse', '').trim() : '3BHK';
 
-      const res = await fetch('/api/leads', {
+      const res = await safeFetch('/api/leads', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -225,7 +226,7 @@ export const Hero: React.FC<HeroProps> = ({
 
       if (!res.ok) {
         const errData = await res.json().catch(() => null);
-        throw new Error(errData?.error || 'Failed to submit valuation request. Please try again.');
+        throw new Error(errData?.message || errData?.error || 'Failed to submit valuation request. Please try again.');
       }
 
       trackEvent('HERO_VALUATION_SUBMITTED', { society: societyQuery, bhk });
