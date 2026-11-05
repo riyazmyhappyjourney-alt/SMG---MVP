@@ -26,6 +26,8 @@ export interface DevUser {
   locked_until: string | null;
   module_permissions?: string[];
   welcome_whatsapp_sent_at?: string | null;
+  has_ambiguous_identity?: boolean;
+  ambiguous_identity_notes?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -148,6 +150,13 @@ export interface DevProperty {
   highlights?: string[];
   verification_tier: string;
   internal_verification_notes: string;
+  possible_duplicate_of?: string | null;
+  duplicate_detection_notes?: string | null;
+  society_id?: string | null;
+  tower_id?: string | null;
+  brokerage_agreement_status?: string | null;
+  brokerage_agreement_signed_at?: string | null;
+  brokerage_agreement_document_id?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -254,6 +263,10 @@ class DevSandboxStore {
   public careerApplications = new Map<string, any>();
   public passwordResetTokens = new Map<string, DevPasswordResetToken>();
   public sharedRateLimits = new Map<string, { val: string; expiresAt: number }>();
+  public societies = new Map<string, any>();
+  public societyTowers = new Map<string, any>();
+  public societyFlatTypes = new Map<string, any>();
+  public propertyCompletionTokens = new Map<string, any>();
   private activeTxSnapshots = new Map<string, {
     users: Map<string, DevUser>;
     passwordResetTokens: Map<string, DevPasswordResetToken>;
@@ -278,6 +291,10 @@ class DevSandboxStore {
     this.otpVerifications.clear();
     this.userIdentities.clear();
     this.passwordResetTokens.clear();
+    this.societies.clear();
+    this.societyTowers.clear();
+    this.societyFlatTypes.clear();
+    this.propertyCompletionTokens.clear();
     this.activeTxSnapshots.clear();
     this.visits.clear();
     this.offers.clear();
@@ -328,6 +345,9 @@ class DevSandboxStore {
   public initInitialSeeds() {
     if (this.initialized) return;
     this.initialized = true;
+
+    // Seed societies
+    this.initSocietySeeds();
 
     // Purge deprecated test account
     this.purgeUserByEmail('yashwantkeyan@gmail.com');
@@ -887,9 +907,9 @@ class DevSandboxStore {
     }
 
     // 2. USERS: Select by phone
-    if (cleanSql.includes('FROM users') && cleanSql.includes('WHERE phone = $1')) {
-      const phone = params[0];
-      const u = Array.from(this.users.values()).find(x => x.phone === phone);
+    if (cleanSql.includes('FROM users') && (cleanSql.includes('WHERE phone = $1') || cleanSql.includes('RIGHT(phone, 10)'))) {
+      const targetPhone = String(params[0] || '').replace(/\D/g, '').slice(-10);
+      const u = Array.from(this.users.values()).find(x => x.phone && (x.phone === params[0] || x.phone.replace(/\D/g, '').slice(-10) === targetPhone));
       return u ? { rows: [{ ...u }] } : { rows: [] };
     }
 
@@ -1169,6 +1189,31 @@ class DevSandboxStore {
           u.welcome_whatsapp_sent_at = new Date().toISOString();
           u.updated_at = new Date().toISOString();
         }
+        return { rows: [{ ...u }] };
+      }
+      return { rows: [] };
+    }
+
+    // 9c-0a. USERS: Update has_ambiguous_identity
+    if (cleanSql.includes('UPDATE users') && cleanSql.includes('has_ambiguous_identity')) {
+      const id = params[params.length - 1];
+      const u = this.users.get(id);
+      if (u) {
+        u.has_ambiguous_identity = true;
+        u.ambiguous_identity_notes = String(params[0] || 'Identity collision');
+        u.updated_at = new Date().toISOString();
+        return { rows: [{ ...u }] };
+      }
+      return { rows: [] };
+    }
+
+    if (cleanSql.includes('UPDATE users') && cleanSql.includes('email = $1')) {
+      const email = params[0];
+      const id = params[1];
+      const u = this.users.get(id);
+      if (u) {
+        u.email = email;
+        u.updated_at = new Date().toISOString();
         return { rows: [{ ...u }] };
       }
       return { rows: [] };
@@ -2332,7 +2377,11 @@ class DevSandboxStore {
         developer_name: 'Developer',
         amenities: [],
         landmarks: [],
-        highlights: []
+        highlights: [],
+        possible_duplicate_of: cleanSql.includes('possible_duplicate_of') ? (params[29] || null) : null,
+        duplicate_detection_notes: cleanSql.includes('duplicate_detection_notes') ? (params[30] || null) : null,
+        society_id: cleanSql.includes('society_id') ? (params[31] || null) : null,
+        tower_id: cleanSql.includes('tower_id') ? (params[32] || null) : null,
       };
 
       this.properties.set(prop.id, prop);
@@ -3210,15 +3259,214 @@ class DevSandboxStore {
       return { rows: [] };
     }
 
-    if (cleanSql.includes('DELETE FROM seller_leads')) {
-      const targetId = String(params[0] || '').trim();
-      if (targetId) {
-        this.sellerLeads.delete(targetId);
+    // 32. SOCIETIES: Select & Insert
+    if (cleanSql.includes('FROM societies')) {
+      if (cleanSql.includes('COUNT(*)')) {
+        return { rows: [{ cnt: this.societies.size }] };
+      }
+      if (cleanSql.includes('LOWER(name) = LOWER($1)')) {
+        const queryName = String(params[0] || '').toLowerCase().trim();
+        const found = Array.from(this.societies.values()).find(s => s.name.toLowerCase() === queryName);
+        return { rows: found ? [{ ...found }] : [] };
+      }
+      if (cleanSql.includes('similarity(name, $1)') || cleanSql.includes('ILIKE')) {
+        const q = String(params[0] || '').toLowerCase().trim();
+        const limit = Number(params[2] || 8);
+        const matches = Array.from(this.societies.values())
+          .filter(s => s.name.toLowerCase().includes(q) || (s.locality && s.locality.toLowerCase().includes(q)))
+          .slice(0, limit);
+        return { rows: matches.map(s => ({ ...s, score: 0.9 })) };
+      }
+      return { rows: Array.from(this.societies.values()) };
+    }
+
+    if (cleanSql.includes('INSERT INTO societies')) {
+      const soc = {
+        id: params[0] || `soc-${Date.now()}`,
+        name: params[1],
+        locality: params[2],
+        city: params[3] || 'Bengaluru',
+        developer_name: params[4] || null,
+        total_towers: Number(params[5] || 1),
+        source: params[6] || 'user_submitted',
+        verification_status: params[7] || 'unverified',
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      this.societies.set(soc.id, soc);
+      return { rows: [{ ...soc }] };
+    }
+
+    // 33. SOCIETY_TOWERS: Select & Insert
+    if (cleanSql.includes('FROM society_towers')) {
+      const socId = params[0];
+      const towers = Array.from(this.societyTowers.values()).filter(t => t.society_id === socId);
+      return { rows: towers.map(t => ({ ...t })) };
+    }
+
+    if (cleanSql.includes('INSERT INTO society_towers')) {
+      const tow = {
+        id: params[0] || `tow-${Date.now()}`,
+        society_id: params[1],
+        tower_name: params[2],
+        total_floors: params[3] ? Number(params[3]) : null,
+        units_per_floor: params[4] ? Number(params[4]) : null,
+        created_at: new Date().toISOString()
+      };
+      this.societyTowers.set(tow.id, tow);
+      return { rows: [{ ...tow }] };
+    }
+
+    // 34. SOCIETY_FLAT_TYPES: Select & Insert
+    if (cleanSql.includes('FROM society_flat_types')) {
+      const towId = params[0];
+      const fts = Array.from(this.societyFlatTypes.values()).filter(ft => ft.tower_id === towId);
+      return { rows: fts.map(f => ({ ...f })) };
+    }
+
+    if (cleanSql.includes('INSERT INTO society_flat_types')) {
+      const ft = {
+        id: params[0] || `ft-${Date.now()}`,
+        tower_id: params[1],
+        flat_no_pattern: params[2],
+        bhk_type: params[3],
+        super_builtup_sqft: params[4] ? Number(params[4]) : null,
+        created_at: new Date().toISOString()
+      };
+      this.societyFlatTypes.set(ft.id, ft);
+      return { rows: [{ ...ft }] };
+    }
+
+    // 35. PROPERTY_COMPLETION_TOKENS: Select, Insert, Update
+    if (cleanSql.includes('INSERT INTO property_completion_tokens')) {
+      const tokenRec = {
+        id: params[0] || `tok-${Date.now()}`,
+        property_id: params[1],
+        token_hash: params[2],
+        expires_at: params[3],
+        created_by_user_id: params[4] || null,
+        used_at: null,
+        created_at: new Date().toISOString()
+      };
+      this.propertyCompletionTokens.set(tokenRec.token_hash, tokenRec);
+      return { rows: [{ ...tokenRec }] };
+    }
+
+    if (cleanSql.includes('FROM property_completion_tokens') && cleanSql.includes('token_hash = $1')) {
+      const tokenHash = params[0];
+      const propId = params[1];
+      const tokenRec = this.propertyCompletionTokens.get(tokenHash);
+      if (tokenRec && (!propId || tokenRec.property_id === propId)) {
+        return { rows: [{ ...tokenRec }] };
+      }
+      return { rows: [] };
+    }
+
+    if (cleanSql.includes('UPDATE property_completion_tokens SET used_at = NOW()')) {
+      const tokenHash = params[0];
+      const tokenRec = this.propertyCompletionTokens.get(tokenHash);
+      if (tokenRec) {
+        tokenRec.used_at = new Date().toISOString();
+        return { rows: [{ ...tokenRec }] };
       }
       return { rows: [] };
     }
 
     return { rows: [] };
+  }
+
+  public initSocietySeeds() {
+    const seedSocieties = [
+      {
+        society: {
+          id: 'soc-prestige-shantiniketan',
+          name: 'Prestige Shantiniketan',
+          locality: 'Whitefield',
+          city: 'Bengaluru',
+          developer_name: 'Prestige Group',
+          total_towers: 24,
+          source: 'system',
+          verification_status: 'verified',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        },
+        towers: [
+          {
+            tower: { id: 'tow-psn-c1', society_id: 'soc-prestige-shantiniketan', tower_name: 'Crescent Tower 1', total_floors: 18, units_per_floor: 4, created_at: new Date().toISOString() },
+            flatTypes: [
+              { id: 'ft-psn-1', tower_id: 'tow-psn-c1', flat_no_pattern: '*01', bhk_type: '3 BHK', super_builtup_sqft: 1920, created_at: new Date().toISOString() },
+              { id: 'ft-psn-2', tower_id: 'tow-psn-c1', flat_no_pattern: '*02', bhk_type: '2 BHK', super_builtup_sqft: 1297, created_at: new Date().toISOString() },
+              { id: 'ft-psn-3', tower_id: 'tow-psn-c1', flat_no_pattern: '*03', bhk_type: '3.5 BHK', super_builtup_sqft: 2072, created_at: new Date().toISOString() },
+              { id: 'ft-psn-4', tower_id: 'tow-psn-c1', flat_no_pattern: '*04', bhk_type: '4 BHK', super_builtup_sqft: 3190, created_at: new Date().toISOString() }
+            ]
+          },
+          {
+            tower: { id: 'tow-psn-c2', society_id: 'soc-prestige-shantiniketan', tower_name: 'Crescent Tower 2', total_floors: 18, units_per_floor: 4, created_at: new Date().toISOString() },
+            flatTypes: [
+              { id: 'ft-psn-5', tower_id: 'tow-psn-c2', flat_no_pattern: '*01', bhk_type: '3 BHK', super_builtup_sqft: 1920, created_at: new Date().toISOString() },
+              { id: 'ft-psn-6', tower_id: 'tow-psn-c2', flat_no_pattern: '*02', bhk_type: '2 BHK', super_builtup_sqft: 1297, created_at: new Date().toISOString() }
+            ]
+          }
+        ]
+      },
+      {
+        society: {
+          id: 'soc-sobha-dream-acres',
+          name: 'Sobha Dream Acres',
+          locality: 'Panathur / Balagere',
+          city: 'Bengaluru',
+          developer_name: 'Sobha Limited',
+          total_towers: 16,
+          source: 'system',
+          verification_status: 'verified',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        },
+        towers: [
+          {
+            tower: { id: 'tow-sda-t4', society_id: 'soc-sobha-dream-acres', tower_name: 'Tower 4', total_floors: 18, units_per_floor: 6, created_at: new Date().toISOString() },
+            flatTypes: [
+              { id: 'ft-sda-1', tower_id: 'tow-sda-t4', flat_no_pattern: '*01', bhk_type: '2 BHK', super_builtup_sqft: 1012, created_at: new Date().toISOString() },
+              { id: 'ft-sda-2', tower_id: 'tow-sda-t4', flat_no_pattern: '*02', bhk_type: '2 BHK', super_builtup_sqft: 1205, created_at: new Date().toISOString() },
+              { id: 'ft-sda-3', tower_id: 'tow-sda-t4', flat_no_pattern: '*03', bhk_type: '1 BHK', super_builtup_sqft: 650, created_at: new Date().toISOString() }
+            ]
+          }
+        ]
+      },
+      {
+        society: {
+          id: 'soc-brigade-gateway',
+          name: 'Brigade Gateway',
+          locality: 'Malleshwaram / Rajajinagar',
+          city: 'Bengaluru',
+          developer_name: 'Brigade Enterprises',
+          total_towers: 7,
+          source: 'system',
+          verification_status: 'verified',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        },
+        towers: [
+          {
+            tower: { id: 'tow-bg-regal', society_id: 'soc-brigade-gateway', tower_name: 'Regal Tower', total_floors: 24, units_per_floor: 4, created_at: new Date().toISOString() },
+            flatTypes: [
+              { id: 'ft-bg-1', tower_id: 'tow-bg-regal', flat_no_pattern: '*01', bhk_type: '3 BHK', super_builtup_sqft: 2100, created_at: new Date().toISOString() },
+              { id: 'ft-bg-2', tower_id: 'tow-bg-regal', flat_no_pattern: '*02', bhk_type: '4 BHK', super_builtup_sqft: 3350, created_at: new Date().toISOString() }
+            ]
+          }
+        ]
+      }
+    ];
+
+    for (const item of seedSocieties) {
+      this.societies.set(item.society.id, item.society);
+      for (const tow of item.towers) {
+        this.societyTowers.set(tow.tower.id, tow.tower);
+        for (const ft of tow.flatTypes) {
+          this.societyFlatTypes.set(ft.id, ft);
+        }
+      }
+    }
   }
 
   public initCareerSeeds() {

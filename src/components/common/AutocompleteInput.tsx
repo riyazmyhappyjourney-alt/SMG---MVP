@@ -17,7 +17,7 @@ interface AutocompleteInputProps {
   value: string;
   onChange: (val: string) => void;
   onSelectSuggestion?: (suggestion: AutocompleteSuggestion) => void;
-  getSuggestions: (query: string) => AutocompleteSuggestion[];
+  getSuggestions: (query: string) => AutocompleteSuggestion[] | Promise<AutocompleteSuggestion[]>;
   iconType?: 'locality' | 'society' | 'search';
   required?: boolean;
   maxLength?: number;
@@ -59,9 +59,22 @@ export const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
   // Compute suggestions when value changes or input is focused
   useEffect(() => {
     if (!isOpen) return;
-    const results = getSuggestions(value);
-    setSuggestions(results);
-    setHighlightedIndex(-1);
+    let active = true;
+    const res = getSuggestions(value);
+    if (res && typeof (res as any).then === 'function') {
+      (res as Promise<AutocompleteSuggestion[]>).then(results => {
+        if (active) {
+          setSuggestions(results || []);
+          setHighlightedIndex(-1);
+        }
+      }).catch(() => {
+        if (active) setSuggestions([]);
+      });
+    } else {
+      setSuggestions((res as AutocompleteSuggestion[]) || []);
+      setHighlightedIndex(-1);
+    }
+    return () => { active = false; };
   }, [value, isOpen]);
 
   // Click outside listener

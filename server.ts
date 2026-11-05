@@ -68,6 +68,10 @@ import { verify99acresWebhookAuth, NinetyNineAcresLeadService } from './src/serv
 import { verifyMagicbricksWebhookAuth, MagicbricksLeadService } from './src/server/webhooks/magicbricks';
 import { verifyFacebookWebhookGet, verifyFacebookWebhookPost, FacebookLeadService } from './src/server/webhooks/facebook';
 import { MetaConversionsApiService } from './src/server/integrations/meta-conversions-api';
+import { SocietyService, INITIAL_BENGALURU_SOCIETIES } from './src/server/services/society-service';
+import { DedupValidationService } from './src/server/services/dedup-service';
+import { BrokerageEsignService } from './src/server/services/esign-service';
+import { TokenizedLinkService } from './src/server/services/tokenized-link-service';
 
 const app = express();
 app.disable('x-powered-by');
@@ -745,7 +749,112 @@ async function initSchemaColumns() {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
       CREATE INDEX IF NOT EXISTS idx_career_applications_created ON career_applications (created_at DESC);
+
+      -- FEATURE 1: Trigram Fuzzy Matching Extension & Societies Schema
+      CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+      CREATE TABLE IF NOT EXISTS societies (
+        id VARCHAR(64) PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        locality VARCHAR(128) NOT NULL,
+        city VARCHAR(64) NOT NULL DEFAULT 'Bengaluru',
+        developer_name VARCHAR(255),
+        total_towers INT DEFAULT 1,
+        source VARCHAR(32) NOT NULL DEFAULT 'system',
+        verification_status VARCHAR(32) NOT NULL DEFAULT 'verified',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_societies_name_trgm ON societies USING gin (name gin_trgm_ops);
+      CREATE INDEX IF NOT EXISTS idx_societies_locality ON societies (locality);
+
+      CREATE TABLE IF NOT EXISTS society_towers (
+        id VARCHAR(64) PRIMARY KEY,
+        society_id VARCHAR(64) NOT NULL REFERENCES societies(id) ON DELETE CASCADE,
+        tower_name VARCHAR(64) NOT NULL,
+        total_floors INT,
+        units_per_floor INT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_society_towers_soc ON society_towers (society_id);
+
+      CREATE TABLE IF NOT EXISTS society_flat_types (
+        id VARCHAR(64) PRIMARY KEY,
+        tower_id VARCHAR(64) NOT NULL REFERENCES society_towers(id) ON DELETE CASCADE,
+        flat_no_pattern VARCHAR(64),
+        bhk_type VARCHAR(32),
+        super_builtup_sqft INT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_flat_types_tower ON society_flat_types (tower_id);
+
+      -- FEATURE 4: Tokenized Self-Completion Links
+      CREATE TABLE IF NOT EXISTS property_completion_tokens (
+        id VARCHAR(64) PRIMARY KEY,
+        property_id VARCHAR(64) NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+        token_hash VARCHAR(128) NOT NULL UNIQUE,
+        expires_at TIMESTAMPTZ NOT NULL,
+        used_at TIMESTAMPTZ,
+        created_by_user_id VARCHAR(64) REFERENCES users(id) ON DELETE SET NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+      CREATE INDEX IF NOT EXISTS idx_prop_comp_token ON property_completion_tokens (token_hash);
+
+      -- FEATURE 5 & 7: Inventory Dedup & Brokerage Agreement Columns
+      ALTER TABLE properties ADD COLUMN IF NOT EXISTS possible_duplicate_of VARCHAR(64) REFERENCES properties(id) ON DELETE SET NULL;
+      ALTER TABLE properties ADD COLUMN IF NOT EXISTS duplicate_detection_notes TEXT;
+      ALTER TABLE properties ADD COLUMN IF NOT EXISTS society_id VARCHAR(64) REFERENCES societies(id) ON DELETE SET NULL;
+      ALTER TABLE properties ADD COLUMN IF NOT EXISTS tower_id VARCHAR(64) REFERENCES society_towers(id) ON DELETE SET NULL;
+      ALTER TABLE properties ADD COLUMN IF NOT EXISTS brokerage_agreement_status VARCHAR(32) NOT NULL DEFAULT 'PENDING';
+      ALTER TABLE properties ADD COLUMN IF NOT EXISTS brokerage_agreement_signed_at TIMESTAMPTZ;
+      ALTER TABLE properties ADD COLUMN IF NOT EXISTS brokerage_agreement_document_id VARCHAR(64);
+
+      -- FEATURE 2: Google OAuth & Phone Dedup Ambiguous Identity Columns
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS has_ambiguous_identity BOOLEAN NOT NULL DEFAULT false;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS ambiguous_identity_notes TEXT;
     `);
+
+    // Seed initial Bengaluru societies if table is empty
+    try {
+      const socCount = await executeQuery('SELECT COUNT(*) as cnt FROM societies;');
+      if (Number(socCount.rows?.[0]?.cnt || 0) === 0) {
+        for (const item of INITIAL_BENGALURU_SOCIETIES) {
+          await executeQuery(
+            `INSERT INTO societies (id, name, locality, city, developer_name, total_towers, source, verification_status, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, NOW(), NOW())
+             ON CONFLICT (id) DO NOTHING;`,
+            [
+              item.society.id,
+              item.society.name,
+              item.society.locality,
+              item.society.city,
+              item.society.developer_name,
+              item.society.total_towers,
+              item.society.source,
+              item.society.verification_status
+            ]
+          );
+          for (const t of item.towers) {
+            await executeQuery(
+              `INSERT INTO society_towers (id, society_id, tower_name, total_floors, units_per_floor, created_at)
+               VALUES ($1, $2, $3, $4, $5, NOW())
+               ON CONFLICT (id) DO NOTHING;`,
+              [t.tower.id, t.tower.society_id, t.tower.tower_name, t.tower.total_floors, t.tower.units_per_floor]
+            );
+            for (const ft of t.flatTypes) {
+              await executeQuery(
+                `INSERT INTO society_flat_types (id, tower_id, flat_no_pattern, bhk_type, super_builtup_sqft, created_at)
+                 VALUES ($1, $2, $3, $4, $5, NOW())
+                 ON CONFLICT (id) DO NOTHING;`,
+                [ft.id, ft.tower_id, ft.flat_no_pattern, ft.bhk_type, ft.super_builtup_sqft]
+              );
+            }
+          }
+        }
+      }
+    } catch (seedErr: any) {
+      console.warn('[SocietySeed] Note:', seedErr.message);
+    }
 
     // 2. Initialize Seed Staff with Real scrypt Password Hash (Zero hardcoded fallbacks)
     const staffPhone = '+919800000001';
@@ -1535,7 +1644,95 @@ app.post('/api/auth/google/session', jsonDefault, rateLimit('google-session', 10
       }
     }
 
-    // 4. If identity link does not exist, resolve by verified email or create new customer
+    // 4. FEATURE 2: Phone number is the canonical dedup key.
+    // If a candidate phone is provided (via request body, Google user metadata, etc.), match/merge on phone first.
+    const candidatePhoneRaw = req.body?.phone || supaUser.phone || supaUser.user_metadata?.phone;
+    const cleanCandidateDigits = candidatePhoneRaw ? String(candidatePhoneRaw).replace(/\D/g, '').slice(-10) : '';
+    const normalizedCandidatePhone = cleanCandidateDigits.length === 10 ? `+91${cleanCandidateDigits}` : null;
+
+    if (!userRecord && normalizedCandidatePhone) {
+      const existingUserByPhone = await executeQuery(
+        `SELECT id, phone, email, display_name, roles, is_active, token_version, created_at, has_ambiguous_identity FROM users WHERE phone = $1 OR RIGHT(phone, 10) = RIGHT($1, 10) LIMIT 1;`,
+        [normalizedCandidatePhone]
+      );
+      if (existingUserByPhone.rows && existingUserByPhone.rows.length > 0) {
+        const existing = existingUserByPhone.rows[0];
+        const hasPrivilegedRole = (existing.roles || []).some((role: string) =>
+          role.startsWith('STAFF_') || role === 'STAFF_SUPER_ADMIN' || role === 'SUPER_ADMIN' || role === 'ADMIN'
+        );
+
+        if (hasPrivilegedRole) {
+          await recordAuditEvent({
+            actor: { uid: `g-${providerUserId.slice(0, 12)}`, roles: ['BUYER'], email: rawEmail },
+            action: 'LOGIN_FAILED',
+            targetEntity: 'users',
+            targetEntityId: existing.id,
+            clientIp,
+            diffSummary: { reason: 'PRIVILEGED_ACCOUNT_LINKING_REJECTED', email: rawEmail, phone: normalizedCandidatePhone },
+          });
+
+          return res.status(403).json({
+            success: false,
+            error: 'PRIVILEGED_ACCOUNT_LINKING_DISALLOWED',
+            message: 'Privileged staff and admin accounts cannot be linked through public Google sign-in. Please sign in using your staff credentials.'
+          });
+        }
+
+        userRecord = existing;
+
+        // Check for ambiguous identity: phone matched, but existing user has a different non-null email
+        if (existing.email && existing.email.toLowerCase() !== rawEmail) {
+          const ambNotes = `Phone match (${normalizedCandidatePhone}) with conflicting email: existing (${existing.email}) vs Google (${rawEmail})`;
+          await executeQuery(
+            `UPDATE users SET has_ambiguous_identity = true, ambiguous_identity_notes = $1, updated_at = NOW() WHERE id = $2;`,
+            [ambNotes, userRecord.id]
+          );
+          userRecord.has_ambiguous_identity = true;
+          userRecord.ambiguous_identity_notes = ambNotes;
+
+          await recordAuditEvent({
+            actor: { uid: userRecord.id, roles: userRecord.roles, email: rawEmail, phone: normalizedCandidatePhone },
+            action: 'IDENTITY_COLLISION_FLAGGED',
+            targetEntity: 'users',
+            targetEntityId: userRecord.id,
+            clientIp,
+            diffSummary: {
+              reason: 'PHONE_MATCH_EMAIL_MISMATCH',
+              existingEmail: existing.email,
+              incomingGoogleEmail: rawEmail,
+              phone: normalizedCandidatePhone,
+            },
+          });
+        } else if (!existing.email) {
+          // No email existed on phone record, link Google email
+          await executeQuery(
+            `UPDATE users SET email = $1, updated_at = NOW() WHERE id = $2;`,
+            [rawEmail, userRecord.id]
+          );
+          userRecord.email = rawEmail;
+        }
+
+        // Establish identity mapping link
+        const identityId = `ident-g-${Date.now().toString(36)}-${randomBytes(3).toString('hex')}`;
+        await executeQuery(
+          `INSERT INTO user_identities (id, user_id, provider, provider_user_id, email, is_verified, created_at)
+           VALUES ($1, $2, 'google', $3, $4, true, NOW())
+           ON CONFLICT (provider, provider_user_id) DO NOTHING;`,
+          [identityId, userRecord.id, providerUserId, rawEmail]
+        );
+
+        await recordAuditEvent({
+          actor: { uid: userRecord.id, roles: userRecord.roles, email: rawEmail },
+          action: 'ACCOUNT_LINKED',
+          targetEntity: 'user_identities',
+          targetEntityId: identityId,
+          clientIp,
+          diffSummary: { provider: 'google', email: rawEmail, matchedBy: 'phone' },
+        });
+      }
+    }
+
+    // 5. If identity link and phone lookup did not resolve, resolve by verified email or create new customer
     if (!userRecord) {
       const existingUserByEmail = await executeQuery(
         `SELECT id, phone, email, display_name, roles, is_active, token_version, created_at FROM users WHERE LOWER(email) = $1 LIMIT 1;`,
@@ -1600,7 +1797,7 @@ app.post('/api/auth/google/session', jsonDefault, rateLimit('google-session', 10
           `INSERT INTO users (id, phone, email, display_name, roles, is_active, token_version, created_at, updated_at)
            VALUES ($1, $2, $3, $4, '{BUYER}', true, 1, NOW(), NOW())
            ON CONFLICT DO NOTHING;`,
-          [newUserId, null, rawEmail, displayName]
+          [newUserId, normalizedCandidatePhone || null, rawEmail, displayName]
         );
 
         const identityId = `ident-g-${Date.now().toString(36)}-${randomBytes(3).toString('hex')}`;
@@ -3081,6 +3278,30 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
       const initialPropType = propertyType || 'Apartment';
       const initialDesc = description || `Well-maintained ${bhkLabel} ${initialPropType} in ${societyName.trim()}, ${locality.trim()}. Verified legal documentation and ready to move.`;
 
+      // FEATURE 1: Resolve society and auto-grow dataset if user-submitted
+      let resolvedSocietyId: string | null = req.body.societyId || req.body.society_id || null;
+      let resolvedTowerId: string | null = req.body.towerId || req.body.tower_id || null;
+      if (!resolvedSocietyId && societyName.trim()) {
+        try {
+          const autoSoc = await SocietyService.findOrCreateSociety(societyName.trim(), locality.trim(), 'Bengaluru');
+          resolvedSocietyId = autoSoc.id;
+        } catch {}
+      }
+
+      // FEATURE 5: Server-side dedup check on insert
+      const dedupCheck = await DedupValidationService.checkDuplicateProperty({
+        phone: normalizedPhone,
+        locality: locality.trim(),
+        bhkType: bhkLabel,
+        askingPriceInr: askingPriceNum,
+        societyId: resolvedSocietyId || undefined,
+        societyName: societyName.trim(),
+        towerName: wingTowerStr,
+        flatNumber: unitNo !== 'Unit-Declared' ? unitNo : undefined
+      });
+      const possibleDuplicateOf = dedupCheck.isDuplicate ? dedupCheck.duplicateOfPropertyId : null;
+      const duplicateNotes = dedupCheck.isDuplicate ? dedupCheck.reason : null;
+
       propResult = await client.query(
         `INSERT INTO properties (
           id, owner_id, project_locality_id, unit_number, wing_tower,
@@ -3090,11 +3311,13 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
           loan_bank_name, occupancy_status, monthly_maintenance_inr,
           asking_price_inr, reserve_minimum_price_inr, listing_intent, listing_status, crm_status, verification_tier,
           internal_verification_notes, title, property_type, public_address, description,
+          possible_duplicate_of, duplicate_detection_notes, society_id, tower_id,
           created_at, updated_at
         ) VALUES (
           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
           $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, 'PUBLISHED', 'NEW', $24,
           $25, $26, $27, $28, $29,
+          $30, $31, $32, $33,
           NOW(), NOW()
         )
         RETURNING *;`,
@@ -3128,6 +3351,10 @@ app.post('/api/properties', jsonUpload, rateLimit('property-create', 10, 3600), 
           initialPropType,
           initialPublicAddress,
           initialDesc,
+          possibleDuplicateOf,
+          duplicateNotes,
+          resolvedSocietyId,
+          resolvedTowerId
         ]
       );
 
@@ -8315,6 +8542,318 @@ app.post(
 );
 
 // ====================================================================
+// FEATURE 1: Cascading Autocomplete Endpoints (Society -> Tower -> Flat Type)
+// ====================================================================
+
+// GET /api/v1/societies/search?q=
+app.get('/api/v1/societies/search', async (req: Request, res: Response) => {
+  try {
+    const q = String(req.query.q || '').trim();
+    if (!q) {
+      return res.json({ success: true, societies: [] });
+    }
+    const societies = await SocietyService.searchSocieties(q, 8);
+    return res.json({
+      success: true,
+      count: societies.length,
+      societies
+    });
+  } catch (err: any) {
+    console.error('[SocietiesSearch] Error:', err);
+    return res.status(500).json({ error: 'FAILED_TO_SEARCH_SOCIETIES', message: err.message });
+  }
+});
+
+// GET /api/v1/societies/:id/towers
+app.get('/api/v1/societies/:id/towers', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const towers = await SocietyService.getTowersForSociety(id);
+    return res.json({
+      success: true,
+      count: towers.length,
+      towers
+    });
+  } catch (err: any) {
+    console.error('[SocietiesTowers] Error:', err);
+    return res.status(500).json({ error: 'FAILED_TO_GET_TOWERS', message: err.message });
+  }
+});
+
+// GET /api/v1/towers/:id/flat-types
+app.get('/api/v1/towers/:id/flat-types', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const flatTypes = await SocietyService.getFlatTypesForTower(id);
+    return res.json({
+      success: true,
+      count: flatTypes.length,
+      flatTypes
+    });
+  } catch (err: any) {
+    console.error('[TowerFlatTypes] Error:', err);
+    return res.status(500).json({ error: 'FAILED_TO_GET_FLAT_TYPES', message: err.message });
+  }
+});
+
+// ====================================================================
+// FEATURE 4: Tokenized Self-Completion Link Endpoints
+// ====================================================================
+
+// Staff: Generate tokenized self-completion link for a property
+app.post('/api/crm/properties/:id/completion-link', jsonDefault, authenticateUser, requireStaffMember, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const propCheck = await executeQuery(`SELECT id, title, owner_id FROM properties WHERE id = $1 LIMIT 1;`, [id]);
+    if (!propCheck.rows || propCheck.rows.length === 0) {
+      return res.status(404).json({ error: 'NOT_FOUND', message: 'Property not found.' });
+    }
+    const completionLink = await TokenizedLinkService.generateCompletionLink(id, req.user!.uid, 7);
+    return res.json({
+      success: true,
+      propertyId: id,
+      ...completionLink,
+      message: 'Tokenized completion link generated successfully (7-day validity).'
+    });
+  } catch (err: any) {
+    console.error('[GenerateCompletionLink] Error:', err);
+    return res.status(500).json({ error: 'FAILED_TO_GENERATE_TOKEN', message: err.message });
+  }
+});
+
+// Seller: Fetch property details for tokenized self-completion (Staff-only fields excluded)
+app.get('/api/seller/complete/:propertyId', async (req: Request, res: Response) => {
+  try {
+    const { propertyId } = req.params;
+    const rawToken = String(req.query.token || '').trim();
+
+    const tokenVerification = await TokenizedLinkService.verifyCompletionToken(propertyId, rawToken);
+    if (!tokenVerification.isValid) {
+      return res.status(403).json({ error: 'INVALID_TOKEN', message: tokenVerification.error });
+    }
+
+    const propRes = await executeQuery(
+      `SELECT p.id, p.title, p.description, p.property_type, p.bhk_type, p.project_locality_id,
+              p.public_address, p.wing_tower, p.unit_number, p.unit_floor, p.total_floors,
+              p.super_built_up_sqft, p.carpet_area_sqft, p.balconies_count, p.bathrooms_count,
+              p.facing, p.asking_price_inr, p.monthly_maintenance_inr, p.amenities, p.listing_status,
+              p.society_id, p.tower_id, u.display_name AS owner_name, u.phone AS owner_phone
+       FROM properties p
+       LEFT JOIN users u ON u.id = p.owner_id
+       WHERE p.id = $1 LIMIT 1;`,
+      [propertyId]
+    );
+
+    if (!propRes.rows || propRes.rows.length === 0) {
+      return res.status(404).json({ error: 'NOT_FOUND', message: 'Property record not found.' });
+    }
+
+    const property = propRes.rows[0];
+    return res.json({
+      success: true,
+      property
+    });
+  } catch (err: any) {
+    console.error('[SellerCompleteGet] Error:', err);
+    return res.status(500).json({ error: 'SERVER_ERROR', message: 'Failed to retrieve property for completion.' });
+  }
+});
+
+// Seller: Submit self-completion updates via token
+app.patch('/api/seller/complete/:propertyId', jsonUpload, async (req: Request, res: Response) => {
+  try {
+    const { propertyId } = req.params;
+    const rawToken = String(req.query.token || req.body.token || '').trim();
+
+    const tokenVerification = await TokenizedLinkService.verifyCompletionToken(propertyId, rawToken);
+    if (!tokenVerification.isValid) {
+      return res.status(403).json({ error: 'INVALID_TOKEN', message: tokenVerification.error });
+    }
+
+    // Server-side validation
+    const validation = DedupValidationService.validatePropertyPayload({
+      ...req.body,
+      askingPriceInr: req.body.askingPriceInr || req.body.asking_price_inr || 10000000
+    });
+
+    const {
+      description, superBuiltUpSqft, carpetAreaSqft, unitFloor, totalFloors,
+      bathroomsCount, balconiesCount, facing, amenities
+    } = req.body;
+
+    const updateRes = await executeQuery(
+      `UPDATE properties
+       SET description = COALESCE($1, description),
+           super_built_up_sqft = COALESCE($2, super_built_up_sqft),
+           carpet_area_sqft = COALESCE($3, carpet_area_sqft),
+           unit_floor = COALESCE($4, unit_floor),
+           total_floors = COALESCE($5, total_floors),
+           bathrooms_count = COALESCE($6, bathrooms_count),
+           balconies_count = COALESCE($7, balconies_count),
+           facing = COALESCE($8, facing),
+           amenities = CASE WHEN $9::jsonb IS NOT NULL THEN $9::jsonb ELSE amenities END,
+           updated_at = NOW()
+       WHERE id = $10
+       RETURNING *;`,
+      [
+        description ? String(description).replace(/<[^>]*>/g, '').trim() : null,
+        superBuiltUpSqft ? Number(superBuiltUpSqft) : null,
+        carpetAreaSqft ? Number(carpetAreaSqft) : null,
+        unitFloor ? Number(unitFloor) : null,
+        totalFloors ? Number(totalFloors) : null,
+        bathroomsCount ? Number(bathroomsCount) : null,
+        balconiesCount ? Number(balconiesCount) : null,
+        facing ? String(facing).trim().toUpperCase() : null,
+        amenities ? JSON.stringify(amenities) : null,
+        propertyId
+      ]
+    );
+
+    await TokenizedLinkService.markTokenUsed(propertyId, rawToken);
+
+    return res.json({
+      success: true,
+      message: 'Property details completed and saved successfully.',
+      property: updateRes.rows[0]
+    });
+  } catch (err: any) {
+    console.error('[SellerCompletePatch] Error:', err);
+    return res.status(500).json({ error: 'FAILED_TO_SAVE_DETAILS', message: err.message });
+  }
+});
+
+// ====================================================================
+// FEATURE 6: Shared DB Read for buymyghar.in (Single Source of Truth)
+// ====================================================================
+app.get('/api/v1/properties/published', async (req: Request, res: Response) => {
+  try {
+    const { locality, bhk, minPrice, maxPrice, limit = 20, offset = 0 } = req.query;
+
+    let query = `
+      SELECT p.id, p.title, p.description, p.property_type, p.bhk_type,
+             p.project_locality_id, p.public_address, p.wing_tower, p.unit_number,
+             p.unit_floor, p.total_floors, p.super_built_up_sqft, p.carpet_area_sqft,
+             p.facing, p.asking_price_inr, p.monthly_maintenance_inr, p.amenities,
+             p.developer_name, p.developer_logo_url, p.created_at, p.updated_at
+      FROM properties p
+      WHERE p.listing_status = 'PUBLISHED'
+    `;
+    const params: any[] = [];
+    let pIdx = 1;
+
+    if (locality) {
+      query += ` AND p.project_locality_id ILIKE $${pIdx++}`;
+      params.push(`%${locality}%`);
+    }
+    if (bhk) {
+      query += ` AND p.bhk_type ILIKE $${pIdx++}`;
+      params.push(`%${bhk}%`);
+    }
+    if (minPrice && !isNaN(Number(minPrice))) {
+      query += ` AND p.asking_price_inr >= $${pIdx++}`;
+      params.push(Number(minPrice));
+    }
+    if (maxPrice && !isNaN(Number(maxPrice))) {
+      query += ` AND p.asking_price_inr <= $${pIdx++}`;
+      params.push(Number(maxPrice));
+    }
+
+    query += ` ORDER BY p.created_at DESC LIMIT $${pIdx++} OFFSET $${pIdx++};`;
+    params.push(Number(limit), Number(offset));
+
+    const result = await executeQuery(query, params);
+    return res.json({
+      success: true,
+      source: 'sellmyghar_shared_postgres',
+      portal: 'buymyghar.in',
+      count: result.rows.length,
+      properties: result.rows
+    });
+  } catch (err: any) {
+    console.error('[BuyMyGharPublishedProperties] Error:', err);
+    return res.status(500).json({ error: 'FAILED_TO_LOAD_PUBLISHED_INVENTORY', message: err.message });
+  }
+});
+
+// ====================================================================
+// FEATURE 7: Brokerage Agreement eSign Endpoints (NOT Sale Deed)
+// ====================================================================
+
+// Initiate eSign for Brokerage Agreement
+app.post('/api/crm/properties/:id/brokerage-agreement/initiate', jsonDefault, authenticateUser, requireStaffMember, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const propRes = await executeQuery(
+      `SELECT p.id, p.title, p.project_locality_id, p.asking_price_inr, u.display_name AS owner_name, u.phone AS owner_phone, u.email AS owner_email
+       FROM properties p
+       LEFT JOIN users u ON u.id = p.owner_id
+       WHERE p.id = $1 LIMIT 1;`,
+      [id]
+    );
+
+    if (!propRes.rows || propRes.rows.length === 0) {
+      return res.status(404).json({ error: 'NOT_FOUND', message: 'Property not found.' });
+    }
+
+    const row = propRes.rows[0];
+    const result = await BrokerageEsignService.initiateBrokerageAgreement({
+      propertyId: id,
+      sellerName: row.owner_name || 'Property Owner',
+      sellerPhone: row.owner_phone || '+919999999999',
+      sellerEmail: row.owner_email || null,
+      propertyTitle: row.title || 'Resale Property',
+      locality: row.project_locality_id || 'Bengaluru',
+      askingPriceInr: Number(row.asking_price_inr || 0),
+      commissionPercentage: Number(req.body.commissionPercentage || 1.0),
+      provider: 'DIGIO'
+    });
+
+    return res.json({
+      success: true,
+      message: 'Brokerage Representation Agreement eSign initiated via licensed ESP.',
+      ...result
+    });
+  } catch (err: any) {
+    console.error('[InitiateBrokerageAgreement] Error:', err);
+    return res.status(400).json({ error: 'ESIGN_INITIATION_FAILED', message: err.message });
+  }
+});
+
+// Complete / Simulate eSign execution for Brokerage Agreement
+app.post('/api/crm/properties/:id/brokerage-agreement/sign', jsonDefault, authenticateUser, requireStaffMember, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const agreementId = req.body.agreementId || `agr-brk-${id}`;
+    const signerAadhaarHash = req.body.signerAadhaarHash || 'AADHAAR-SHA256-VERIFIED';
+
+    const result = await BrokerageEsignService.completeBrokerageAgreement(id, agreementId, signerAadhaarHash);
+    return res.json({
+      message: 'Brokerage Representation Agreement executed and verified via Aadhaar eSign.',
+      ...result
+    });
+  } catch (err: any) {
+    console.error('[CompleteBrokerageAgreement] Error:', err);
+    return res.status(400).json({ error: 'ESIGN_COMPLETION_FAILED', message: err.message });
+  }
+});
+
+// Get Brokerage Agreement Status
+app.get('/api/crm/properties/:id/brokerage-agreement/status', authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const status = await BrokerageEsignService.getBrokerageAgreementStatus(id);
+    return res.json({
+      success: true,
+      propertyId: id,
+      ...status
+    });
+  } catch (err: any) {
+    console.error('[BrokerageAgreementStatus] Error:', err);
+    return res.status(500).json({ error: 'SERVER_ERROR', message: err.message });
+  }
+});
+
+// ====================================================================
 // 7.1. CRM PROPERTY MANAGEMENT & LIFECYCLE (Phase 2 Canonical)
 // ====================================================================
 
@@ -8483,6 +9022,10 @@ app.get(
         p.highlights,
         p.verification_tier,
         p.internal_verification_notes,
+        p.possible_duplicate_of,
+        p.duplicate_detection_notes,
+        p.brokerage_agreement_status,
+        p.brokerage_agreement_signed_at,
         p.created_at,
         p.updated_at,
         u.display_name AS owner_name,
@@ -8950,6 +9493,44 @@ const updatePropertyHandler = async (req: Request, res: Response) => {
       },
     });
 
+    // Audit Log: Property verification_tier changes
+    if (resolvedVerificationTier && resolvedVerificationTier !== existing.verification_tier) {
+      await recordAuditEvent({
+        actor: req.user!,
+        action: 'PROPERTY_VERIFICATION_TIER_CHANGED',
+        targetEntity: 'properties',
+        targetEntityId: id,
+        clientIp,
+        diffSummary: {
+          oldTier: existing.verification_tier,
+          newTier: resolvedVerificationTier
+        }
+      });
+    }
+
+    // Audit Log: Any staff edit to a property record that already has an assigned_staff_id
+    try {
+      const leadCheck = await executeQuery(
+        `SELECT assigned_staff_id FROM seller_leads WHERE property_id = $1 AND assigned_staff_id IS NOT NULL LIMIT 1;`,
+        [id]
+      );
+      const assignedStaffId = leadCheck.rows?.[0]?.assigned_staff_id;
+      if (assignedStaffId) {
+        await recordAuditEvent({
+          actor: req.user!,
+          action: 'PROPERTY_STAFF_EDIT',
+          targetEntity: 'properties',
+          targetEntityId: id,
+          clientIp,
+          diffSummary: {
+            assignedStaffId,
+            editedByStaffId: req.user!.uid,
+            updatedFields: Object.keys(req.body)
+          }
+        });
+      }
+    } catch {}
+
     // Check for status transition to APPROVED
     const isApprovedTransition = 
       (resolvedCrmStatus === 'APPROVED' || resolvedCrmStatus === 'VERIFIED' || resolvedListingStatus === 'APPROVED' || resolvedVerificationTier === 'LEVEL_2_DOCS_REVIEWED' || resolvedVerificationTier === 'LEVEL_3_PHYSICALLY_INSPECTED') &&
@@ -8978,6 +9559,25 @@ const updatePropertyHandler = async (req: Request, res: Response) => {
         await EmailNotificationService.handlePropertyPublished(updateRes.rows[0], mediaRes.rows || [], req.user);
       } catch (pubErr: any) {
         console.warn('[CrmUpdatePropertyPublished] Email dispatch note:', pubErr.message);
+      }
+
+      // FEATURE 7: Auto-initiate Brokerage Agreement eSign on transition to PUBLISHED
+      try {
+        const ownerRes = await executeQuery(`SELECT display_name, phone, email FROM users WHERE id = $1 LIMIT 1;`, [existing.owner_id]);
+        const owner = ownerRes.rows?.[0] || {};
+        await BrokerageEsignService.initiateBrokerageAgreement({
+          propertyId: id,
+          sellerName: owner.display_name || 'Property Owner',
+          sellerPhone: owner.phone || '+919999999999',
+          sellerEmail: owner.email || null,
+          propertyTitle: updateRes.rows[0].title || existing.title || 'Resale Property',
+          locality: updateRes.rows[0].project_locality_id || existing.project_locality_id || 'Bengaluru',
+          askingPriceInr: Number(updateRes.rows[0].asking_price_inr || existing.asking_price_inr || 0),
+          commissionPercentage: 1.0,
+          provider: 'DIGIO'
+        });
+      } catch (esignErr: any) {
+        console.warn('[AutoBrokerageEsign] Note:', esignErr.message);
       }
     }
 

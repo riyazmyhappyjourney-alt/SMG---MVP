@@ -22,6 +22,7 @@ import { CareersPage } from './components/company/CareersPage';
 import { AboutUsPage } from './components/company/AboutUsPage';
 import { FaqPage } from './components/company/FaqPage';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
+import { PropertySelfCompletion } from './components/seller/PropertySelfCompletion';
 import { initGA4, trackPageView } from './utils/analytics';
 
 export type AppRoute = 
@@ -29,6 +30,7 @@ export type AppRoute =
   | 'CRM' 
   | 'CONSENT' 
   | 'SELLER_ASSISTED' 
+  | 'SELLER_COMPLETE'
   | 'LOGIN' 
   | 'CONTACT'
   | 'ABOUT'
@@ -82,6 +84,7 @@ export function resolveRoute(path: string, hash: string, host: string, search: s
   if (hash === '#/consent') return 'CONSENT';
   if (hash === '#/dashboard' || hash === '#/seller-dashboard') return 'DASHBOARD';
   if (hash === '#/seller-assisted' || hash === '#/post-property') return 'SELLER_ASSISTED';
+  if (hash.startsWith('#/seller/complete') || path.startsWith('/seller/complete')) return 'SELLER_COMPLETE';
 
   // 2b. Hidden CRM route: accessible via direct link (#/crm, /crm, or query param)
   if (hash === '#/crm' || hash.startsWith('#/crm?') || hash.startsWith('#/crm/') || path === '/crm' || path.startsWith('/crm/')) {
@@ -609,6 +612,25 @@ export default function App() {
         </div>
         <ConsentPortal />
       </div>
+    );
+  }
+
+  // If on Tokenized Self-Completion Link (Feature 4)
+  if (currentRoute === 'SELLER_COMPLETE') {
+    const rawPath = window.location.pathname.startsWith('/seller/complete')
+      ? window.location.pathname
+      : window.location.hash.replace(/^#/, '');
+    const pathParts = rawPath.replace(/^\/seller\/complete\/?/, '').split('?')[0].split('/');
+    const completionPropId = pathParts[0] || '';
+    const urlParams = new URLSearchParams(window.location.search || (window.location.hash.includes('?') ? window.location.hash.split('?')[1] : ''));
+    const completionToken = urlParams.get('token') || '';
+
+    return (
+      <PropertySelfCompletion
+        propertyId={completionPropId}
+        token={completionToken}
+        onBackToHome={() => navigateTo('HOME')}
+      />
     );
   }
 

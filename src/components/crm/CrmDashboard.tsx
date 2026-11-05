@@ -155,6 +155,10 @@ export interface CrmProperty {
   ownerName?: string;
   ownerPhone?: string;
   reserveMinimumPriceInr?: number;
+  possible_duplicate_of?: string | null;
+  duplicate_detection_notes?: string | null;
+  brokerage_agreement_status?: string | null;
+  brokerage_agreement_signed_at?: string | null;
   status: PropertyListingStatus;
   updatedAt?: string;
   createdAt?: string;
@@ -675,6 +679,27 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
     setTimeout(() => setToastMessage(null), 4000);
   };
 
+  const handleGenerateCompletionLink = async (propertyId: string) => {
+    try {
+      const res = await crmFetch(`/api/crm/properties/${propertyId}/completion-link`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      if (data.success && data.completionUrl) {
+        if (navigator.clipboard) {
+          await navigator.clipboard.writeText(data.completionUrl);
+        }
+        showToast('Self-completion link copied to clipboard! Valid for 7 days.', 'success');
+      } else {
+        showToast(`Failed to generate link: ${data.message || data.error}`, 'error');
+      }
+    } catch {
+      showToast('Error generating completion link', 'error');
+    }
+  };
+
   // -------------------------------------------------------------
   // Data Fetching Functions
   // -------------------------------------------------------------
@@ -743,6 +768,10 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               ownerName: p.ownerName,
               ownerPhone: p.ownerPhone,
               reserveMinimumPriceInr: p.reserveMinimumPriceInr,
+              possible_duplicate_of: p.possible_duplicate_of || null,
+              duplicate_detection_notes: p.duplicate_detection_notes || null,
+              brokerage_agreement_status: p.brokerage_agreement_status || null,
+              brokerage_agreement_signed_at: p.brokerage_agreement_signed_at || null,
               status: (p.listingStatus || 'PUBLISHED') as PropertyListingStatus,
               updatedAt: p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : 'Recently',
               createdAt: p.createdAt
@@ -3588,6 +3617,17 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                                   {prop.projectName}
                                 </p>
                                 <p className="text-[10px] text-slate-500 truncate">{prop.title || prop.id}</p>
+                                {prop.possible_duplicate_of && (
+                                  <div className="mt-1">
+                                    <span
+                                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200"
+                                      title={prop.duplicate_detection_notes || `Possible duplicate of ${prop.possible_duplicate_of}`}
+                                    >
+                                      <AlertTriangle className="w-2.5 h-2.5 text-amber-600 shrink-0" />
+                                      Duplicate Flagged
+                                    </span>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </td>
@@ -3609,9 +3649,9 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                               {prop.verificationBadge}
                             </span>
                           </td>
-                          <td className="py-2.5 px-3.5">
+                          <td className="py-2.5 px-3.5 space-y-1">
                             <span
-                              className={`px-2 py-0.5 rounded text-[10px] font-medium border ${
+                              className={`px-2 py-0.5 rounded text-[10px] font-medium border inline-block ${
                                 prop.status === 'PUBLISHED'
                                   ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
                                   : prop.status === 'PAUSED'
@@ -3623,6 +3663,22 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                             >
                               {prop.status}
                             </span>
+                            {prop.brokerage_agreement_status && (
+                              <div className="block">
+                                <span
+                                  className={`px-1.5 py-0.5 rounded text-[9px] font-semibold border inline-block ${
+                                    prop.brokerage_agreement_status === 'SIGNED'
+                                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                      : prop.brokerage_agreement_status === 'SENT'
+                                      ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                      : 'bg-slate-50 text-slate-600 border-slate-200'
+                                  }`}
+                                  title="Aadhaar eSign for Brokerage Agreement"
+                                >
+                                  eSign: {prop.brokerage_agreement_status}
+                                </span>
+                              </div>
+                            )}
                           </td>
                           <td className="py-2.5 px-3.5 text-slate-600">
                             {prop.assignedRm ? (
@@ -3632,6 +3688,18 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                             )}
                           </td>
                           <td className="py-2.5 px-3.5 text-right space-x-1">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleGenerateCompletionLink(prop.id);
+                              }}
+                              className="px-2.5 py-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-medium rounded-md transition-colors cursor-pointer shadow-2xs inline-flex items-center space-x-1"
+                              title="Generate & copy 7-day tokenized self-completion link for seller"
+                            >
+                              <Copy className="w-3 h-3 text-slate-500" />
+                              <span>Link</span>
+                            </button>
                             <button
                               type="button"
                               onClick={(e) => {

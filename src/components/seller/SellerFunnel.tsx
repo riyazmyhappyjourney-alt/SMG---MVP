@@ -169,7 +169,94 @@ export function SellerFunnel({
   const [localityQuery, setLocalityQuery] = useState<string>('');
   const [subLocality, setSubLocality] = useState<string>('');
   const [societyQuery, setSocietyQuery] = useState<string>('');
-  const [flatNo, setFlatNo] = useState<string>(''); // Flat number only (wing removed)
+  const [flatNo, setFlatNo] = useState<string>(''); // Flat number
+
+  // FEATURE 1: Cascading Society -> Tower -> Flat State
+  const [selectedSocietyId, setSelectedSocietyId] = useState<string | null>(null);
+  const [towers, setTowers] = useState<any[]>([]);
+  const [selectedTowerId, setSelectedTowerId] = useState<string | null>(null);
+  const [selectedTowerName, setSelectedTowerName] = useState<string>('');
+  const [flatTypes, setFlatTypes] = useState<any[]>([]);
+  const [selectedFlatTypeId, setSelectedFlatTypeId] = useState<string | null>(null);
+
+  const searchSocietiesApi = async (q: string) => {
+    if (!q || q.trim().length < 2) return [];
+    try {
+      const res = await fetch(`/api/v1/societies/search?q=${encodeURIComponent(q.trim())}`);
+      const data = await res.json();
+      if (data.success && Array.isArray(data.societies)) {
+        return data.societies.map((soc: any) => ({
+          id: soc.id,
+          primaryText: soc.name,
+          secondaryText: `${soc.developer_name || 'Society'} • ${soc.locality || 'Bengaluru'}`,
+          badge: soc.verification_status === 'verified' ? 'Verified' : undefined,
+          data: soc
+        }));
+      }
+    } catch {
+      // fallback
+    }
+    const local = searchSocieties(q, localityQuery);
+    return local.map(soc => ({
+      id: soc.id,
+      primaryText: soc.name,
+      secondaryText: `${soc.builder} • ${soc.locality}`,
+      badge: soc.zone,
+      data: soc
+    }));
+  };
+
+  const handleSelectSociety = async (sug: any) => {
+    if (sug?.data) {
+      if (sug.data.locality) setLocalityQuery(sug.data.locality);
+      if (sug.data.zone) setCityZone(`Bengaluru ${sug.data.zone}`);
+      const socId = sug.data.id || null;
+      setSelectedSocietyId(socId);
+      if (socId) {
+        try {
+          const res = await fetch(`/api/v1/societies/${socId}/towers`);
+          const data = await res.json();
+          if (data.success && Array.isArray(data.towers)) {
+            setTowers(data.towers);
+            setSelectedTowerId(null);
+            setSelectedTowerName('');
+            setFlatTypes([]);
+            setSelectedFlatTypeId(null);
+          }
+        } catch {
+          setTowers([]);
+        }
+      }
+    }
+  };
+
+  const handleSelectTower = async (towerId: string) => {
+    setSelectedTowerId(towerId);
+    const matched = towers.find(t => t.id === towerId);
+    setSelectedTowerName(matched ? matched.tower_name : '');
+    if (towerId) {
+      try {
+        const res = await fetch(`/api/v1/towers/${towerId}/flat-types`);
+        const data = await res.json();
+        if (data.success && Array.isArray(data.flatTypes)) {
+          setFlatTypes(data.flatTypes);
+        }
+      } catch {
+        setFlatTypes([]);
+      }
+    } else {
+      setFlatTypes([]);
+    }
+  };
+
+  const handleSelectFlatType = (flatTypeId: string) => {
+    setSelectedFlatTypeId(flatTypeId);
+    const matched = flatTypes.find(ft => ft.id === flatTypeId);
+    if (matched) {
+      if (matched.bhk_type) setBhkConfig(matched.bhk_type);
+      if (matched.super_builtup_sqft) setSuperBuiltUpSqft(Number(matched.super_builtup_sqft));
+    }
+  };
 
   // STEP 3: Property Profile (Matching Image 1 & Image 2)
   const [bhkConfig, setBhkConfig] = useState<string>('3 BHK');
@@ -601,7 +688,10 @@ export function SellerFunnel({
       subLocality: subLocality.trim() || localityQuery.trim(),
       societyName: societyQuery.trim(),
       houseNo: flatNo.trim(),
-      wingTower: 'Main',
+      wingTower: selectedTowerName || 'Main',
+      societyId: selectedSocietyId || undefined,
+      towerId: selectedTowerId || undefined,
+      flatTypeId: selectedFlatTypeId || undefined,
       bedrooms: resolvedBedrooms,
       bathrooms: resolvedBathrooms,
       balconies: resolvedBalconies,
@@ -1277,29 +1367,68 @@ export function SellerFunnel({
                     placeholder="Type project name (e.g. Prestige Shantiniketan, Sobha Dream Acres, Brigade Gateway...)"
                     value={societyQuery}
                     error={fieldErrors.society}
-                    onChange={(val) => setSocietyQuery(val)}
-                    onSelectSuggestion={(sug) => {
-                      if (sug.data) {
-                        if (sug.data.locality) setLocalityQuery(sug.data.locality);
-                        if (sug.data.zone) setCityZone(`Bengaluru ${sug.data.zone}`);
+                    onChange={(val) => {
+                      setSocietyQuery(val);
+                      if (!val || val.trim().length === 0) {
+                        setSelectedSocietyId(null);
+                        setTowers([]);
+                        setSelectedTowerId(null);
+                        setFlatTypes([]);
+                        setSelectedFlatTypeId(null);
                       }
                     }}
-                    getSuggestions={(q) => {
-                      const results = searchSocieties(q, localityQuery);
-                      return results.map(soc => ({
-                        id: soc.id,
-                        primaryText: soc.name,
-                        secondaryText: `${soc.builder} • ${soc.locality}`,
-                        badge: soc.zone,
-                        data: soc
-                      }));
-                    }}
+                    onSelectSuggestion={handleSelectSociety}
+                    getSuggestions={searchSocietiesApi}
                     iconType="society"
                     maxLength={100}
                   />
                 </div>
 
-                {/* Flat Number Only (Wing/Tower removed per prompt) */}
+                {/* Cascading Tower / Wing Selector */}
+                {towers.length > 0 && (
+                  <div>
+                    <label htmlFor="towerSelect" className="block text-xs font-bold text-slate-900 font-['Montserrat'] tracking-wide mb-1.5">
+                      Tower / Wing <span className="text-[#0073E6] font-normal">(Verified Society Data)</span>
+                    </label>
+                    <select
+                      id="towerSelect"
+                      value={selectedTowerId || ''}
+                      onChange={(e) => handleSelectTower(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-md text-xs sm:text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:border-[#0073E6] focus:ring-1 focus:ring-[#0073E6] font-['Poppins']"
+                    >
+                      <option value="">-- Select Tower / Block --</option>
+                      {towers.map(t => (
+                        <option key={t.id} value={t.id}>
+                          {t.tower_name} ({t.total_floors} Floors)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Cascading Flat Type / Configuration Selector */}
+                {flatTypes.length > 0 && (
+                  <div>
+                    <label htmlFor="flatTypeSelect" className="block text-xs font-bold text-slate-900 font-['Montserrat'] tracking-wide mb-1.5">
+                      Standard Unit Type <span className="text-slate-400 font-normal">(Auto-fills BHK & SBUA)</span>
+                    </label>
+                    <select
+                      id="flatTypeSelect"
+                      value={selectedFlatTypeId || ''}
+                      onChange={(e) => handleSelectFlatType(e.target.value)}
+                      className="w-full px-3.5 py-2.5 bg-white border border-slate-300 rounded-md text-xs sm:text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:border-[#0073E6] focus:ring-1 focus:ring-[#0073E6] font-['Poppins']"
+                    >
+                      <option value="">-- Select Flat Configuration --</option>
+                      {flatTypes.map(ft => (
+                        <option key={ft.id} value={ft.id}>
+                          {ft.bhk_type} • {ft.super_builtup_sqft} sq.ft. {ft.flat_no_pattern ? `(Series: ${ft.flat_no_pattern})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Flat Number */}
                 <div className="max-w-xs">
                   <label htmlFor="flatNoInput" className="block text-xs font-bold text-slate-900 font-['Montserrat'] tracking-wide mb-1.5">
                     Flat / House Number <span className="text-slate-400 font-normal">(Optional)</span>
