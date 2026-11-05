@@ -61,9 +61,7 @@ import { PropertyBrochureModal } from './PropertyBrochureModal';
 import { CalendarModule } from './CalendarModule';
 import { TasksKanbanModule } from './TasksKanbanModule';
 import { HeroCmsManager } from './HeroCmsManager';
-import { PartnerLogosManager } from './PartnerLogosManager';
 import { PublicationEmailManager } from './PublicationEmailManager';
-import { PropertySuggestionsManager } from './PropertySuggestionsManager';
 import { CareerCmsManager } from './CareerCmsManager';
 import { ManualLeadModal } from './ManualLeadModal';
 import { LeadDetailDrawer } from './LeadDetailDrawer';
@@ -290,7 +288,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
     return parseUrlLeadId() ? 'LEADS' : 'OVERVIEW';
   });
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<'SECURITY' | 'HERO_CMS' | 'PARTNER_CMS' | 'CAREERS_CMS' | 'EMAIL_TEMPLATE' | 'SUGGESTIONS_CSV'>('SECURITY');
+  const [settingsTab, setSettingsTab] = useState<'SECURITY' | 'HERO_CMS' | 'CAREERS_CMS' | 'EMAIL_TEMPLATE'>('SECURITY');
 
   const handleSelectSection = useCallback((section: NavSection) => {
     setActiveSection(section);
@@ -452,6 +450,25 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
       return [];
     }
   });
+  const [dismissedNotificationIds, setDismissedNotificationIds] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem('smg_crm_dismissed_notifications');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [liveNotifications, setLiveNotifications] = useState<Array<{
+    id: string;
+    type: 'PROPERTY' | 'LEAD' | 'VISIT' | 'TASK' | 'OFFER';
+    title: string;
+    description: string;
+    timestamp: string;
+    targetSection: 'PROPERTIES' | 'LEADS' | 'VISITS' | 'TASKS' | 'OFFERS';
+    targetId?: string;
+    priority?: 'HIGH' | 'MEDIUM' | 'LOW';
+  }>>([]);
 
   const getRelativeTimeString = useCallback((dateStr?: string | null): string => {
     if (!dateStr) return 'Recently';
@@ -471,74 +488,20 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
     return date.toLocaleDateString('en-IN', { month: 'short', day: 'numeric' });
   }, []);
 
-  const crmNotifications = useMemo(() => {
-    const list: Array<{
-      id: string;
-      type: 'PROPERTY' | 'LEAD' | 'VISIT';
-      title: string;
-      description: string;
-      timestamp: string;
-      targetSection: 'PROPERTIES' | 'LEADS' | 'VISITS';
-      targetId?: string;
-    }> = [];
-
-    (properties || []).slice(0, 10).forEach(p => {
-      list.push({
-        id: `notif-prop-${p.id}`,
-        type: 'PROPERTY',
-        title: `Property Intake: ${p.bhkType || ''} in ${p.projectName || p.localityName || p.title || 'Apartment'}`,
-        description: `Status: ${p.status || 'DRAFT'} • ₹${(p.askingPriceInr || 0).toLocaleString('en-IN')}`,
-        timestamp: p.updatedAt || p.createdAt || new Date().toISOString(),
-        targetSection: 'PROPERTIES',
-        targetId: p.id
-      });
-    });
-
-    (leads || []).slice(0, 10).forEach(l => {
-      list.push({
-        id: `notif-lead-${l.id}`,
-        type: 'LEAD',
-        title: `Lead Inquiry: ${l.name}`,
-        description: `${l.listingIntent || 'Buyer'} • ${l.locality || 'Bengaluru'} • ${l.stage || l.status || 'NEW'}`,
-        timestamp: l.createdAt || new Date().toISOString(),
-        targetSection: 'LEADS',
-        targetId: l.id
-      });
-    });
-
-    (visits || []).slice(0, 5).forEach(v => {
-      list.push({
-        id: `notif-visit-${v.id}`,
-        type: 'VISIT',
-        title: `Site Visit: ${v.client_name}`,
-        description: `${v.visit_date} at ${v.visit_time} • ${v.property_title || 'Property'}`,
-        timestamp: v.created_at || new Date().toISOString(),
-        targetSection: 'VISITS',
-        targetId: v.property_id
-      });
-    });
-
-    return list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 15);
-  }, [properties, leads, visits]);
-
-  const unreadNotificationCount = useMemo(() => {
-    return crmNotifications.filter(n => !readNotificationIds.includes(n.id)).length;
-  }, [crmNotifications, readNotificationIds]);
-
-  const markNotificationAsRead = useCallback((id: string) => {
-    setReadNotificationIds(prev => {
-      if (prev.includes(id)) return prev;
-      const updated = [...prev, id];
-      try { localStorage.setItem('smg_crm_read_notifications', JSON.stringify(updated)); } catch {}
-      return updated;
-    });
+  const loadNotifications = useCallback(async () => {
+    try {
+      const res = await crmFetch('/api/crm/notifications');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success && Array.isArray(data.notifications)) {
+          setLiveNotifications(data.notifications);
+        }
+      }
+    } catch {
+      // Fallback handled in memo
+    }
   }, []);
 
-  const markAllNotificationsAsRead = useCallback(() => {
-    const allIds = crmNotifications.map(n => n.id);
-    setReadNotificationIds(allIds);
-    try { localStorage.setItem('smg_crm_read_notifications', JSON.stringify(allIds)); } catch {}
-  }, [crmNotifications]);
 
   // Filters & Search
   const [globalSearch, setGlobalSearch] = useState<string>('');
@@ -642,10 +605,12 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
     displayName: string;
     phone: string;
     isActive: boolean;
+    modules: CrmModule[];
   }>({
     displayName: '',
     phone: '',
-    isActive: true
+    isActive: true,
+    modules: ['LEADS', 'PROPERTIES', 'VISITS', 'OFFERS', 'TASKS', 'CALENDAR', 'REPORTS']
   });
   const [isUpdatingUser, setIsUpdatingUser] = useState<boolean>(false);
 
@@ -926,7 +891,8 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
       loadTasks(),
       loadStaff(),
       loadAuditLogs(),
-      loadReports()
+      loadReports(),
+      loadNotifications()
     ]);
     setIsRefreshing(false);
     setLoading(false);
@@ -1496,10 +1462,12 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
   // 13. Employee Administration: Edit Staff Details
   const handleOpenEditUser = (staff: CrmStaff) => {
     setEditingStaffUser(staff);
+    const existingModules = (staff as any).module_permissions || staff.modules || (staff.roles?.includes('STAFF_SUPER_ADMIN') ? ALL_CRM_MODULES : ['LEADS', 'PROPERTIES', 'VISITS', 'OFFERS', 'TASKS', 'CALENDAR', 'REPORTS']);
     setEditUserForm({
       displayName: staff.displayName || staff.name || '',
       phone: staff.phone || '',
-      isActive: staff.isActive !== false
+      isActive: staff.isActive !== false,
+      modules: Array.isArray(existingModules) ? existingModules : ['LEADS', 'PROPERTIES', 'VISITS', 'OFFERS', 'TASKS', 'CALENDAR', 'REPORTS']
     });
   };
 
@@ -1514,7 +1482,8 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
         body: JSON.stringify({
           displayName: editUserForm.displayName,
           phone: editUserForm.phone,
-          isActive: editUserForm.isActive
+          isActive: editUserForm.isActive,
+          modules: editUserForm.modules
         })
       });
       const data = await res.json();
@@ -1635,6 +1604,89 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
       return Boolean(assignedId && currentStaffId && String(assignedId) === String(currentStaffId));
     });
   }, [leads, isAdmin, staffUser]);
+
+  const crmNotifications = useMemo(() => {
+    if (liveNotifications.length > 0) {
+      return liveNotifications.filter(n => !dismissedNotificationIds.includes(n.id));
+    }
+
+    // Dynamic fallback generated strictly from accessible assigned leads & tasks
+    const list: Array<{
+      id: string;
+      type: 'PROPERTY' | 'LEAD' | 'VISIT' | 'TASK' | 'OFFER';
+      title: string;
+      description: string;
+      timestamp: string;
+      targetSection: 'PROPERTIES' | 'LEADS' | 'VISITS' | 'TASKS' | 'OFFERS';
+      targetId?: string;
+      priority?: 'HIGH' | 'MEDIUM' | 'LOW';
+    }> = [];
+
+    (accessibleLeads || []).slice(0, 10).forEach(l => {
+      list.push({
+        id: `notif-lead-${l.id}`,
+        type: 'LEAD',
+        title: `Lead Inquiry: ${l.name || l.ownerName}`,
+        description: `${l.listingIntent || 'Buyer'} • ${l.locality || 'Bengaluru'} • ${l.stage || 'NEW'}`,
+        timestamp: l.createdAt || new Date().toISOString(),
+        targetSection: 'LEADS',
+        targetId: l.id,
+        priority: l.stage === 'NEW' ? 'HIGH' : 'MEDIUM'
+      });
+    });
+
+    (visits || []).slice(0, 5).forEach(v => {
+      list.push({
+        id: `notif-visit-${v.id}`,
+        type: 'VISIT',
+        title: `Site Visit: ${v.client_name}`,
+        description: `${v.visit_date} at ${v.visit_time || '11:00 AM'} • ${v.property_title || 'Property'}`,
+        timestamp: v.created_at || new Date().toISOString(),
+        targetSection: 'VISITS',
+        targetId: v.property_id || v.lead_id || undefined,
+        priority: 'MEDIUM'
+      });
+    });
+
+    return list.filter(n => !dismissedNotificationIds.includes(n.id)).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()).slice(0, 15);
+  }, [liveNotifications, dismissedNotificationIds, accessibleLeads, visits]);
+
+  const unreadNotificationCount = useMemo(() => {
+    return crmNotifications.filter(n => !readNotificationIds.includes(n.id)).length;
+  }, [crmNotifications, readNotificationIds]);
+
+  const markNotificationAsRead = useCallback((id: string) => {
+    setReadNotificationIds(prev => {
+      if (prev.includes(id)) return prev;
+      const updated = [...prev, id];
+      try { localStorage.setItem('smg_crm_read_notifications', JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+  }, []);
+
+  const markAllNotificationsAsRead = useCallback(() => {
+    const allIds = crmNotifications.map(n => n.id);
+    setReadNotificationIds(allIds);
+    try { localStorage.setItem('smg_crm_read_notifications', JSON.stringify(allIds)); } catch {}
+  }, [crmNotifications]);
+
+  const dismissNotification = useCallback((id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setDismissedNotificationIds(prev => {
+      const updated = [...prev, id];
+      try { localStorage.setItem('smg_crm_dismissed_notifications', JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+  }, []);
+
+  const clearAllNotifications = useCallback(() => {
+    const allIds = crmNotifications.map(n => n.id);
+    setDismissedNotificationIds(prev => {
+      const updated = Array.from(new Set([...prev, ...allIds]));
+      try { localStorage.setItem('smg_crm_dismissed_notifications', JSON.stringify(updated)); } catch {}
+      return updated;
+    });
+  }, [crmNotifications]);
 
   const filteredLeads = useMemo(() => {
     return accessibleLeads.filter(lead => {
@@ -1804,7 +1856,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
 
 
   return (
-    <div className="flex h-screen bg-[#F8FAFC] text-slate-800 font-sans antialiased overflow-hidden select-none">
+    <div className="crm-surface flex h-screen bg-[#F8FAFC] text-slate-900 font-sans antialiased overflow-hidden select-none">
       {/* Toast Notification */}
       {toastMessage && (
         <div
@@ -2223,32 +2275,43 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
 
               {/* Notification Dropdown Panel */}
               {isNotificationsOpen && (
-                <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-lg shadow-lg border border-slate-200 z-50 overflow-hidden">
-                  <div className="p-3.5 border-b border-slate-100 flex items-center justify-between bg-slate-50/70">
+                <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-lg shadow-xl border border-slate-300 z-50 overflow-hidden">
+                  <div className="p-3.5 border-b border-slate-200 flex items-center justify-between bg-slate-50">
                     <div className="flex items-center space-x-2">
-                      <span className="text-xs font-bold text-[#172033] uppercase tracking-wider">
+                      <span className="text-xs font-bold text-slate-900 uppercase tracking-wider">
                         Notifications
                       </span>
                       {unreadNotificationCount > 0 && (
-                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-[#0073E6]">
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-100 text-[#0176D3]">
                           {unreadNotificationCount} new
                         </span>
                       )}
                     </div>
-                    {unreadNotificationCount > 0 && (
-                      <button
-                        type="button"
-                        onClick={markAllNotificationsAsRead}
-                        className="text-[11px] font-semibold text-[#0073E6] hover:text-[#005BB5] hover:underline cursor-pointer"
-                      >
-                        Mark all as read
-                      </button>
-                    )}
+                    <div className="flex items-center space-x-2">
+                      {unreadNotificationCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={markAllNotificationsAsRead}
+                          className="text-[11px] font-semibold text-[#0176D3] hover:text-[#005fb2] hover:underline cursor-pointer"
+                        >
+                          Mark read
+                        </button>
+                      )}
+                      {crmNotifications.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={clearAllNotifications}
+                          className="text-[11px] font-medium text-slate-600 hover:text-slate-900 hover:underline cursor-pointer"
+                        >
+                          Clear all
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
                     {crmNotifications.length === 0 ? (
-                      <div className="p-6 text-center text-xs text-slate-500">
+                      <div className="p-6 text-center text-xs text-slate-600 font-medium">
                         No recent operational notifications.
                       </div>
                     ) : (
@@ -2268,32 +2331,46 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                               setIsNotificationsOpen(false);
                             }}
                             className={`p-3.5 flex items-start space-x-3 cursor-pointer transition-colors ${
-                              isRead ? 'bg-white hover:bg-slate-50' : 'bg-blue-50/30 hover:bg-blue-50/60'
+                              isRead ? 'bg-white hover:bg-slate-50' : 'bg-blue-50/50 hover:bg-blue-50/80'
                             }`}
                           >
                             <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
-                              item.type === 'PROPERTY' ? 'bg-amber-100 text-amber-700' :
-                              item.type === 'LEAD' ? 'bg-blue-100 text-[#0073E6]' :
-                              'bg-emerald-100 text-emerald-700'
+                              item.type === 'PROPERTY' ? 'bg-amber-100 text-amber-800' :
+                              item.type === 'LEAD' ? 'bg-blue-100 text-[#0176D3]' :
+                              item.type === 'TASK' ? 'bg-indigo-100 text-indigo-800' :
+                              item.type === 'OFFER' ? 'bg-purple-100 text-purple-800' :
+                              'bg-emerald-100 text-emerald-800'
                             }`}>
                               {item.type === 'PROPERTY' && <Building2 className="w-4 h-4" />}
                               {item.type === 'LEAD' && <Users className="w-4 h-4" />}
+                              {item.type === 'TASK' && <Clock className="w-4 h-4" />}
+                              {item.type === 'OFFER' && <FileText className="w-4 h-4" />}
                               {item.type === 'VISIT' && <CalendarCheck className="w-4 h-4" />}
                             </div>
 
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center justify-between mb-0.5">
-                                <div className={`text-xs truncate ${isRead ? 'font-medium text-slate-700' : 'font-bold text-[#172033]'}`}>
+                                <div className={`text-xs truncate ${isRead ? 'font-semibold text-slate-800' : 'font-bold text-slate-950'}`}>
                                   {item.title}
                                 </div>
-                                {!isRead && (
-                                  <span className="w-2 h-2 rounded-full bg-[#0073E6] shrink-0 ml-1.5" />
-                                )}
+                                <div className="flex items-center space-x-1.5 shrink-0 ml-1.5">
+                                  {!isRead && (
+                                    <span className="w-2 h-2 rounded-full bg-[#0176D3] shrink-0" />
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => dismissNotification(item.id, e)}
+                                    className="text-slate-400 hover:text-slate-700 p-0.5 rounded cursor-pointer transition-colors"
+                                    title="Dismiss notification"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </div>
                               </div>
-                              <div className="text-[11px] text-slate-500 truncate mb-1">
+                              <div className="text-[11px] text-slate-700 font-normal truncate mb-1">
                                 {item.description}
                               </div>
-                              <div className="text-[10px] text-slate-400">
+                              <div className="text-[10px] text-slate-500 font-medium">
                                 {getRelativeTimeString(item.timestamp)}
                               </div>
                             </div>
@@ -4711,17 +4788,6 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 </button>
                 <button
                   type="button"
-                  onClick={() => setSettingsTab('PARTNER_CMS')}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    settingsTab === 'PARTNER_CMS'
-                      ? 'bg-[#0073E6] text-white shadow-xs'
-                      : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-                  }`}
-                >
-                  Partner Logos CMS
-                </button>
-                <button
-                  type="button"
                   onClick={() => setSettingsTab('CAREERS_CMS')}
                   className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                     settingsTab === 'CAREERS_CMS'
@@ -4742,25 +4808,10 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 >
                   Publication Email & SMTP
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setSettingsTab('SUGGESTIONS_CSV')}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                    settingsTab === 'SUGGESTIONS_CSV'
-                      ? 'bg-[#0073E6] text-white shadow-xs'
-                      : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-                  }`}
-                >
-                  Property Suggestions (CSV)
-                </button>
               </div>
 
               {settingsTab === 'HERO_CMS' && (
                 <HeroCmsManager />
-              )}
-
-              {settingsTab === 'PARTNER_CMS' && (
-                <PartnerLogosManager />
               )}
 
               {settingsTab === 'CAREERS_CMS' && (
@@ -4769,10 +4820,6 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
 
               {settingsTab === 'EMAIL_TEMPLATE' && (
                 <PublicationEmailManager />
-              )}
-
-              {settingsTab === 'SUGGESTIONS_CSV' && (
-                <PropertySuggestionsManager />
               )}
 
               {settingsTab === 'SECURITY' && (
@@ -5971,6 +6018,92 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   onChange={(e) => setEditUserForm({ ...editUserForm, phone: e.target.value })}
                   className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#0073E6]/20 focus:border-[#0073E6]"
                 />
+              </div>
+
+              {/* CRM Module Permissions Selection */}
+              <div className="pt-2 border-t border-slate-100">
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                    CRM Module Permissions *
+                  </label>
+                  <div className="flex items-center space-x-2 text-[10px]">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setEditUserForm((prev) => ({
+                          ...prev,
+                          modules: [
+                            'LEADS',
+                            'PROPERTIES',
+                            'VISITS',
+                            'OFFERS',
+                            'TASKS',
+                            'CALENDAR',
+                            'REPORTS',
+                            'TEAM',
+                            'AUDIT_LOGS',
+                            'SETTINGS',
+                          ],
+                        }))
+                      }
+                      className="text-[#0073E6] hover:underline font-bold cursor-pointer"
+                    >
+                      Select All
+                    </button>
+                    <span className="text-slate-300">|</span>
+                    <button
+                      type="button"
+                      onClick={() => setEditUserForm((prev) => ({ ...prev, modules: [] }))}
+                      className="text-slate-500 hover:underline font-bold cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+                <p className="text-[10px] text-slate-500 mb-2">
+                  Select which CRM sections this staff member is authorized to access:
+                </p>
+                <div className="grid grid-cols-2 gap-2 p-3 bg-slate-50 border border-slate-200/80 rounded-xl">
+                  {[
+                    { key: 'LEADS' as CrmModule, label: 'Leads Pipeline' },
+                    { key: 'PROPERTIES' as CrmModule, label: 'Properties & Inventory' },
+                    { key: 'VISITS' as CrmModule, label: 'Site Visits & Tours' },
+                    { key: 'OFFERS' as CrmModule, label: 'Offers & Negotiations' },
+                    { key: 'TASKS' as CrmModule, label: 'Tasks & Workbench' },
+                    { key: 'CALENDAR' as CrmModule, label: 'Calendar Schedule' },
+                    { key: 'REPORTS' as CrmModule, label: 'Reports & Analytics' },
+                    { key: 'TEAM' as CrmModule, label: 'Team Directory' },
+                    { key: 'AUDIT_LOGS' as CrmModule, label: 'Audit Logs' },
+                    { key: 'SETTINGS' as CrmModule, label: 'System Settings' },
+                  ].map(({ key, label }) => {
+                    const isChecked = editUserForm.modules.includes(key);
+                    return (
+                      <label
+                        key={key}
+                        className={`flex items-center space-x-2 p-2 rounded-lg border text-xs cursor-pointer select-none transition-all ${
+                          isChecked
+                            ? 'bg-blue-50/80 border-[#0073E6]/40 text-blue-900 font-semibold'
+                            : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {
+                            setEditUserForm((prev) => ({
+                              ...prev,
+                              modules: isChecked
+                                ? prev.modules.filter((m) => m !== key)
+                                : [...prev.modules, key],
+                            }));
+                          }}
+                          className="w-3.5 h-3.5 rounded text-[#0073E6] focus:ring-[#0073E6]"
+                        />
+                        <span className="truncate">{label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Active Account Status Switch */}

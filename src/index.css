@@ -413,4 +413,30 @@ h1, h2, h3, h4, h5, h6 {
   }
 }
 
+/* ==================================================================== */
+/* CRM Enterprise Readability & Darker Text Contrast                   */
+/* ==================================================================== */
+.crm-surface {
+  color: #0f172a;
+}
+.crm-surface .text-slate-400 {
+  color: #475569 !important;
+}
+.crm-surface .text-slate-500 {
+  color: #334155 !important;
+}
+.crm-surface .text-slate-600 {
+  color: #1e293b !important;
+}
+.crm-surface .text-slate-700 {
+  color: #0f172a !important;
+}
+.crm-surface table th {
+  color: #1e293b !important;
+  font-weight: 600 !important;
+}
+.crm-surface table td {
+  color: #0f172a !important;
+}
+
 

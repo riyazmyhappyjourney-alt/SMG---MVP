@@ -6269,6 +6269,123 @@ app.get('/api/crm/overview-metrics', authenticateUser, requireModule('OVERVIEW')
   }
 });
 
+// Real CRM Operational Notifications Feed (Dynamic, Scoped to User, Active Tasks & Alerts)
+app.get('/api/crm/notifications', authenticateUser, requireStaffMember, async (req: Request, res: Response) => {
+  try {
+    const userRoles = Array.isArray(req.user?.roles) ? (req.user.roles as string[]) : [];
+    const isAdmin = userRoles.some(r => r === 'STAFF_SUPER_ADMIN' || r === 'ADMIN' || r === 'SUPER_ADMIN');
+    const userId = req.user!.uid;
+
+    const notifications: Array<{
+      id: string;
+      type: 'LEAD' | 'TASK' | 'VISIT' | 'OFFER' | 'PROPERTY';
+      title: string;
+      description: string;
+      timestamp: string;
+      targetSection: 'LEADS' | 'TASKS' | 'VISITS' | 'OFFERS' | 'PROPERTIES';
+      targetId?: string;
+      priority: 'HIGH' | 'MEDIUM' | 'LOW';
+    }> = [];
+
+    // 1. Leads Notifications (Newly assigned or inbound in last 72h)
+    let leadQuery = `
+      SELECT id, owner_name AS name, lead_status, assigned_staff_id, created_at, updated_at, 'SELLER' as lead_type, apartment_society_name as context
+      FROM seller_leads
+      UNION ALL
+      SELECT id, buyer_name AS name, lead_status, assigned_staff_id, created_at, updated_at, 'BUYER' as lead_type, preferred_locality_or_society as context
+      FROM buyer_enquiries
+    `;
+    const leadParams: any[] = [];
+    if (!isAdmin) {
+      leadParams.push(userId);
+      leadQuery = `SELECT * FROM (${leadQuery}) combined WHERE assigned_staff_id = $1 ORDER BY created_at DESC LIMIT 15;`;
+    } else {
+      leadQuery = `SELECT * FROM (${leadQuery}) combined ORDER BY created_at DESC LIMIT 15;`;
+    }
+
+    const leadRes = await executeQuery(leadQuery, leadParams);
+    (leadRes.rows || []).forEach((l: any) => {
+      const isAssigned = l.assigned_staff_id === userId;
+      notifications.push({
+        id: `notif-lead-${l.id}`,
+        type: 'LEAD',
+        title: isAssigned ? `Lead Assigned: ${l.name}` : `Inbound Lead: ${l.name}`,
+        description: `${l.lead_type === 'BUYER' ? 'Buyer Inquiry' : 'Property Seller'} • ${l.context || 'Bengaluru'} • Status: ${l.lead_status || 'NEW'}`,
+        timestamp: l.updated_at || l.created_at || new Date().toISOString(),
+        targetSection: 'LEADS',
+        targetId: l.id,
+        priority: l.lead_status === 'NEW' ? 'HIGH' : 'MEDIUM'
+      });
+    });
+
+    // 2. Tasks / Follow-up Reminders (Due today or overdue)
+    let taskQuery = `
+      SELECT sl.id, sl.owner_name AS name, sl.next_follow_up_at, sl.follow_up_notes, sl.assigned_staff_id, 'SELLER' as lead_type
+      FROM seller_leads sl
+      WHERE sl.next_follow_up_at IS NOT NULL
+      UNION ALL
+      SELECT be.id, be.buyer_name AS name, be.next_follow_up_at, be.follow_up_notes, be.assigned_staff_id, 'BUYER' as lead_type
+      FROM buyer_enquiries be
+      WHERE be.next_follow_up_at IS NOT NULL
+    `;
+    const taskParams: any[] = [];
+    if (!isAdmin) {
+      taskParams.push(userId);
+      taskQuery = `SELECT * FROM (${taskQuery}) combined WHERE assigned_staff_id = $1;`;
+    }
+
+    const taskRes = await executeQuery(taskQuery, taskParams);
+    const now = Date.now();
+    (taskRes.rows || []).forEach((t: any) => {
+      const followUpTime = new Date(t.next_follow_up_at).getTime();
+      const isOverdue = followUpTime < now;
+      notifications.push({
+        id: `notif-task-${t.id}-${t.next_follow_up_at}`,
+        type: 'TASK',
+        title: isOverdue ? `Overdue Follow-up: ${t.name}` : `Follow-up Due: ${t.name}`,
+        description: t.follow_up_notes ? String(t.follow_up_notes).substring(0, 80) : `Scheduled follow-up with client`,
+        timestamp: t.next_follow_up_at,
+        targetSection: 'TASKS',
+        targetId: t.id,
+        priority: isOverdue ? 'HIGH' : 'MEDIUM'
+      });
+    });
+
+    // 3. Site Visits Notifications (Scheduled tours)
+    let visitQuery = `SELECT * FROM visits WHERE status = 'SCHEDULED'`;
+    const visitParams: any[] = [];
+    if (!isAdmin) {
+      visitParams.push(userId);
+      visitQuery += ` AND assigned_staff_id = $1`;
+    }
+    visitQuery += ` ORDER BY visit_date ASC LIMIT 10;`;
+
+    const visitRes = await executeQuery(visitQuery, visitParams);
+    (visitRes.rows || []).forEach((v: any) => {
+      notifications.push({
+        id: `notif-visit-${v.id}`,
+        type: 'VISIT',
+        title: `Site Visit Scheduled: ${v.client_name}`,
+        description: `${v.visit_date} at ${v.visit_time || '11:00 AM'} • ${v.property_title || 'Property'}`,
+        timestamp: v.created_at || new Date().toISOString(),
+        targetSection: 'VISITS',
+        targetId: v.property_id || v.lead_id,
+        priority: 'MEDIUM'
+      });
+    });
+
+    notifications.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+    return res.json({
+      success: true,
+      notifications: notifications.slice(0, 20)
+    });
+  } catch (err: any) {
+    console.error('[CrmNotifications] Error:', err);
+    return res.status(500).json({ error: 'Failed to fetch notifications' });
+  }
+});
+
 // 2. Visits List (Protected: requireModule('VISITS'))
 app.get('/api/crm/visits', authenticateUser, requireModule('VISITS'), async (req: Request, res: Response) => {
   try {
@@ -7398,8 +7515,6 @@ app.patch('/api/crm/users/:id', jsonDefault, authenticateUser, requireStaffMembe
     let newModules = targetUser.module_permissions || [];
     if (Array.isArray(modules)) {
       newModules = modules.filter(m => ALL_CRM_MODULES.includes(m as CrmModule));
-    } else {
-      newModules = [...ALL_CRM_MODULES];
     }
 
     const newIsActive = typeof isActive === 'boolean' ? isActive : targetUser.is_active;
