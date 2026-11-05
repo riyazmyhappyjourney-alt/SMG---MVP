@@ -6,8 +6,6 @@ import {
   RefreshCw,
   Calendar,
   Clock,
-  Layers,
-  Sparkles,
   Trash2
 } from 'lucide-react';
 import { LeadStatus } from '../../core/types/entities';
@@ -138,14 +136,14 @@ export function LeadDetailDrawer({
               {initialChar}
             </div>
             <div>
-              <div className="flex items-center space-x-2">
-                <h3 className="text-base font-bold text-[#172033] max-w-[200px] sm:max-w-xs truncate">
+              <div className="flex items-center flex-wrap gap-1.5">
+                <h3 className="text-base font-bold text-[#172033] max-w-[200px] sm:max-w-xs truncate mr-1">
                   {displayName}
                 </h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-[#0073E6]">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-[#0073E6] whitespace-nowrap shrink-0 leading-normal inline-flex items-center">
                   {lead?.type || 'SELLER'}
                 </span>
-                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap shrink-0 leading-normal inline-flex items-center ${
                   isFb 
                     ? 'bg-blue-50 text-[#1877F2] border border-blue-300' 
                     : isMb 
@@ -159,7 +157,7 @@ export function LeadDetailDrawer({
                   {src}
                 </span>
                 {(lead?.lead_status === 'NEW' || lead?.stage === 'NEW') && (
-                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-[#0073E6] text-white shadow-xs">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#0073E6] text-white shadow-xs whitespace-nowrap shrink-0 leading-normal inline-flex items-center">
                     NEW
                   </span>
                 )}
@@ -237,7 +235,7 @@ export function LeadDetailDrawer({
           ) : (
             <>
               {/* 1. Quick Requirements & Contact Strip */}
-              <div className="bg-slate-50/80 rounded-2xl p-4 border border-slate-200/60">
+              <div className="bg-slate-50/80 rounded-2xl p-4 border border-slate-200/60 space-y-3">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
                   <div>
                     <span className="text-slate-400 text-[10px] block font-medium">Budget / Expected</span>
@@ -265,6 +263,141 @@ export function LeadDetailDrawer({
                       {lead.phone || '—'}
                     </strong>
                   </div>
+                </div>
+
+                {/* Received Time Highlight */}
+                <div className="pt-2.5 border-t border-slate-200/60 flex items-center justify-between text-[11px]">
+                  <span className="text-slate-600 flex items-center space-x-1.5 font-medium">
+                    <Clock className="w-3.5 h-3.5 text-[#0073E6] shrink-0" />
+                    <span>Lead Received:</span>
+                    <strong className="text-slate-900 font-semibold">
+                      {(() => {
+                        const rawDate = lead.createdAt || lead.created_at || lead.attribution?.receivedAt || lead.attribution?.enquiryDate;
+                        if (!rawDate) return 'Just now';
+                        return `${formatReadableDate(rawDate)} at ${formatReadableTime(rawDate)}`;
+                      })()}
+                    </strong>
+                  </span>
+                  <span className="text-[10px] text-slate-500 font-medium">
+                    Channel: <strong className="text-slate-800">{src}</strong>
+                  </span>
+                </div>
+              </div>
+
+              {/* Inbound Lead Progress & Timeline */}
+              <div className="border-t border-slate-100 pt-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
+                    <Clock className="w-3.5 h-3.5 text-[#0073E6]" />
+                    <span>Inbound Lead Activity Timeline</span>
+                  </h4>
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    {selectedLeadId}
+                  </span>
+                </div>
+
+                <div className="bg-slate-50/70 rounded-2xl p-4 border border-slate-200/70 space-y-4">
+                  {/* Step 1: Inbound Capture */}
+                  <div className="flex items-start space-x-3">
+                    <div className="w-6 h-6 rounded-full bg-blue-100 text-[#0073E6] flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
+                      1
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between flex-wrap gap-1">
+                        <strong className="text-slate-900 font-semibold text-xs">
+                          Inbound Lead Received
+                        </strong>
+                        <span className="text-[10px] text-slate-600 font-mono font-medium">
+                          {(() => {
+                            const rawDate = lead.createdAt || lead.created_at || lead.attribution?.receivedAt || lead.attribution?.enquiryDate;
+                            if (!rawDate) return 'Recorded';
+                            return `${formatReadableDate(rawDate)} at ${formatReadableTime(rawDate)}`;
+                          })()}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 mt-0.5">
+                        Captured via <span className="font-semibold text-slate-800">{src}</span>
+                        {lead.attribution?.formName ? ` (${lead.attribution.formName})` : ''}
+                        {lead.attribution?.campaignName ? ` • Campaign: ${lead.attribution.campaignName}` : ''}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Step 2: Staff Assignment */}
+                  <div className="flex items-start space-x-3">
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5 ${
+                      lead.assigned_staff_id || lead.assignedStaffId
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : 'bg-amber-100 text-amber-700'
+                    }`}>
+                      2
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between flex-wrap gap-1">
+                        <strong className="text-slate-900 font-semibold text-xs">
+                          {lead.assigned_staff_id || lead.assignedStaffId
+                            ? 'Relationship Manager Assigned'
+                            : 'Pending RM Assignment'}
+                        </strong>
+                        {lead.assigned_at && (
+                          <span className="text-[10px] text-slate-600 font-mono font-medium">
+                            {formatReadableDate(lead.assigned_at)} at {formatReadableTime(lead.assigned_at)}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-600 mt-0.5">
+                        {lead.assigned_staff_name || staffList.find(s => s.id === (lead.assigned_staff_id || lead.assignedStaffId))?.displayName
+                          ? `Assigned to ${lead.assigned_staff_name || staffList.find(s => s.id === (lead.assigned_staff_id || lead.assignedStaffId))?.displayName}`
+                          : 'Awaiting assignment to sales or intake relationship manager'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Step 3: Current Lifecycle Milestone */}
+                  <div className="flex items-start space-x-3">
+                    <div className="w-6 h-6 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
+                      3
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between flex-wrap gap-1">
+                        <strong className="text-slate-900 font-semibold text-xs">
+                          Current Stage: {lead.lead_status || lead.stage || 'NEW'}
+                        </strong>
+                        {lead.updated_at && (
+                          <span className="text-[10px] text-slate-600 font-mono font-medium">
+                            Updated {formatReadableDate(lead.updated_at)}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-slate-600 mt-0.5">
+                        {PIPELINE_STAGES.find(s => s.key === (lead.lead_status || lead.stage))?.desc || 'Lead active in pipeline'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Step 4: Next Follow-up Milestone */}
+                  {lead.next_follow_up_at && (
+                    <div className="flex items-start space-x-3">
+                      <div className="w-6 h-6 rounded-full bg-blue-100 text-[#0073E6] flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
+                        4
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between flex-wrap gap-1">
+                          <strong className="text-slate-900 font-semibold text-xs">
+                            Scheduled Follow-up
+                          </strong>
+                          <span className="text-[10px] font-bold text-[#0073E6] font-mono">
+                            {formatReadableDate(lead.next_follow_up_at)} at {formatReadableTime(lead.next_follow_up_at)}
+                          </span>
+                        </div>
+                        {lead.follow_up_notes && (
+                          <p className="text-[11px] text-slate-600 mt-0.5 italic">
+                            "{lead.follow_up_notes}"
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -441,44 +574,8 @@ export function LeadDetailDrawer({
 
                   return (
                     <div className="space-y-3">
-                      {/* Structured Inbound Ingestion Payload Table */}
-                      {sourceLines.map((sLine, sIdx) => {
-                        const parts = sLine.split('|').map((p: string) => p.trim());
-                        const kvList: Array<{ label: string; value: string }> = [];
-                        for (const p of parts) {
-                          if (p.includes(':')) {
-                            const idx = p.indexOf(':');
-                            const k = p.substring(0, idx).replace(/[\[\]]/g, '').trim();
-                            const v = p.substring(idx + 1).replace(/[\[\]]/g, '').trim();
-                            kvList.push({ label: k, value: v });
-                          }
-                        }
-
-                        return (
-                          <div key={`src-${sIdx}`} className="bg-slate-50 rounded-xl p-3 border border-slate-200/80 shadow-2xs">
-                            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2 flex items-center justify-between">
-                              <span className="flex items-center space-x-1.5">
-                                <Layers className="w-3 h-3 text-[#0073E6]" />
-                                <span>Inbound Ingestion Payload</span>
-                              </span>
-                              <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200 text-[9px] font-bold">
-                                External Webhook
-                              </span>
-                            </div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-                              {kvList.map((kv, kIdx) => (
-                                <div key={kIdx} className={`bg-white p-2 rounded-lg border border-slate-100 ${kv.label.toLowerCase() === 'message' ? 'sm:col-span-2' : ''}`}>
-                                  <span className="text-[10px] font-medium text-slate-400 block">{kv.label}</span>
-                                  <span className="font-semibold text-slate-800 break-words">{kv.value}</span>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })}
-
                       {/* Interaction Call Notes with Dividers and Timestamps */}
-                      {interactionNotes.length > 0 && (
+                      {interactionNotes.length > 0 ? (
                         <div className="space-y-2.5">
                           {interactionNotes.map((note, nIdx) => (
                             <div key={`note-${nIdx}`} className="bg-white rounded-xl p-3.5 border border-slate-200/80 shadow-2xs">
@@ -491,7 +588,7 @@ export function LeadDetailDrawer({
                                 </div>
                                 {note.formattedTime && (
                                   <span className="text-[10px] text-slate-400 font-mono flex items-center space-x-1">
-                                    <Clock className="w-3 h-3 text-slate-400" />
+                                    <Clock className="w-3.5 h-3.5 text-slate-400" />
                                     <span>{note.formattedTime}</span>
                                   </span>
                                 )}
@@ -502,6 +599,8 @@ export function LeadDetailDrawer({
                             </div>
                           ))}
                         </div>
+                      ) : (
+                        <p className="text-slate-400 italic text-[11px]">No staff call notes recorded yet.</p>
                       )}
                     </div>
                   );
@@ -622,67 +721,6 @@ export function LeadDetailDrawer({
                 </div>
               </div>
 
-              {/* Matching Property Suggestions for Buyer */}
-              {lead.type === 'BUYER' && (
-                <div className="border-t border-slate-100 pt-5 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-[#0073E6]" />
-                      <span>Matching Property Suggestions</span>
-                    </h4>
-                    <span className="text-[10px] text-slate-400 font-medium">
-                      Suggested for {lead.bhk_type || lead.bhk || '3 BHK'}
-                    </span>
-                  </div>
-
-                  {(() => {
-                    const targetBhk = String(lead.bhk_type || lead.bhk || '').toLowerCase().replace(/\s+/g, '');
-                    const matching = (properties || []).filter(p => {
-                      if ((p as any).listing_status === 'SOLD' || p.status === 'SOLD') return false;
-                      if (targetBhk && p.bhkType && p.bhkType.toLowerCase().replace(/\s+/g, '').includes(targetBhk.replace('bhk', ''))) return true;
-                      return false;
-                    }).slice(0, 3);
-
-                    const displayList = matching.length > 0 ? matching : (properties || []).slice(0, 3);
-
-                    if (displayList.length === 0) {
-                      return <p className="text-slate-400 italic text-[11px]">No active inventory available to suggest.</p>;
-                    }
-
-                    return (
-                      <div className="space-y-2">
-                        {displayList.map(prop => {
-                          const askingCr = prop.askingPriceInr ? (prop.askingPriceInr / 10000000).toFixed(2) : null;
-                          const shareText = encodeURIComponent(`Hello ${lead.displayName || lead.buyer_name || lead.name || 'there'}, here is a verified apartment matching your requirement:\n*${prop.projectName || prop.title || 'Apartment'}*\n${prop.bhkType || 'Apartment'} • ₹${askingCr} Cr\nLocality: ${prop.localityName || 'Bengaluru'}\nVerified by SellMyGhar.`);
-                          return (
-                            <div key={prop.id} className="p-3 bg-white rounded-xl border border-slate-200/80 hover:border-[#0073E6] transition-all shadow-2xs flex items-center justify-between">
-                              <div className="min-w-0 pr-2">
-                                <div className="flex items-center space-x-2">
-                                  <strong className="text-slate-900 truncate block text-xs">{prop.projectName || prop.title || 'Resale Apartment'}</strong>
-                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-blue-50 text-[#0073E6]">{prop.bhkType}</span>
-                                </div>
-                                <p className="text-[10px] text-slate-500 mt-0.5">
-                                  {prop.localityName || 'Bengaluru'} • {askingCr ? `₹${askingCr} Cr` : 'Market Price'}
-                                </p>
-                              </div>
-                              <div className="flex items-center space-x-1 shrink-0">
-                                <a
-                                  href={`https://wa.me/${String(lead.phone || '').replace(/[^0-9]/g, '')}?text=${shareText}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-bold text-[10px] transition-colors inline-flex items-center space-x-1"
-                                >
-                                  <span>WhatsApp</span>
-                                </a>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })()}
-                </div>
-              )}
 
               {/* 5. Related Site Visits */}
               <div className="border-t border-slate-100 pt-5 space-y-3">

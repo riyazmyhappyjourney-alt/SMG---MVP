@@ -1639,6 +1639,8 @@ class DevSandboxStore {
           next_follow_up_at: lead.next_follow_up_at,
           follow_up_notes: lead.follow_up_notes,
           notes: lead.notes,
+          email: lead.email || null,
+          attribution: lead.attribution || null,
           created_at: lead.created_at,
           updated_at: lead.updated_at,
         };
@@ -1684,28 +1686,65 @@ class DevSandboxStore {
     if (cleanSql.includes('INSERT INTO seller_leads')) {
       let lead: DevSellerLead;
       if (cleanSql.includes('email') && cleanSql.includes('attribution')) {
-        lead = {
-          id: params[0] || `lead-${Date.now()}`,
-          owner_name: params[1],
-          phone: params[2],
-          email: params[3] || null,
-          apartment_society_name: params[4],
-          locality_id: params[5],
-          bhk_type: params[6],
-          expected_price_inr: params[7] ? Number(params[7]) : null,
-          listing_intent: 'SELL',
-          lead_status: params[8] || 'NEW',
-          assigned_staff_id: params[9] || null,
-          assigned_at: params[10] || null,
-          property_id: params[11] || null,
-          next_follow_up_at: params[12] || null,
-          follow_up_notes: params[13] || null,
-          notes: params[14] || null,
-          attribution: typeof params[15] === 'string' ? JSON.parse(params[15]) : params[15],
-          consent_record_id: null,
-          created_at: params[16] || new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        };
+        if (params.length === 10) {
+          let parsedAttr: any = null;
+          try {
+            parsedAttr = typeof params[8] === 'string' ? JSON.parse(params[8]) : params[8];
+          } catch {
+            parsedAttr = params[8];
+          }
+          lead = {
+            id: params[0] || `lead-${Date.now()}`,
+            owner_name: params[1],
+            phone: params[2],
+            email: params[3] || null,
+            apartment_society_name: params[4],
+            locality_id: 'Bangalore',
+            bhk_type: params[5],
+            expected_price_inr: params[6] ? Number(params[6]) : null,
+            listing_intent: 'SELL',
+            lead_status: 'NEW',
+            assigned_staff_id: null,
+            assigned_at: null,
+            property_id: null,
+            next_follow_up_at: null,
+            follow_up_notes: null,
+            notes: params[7] || null,
+            attribution: parsedAttr,
+            consent_record_id: null,
+            created_at: params[9] || new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+        } else {
+          let parsedAttr: any = null;
+          try {
+            parsedAttr = typeof params[15] === 'string' ? JSON.parse(params[15]) : params[15];
+          } catch {
+            parsedAttr = params[15];
+          }
+          lead = {
+            id: params[0] || `lead-${Date.now()}`,
+            owner_name: params[1],
+            phone: params[2],
+            email: params[3] || null,
+            apartment_society_name: params[4],
+            locality_id: params[5],
+            bhk_type: params[6],
+            expected_price_inr: params[7] ? Number(params[7]) : null,
+            listing_intent: 'SELL',
+            lead_status: params[8] || 'NEW',
+            assigned_staff_id: params[9] || null,
+            assigned_at: params[10] || null,
+            property_id: params[11] || null,
+            next_follow_up_at: params[12] || null,
+            follow_up_notes: params[13] || null,
+            notes: params[14] || null,
+            attribution: parsedAttr,
+            consent_record_id: null,
+            created_at: params[16] || new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+        }
       } else {
         const propIdParam = cleanSql.includes('property_id')
           ? (params.find((p: any) => typeof p === 'string' && p.startsWith('prop-')) || null)
@@ -3134,6 +3173,22 @@ class DevSandboxStore {
             this.publicationNotifications.delete(id);
           }
         }
+      }
+      return { rows: [] };
+    }
+
+    if (cleanSql.includes('DELETE FROM buyer_enquiries')) {
+      const targetId = String(params[0] || '').trim();
+      if (targetId) {
+        this.buyerEnquiries.delete(targetId);
+      }
+      return { rows: [] };
+    }
+
+    if (cleanSql.includes('DELETE FROM seller_leads')) {
+      const targetId = String(params[0] || '').trim();
+      if (targetId) {
+        this.sellerLeads.delete(targetId);
       }
       return { rows: [] };
     }

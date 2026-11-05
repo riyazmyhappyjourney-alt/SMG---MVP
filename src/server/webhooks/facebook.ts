@@ -47,7 +47,7 @@ export interface FacebookWebhookProcessResult {
   message: string;
   lead?: {
     id: string;
-    type: 'BUYER';
+    type: 'SELLER' | 'BUYER';
     name: string;
     phone: string;
     stage: string;
@@ -361,11 +361,20 @@ export class FacebookLeadService {
     }
     processedFacebookLeadCache.set(externalEnquiryId, now);
 
-    // 2. Database Deduplication Check
-    const existing = await executeQuery(
-      `SELECT id, buyer_name, phone, lead_status, attribution FROM buyer_enquiries WHERE attribution->>'externalEnquiryId' = $1 LIMIT 1;`,
+    // 2. Database Deduplication Check (Check seller_leads first, fallback to buyer_enquiries)
+    let existing = await executeQuery(
+      `SELECT id, owner_name AS name, phone, lead_status, attribution FROM seller_leads WHERE attribution->>'externalEnquiryId' = $1 LIMIT 1;`,
       [externalEnquiryId]
     );
+    let existingType: 'SELLER' | 'BUYER' = 'SELLER';
+
+    if (!existing.rows || existing.rows.length === 0) {
+      existing = await executeQuery(
+        `SELECT id, buyer_name AS name, phone, lead_status, attribution FROM buyer_enquiries WHERE attribution->>'externalEnquiryId' = $1 LIMIT 1;`,
+        [externalEnquiryId]
+      );
+      existingType = 'BUYER';
+    }
 
     if (existing.rows && existing.rows.length > 0) {
       const row = existing.rows[0];
@@ -378,8 +387,8 @@ export class FacebookLeadService {
         message: 'Duplicate Facebook lead safely suppressed from database.',
         lead: {
           id: row.id,
-          type: 'BUYER',
-          name: row.buyer_name,
+          type: existingType,
+          name: row.name || row.owner_name || row.buyer_name,
           phone: row.phone,
           stage: row.lead_status || 'NEW',
           source: 'Facebook Ads',
@@ -389,8 +398,8 @@ export class FacebookLeadService {
       };
     }
 
-    // 3. Generate unique CRM Lead ID
-    const leadId = `enq-fb-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`;
+    // 3. Generate unique CRM Lead ID (Tag as seller lead)
+    const leadId = `lead-fb-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`;
     const finalNotes = [
       `[Source: Facebook Ads]`,
       `[Meta Lead ID: ${lead.leadgenId}]`,
@@ -415,7 +424,7 @@ export class FacebookLeadService {
       receivedAt: new Date().toISOString(),
     };
 
-    // 4. Atomic Database Persistence
+    // 4. Atomic Database Persistence into seller_leads
     await withTransaction(async (client) => {
       // Record DPDP statutory consent entry
       const consentId = `cst-fb-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`;
@@ -425,7 +434,7 @@ export class FacebookLeadService {
             id, phone, user_id, purpose, notice_version,
             is_consented, consented_at, is_withdrawn,
             ip_hash, user_agent_hash
-          ) VALUES ($1, $2, NULL, 'BUYER_ENQUIRY', 'facebook-leadgen-v1', true, NOW(), false, $3, 'facebook-webhook')
+          ) VALUES ($1, $2, NULL, 'SELLER_LISTING', 'facebook-leadgen-v1', true, NOW(), false, $3, 'facebook-webhook')
           ON CONFLICT DO NOTHING;`,
           [consentId, lead.phone, clientIp.slice(0, 32)]
         );
@@ -433,13 +442,13 @@ export class FacebookLeadService {
         console.warn('[FacebookLeadService] Consent notice:', cstErr.message);
       }
 
-      // Insert Lead into buyer_enquiries
+      // Insert Lead into seller_leads (Facebook ads target sellers)
       await client.query(
-        `INSERT INTO buyer_enquiries (
-          id, buyer_name, phone, email, preferred_locality_or_society,
-          bhk_type, expected_price_inr, property_id, lead_status,
+        `INSERT INTO seller_leads (
+          id, owner_name, phone, email, apartment_society_name,
+          locality_id, bhk_type, expected_price_inr, listing_intent, lead_status,
           notes, attribution, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'NEW', $9, $10, $11, NOW());`,
+        ) VALUES ($1, $2, $3, $4, $5, 'Bangalore', $6, $7, 'SELL', 'NEW', $8, $9, $10, NOW());`,
         [
           leadId,
           lead.fullName,
@@ -448,7 +457,6 @@ export class FacebookLeadService {
           lead.city || 'Bengaluru',
           lead.bhk || '2 BHK',
           lead.budget || null,
-          null,
           finalNotes,
           JSON.stringify(attribution),
           new Date().toISOString(),
@@ -461,7 +469,7 @@ export class FacebookLeadService {
       await executeQuery(
         `INSERT INTO audit_logs (
           id, actor_id, actor_role, action, target_entity, target_entity_id, ip_address, diff_summary, timestamp
-        ) VALUES ($1, 'system-webhook-facebook', 'SYSTEM', 'LEAD_CREATED', 'buyer_enquiries', $2, $3, $4, NOW());`,
+        ) VALUES ($1, 'system-webhook-facebook', 'SYSTEM', 'LEAD_CREATED', 'seller_leads', $2, $3, $4, NOW());`,
         [
           `audit-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`,
           leadId,
@@ -472,6 +480,7 @@ export class FacebookLeadService {
             metaLeadId: lead.leadgenId,
             name: lead.fullName,
             phone: maskPhone(lead.phone),
+            type: 'SELLER',
           }),
         ]
       );
@@ -480,7 +489,7 @@ export class FacebookLeadService {
     }
 
     console.info(
-      `[Facebook Webhook] Ingested buyer lead ${leadId} (Lead ID: ${lead.leadgenId}, Name: ${lead.fullName}, Phone: ${maskPhone(lead.phone)})`
+      `[Facebook Webhook] Ingested seller lead ${leadId} (Lead ID: ${lead.leadgenId}, Name: ${lead.fullName}, Phone: ${maskPhone(lead.phone)})`
     );
 
     // 6. Email alert to sales desk (non-blocking)
@@ -488,7 +497,7 @@ export class FacebookLeadService {
       void EmailNotificationService.handleNewInboundLeadNotification({
         leadId,
         source: 'Facebook Ads',
-        leadType: 'BUYER',
+        leadType: 'SELLER',
         name: lead.fullName,
         phone: lead.phone,
         email: lead.email,
@@ -520,10 +529,10 @@ export class FacebookLeadService {
       status: 'CREATED',
       leadId,
       externalEnquiryId,
-      message: 'Facebook lead successfully ingested and created in SellMyGhar CRM.',
+      message: 'Facebook lead successfully ingested and created as Seller in SellMyGhar CRM.',
       lead: {
         id: leadId,
-        type: 'BUYER',
+        type: 'SELLER',
         name: lead.fullName,
         phone: lead.phone,
         stage: 'NEW',

@@ -324,17 +324,17 @@ export async function runFacebookWebhookTests(): Promise<{ passed: number; faile
     recordFail('11. In-memory replay guard', err);
   }
 
-  // Test 12: Persistence in database verified
+  // Test 12: Persistence in database verified (Facebook leads are sellers)
   try {
     const dbCheck = await executeQuery(
-      `SELECT id, buyer_name, phone, email, notes, attribution FROM buyer_enquiries WHERE attribution->>'externalEnquiryId' = $1 LIMIT 1;`,
+      `SELECT id, owner_name, phone, email, notes, attribution FROM seller_leads WHERE attribution->>'externalEnquiryId' = $1 LIMIT 1;`,
       [`FB-${testLeadIdA}`]
     );
     assert(dbCheck.rows.length === 1, 'Found exactly 1 row in database');
-    assert(dbCheck.rows[0].buyer_name === 'Abraham Test', 'Buyer name preserved in DB');
+    assert(dbCheck.rows[0].owner_name === 'Abraham Test', 'Seller owner name preserved in DB');
     const attr = typeof dbCheck.rows[0].attribution === 'string' ? JSON.parse(dbCheck.rows[0].attribution) : dbCheck.rows[0].attribution;
     assert(attr.source === 'Facebook Ads', 'Source is Facebook Ads in DB attribution');
-    recordPass('12. Ingested lead verified in database with source=Facebook Ads and attribution preserved');
+    recordPass('12. Ingested lead verified in seller_leads table with source=Facebook Ads and attribution preserved');
   } catch (err) {
     recordFail('12. Database persistence', err);
   }

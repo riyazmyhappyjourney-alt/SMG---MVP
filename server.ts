@@ -823,6 +823,28 @@ async function initSchemaColumns() {
       }
     }
 
+    // Migrate any Facebook leads in buyer_enquiries to seller_leads (since Facebook leads are Sellers)
+    try {
+      await executeQuery(`
+        INSERT INTO seller_leads (
+          id, owner_name, phone, email, apartment_society_name, locality_id, bhk_type,
+          expected_price_inr, listing_intent, lead_status, notes, attribution, created_at, updated_at
+        )
+        SELECT 
+          id, buyer_name, phone, email, COALESCE(preferred_locality_or_society, 'Bengaluru'),
+          'Bangalore', COALESCE(bhk_type, '2 BHK'), expected_price_inr, 'SELL', lead_status,
+          notes, attribution, created_at, updated_at
+        FROM buyer_enquiries
+        WHERE (attribution->>'source' ILIKE '%facebook%' OR id LIKE 'enq-fb%')
+        ON CONFLICT (id) DO UPDATE SET listing_intent = 'SELL';
+
+        DELETE FROM buyer_enquiries WHERE (attribution->>'source' ILIKE '%facebook%' OR id LIKE 'enq-fb%');
+      `);
+      console.info('[SellMyGhar DB] Facebook leads verified as Seller leads in seller_leads table.');
+    } catch (fbMigErr) {
+      console.warn('[SellMyGhar DB] Facebook lead migration notice:', fbMigErr);
+    }
+
     console.info('[SellMyGhar DB] Schema ensured with buyer_enquiries, property_media, and secure staff accounts.');
   } catch (err: any) {
     if (err.message && err.message.includes('[CONFIGURATION ERROR]')) {
@@ -5551,6 +5573,9 @@ const deleteLeadHandler = async (req: Request, res: Response) => {
     // 1. Check if buyer enquiry
     const buyerCheck = await executeQuery(`SELECT id, buyer_name FROM buyer_enquiries WHERE id = $1 LIMIT 1;`, [id]);
     if (buyerCheck.rows && buyerCheck.rows.length > 0) {
+      await executeQuery(`DELETE FROM visits WHERE lead_id = $1;`, [id]).catch(() => {});
+      await executeQuery(`DELETE FROM property_offers WHERE lead_id = $1;`, [id]).catch(() => {});
+      await executeQuery(`DELETE FROM buyer_enquiries WHERE id = $1;`, [id]);
       await executeQuery(
         `INSERT INTO audit_logs (id, actor_id, actor_role, action, target_entity, target_entity_id, ip_address, diff_summary, timestamp) VALUES ($1, $2, 'STAFF', 'LEAD_DELETED', 'buyer_enquiries', $3, $4, $5, NOW());`,
         [
@@ -5567,6 +5592,8 @@ const deleteLeadHandler = async (req: Request, res: Response) => {
     // 2. Check if seller lead
     const sellerCheck = await executeQuery(`SELECT id, owner_name FROM seller_leads WHERE id = $1 LIMIT 1;`, [id]);
     if (sellerCheck.rows && sellerCheck.rows.length > 0) {
+      await executeQuery(`DELETE FROM visits WHERE lead_id = $1;`, [id]).catch(() => {});
+      await executeQuery(`DELETE FROM property_offers WHERE lead_id = $1;`, [id]).catch(() => {});
       await executeQuery(`DELETE FROM seller_leads WHERE id = $1;`, [id]);
       await executeQuery(
         `INSERT INTO audit_logs (id, actor_id, actor_role, action, target_entity, target_entity_id, ip_address, diff_summary, timestamp) VALUES ($1, $2, 'STAFF', 'LEAD_DELETED', 'seller_leads', $3, $4, $5, NOW());`,
