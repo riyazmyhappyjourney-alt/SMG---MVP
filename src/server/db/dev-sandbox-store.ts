@@ -386,12 +386,12 @@ class DevSandboxStore {
     };
     this.users.set(riyazOwner.id, riyazOwner);
 
-    // Seed default internal staff accounts (so CRM dev access and role switcher never 404)
+    // Seed default internal admin account (clean Super Admin only, no mock staff)
     const adminUser: DevUser = {
       id: 'usr-admin-compliance-01',
       phone: '+919800000000',
       email: 'admin@sellmyghar.in',
-      display_name: 'Compliance Super Admin',
+      display_name: 'Super Admin',
       password_hash: null,
       token_version: 1,
       roles: ['STAFF_SUPER_ADMIN'],
@@ -403,57 +403,6 @@ class DevSandboxStore {
       updated_at: new Date().toISOString(),
     };
     this.users.set(adminUser.id, adminUser);
-
-    const verificationStaff: DevUser = {
-      id: 'usr-staff-verification-01',
-      phone: '+919800000001',
-      email: 'staff@sellmyghar.in',
-      display_name: 'Verification Desk Staff',
-      password_hash: null,
-      token_version: 1,
-      roles: ['STAFF_VERIFICATION_AGENT'],
-      module_permissions: ['OVERVIEW', 'LEADS', 'PROPERTIES', 'TASKS', 'CALENDAR'],
-      is_active: true,
-      failed_login_attempts: 0,
-      locked_until: null,
-      created_at: new Date(Date.now() - 86400000 * 10).toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    this.users.set(verificationStaff.id, verificationStaff);
-
-    const intakeStaff: DevUser = {
-      id: 'usr-staff-intake-01',
-      phone: '+919800000002',
-      email: 'intake@sellmyghar.in',
-      display_name: 'Sneha Reddy (Lead Intake)',
-      password_hash: null,
-      token_version: 1,
-      roles: ['STAFF_INTAKE_AGENT'],
-      module_permissions: ['OVERVIEW', 'LEADS', 'TASKS', 'CALENDAR'],
-      is_active: true,
-      failed_login_attempts: 0,
-      locked_until: null,
-      created_at: new Date(Date.now() - 86400000 * 10).toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    this.users.set(intakeStaff.id, intakeStaff);
-
-    const closerStaff: DevUser = {
-      id: 'usr-staff-closer-01',
-      phone: '+919800000003',
-      email: 'closer@sellmyghar.in',
-      display_name: 'Vikram Sethi (Deal Closer)',
-      password_hash: null,
-      token_version: 1,
-      roles: ['STAFF_DEAL_CLOSER'],
-      module_permissions: ['OVERVIEW', 'LEADS', 'PROPERTIES', 'VISITS', 'OFFERS', 'TASKS', 'CALENDAR'],
-      is_active: true,
-      failed_login_attempts: 0,
-      locked_until: null,
-      created_at: new Date(Date.now() - 86400000 * 10).toISOString(),
-      updated_at: new Date().toISOString(),
-    };
-    this.users.set(closerStaff.id, closerStaff);
 
     this.userIdentities.set('ident-seed-owner-01', {
       id: 'ident-seed-owner-01',
@@ -933,7 +882,11 @@ class DevSandboxStore {
 
     // 5. USERS: Select Staff List or Count
     if (cleanSql.includes('FROM users') && cleanSql.includes('STAFF_')) {
-      const staff = Array.from(this.users.values()).filter(x => x.roles.some(r => r.startsWith('STAFF_')));
+      const mockNames = ['intake', 'closer', 'verification desk', 'sneha reddy', 'vikram sethi'];
+      const staff = Array.from(this.users.values()).filter(x => 
+        x.roles.some(r => r.startsWith('STAFF_')) &&
+        !mockNames.some(m => (x.display_name || '').toLowerCase().includes(m))
+      );
       if (cleanSql.includes('COUNT(*)')) {
         const activeOnly = cleanSql.includes('is_active = true') ? staff.filter(s => s.is_active) : staff;
         return { rows: [{ count: activeOnly.length }] };
@@ -943,66 +896,11 @@ class DevSandboxStore {
 
     // 6. USERS: Select Admin Users List
     if (cleanSql.includes('FROM users') && cleanSql.includes('ORDER BY created_at DESC LIMIT 100')) {
-      const all = Array.from(this.users.values());
+      const mockNames = ['intake', 'closer', 'verification desk', 'sneha reddy', 'vikram sethi'];
+      const all = Array.from(this.users.values()).filter(x =>
+        !mockNames.some(m => (x.display_name || '').toLowerCase().includes(m))
+      );
       return { rows: all.map(s => ({ ...s })) };
-    }
-
-    // 7. USERS: Multi-Row Insert (Bootstrap Query in server.ts)
-    if (cleanSql.includes('INSERT INTO users') && cleanSql.includes('usr-staff-intake-01')) {
-      const staffPassHash = params[4];
-      const staff1: DevUser = {
-        id: params[0] || 'usr-staff-verification-01',
-        phone: params[1] || '+919800000001',
-        email: params[2] || 'staff@sellmyghar.in',
-        display_name: params[3] || 'Verification Desk Staff',
-        password_hash: staffPassHash,
-        token_version: 1,
-        roles: ['STAFF_VERIFICATION_AGENT'],
-        is_active: true,
-        failed_login_attempts: 0,
-        locked_until: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-      const staff2: DevUser = {
-        id: 'usr-staff-intake-01',
-        phone: '+919800000002',
-        email: 'intake@sellmyghar.in',
-        display_name: 'Sneha Reddy (Lead Intake)',
-        password_hash: staffPassHash,
-        token_version: 1,
-        roles: ['STAFF_INTAKE_AGENT'],
-        is_active: true,
-        failed_login_attempts: 0,
-        locked_until: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-      const staff3: DevUser = {
-        id: 'usr-staff-closer-01',
-        phone: '+919800000003',
-        email: 'closer@sellmyghar.in',
-        display_name: 'Vikram Sethi (Deal Closer)',
-        password_hash: staffPassHash,
-        token_version: 1,
-        roles: ['STAFF_DEAL_CLOSER'],
-        is_active: true,
-        failed_login_attempts: 0,
-        locked_until: null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      };
-
-      if (!this.users.has(staff1.id) && !Array.from(this.users.values()).some(u => u.phone === staff1.phone)) {
-        this.users.set(staff1.id, staff1);
-      }
-      if (!this.users.has(staff2.id) && !Array.from(this.users.values()).some(u => u.phone === staff2.phone)) {
-        this.users.set(staff2.id, staff2);
-      }
-      if (!this.users.has(staff3.id) && !Array.from(this.users.values()).some(u => u.phone === staff3.phone)) {
-        this.users.set(staff3.id, staff3);
-      }
-      return { rows: [staff1, staff2, staff3] };
     }
 
     // 8. USERS: Single-Row Insert (Admin bootstrap, customer OTP creation, etc.)

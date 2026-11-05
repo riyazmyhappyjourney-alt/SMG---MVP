@@ -920,13 +920,15 @@ async function initSchemaColumns() {
 
         DELETE FROM users 
         WHERE id IN ('usr-staff-intake-01', 'usr-staff-closer-01', 'usr-staff-verification-01')
-           OR LOWER(email) IN ('intake@sellmyghar.in', 'closer@sellmyghar.in', 'staff@sellmyghar.in');
+           OR LOWER(email) IN ('intake@sellmyghar.in', 'closer@sellmyghar.in', 'staff@sellmyghar.in', 'compliance@sellmyghar.in')
+           OR LOWER(display_name) LIKE '%intake%'
+           OR (LOWER(display_name) LIKE '%compliance%' AND id != 'usr-admin-compliance-01');
 
         UPDATE users 
         SET display_name = 'Super Admin' 
-        WHERE id = 'usr-admin-compliance-01' AND display_name = 'Compliance Super Admin';
+        WHERE id = 'usr-admin-compliance-01' AND (display_name = 'Compliance Super Admin' OR display_name LIKE '%Compliance%');
       `);
-      console.info('[SellMyGhar DB] Purged mock demo staff accounts (Sneha Reddy, Vikram Sethi, Verification Desk).');
+      console.info('[SellMyGhar DB] Purged mock demo staff accounts (Intake, Closer, Verification Desk, Compliance).');
     } catch (cleanupErr) {
       console.warn('[SellMyGhar DB] Mock staff cleanup non-blocking notice:', cleanupErr);
     }
@@ -934,9 +936,6 @@ async function initSchemaColumns() {
     // Repair: accounts that exist but have NO password hash can never log in. Backfill from env secrets.
     const backfillTargets: Array<{ email: string; pass?: string }> = [
       { email: 'admin@sellmyghar.in', pass: adminPass },
-      { email: 'staff@sellmyghar.in', pass: staffPass },
-      { email: 'intake@sellmyghar.in', pass: staffPass },
-      { email: 'closer@sellmyghar.in', pass: staffPass },
     ];
     for (const target of backfillTargets) {
       if (!target.pass) continue;
@@ -6245,10 +6244,25 @@ app.get(['/api/crm/staff', '/api/crm/users'], authenticateUser, requireStaffMemb
     `);
 
     const MOCK_STAFF_IDS = new Set(['usr-staff-intake-01', 'usr-staff-closer-01', 'usr-staff-verification-01']);
-    const MOCK_STAFF_EMAILS = new Set(['intake@sellmyghar.in', 'closer@sellmyghar.in', 'staff@sellmyghar.in']);
+    const MOCK_STAFF_EMAILS = new Set(['intake@sellmyghar.in', 'closer@sellmyghar.in', 'staff@sellmyghar.in', 'compliance@sellmyghar.in']);
+
+    const isMockUser = (s: any) => {
+      const email = (s.email || '').toLowerCase();
+      const name = (s.display_name || '').toLowerCase();
+      return (
+        MOCK_STAFF_IDS.has(s.id) ||
+        MOCK_STAFF_EMAILS.has(email) ||
+        email.includes('intake@') ||
+        email.includes('closer@') ||
+        (email.includes('compliance@') && !email.includes('admin@')) ||
+        name.includes('intake') ||
+        (name.includes('compliance') && !name.includes('super admin')) ||
+        name.includes('verification desk')
+      );
+    };
 
     const staff = staffRes.rows
-      .filter(s => !MOCK_STAFF_IDS.has(s.id) && !MOCK_STAFF_EMAILS.has((s.email || '').toLowerCase()))
+      .filter(s => !isMockUser(s))
       .map(s => {
       const legacyPerms = resolveLegacyModulePermissions(s.roles || []);
       const userPerms = (s.module_permissions && s.module_permissions.length > 0) ? s.module_permissions : legacyPerms;
