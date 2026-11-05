@@ -67,7 +67,7 @@ import { ManualLeadModal } from './ManualLeadModal';
 import { LeadDetailDrawer } from './LeadDetailDrawer';
 import { DateTimePicker } from '../common/DateTimePicker';
 import { ErrorBoundary } from '../common/ErrorBoundary';
-import { getCsrfTokenFromCookie } from '../../utils/safeApi';
+import { getCsrfTokenFromCookie, ensureCsrfToken } from '../../utils/safeApi';
 import {
   formatIndianCurrency,
   formatIndianNumberFull,
@@ -333,7 +333,10 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
     }
     const method = (init?.method || 'GET').toUpperCase();
     if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
-      const csrf = getCsrfTokenFromCookie();
+      let csrf = getCsrfTokenFromCookie();
+      if (!csrf) {
+        csrf = await ensureCsrfToken();
+      }
       if (csrf && !headers.has('X-CSRF-Token')) {
         headers.set('X-CSRF-Token', csrf);
       }
@@ -687,16 +690,19 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
         body: JSON.stringify({})
       });
       const data = await res.json();
-      if (data.success && data.completionUrl) {
+      const completionUrl = data.completionUrl || (data.url ? `${window.location.origin}${data.url}` : '');
+      if (res.ok && data.success && completionUrl) {
         if (navigator.clipboard) {
-          await navigator.clipboard.writeText(data.completionUrl);
+          try {
+            await navigator.clipboard.writeText(completionUrl);
+          } catch {}
         }
-        showToast('Self-completion link copied to clipboard! Valid for 7 days.', 'success');
+        showToast('Self-completion link generated & copied to clipboard! Valid for 7 days.', 'success');
       } else {
-        showToast(`Failed to generate link: ${data.message || data.error}`, 'error');
+        showToast(`Failed to generate link: ${data.message || data.error || 'Server error'}`, 'error');
       }
-    } catch {
-      showToast('Error generating completion link', 'error');
+    } catch (err: any) {
+      showToast(`Error generating completion link: ${err?.message || 'Network error'}`, 'error');
     }
   };
 

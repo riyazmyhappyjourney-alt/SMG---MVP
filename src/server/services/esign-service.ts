@@ -115,6 +115,7 @@ export class BrokerageEsignService {
     success: boolean;
     status: BrokerageAgreementStatus;
     documentId: string;
+    docType?: string;
   }> {
     this.assertAllowedEsignDocument('BROKERAGE_AGREEMENT');
 

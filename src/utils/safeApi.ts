@@ -112,10 +112,40 @@ export async function safeParseJson<T = any>(res: Response): Promise<ApiResponse
   }
 }
 
+let memoryCsrfToken: string | null = null;
+
+export function setMemoryCsrfToken(token: string | null) {
+  memoryCsrfToken = token;
+}
+
 export function getCsrfTokenFromCookie(): string | null {
-  if (typeof document === 'undefined') return null;
-  const match = document.cookie.match(/(?:^|;\s*)sellmyghar_csrf=([^;]+)/);
-  return match ? decodeURIComponent(match[1]) : null;
+  if (typeof document !== 'undefined') {
+    const match = document.cookie.match(/(?:^|;\s*)sellmyghar_csrf=([^;]+)/);
+    if (match) {
+      const val = decodeURIComponent(match[1]);
+      memoryCsrfToken = val;
+      return val;
+    }
+  }
+  return memoryCsrfToken;
+}
+
+export async function ensureCsrfToken(): Promise<string | null> {
+  const existing = getCsrfTokenFromCookie();
+  if (existing) return existing;
+  if (typeof fetch !== 'undefined') {
+    try {
+      const res = await fetch('/api/auth/csrf', { credentials: 'include' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.csrfToken) {
+          memoryCsrfToken = data.csrfToken;
+          return data.csrfToken;
+        }
+      }
+    } catch {}
+  }
+  return null;
 }
 
 /**
@@ -126,7 +156,10 @@ export async function safeFetch(input: RequestInfo | URL, init?: RequestInit): P
   const headers = new Headers(init?.headers || {});
   const method = (init?.method || 'GET').toUpperCase();
   if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
-    const csrf = getCsrfTokenFromCookie();
+    let csrf = getCsrfTokenFromCookie();
+    if (!csrf) {
+      csrf = await ensureCsrfToken();
+    }
     if (csrf && !headers.has('X-CSRF-Token')) {
       headers.set('X-CSRF-Token', csrf);
     }

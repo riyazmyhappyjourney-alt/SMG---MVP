@@ -150,18 +150,18 @@ export class DedupValidationService {
    */
   static async checkDuplicateProperty(candidate: {
     phone: string;
-    locality: string;
-    bhkType: string;
-    askingPriceInr: number;
+    locality?: string;
+    bhkType?: string;
+    askingPriceInr?: number;
     societyId?: string;
     societyName?: string;
     towerName?: string;
     flatNumber?: string;
   }): Promise<DuplicateDetectionResult> {
-    const { phone, locality, bhkType, askingPriceInr, societyId, societyName, towerName, flatNumber } = candidate;
+    const { phone, locality = '', bhkType = '', askingPriceInr = 0, societyId, societyName, towerName, flatNumber } = candidate;
 
-    const minPrice = Math.floor(askingPriceInr * 0.95);
-    const maxPrice = Math.ceil(askingPriceInr * 1.05);
+    const minPrice = askingPriceInr > 0 ? Math.floor(askingPriceInr * 0.95) : 0;
+    const maxPrice = askingPriceInr > 0 ? Math.ceil(askingPriceInr * 1.05) : Infinity;
     const cleanPhone = phone.replace(/\D/g, '').slice(-10);
 
     try {

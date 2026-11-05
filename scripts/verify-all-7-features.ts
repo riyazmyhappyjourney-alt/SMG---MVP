@@ -4,6 +4,7 @@ import { DedupValidationService } from '../src/server/services/dedup-service';
 import { BrokerageEsignService } from '../src/server/services/esign-service';
 import { TokenizedLinkService } from '../src/server/services/tokenized-link-service';
 import { devSandboxStore } from '../src/server/db/dev-sandbox-store';
+import { searchLocalities, searchSocieties } from '../src/data/bengaluruData';
 
 function formatPassed(msg: string) {
   console.log(`\x1b[32m✔ PASS:\x1b[0m ${msg}`);
@@ -37,6 +38,21 @@ async function runAcceptanceVerification() {
   // -------------------------------------------------------------------------
   console.log('\n--- FEATURE 1: Cascading Autocomplete & Trigram Search ---');
   {
+    // Test: Suggestions are NOT shown until user types at least 2 characters in form
+    const emptyLocResults = searchLocalities('');
+    const oneCharLocResults = searchLocalities('w');
+    const twoCharLocResults = searchLocalities('wh');
+    expect(emptyLocResults.length === 0, 'Locality autocomplete suppressed on empty input (no premature suggestions)');
+    expect(oneCharLocResults.length === 0, 'Locality autocomplete suppressed on 1 character typed');
+    expect(twoCharLocResults.length > 0, `Locality suggestions activated on >= 2 characters (found ${twoCharLocResults.length} matches for "wh")`);
+
+    const emptySocResults = searchSocieties('');
+    const oneCharSocResults = searchSocieties('s');
+    const twoCharSocResults = searchSocieties('so');
+    expect(emptySocResults.length === 0, 'Society autocomplete suppressed on empty input');
+    expect(oneCharSocResults.length === 0, 'Society autocomplete suppressed on 1 character typed');
+    expect(twoCharSocResults.length > 0, `Society suggestions activated on >= 2 characters (found ${twoCharSocResults.length} matches for "so")`);
+
     // 1. Search societies with partial/fuzzy match
     const searchResults = await SocietyService.searchSocieties('Shantiniketan', 8);
     expect(searchResults.length > 0, 'Trigram search returned Prestige Shantiniketan for query "Shantiniketan"');

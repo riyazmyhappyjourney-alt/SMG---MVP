@@ -25,6 +25,7 @@ interface AutocompleteInputProps {
   error?: string | null;
   helperText?: string;
   allowCustom?: boolean;
+  minChars?: number;
 }
 
 export const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
@@ -43,6 +44,7 @@ export const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
   error,
   helperText,
   allowCustom = true,
+  minChars = 2,
 }) => {
   const generatedId = useId();
   const inputId = propId || `autocomplete-${generatedId}`;
@@ -56,9 +58,12 @@ export const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
 
-  // Compute suggestions when value changes or input is focused
+  // Compute suggestions ONLY when input has been typed (minChars met) and dropdown is open
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || value.trim().length < minChars) {
+      setSuggestions([]);
+      return;
+    }
     let active = true;
     const res = getSuggestions(value);
     if (res && typeof (res as any).then === 'function') {
@@ -75,7 +80,7 @@ export const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
       setHighlightedIndex(-1);
     }
     return () => { active = false; };
-  }, [value, isOpen]);
+  }, [value, isOpen, minChars]);
 
   // Click outside listener
   useEffect(() => {
@@ -100,8 +105,15 @@ export const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
   }, [highlightedIndex]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onChange(e.target.value);
-    if (!isOpen) setIsOpen(true);
+    const val = e.target.value;
+    onChange(val);
+    if (val.trim().length >= minChars) {
+      setIsOpen(true);
+    } else {
+      setIsOpen(false);
+      setSuggestions([]);
+      setHighlightedIndex(-1);
+    }
   };
 
   const handleSelect = (suggestion: AutocompleteSuggestion) => {
@@ -116,7 +128,7 @@ export const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!isOpen) {
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && value.trim().length >= minChars) {
         setIsOpen(true);
         e.preventDefault();
       }
@@ -199,14 +211,18 @@ export const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
           type="text"
           value={value}
           onChange={handleInputChange}
-          onFocus={() => setIsOpen(true)}
+          onFocus={() => {
+            if (value.trim().length >= minChars) {
+              setIsOpen(true);
+            }
+          }}
           onKeyDown={handleKeyDown}
           disabled={disabled}
           maxLength={maxLength}
           placeholder={placeholder}
           role="combobox"
           aria-autocomplete="list"
-          aria-expanded={isOpen}
+          aria-expanded={isOpen && value.trim().length >= minChars}
           aria-controls={listboxId}
           aria-activedescendant={
             highlightedIndex >= 0 ? `${inputId}-opt-${highlightedIndex}` : undefined
@@ -223,7 +239,9 @@ export const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
             type="button"
             onClick={() => {
               onChange('');
-              setIsOpen(true);
+              setIsOpen(false);
+              setSuggestions([]);
+              setHighlightedIndex(-1);
               inputRef.current?.focus();
             }}
             aria-label="Clear field"
@@ -246,8 +264,8 @@ export const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
         <p className="text-xs font-medium text-rose-600 mt-1 font-['Poppins']">{error}</p>
       )}
 
-      {/* Dropdown Suggestions List */}
-      {isOpen && (
+      {/* Dropdown Suggestions List (Only visible when user has actually typed >= minChars) */}
+      {isOpen && value.trim().length >= minChars && (
         <ul
           id={listboxId}
           ref={listRef}
@@ -293,15 +311,11 @@ export const AutocompleteInput: React.FC<AutocompleteInputProps> = ({
             })
           ) : (
             <li className="px-3.5 py-3 text-center text-xs text-slate-500">
-              {value.trim().length > 0 ? (
-                <div>
-                  <p className="font-medium text-slate-700">No matching suggestions in Bengaluru dataset</p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    Press Enter or continue to use custom entry: &ldquo;{value}&rdquo;
-                  </p>
-                </div>
-              ) : (
-                <p>Type to search Bengaluru localities and apartment complexes</p>
+              <p className="font-medium text-slate-700">No matching suggestions in Bengaluru dataset</p>
+              {allowCustom && (
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Press Enter or continue typing to use custom entry: &ldquo;{value}&rdquo;
+                </p>
               )}
             </li>
           )}

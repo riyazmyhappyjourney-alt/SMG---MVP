@@ -116,7 +116,7 @@ export const Hero: React.FC<HeroProps> = ({
   const [societyQuery, setSocietyQuery] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [mobileNumber, setMobileNumber] = useState('');
-  const [suggestions, setSuggestions] = useState<SocietyItem[]>(CURATED_SOCIETIES);
+  const [suggestions, setSuggestions] = useState<SocietyItem[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [formError, setFormError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -168,13 +168,13 @@ export const Hero: React.FC<HeroProps> = ({
 
   const handleSocietyInput = (text: string) => {
     setSocietyQuery(text);
-    if (text.trim().length >= 1) {
+    if (text.trim().length >= 2) {
       const results = searchSocieties(text).slice(0, 6);
-      setSuggestions(results.length > 0 ? results : CURATED_SOCIETIES);
-      setShowSuggestions(true);
+      setSuggestions(results);
+      setShowSuggestions(results.length > 0);
     } else {
-      setSuggestions(CURATED_SOCIETIES);
-      setShowSuggestions(true);
+      setSuggestions([]);
+      setShowSuggestions(false);
     }
   };
 
@@ -346,7 +346,11 @@ export const Hero: React.FC<HeroProps> = ({
                             aria-label="Search Apartment / Society Name"
                             type="text"
                             value={societyQuery}
-                            onFocus={() => setShowSuggestions(true)}
+                            onFocus={() => {
+                              if (societyQuery.trim().length >= 2) {
+                                setShowSuggestions(true);
+                              }
+                            }}
                             onChange={(e) => handleSocietyInput(e.target.value)}
                             placeholder="Search Apartment / Society Name"
                             className="w-full pl-9 pr-3.5 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0073E6] transition-all"
@@ -355,7 +359,7 @@ export const Hero: React.FC<HeroProps> = ({
                         </div>
 
                         {/* Society Autocomplete Dropdown List */}
-                        {showSuggestions && (
+                        {showSuggestions && societyQuery.trim().length >= 2 && suggestions.length > 0 && (
                           <div className="absolute left-0 right-0 top-full mt-1 bg-white rounded-xl shadow-xl border border-slate-100 py-1.5 z-50 max-h-56 overflow-y-auto">
                             {suggestions.map((item) => (
                               <button

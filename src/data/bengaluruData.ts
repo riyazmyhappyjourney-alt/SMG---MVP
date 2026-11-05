@@ -226,8 +226,8 @@ export function getZoneForLocality(localityName: string): 'East' | 'South' | 'No
  * Tier 5: Substring match in sub-localities or zone
  */
 export function searchLocalities(query: string): LocalityItem[] {
-  if (!query || query.trim().length === 0) {
-    return BENGALURU_LOCALITIES.slice(0, 16);
+  if (!query || query.trim().length < 2) {
+    return [];
   }
   const clean = query.toLowerCase().trim();
 
@@ -286,8 +286,8 @@ export function searchSocieties(query: string, localityFilter?: string): Society
     }
   }
 
-  if (!clean) {
-    return list.slice(0, 16);
+  if (!clean || clean.length < 2) {
+    return [];
   }
 
   const escaped = clean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
