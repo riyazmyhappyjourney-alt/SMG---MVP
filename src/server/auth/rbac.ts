@@ -31,9 +31,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
   STAFF_INTAKE_AGENT: [
     'leads:create',
     'leads:read_assigned',
-    'leads:read_all',
     'leads:update_status',
-    'leads:assign',
     'properties:create',
     'properties:read_details_all',
     'properties:read_sensitive_identifiers',
@@ -43,9 +41,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
   // 4. Staff: Verification Agent (Legal & Title Inspection)
   STAFF_VERIFICATION_AGENT: [
     'leads:read_assigned',
-    'leads:read_all',
     'leads:update_status',
-    'leads:assign',
     'properties:read_details_all',
     'properties:read_sensitive_identifiers',
     'properties:update_verification_tier',
@@ -66,9 +62,7 @@ export const ROLE_PERMISSIONS: Record<AppRole, Permission[]> = {
   // 6. Staff: Deal Closer & Negotiator
   STAFF_DEAL_CLOSER: [
     'leads:read_assigned',
-    'leads:read_all',
     'leads:update_status',
-    'leads:assign',
     'properties:read_details_all',
     'properties:read_sensitive_identifiers',
     'properties:read_reserve_price',

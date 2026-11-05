@@ -4875,8 +4875,18 @@ app.get('/api/crm/leads', authenticateUser, requireStaffMember, async (req: Requ
     `;
     const buyerParams: any[] = [];
 
-    // Filter by assignment
-    if (filterAssigned) {
+    const userRoles = Array.isArray(req.user?.roles) ? req.user.roles : [];
+    const isAdmin = (userRoles as string[]).some(r => r === 'STAFF_SUPER_ADMIN' || r === 'ADMIN' || r === 'SUPER_ADMIN') || hasPermission(req.user!, 'leads:read_all' as any);
+
+    // Strict role-based isolation:
+    // Non-admin staff users can ONLY see leads assigned to them.
+    // Unassigned leads and other staff leads are completely hidden.
+    if (!isAdmin) {
+      sellerParams.push(req.user!.uid);
+      sellerQuery += ` AND sl.assigned_staff_id = $${sellerParams.length}`;
+      buyerParams.push(req.user!.uid);
+      buyerQuery += ` AND be.assigned_staff_id = $${buyerParams.length}`;
+    } else if (filterAssigned) {
       if (filterAssigned === 'me') {
         sellerParams.push(req.user!.uid);
         sellerQuery += ` AND sl.assigned_staff_id = $${sellerParams.length}`;
@@ -5557,6 +5567,12 @@ const deleteLeadHandler = async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, error: 'MISSING_ID', message: 'Lead ID is required.' });
     }
 
+    const userRoles = Array.isArray((req as any).user?.roles) ? (req as any).user.roles : [];
+    const isAdmin = userRoles.some((r: string) => r === 'STAFF_SUPER_ADMIN' || r === 'ADMIN' || r === 'SUPER_ADMIN') || hasPermission((req as any).user!, 'leads:read_all' as any);
+    if (!isAdmin) {
+      return res.status(403).json({ success: false, error: 'FORBIDDEN', message: 'Access denied: Only administrators can delete leads.' });
+    }
+
     // 1. Check if buyer enquiry
     const buyerCheck = await executeQuery(`SELECT id, buyer_name FROM buyer_enquiries WHERE id = $1 LIMIT 1;`, [id]);
     if (buyerCheck.rows && buyerCheck.rows.length > 0) {
@@ -5610,6 +5626,12 @@ const assignLeadHandler = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const staffId = req.body.staffId || req.body.assignedStaffId;
+
+    const userRoles = Array.isArray(req.user?.roles) ? req.user.roles : [];
+    const isAdmin = (userRoles as string[]).some(r => r === 'STAFF_SUPER_ADMIN' || r === 'ADMIN' || r === 'SUPER_ADMIN') || hasPermission(req.user!, 'leads:assign' as any);
+    if (!isAdmin) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Only administrators can assign or reassign leads.' });
+    }
 
     if (!staffId || typeof staffId !== 'string') {
       return res.status(400).json({ error: 'Valid staffId is required for lead assignment.' });
@@ -7735,6 +7757,12 @@ app.get('/api/crm/leads/:id/details', authenticateUser, requireStaffMember, asyn
     }
 
     const lead = leadRes.rows[0];
+
+    const userRoles = Array.isArray(req.user?.roles) ? req.user.roles : [];
+    const isAdmin = (userRoles as string[]).some(r => r === 'STAFF_SUPER_ADMIN' || r === 'ADMIN' || r === 'SUPER_ADMIN') || hasPermission(req.user!, 'leads:read_all' as any);
+    if (!isAdmin && lead.assigned_staff_id !== req.user!.uid) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Access denied: You can only view leads assigned to you.' });
+    }
 
     let property: any = null;
     let documents: any[] = [];

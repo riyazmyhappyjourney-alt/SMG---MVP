@@ -1606,8 +1606,10 @@ class DevSandboxStore {
       // Assigned staff filter
       if (cleanSql.includes('sl.assigned_staff_id IS NULL')) {
         leads = leads.filter(l => !l.assigned_staff_id);
+      } else if (cleanSql.includes('sl.assigned_staff_id IS NOT NULL')) {
+        leads = leads.filter(l => Boolean(l.assigned_staff_id));
       } else if (cleanSql.includes('sl.assigned_staff_id = $')) {
-        const staffVal = params.find(p => typeof p === 'string' && p.startsWith('usr-'));
+        const staffVal = params.find(p => typeof p === 'string' && (p.startsWith('usr-') || p.startsWith('staff-') || p.includes('@')));
         if (staffVal) {
           leads = leads.filter(l => l.assigned_staff_id === staffVal);
         }
@@ -1826,8 +1828,19 @@ class DevSandboxStore {
         );
         return { rows: match.map(b => ({ ...b, name: b.buyer_name, owner_name: b.buyer_name, client_name: b.buyer_name, property_id: b.property_id || null })) };
       }
+      let enquiries = Array.from(this.buyerEnquiries.values());
+      if (cleanSql.includes('be.assigned_staff_id IS NULL')) {
+        enquiries = enquiries.filter(b => !b.assigned_staff_id);
+      } else if (cleanSql.includes('be.assigned_staff_id IS NOT NULL')) {
+        enquiries = enquiries.filter(b => Boolean(b.assigned_staff_id));
+      } else if (cleanSql.includes('be.assigned_staff_id = $')) {
+        const staffVal = params.find(p => typeof p === 'string' && (p.startsWith('usr-') || p.startsWith('staff-') || p.includes('@')));
+        if (staffVal) {
+          enquiries = enquiries.filter(b => b.assigned_staff_id === staffVal);
+        }
+      }
       return {
-        rows: Array.from(this.buyerEnquiries.values()).map(b => {
+        rows: enquiries.map(b => {
           const staff = b.assigned_staff_id ? this.users.get(b.assigned_staff_id) : null;
           return {
             ...b,

@@ -59,6 +59,7 @@ export interface LeadDetailDrawerProps {
   newCallNote: string;
   setNewCallNote: (val: string) => void;
   handleDeleteLead?: (leadId: string) => void;
+  isAdmin?: boolean;
 }
 
 export function LeadDetailDrawer({
@@ -92,7 +93,8 @@ export function LeadDetailDrawer({
   setNewFollowUpNote,
   newCallNote,
   setNewCallNote,
-  handleDeleteLead
+  handleDeleteLead,
+  isAdmin = false
 }: LeadDetailDrawerProps) {
   const lead = leadDetailData?.lead || {};
   const visits: any[] = Array.isArray(leadDetailData?.visits) ? leadDetailData.visits : [];
@@ -184,7 +186,7 @@ export function LeadDetailDrawer({
                 </button>
               </>
             )}
-            {handleDeleteLead && (
+            {isAdmin && handleDeleteLead && (
               <button
                 type="button"
                 onClick={() => handleDeleteLead(selectedLeadId)}
@@ -421,21 +423,29 @@ export function LeadDetailDrawer({
                     <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
                       Assigned Relationship Manager
                     </label>
-                    <select
-                      value={assigneeSelect}
-                      onChange={(e) => {
-                        setAssigneeSelect(e.target.value);
-                        handleAssignLead(selectedLeadId, e.target.value);
-                      }}
-                      className="w-full bg-white border border-slate-200/80 rounded-xl px-3 py-2 font-medium text-xs text-slate-800 shadow-2xs focus:border-[#0073E6]"
-                    >
-                      <option value="">Unassigned</option>
-                      {staffList.map((s) => (
-                        <option key={s.id} value={s.id}>
-                          {s.displayName || s.email} • {Array.isArray(s.roles) ? s.roles.join(', ') : String(s.roles || '')}
-                        </option>
-                      ))}
-                    </select>
+                    {isAdmin ? (
+                      <select
+                        value={assigneeSelect}
+                        onChange={(e) => {
+                          setAssigneeSelect(e.target.value);
+                          handleAssignLead(selectedLeadId, e.target.value);
+                        }}
+                        className="w-full bg-white border border-slate-200/80 rounded-xl px-3 py-2 font-medium text-xs text-slate-800 shadow-2xs focus:border-[#0073E6]"
+                      >
+                        <option value="">Unassigned</option>
+                        {staffList.map((s) => (
+                          <option key={s.id} value={s.id}>
+                            {s.displayName || s.email} • {Array.isArray(s.roles) ? s.roles.join(', ') : String(s.roles || '')}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-3 py-2 font-semibold text-xs text-slate-700">
+                        {staffList.find((s) => s.id === assigneeSelect)?.displayName ||
+                          lead.assigned_staff_name ||
+                          'Assigned to You'}
+                      </div>
+                    )}
                     <p className="text-[10px] text-slate-400 mt-1">
                       Owns client diligence, follow-up scheduling & site tour coordination.
                     </p>
