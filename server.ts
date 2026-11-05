@@ -5274,30 +5274,8 @@ app.post('/api/crm/leads', jsonDefault, authenticateUser, requirePermissionMiddl
       console.warn('[CreateCrmLead] Lead creation alert email notice:', emailErr.message);
     }
 
-    // Trigger assignment alert if staff was assigned during creation
-    if (assignedStaffId) {
-      try {
-        const staffRes = await executeQuery('SELECT id, display_name, email, phone FROM users WHERE id = $1 LIMIT 1;', [assignedStaffId]);
-        const staffUser = staffRes.rows[0];
-        if (staffUser) {
-          await EmailNotificationService.handleLeadAssignedNotification({
-            leadId: createdId,
-            leadType: isSeller ? 'SELLER' : 'BUYER',
-            name: fullName.trim(),
-            phone: normalizedPhone,
-            society: resolvedSociety,
-            bhk: resolvedBhk,
-            assignedStaffName: staffUser.display_name || staffUser.email,
-            assignedStaffEmail: staffUser.email,
-            assignedStaffPhone: staffUser.phone,
-            assignedBy: (req.user as any)?.display_name || req.user?.email || 'CRM Admin',
-            status: validStage,
-          });
-        }
-      } catch (assignEmailErr: any) {
-        console.warn('[CreateCrmLead] Staff assignment alert notice:', assignEmailErr.message);
-      }
-    }
+    // Note: Staff assignment email alert disabled per administrative instructions
+    // (Email alerts are reserved exclusively for new inbound customer inquiries).
 
     return res.status(201).json({
       success: true,
@@ -5708,23 +5686,8 @@ const assignLeadHandler = async (req: Request, res: Response) => {
       }
     });
 
-    try {
-      await EmailNotificationService.handleLeadAssignedNotification({
-        leadId: updatedLead.id,
-        leadType: isSeller ? 'SELLER' : 'BUYER',
-        name: updatedLead.owner_name || updatedLead.buyer_name || 'Customer',
-        phone: updatedLead.phone,
-        society: updatedLead.apartment_society_name || updatedLead.preferred_locality_or_society,
-        bhk: updatedLead.bhk_type,
-        assignedStaffName: staffUser.display_name || staffUser.email,
-        assignedStaffEmail: staffUser.email,
-        assignedStaffPhone: staffUser.phone,
-        assignedBy: req.user?.display_name || req.user?.email || 'CRM Admin',
-        status: updatedLead.lead_status,
-      });
-    } catch (assignEmailErr: any) {
-      console.warn('[CrmLeadAssignEmail] Notification dispatch notice:', assignEmailErr.message);
-    }
+    // Note: Lead assignment email notification disabled per user request
+    // (Email alerts are reserved exclusively for new inbound customer inquiries).
 
     return res.json({
       success: true,
