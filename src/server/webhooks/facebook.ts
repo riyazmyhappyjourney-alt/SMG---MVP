@@ -185,7 +185,7 @@ export class FacebookLeadService {
    * Fetches full lead field data from Meta Graph API using leadgen_id
    */
   static async fetchLeadFromGraphApi(leadgenId: string): Promise<Record<string, any> | null> {
-    const accessToken = process.env.META_PAGE_ACCESS_TOKEN || MetaConversionsApiService.getAccessToken();
+    const accessToken = process.env.META_PAGE_ACCESS_TOKEN || process.env.META_SYSTEM_USER_TOKEN || MetaConversionsApiService.getAccessToken();
     if (!accessToken) {
       return null;
     }
