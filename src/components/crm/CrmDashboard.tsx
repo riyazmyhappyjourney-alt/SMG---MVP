@@ -1125,6 +1125,27 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
     }
   };
 
+  // Link Property to Lead
+  const handleLinkLeadProperty = async (leadId: string, propertyId: string) => {
+    try {
+      const res = await crmFetch(`/api/crm/leads/${leadId}/property`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ propertyId }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast('Property linked to lead successfully', 'success');
+        refreshLeadDetail();
+        loadLeads();
+      } else {
+        showToast(data.message || 'Failed to link property to lead', 'error');
+      }
+    } catch {
+      showToast('Network error linking property', 'error');
+    }
+  };
+
   // 3. Schedule Follow Up
   const handleScheduleFollowUp = async (leadId: string) => {
     if (!newFollowUpDate) {
@@ -4844,6 +4865,11 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
             setNewCallNote={setNewCallNote}
             handleDeleteLead={handleDeleteLead}
             isAdmin={isAdmin}
+            onViewProperty={(pid) => {
+              setSelectedLeadId(null);
+              setSelectedPropertyId(pid);
+            }}
+            handleLinkProperty={handleLinkLeadProperty}
           />
         </ErrorBoundary>
       )}

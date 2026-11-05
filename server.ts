@@ -5740,6 +5740,41 @@ const assignLeadHandler = async (req: Request, res: Response) => {
 app.post('/api/crm/leads/:id/assign', jsonDefault, authenticateUser, requirePermissionMiddleware('leads:assign'), assignLeadHandler);
 app.patch('/api/crm/leads/:id/assign', jsonDefault, authenticateUser, requirePermissionMiddleware('leads:assign'), assignLeadHandler);
 
+// Link Property to Lead Handler (for Relationship Managers / Admins)
+const linkLeadPropertyHandler = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const propertyId = (req.body.propertyId || req.body.property_id || '').trim() || null;
+
+    if (propertyId) {
+      const propCheck = await executeQuery(`SELECT id, title, bhk_type, asking_price_inr FROM properties WHERE id = $1 LIMIT 1;`, [propertyId]);
+      if (!propCheck.rows || propCheck.rows.length === 0) {
+        return res.status(404).json({ success: false, error: 'PROPERTY_NOT_FOUND', message: 'Selected property does not exist in inventory.' });
+      }
+    }
+
+    // 1. Try seller_leads
+    const sellerRes = await executeQuery(`UPDATE seller_leads SET property_id = $1, updated_at = NOW() WHERE id = $2 RETURNING id;`, [propertyId, id]);
+    if (sellerRes.rows && sellerRes.rows.length > 0) {
+      return res.json({ success: true, message: propertyId ? 'Property linked to lead.' : 'Property unlinked from lead.', leadId: id, propertyId });
+    }
+
+    // 2. Try buyer_enquiries
+    const buyerRes = await executeQuery(`UPDATE buyer_enquiries SET property_id = $1, updated_at = NOW() WHERE id = $2 RETURNING id;`, [propertyId, id]);
+    if (buyerRes.rows && buyerRes.rows.length > 0) {
+      return res.json({ success: true, message: propertyId ? 'Property linked to lead.' : 'Property unlinked from lead.', leadId: id, propertyId });
+    }
+
+    return res.status(404).json({ success: false, error: 'LEAD_NOT_FOUND', message: 'Lead record not found.' });
+  } catch (err: any) {
+    console.error('[CrmLinkLeadProperty] Error:', err);
+    return res.status(500).json({ success: false, error: 'INTERNAL_ERROR', message: 'Failed to link property to lead.' });
+  }
+};
+
+app.post('/api/crm/leads/:id/property', jsonDefault, authenticateUser, requireStaffMember, linkLeadPropertyHandler);
+app.patch('/api/crm/leads/:id/property', jsonDefault, authenticateUser, requireStaffMember, linkLeadPropertyHandler);
+
 // Helper for scheduling follow-ups
 const followUpHandler = async (req: Request, res: Response) => {
   try {
@@ -7772,6 +7807,33 @@ app.get('/api/crm/leads/:id/details', authenticateUser, requireStaffMember, asyn
         property = { ...propRes.rows[0] };
         const docsRes = await executeQuery(`SELECT * FROM documents WHERE property_id = $1;`, [lead.property_id]);
         documents = docsRes.rows || [];
+      }
+    }
+
+    // Fallback: check attribution for externalListingId or property_id
+    if (!property && (lead.attribution?.property_id || lead.attribution?.propertyId || lead.attribution?.externalListingId)) {
+      const candidateId = lead.attribution?.property_id || lead.attribution?.propertyId || lead.attribution?.externalListingId;
+      const propRes = await executeQuery(`SELECT * FROM properties WHERE id = $1 LIMIT 1;`, [candidateId]);
+      if (propRes.rows && propRes.rows.length > 0) {
+        property = { ...propRes.rows[0] };
+        const docsRes = await executeQuery(`SELECT * FROM documents WHERE property_id = $1;`, [candidateId]);
+        documents = docsRes.rows || [];
+      }
+    }
+
+    // Fallback: match by society name if specified
+    if (!property && (lead.apartment_society_name || lead.preferred_locality_or_society)) {
+      const societyTerm = String(lead.apartment_society_name || lead.preferred_locality_or_society).trim();
+      if (societyTerm && societyTerm.length > 3 && !['bengaluru', 'bangalore', 'market'].includes(societyTerm.toLowerCase())) {
+        const propRes = await executeQuery(
+          `SELECT * FROM properties WHERE LOWER(title) LIKE $1 OR LOWER(public_address) LIKE $1 LIMIT 1;`,
+          [`%${societyTerm.toLowerCase()}%`]
+        );
+        if (propRes.rows && propRes.rows.length > 0) {
+          property = { ...propRes.rows[0] };
+          const docsRes = await executeQuery(`SELECT * FROM documents WHERE property_id = $1;`, [property.id]);
+          documents = docsRes.rows || [];
+        }
       }
     }
 

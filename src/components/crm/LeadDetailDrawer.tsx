@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Phone,
   MessageSquare,
@@ -6,7 +6,13 @@ import {
   RefreshCw,
   Calendar,
   Clock,
-  Trash2
+  Trash2,
+  Building2,
+  Home,
+  MapPin,
+  ExternalLink,
+  Link2,
+  CheckCircle2
 } from 'lucide-react';
 import { LeadStatus } from '../../core/types/entities';
 import { CrmStaff, CrmProperty } from './CrmDashboard';
@@ -60,6 +66,8 @@ export interface LeadDetailDrawerProps {
   setNewCallNote: (val: string) => void;
   handleDeleteLead?: (leadId: string) => void;
   isAdmin?: boolean;
+  onViewProperty?: (propertyId: string) => void;
+  handleLinkProperty?: (leadId: string, propertyId: string) => Promise<void> | void;
 }
 
 export function LeadDetailDrawer({
@@ -94,8 +102,14 @@ export function LeadDetailDrawer({
   newCallNote,
   setNewCallNote,
   handleDeleteLead,
-  isAdmin = false
+  isAdmin = false,
+  onViewProperty,
+  handleLinkProperty
 }: LeadDetailDrawerProps) {
+  const [isLinkingPropertyOpen, setIsLinkingPropertyOpen] = useState(false);
+  const [selectedPropertyToLink, setSelectedPropertyToLink] = useState('');
+  const [isLinkingLoading, setIsLinkingLoading] = useState(false);
+
   const lead = leadDetailData?.lead || {};
   const visits: any[] = Array.isArray(leadDetailData?.visits) ? leadDetailData.visits : [];
   const documents: any[] = Array.isArray(leadDetailData?.documents) ? leadDetailData.documents : [];
@@ -121,6 +135,74 @@ export function LeadDetailDrawer({
   const isFb = typeof src === 'string' && (src.toLowerCase().includes('facebook') || src.toLowerCase().includes('meta') || src.toLowerCase().includes('instagram'));
   const isHousing = typeof src === 'string' && src.toLowerCase().includes('housing');
   const isWebsite = !is99 && !isMb && !isFb && !isHousing;
+
+  // Resolve property specifications from all potential lead sources
+  const rawProjectName =
+    property?.title ||
+    property?.projectName ||
+    property?.project_name ||
+    property?.apartmentSocietyName ||
+    property?.apartment_society_name ||
+    lead?.apartment_society_name ||
+    lead?.apartmentSocietyName ||
+    lead?.preferred_locality_or_society ||
+    lead?.society ||
+    lead?.attribution?.propertyName ||
+    lead?.attribution?.projectName ||
+    lead?.attribution?.project_name ||
+    lead?.attribution?.society ||
+    lead?.attribution?.formName ||
+    lead?.attribution?.campaignName ||
+    (typeof lead?.notes === 'string' && lead.notes.match(/\[(?:Project|Property|Society|Form|Campaign):\s*([^\]]+)\]/i)?.[1]) ||
+    '';
+
+  const resolvedPropertyName = rawProjectName.trim() || 'Property Details Pending';
+
+  const rawLocality =
+    property?.localityName ||
+    property?.locality_name ||
+    property?.locality ||
+    property?.public_address ||
+    lead?.locality_id ||
+    lead?.locality ||
+    lead?.attribution?.locality ||
+    lead?.attribution?.city ||
+    lead?.city ||
+    '';
+  const resolvedLocality = rawLocality.trim() || 'Bengaluru';
+
+  const resolvedBhk =
+    property?.bhkType ||
+    property?.bhk_type ||
+    lead?.bhk_type ||
+    lead?.bhk ||
+    lead?.attribution?.bhk ||
+    'Configuration N/A';
+
+  const rawPrice =
+    property?.askingPriceInr ||
+    property?.asking_price_inr ||
+    lead?.expected_price_inr ||
+    lead?.expected_price ||
+    lead?.budget;
+  const resolvedPrice = rawPrice && !isNaN(Number(rawPrice))
+    ? formatIndianCurrency(rawPrice)
+    : (lead?.type === 'SELLER' ? 'Price on Request' : 'Budget Flexible');
+
+  const resolvedSqft =
+    property?.superBuiltUpSqft ||
+    property?.super_built_up_sqft ||
+    property?.carpetAreaSqft ||
+    property?.carpet_area_sqft ||
+    lead?.super_built_up_sqft ||
+    lead?.carpet_area_sqft ||
+    null;
+
+  const unitInfo = [
+    property?.wing_tower || property?.wingTower ? `Tower ${property.wing_tower || property.wingTower}` : null,
+    property?.unit_floor || property?.unitFloor ? `Floor ${property.unit_floor || property.unitFloor}` : null,
+    property?.unit_number || property?.unitNumber ? `Unit ${property.unit_number || property.unitNumber}` : null,
+  ].filter(Boolean).join(' • ');
 
   return (
     <div 
@@ -159,6 +241,19 @@ export function LeadDetailDrawer({
                 )}
                 <span className="text-slate-300">•</span>
                 <span className="font-mono text-[11px] text-slate-400">{selectedLeadId}</span>
+              </div>
+              {/* Enquired Property Pill in Header */}
+              <div className="flex items-center space-x-1.5 mt-1 text-xs text-slate-700 font-medium font-['Poppins',sans-serif]">
+                <Building2 className="w-3.5 h-3.5 text-[#0073E6] shrink-0" />
+                <span className="font-bold text-slate-900 truncate max-w-[220px]" title={resolvedPropertyName}>
+                  {resolvedPropertyName}
+                </span>
+                {resolvedBhk && resolvedBhk !== 'Configuration N/A' && (
+                  <>
+                    <span className="text-slate-300">•</span>
+                    <span className="text-slate-600 font-semibold">{resolvedBhk}</span>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -250,8 +345,8 @@ export function LeadDetailDrawer({
                   </div>
                   <div>
                     <span className="text-slate-400 text-[10px] block font-medium">Society / Project</span>
-                    <strong className="text-slate-900 font-bold text-sm truncate block">
-                      {lead.apartment_society_name || lead.preferred_locality_or_society || lead.society || 'Sobha'}
+                    <strong className="text-slate-900 font-bold text-sm truncate block" title={resolvedPropertyName}>
+                      {resolvedPropertyName}
                     </strong>
                   </div>
                   <div>
@@ -278,6 +373,182 @@ export function LeadDetailDrawer({
                   <span className="text-[10px] text-slate-500 font-medium">
                     Channel: <strong className="text-slate-800">{src}</strong>
                   </span>
+                </div>
+              </div>
+
+              {/* 2. Target Property / Enquired Property Details Card */}
+              <div className="bg-white rounded-2xl p-4 border border-blue-200/80 shadow-xs space-y-3 bg-linear-to-b from-blue-50/50 to-white">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center space-x-1.5 font-['Poppins',sans-serif]">
+                    <Building2 className="w-4 h-4 text-[#0073E6]" />
+                    <span>Property Inquired About</span>
+                  </h4>
+                  {property ? (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200/80 flex items-center space-x-1">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                      <span>Connected Listing</span>
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200/80">
+                      Inbound Enquiry
+                    </span>
+                  )}
+                </div>
+
+                {/* Main Property Headline */}
+                <div className="bg-white rounded-xl p-3.5 border border-slate-200/70 shadow-2xs space-y-2.5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-bold text-slate-900 font-['Poppins',sans-serif] flex items-center space-x-1.5">
+                        <Home className="w-4 h-4 text-[#0073E6] shrink-0" />
+                        <span className="truncate">{resolvedPropertyName}</span>
+                      </div>
+                      <div className="text-xs text-slate-500 flex items-center space-x-1 mt-0.5">
+                        <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span className="truncate">{resolvedLocality}</span>
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="text-[10px] text-slate-400 font-semibold block uppercase">
+                        {lead.type === 'SELLER' ? 'Asking Price' : 'Budget'}
+                      </span>
+                      <span className="text-sm font-extrabold text-[#0073E6] font-['Poppins',sans-serif]">
+                        {resolvedPrice}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Property Specs Pills */}
+                  <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-100 text-[11px]">
+                    <span className="px-2.5 py-1 rounded-lg font-bold bg-slate-100 text-slate-800">
+                      {resolvedBhk}
+                    </span>
+                    {resolvedSqft && (
+                      <span className="px-2.5 py-1 rounded-lg font-medium bg-slate-100 text-slate-700">
+                        {resolvedSqft.toLocaleString('en-IN')} sq.ft
+                      </span>
+                    )}
+                    {unitInfo && (
+                      <span className="px-2.5 py-1 rounded-lg font-medium bg-slate-100 text-slate-700">
+                        {unitInfo}
+                      </span>
+                    )}
+                    {property?.verification_tier && (
+                      <span className="px-2.5 py-1 rounded-lg font-semibold bg-emerald-50 text-emerald-700 border border-emerald-100">
+                        {property.verification_tier.replace(/_/g, ' ')}
+                      </span>
+                    )}
+                    {property?.id && (
+                      <span className="px-2.5 py-1 rounded-lg font-mono text-[10px] bg-blue-50 text-blue-700 border border-blue-200">
+                        Property ID: {property.id}
+                      </span>
+                    )}
+                    {lead.attribution?.externalListingId && !property?.id && (
+                      <span className="px-2.5 py-1 rounded-lg font-mono text-[10px] bg-slate-50 text-slate-600 border border-slate-200">
+                        Portal ID: {lead.attribution.externalListingId}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Campaign & Portal Inquiry Context (For Facebook / 99acres) */}
+                {(lead.attribution?.formName || lead.attribution?.campaignName || lead.attribution?.rawPayload?.Query_Info) && (
+                  <div className="bg-slate-50/90 rounded-xl p-2.5 border border-slate-200/60 text-[11px] space-y-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                      Lead Channel Details:
+                    </span>
+                    {lead.attribution?.campaignName && (
+                      <div className="text-slate-700">
+                        <strong className="text-slate-900 font-semibold">Ad Campaign:</strong> {lead.attribution.campaignName}
+                      </div>
+                    )}
+                    {lead.attribution?.formName && (
+                      <div className="text-slate-700">
+                        <strong className="text-slate-900 font-semibold">Lead Form:</strong> {lead.attribution.formName}
+                      </div>
+                    )}
+                    {lead.attribution?.rawPayload?.Query_Info && (
+                      <div className="text-slate-700 italic">
+                        "{lead.attribution.rawPayload.Query_Info}"
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Action Buttons for RM */}
+                <div className="flex items-center flex-wrap gap-2 pt-1">
+                  {property && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (onViewProperty) {
+                          onViewProperty(property.id);
+                        } else {
+                          setActiveSection('PROPERTIES');
+                        }
+                      }}
+                      className="px-3 py-1.5 rounded-xl font-bold text-xs bg-[#0073E6] text-white hover:bg-[#005BB5] transition-colors flex items-center space-x-1.5 shadow-2xs cursor-pointer"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>View Full Property Listing</span>
+                    </button>
+                  )}
+
+                  {properties && properties.length > 0 && (
+                    <div className="flex items-center space-x-1.5">
+                      {!isLinkingPropertyOpen ? (
+                        <button
+                          type="button"
+                          onClick={() => setIsLinkingPropertyOpen(true)}
+                          className="px-3 py-1.5 rounded-xl font-semibold text-xs bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 transition-colors flex items-center space-x-1.5 cursor-pointer"
+                        >
+                          <Link2 className="w-3.5 h-3.5 text-slate-500" />
+                          <span>{property ? 'Change Linked Property' : 'Link to Inventory Property'}</span>
+                        </button>
+                      ) : (
+                        <div className="flex items-center space-x-1.5 bg-white border border-slate-300 rounded-xl p-1 shadow-xs">
+                          <select
+                            value={selectedPropertyToLink}
+                            onChange={(e) => setSelectedPropertyToLink(e.target.value)}
+                            className="bg-transparent text-xs font-medium text-slate-800 pr-2 py-0.5 focus:outline-hidden max-w-[200px]"
+                          >
+                            <option value="">Select Property...</option>
+                            {properties.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.projectName || (p as any).apartmentSocietyName || p.title || 'Property'} • {p.bhkType || ''} ({p.localityName || 'Bengaluru'})
+                              </option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            disabled={!selectedPropertyToLink || isLinkingLoading}
+                            onClick={async () => {
+                              if (!selectedPropertyToLink) return;
+                              setIsLinkingLoading(true);
+                              try {
+                                if (handleLinkProperty) {
+                                  await handleLinkProperty(selectedLeadId, selectedPropertyToLink);
+                                }
+                                setIsLinkingPropertyOpen(false);
+                              } finally {
+                                setIsLinkingLoading(false);
+                              }
+                            }}
+                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-[11px] disabled:opacity-50 cursor-pointer"
+                          >
+                            {isLinkingLoading ? 'Linking...' : 'Save'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setIsLinkingPropertyOpen(false)}
+                            className="px-2 py-1 text-slate-400 hover:text-slate-600 text-[11px] cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
 

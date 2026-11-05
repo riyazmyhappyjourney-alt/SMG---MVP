@@ -1667,6 +1667,9 @@ class DevSandboxStore {
           lead.assigned_at = new Date().toISOString();
           if (lead.lead_status === 'NEW') lead.lead_status = 'CONTACTED';
         }
+        if (cleanSql.includes('property_id = $1')) {
+          lead.property_id = params[0] || null;
+        }
         if (cleanSql.includes('next_follow_up_at = NULL')) {
           lead.next_follow_up_at = null;
           lead.follow_up_notes = null;
@@ -1949,6 +1952,9 @@ class DevSandboxStore {
           be.assigned_staff_id = params[0];
           be.assigned_at = new Date().toISOString();
           if (be.lead_status === 'NEW') be.lead_status = 'CONTACTED';
+        }
+        if (cleanSql.includes('property_id = $1')) {
+          be.property_id = params[0] || null;
         }
         if (cleanSql.includes('next_follow_up_at = NULL')) {
           be.next_follow_up_at = null;
