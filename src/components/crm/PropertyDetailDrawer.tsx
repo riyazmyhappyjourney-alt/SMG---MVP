@@ -99,29 +99,29 @@ export function PropertyDetailDrawer({
       onClick={onClose}
     >
       <div 
-        className="w-full max-w-lg lg:max-w-xl bg-white shadow-2xl h-full flex flex-col justify-between border-l border-slate-200/80 animate-in slide-in-from-right duration-200"
+        className="w-full sm:max-w-lg lg:max-w-xl bg-white shadow-2xl h-full flex flex-col justify-between border-l border-slate-200/80 animate-in slide-in-from-right duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Drawer Header (Exact Match to LeadDetailDrawer) */}
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-white shrink-0">
-          <div className="flex items-center space-x-3">
+        <div className="px-4 sm:px-6 py-3.5 border-b border-slate-200 flex items-center justify-between bg-white shrink-0">
+          <div className="flex items-center space-x-3 min-w-0 flex-1 mr-2">
             <div className="w-9 h-9 rounded-full bg-slate-800 text-white flex items-center justify-center font-semibold text-xs shrink-0 shadow-2xs">
               <Building2 className="w-4 h-4 text-white" />
             </div>
-            <div>
-              <h3 className="text-base font-semibold text-slate-900 max-w-[260px] truncate" title={displayTitle}>
+            <div className="min-w-0 flex-1">
+              <h3 className="text-base font-semibold text-slate-900 truncate" title={displayTitle}>
                 {displayTitle}
               </h3>
-              <div className="flex items-center flex-wrap gap-2 mt-0.5 text-xs text-slate-500 font-normal">
+              <div className="flex items-center flex-wrap gap-1.5 sm:gap-2 mt-0.5 text-xs text-slate-500 font-normal">
                 <span className="font-medium text-slate-800">
                   {bhk}
                 </span>
                 <span className="text-slate-300">•</span>
-                <span className="text-slate-600 font-normal">
+                <span className="text-slate-600 font-normal truncate max-w-[120px] sm:max-w-[180px]">
                   {locality}
                 </span>
                 <span className="text-slate-300">•</span>
-                <span className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${
+                <span className={`px-1.5 py-0.2 rounded text-[10px] font-semibold shrink-0 ${
                   listingStatus === 'PUBLISHED'
                     ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                     : listingStatus === 'DRAFT'
@@ -130,13 +130,13 @@ export function PropertyDetailDrawer({
                 }`}>
                   {listingStatus}
                 </span>
-                <span className="text-slate-300">•</span>
-                <span className="font-mono text-[11px] text-slate-400">{selectedPropertyId}</span>
+                <span className="text-slate-300 hidden sm:inline">•</span>
+                <span className="font-mono text-[11px] text-slate-400 hidden sm:inline">{selectedPropertyId}</span>
               </div>
               {/* Secondary Address / Unit Subheading */}
               <div className="flex items-center space-x-1.5 mt-1 text-xs text-slate-700 font-medium">
                 <MapPin className="w-3.5 h-3.5 text-[#0176D3] shrink-0" />
-                <span className="text-slate-600 truncate max-w-[240px]">
+                <span className="text-slate-600 truncate max-w-[200px] sm:max-w-[280px]">
                   {floorInfo ? `${floorInfo} • ${facing} Facing` : `${facing} Facing • Bengaluru`}
                 </span>
               </div>
@@ -144,13 +144,13 @@ export function PropertyDetailDrawer({
           </div>
 
           {/* Header Quick Actions */}
-          <div className="flex items-center space-x-1.5">
+          <div className="flex items-center space-x-1 shrink-0">
             {onGenerateBrochure && (
               <button
                 type="button"
                 onClick={onGenerateBrochure}
                 title="Generate Property Brochure (A4)"
-                className="p-2 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
+                className="p-1.5 sm:p-2 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
               >
                 <FileText className="w-4 h-4 text-[#0176D3]" />
               </button>
@@ -160,7 +160,7 @@ export function PropertyDetailDrawer({
                 type="button"
                 onClick={() => onGenerateCompletionLink(selectedPropertyId)}
                 title="Generate Seller Self-Completion Link (7 Days)"
-                className="p-2 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
+                className="p-1.5 sm:p-2 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
               >
                 <Share2 className="w-4 h-4 text-emerald-600" />
               </button>
@@ -170,7 +170,7 @@ export function PropertyDetailDrawer({
                 type="button"
                 onClick={() => onEditInPropertyEditor(property)}
                 title="Edit Property Specs"
-                className="p-2 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
+                className="p-1.5 sm:p-2 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
               >
                 <Edit3 className="w-4 h-4 text-slate-600" />
               </button>
@@ -178,7 +178,7 @@ export function PropertyDetailDrawer({
             <button
               type="button"
               onClick={onClose}
-              className="p-2 rounded-md hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
+              className="p-1.5 sm:p-2 rounded-md hover:bg-slate-100 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -186,7 +186,7 @@ export function PropertyDetailDrawer({
         </div>
 
         {/* Drawer Body (Exact Match to LeadDetailDrawer) */}
-        <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6 text-xs font-['Poppins']">
+        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 space-y-5 text-xs font-['Poppins']">
           {propertyDetailLoading ? (
             <div className="py-20 text-center text-slate-400 flex flex-col items-center justify-center space-y-3">
               <RefreshCw className="w-6 h-6 animate-spin text-[#0073E6]" />
@@ -352,14 +352,14 @@ export function PropertyDetailDrawer({
 
               {/* 3. Title Verification & Due Diligence Documents */}
               <div className="bg-white rounded-md p-3.5 border border-slate-200 shadow-2xs space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <h4 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider flex items-center space-x-1.5">
                     <Shield className="w-3.5 h-3.5 text-[#0176D3]" />
-                    <span>Title Verification & Legal Due Diligence ({documents.length})</span>
+                    <span>Title Due Diligence & Documents ({documents.length})</span>
                   </h4>
-                  <div className="flex items-center space-x-2">
+                  <div className="flex items-center space-x-2 shrink-0">
                     <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-50 text-[#0073E6] border border-blue-200">
-                      {verificationTier}
+                      {verificationTier === "LEVEL_3_PHYSICALLY_INSPECTED" ? "L3 Verified" : verificationTier === "LEVEL_2_DOCS_REVIEWED" ? "L2 Reviewed" : "L1 Declared"}
                     </span>
                     {onVerifyPropertyStatus && verificationTier !== 'LEVEL_2_DOCS_REVIEWED' && verificationTier !== 'LEVEL_3_PHYSICALLY_INSPECTED' && (
                       <button
@@ -373,18 +373,6 @@ export function PropertyDetailDrawer({
                     )}
                   </div>
                 </div>
-
-                {/* Statutory IT Act Section 1(4) Notice */}
-                <div className="bg-slate-50/70 rounded-md p-2.5 border border-slate-200 text-[11px] space-y-1">
-                  <div className="flex items-center space-x-1.5 text-slate-800 font-semibold text-[11px]">
-                    <AlertCircle className="w-3.5 h-3.5 text-[#0176D3] shrink-0" />
-                    <span>Statutory Property Documentation Architecture</span>
-                  </div>
-                  <p className="text-[10px] text-slate-600 leading-relaxed">
-                    Under Indian Law (IT Act 2000 Section 1(4)), Sale Deeds and conveyance instruments are strictly excluded from digital electronic signatures. Scanned, registered physical deed uploads are maintained below with cryptographic SHA-256 validation.
-                  </p>
-                </div>
-
                 {documents.length === 0 ? (
                   <p className="text-slate-400 italic text-[11px] py-2 text-center">No documents uploaded for this property yet.</p>
                 ) : (
@@ -450,12 +438,12 @@ export function PropertyDetailDrawer({
 
               {/* 4. Brokerage Agreement & Aadhaar eSign Lifecycle */}
               <div className="bg-white rounded-md p-3.5 border border-slate-200 shadow-2xs space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <h4 className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider flex items-center space-x-1.5">
                     <FileCheck2 className="w-3.5 h-3.5 text-[#0176D3]" />
-                    <span>Brokerage Agreement (Agency Representation eSign)</span>
+                    <span>Brokerage Representation Agreement</span>
                   </h4>
-                  <span className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-semibold shrink-0 ${
                     brokerageStatus === 'SIGNED'
                       ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                       : brokerageStatus === 'SENT'
@@ -574,8 +562,8 @@ export function PropertyDetailDrawer({
         </div>
 
         {/* Drawer Footer (Exact Match to LeadDetailDrawer) */}
-        <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between shrink-0">
-          <div className="flex items-center space-x-2">
+        <div className="px-4 sm:px-6 py-3 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 shrink-0">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
             {onGenerateCompletionLink && (
               <button
                 type="button"
