@@ -314,13 +314,13 @@ export const Hero: React.FC<HeroProps> = ({
                       </p>
                     </div>
 
-                    <form onSubmit={handleSubmitValuation} className="space-y-3">
+                    <form onSubmit={handleSubmitValuation} autoComplete="off" className="space-y-3">
                       
                       {/* Field 1: BHK Configuration Dropdown */}
                       <div className="relative">
                         <select
                           id="hero-bhk-select"
-                          name="bhk"
+                          name="smg_bhk"
                           aria-label="Select BHK Configuration"
                           value={bhk}
                           onChange={(e) => setBhk(e.target.value)}
@@ -343,10 +343,14 @@ export const Hero: React.FC<HeroProps> = ({
                         <div className="relative">
                           <input
                             id="hero-society-input"
-                            name="societyQuery"
+                            name="smg_society"
                             aria-label="Apartment / Society Name"
                             type="text"
                             autoComplete="off"
+                            autoCorrect="off"
+                            spellCheck={false}
+                            data-lpignore="true"
+                            data-form-type="other"
                             value={societyQuery}
                             onChange={(e) => setSocietyQuery(e.target.value)}
                             placeholder="Apartment / Society Name"
@@ -356,13 +360,18 @@ export const Hero: React.FC<HeroProps> = ({
                         </div>
                       </div>
 
-                      {/* Field 3: Customer Name */}
+                      {/* Field 3: Customer Name (Suppresses Chrome 'Abdul Riyaz' autofill bubble) */}
                       <div className="relative">
                         <input
                           id="hero-name-input"
-                          name="customerName"
+                          name="smg_contact_person"
                           aria-label="Customer Name"
                           type="text"
+                          autoComplete="off"
+                          autoCorrect="off"
+                          spellCheck={false}
+                          data-lpignore="true"
+                          data-form-type="other"
                           value={customerName}
                           onChange={(e) => setCustomerName(e.target.value)}
                           placeholder="Your Name"
@@ -375,9 +384,12 @@ export const Hero: React.FC<HeroProps> = ({
                       <div className="relative">
                         <input
                           id="hero-phone-input"
-                          name="mobileNumber"
+                          name="smg_contact_phone"
                           aria-label="Mobile Number"
                           type="tel"
+                          autoComplete="off"
+                          data-lpignore="true"
+                          data-form-type="other"
                           maxLength={10}
                           value={mobileNumber}
                           onChange={(e) => setMobileNumber(e.target.value.replace(/\D/g, ''))}
