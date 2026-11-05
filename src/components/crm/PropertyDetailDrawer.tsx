@@ -603,9 +603,10 @@ export function PropertyDetailDrawer({
               <button
                 type="button"
                 onClick={() => onEditInPropertyEditor(property)}
-                className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-900 text-white font-semibold text-xs rounded-md shadow-2xs cursor-pointer"
+                className="px-3.5 py-1.5 bg-[#0073E6] hover:bg-[#005BB5] text-white font-semibold text-xs rounded-md shadow-2xs cursor-pointer flex items-center space-x-1.5 transition-colors"
               >
-                Edit in PropertyEditor
+                <Edit3 className="w-3.5 h-3.5" />
+                <span>Edit Property</span>
               </button>
             )}
             <button

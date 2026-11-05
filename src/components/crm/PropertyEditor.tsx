@@ -771,7 +771,7 @@ export function PropertyEditor({
   const pricePerSqftComputed = superBuiltUpSqft > 0 ? Math.round(askingPriceInr / superBuiltUpSqft) : 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto font-['Montserrat'] animate-fade-in">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto font-['Poppins'] animate-fade-in">
       {/* Toast Alert */}
       {toastMessage && (
         <div className="fixed top-5 right-5 z-60 bg-[#172033] text-white px-4 py-2.5 rounded-lg shadow-xl text-xs font-semibold flex items-center space-x-2 border border-slate-700 animate-fade-in">

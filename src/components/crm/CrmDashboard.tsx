@@ -66,6 +66,7 @@ import { CareerCmsManager } from './CareerCmsManager';
 import { ManualLeadModal } from './ManualLeadModal';
 import { LeadDetailDrawer } from './LeadDetailDrawer';
 import { PropertyDetailDrawer } from './PropertyDetailDrawer';
+import { BulkPropertyImporterModal } from './BulkPropertyImporterModal';
 import { DateTimePicker } from '../common/DateTimePicker';
 import { ErrorBoundary } from '../common/ErrorBoundary';
 import { getCsrfTokenFromCookie, ensureCsrfToken } from '../../utils/safeApi';
@@ -637,6 +638,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
   // Modals
   const [isPropertyEditorOpen, setIsPropertyEditorOpen] = useState<boolean>(false);
   const [editingProperty, setEditingProperty] = useState<CrmProperty | null>(null);
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState<boolean>(false);
 
   const [isScheduleVisitOpen, setIsScheduleVisitOpen] = useState<boolean>(false);
   const [scheduleVisitForm, setScheduleVisitForm] = useState({
@@ -3451,6 +3453,15 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   </button>
                   <button
                     type="button"
+                    onClick={() => setIsBulkImportOpen(true)}
+                    className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-md bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-medium shadow-2xs transition-colors cursor-pointer"
+                    title="Bulk import inventory directly from Google Sheets or Excel"
+                  >
+                    <Upload className="w-3.5 h-3.5 text-[#0176D3]" />
+                    <span>Import Spreadsheet</span>
+                  </button>
+                  <button
+                    type="button"
                     onClick={() => {
                       setEditingProperty(null);
                       setIsPropertyEditorOpen(true);
@@ -5141,7 +5152,20 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               setRejectDocReason('');
             }}
             onEditInPropertyEditor={(prop: any) => {
-              setEditingProperty(prop);
+              const targetId = prop.id || selectedPropertyId;
+              const fullProp = properties.find((p) => p.id === targetId) || {
+                ...prop,
+                projectName: prop.projectName || prop.title || prop.project_locality_id || 'Property',
+                localityName: prop.localityName || prop.locality || 'Bengaluru',
+                bhkType: prop.bhkType || prop.bhk_type || '2BHK',
+                superBuiltUpSqft: prop.superBuiltUpSqft || prop.super_built_up_sqft || 1200,
+                carpetAreaSqft: prop.carpetAreaSqft || prop.carpet_area_sqft || 936,
+                askingPriceInr: prop.askingPriceInr || prop.asking_price_inr || 10000000,
+                status: prop.status || prop.listing_status || 'PUBLISHED',
+                images: propertyDetailData?.images || prop.images || []
+              };
+              setSelectedPropertyId(null);
+              setEditingProperty(fullProp as CrmProperty);
               setIsPropertyEditorOpen(true);
             }}
             onGenerateBrochure={() => setIsBrochureModalOpen(true)}
@@ -5973,6 +5997,20 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
             refreshAll();
           }}
           staffRole={currentRole}
+        />
+      )}
+
+      {/* ============================================================== */}
+      {/* MODAL: BULK PROPERTY SPREADSHEET IMPORTER                      */}
+      {/* ============================================================== */}
+      {isBulkImportOpen && (
+        <BulkPropertyImporterModal
+          isOpen={isBulkImportOpen}
+          onClose={() => setIsBulkImportOpen(false)}
+          onSuccess={() => {
+            showToast('Spreadsheet properties successfully ingested into CRM catalog!', 'success');
+            refreshAll();
+          }}
         />
       )}
 

@@ -72,6 +72,7 @@ import { SocietyService, INITIAL_BENGALURU_SOCIETIES } from './src/server/servic
 import { DedupValidationService } from './src/server/services/dedup-service';
 import { BrokerageEsignService } from './src/server/services/esign-service';
 import { TokenizedLinkService } from './src/server/services/tokenized-link-service';
+import { BulkImportService } from './src/server/services/bulk-import-service';
 import { devSandboxStore } from './src/server/db/dev-sandbox-store';
 
 const app = express();
@@ -8909,6 +8910,55 @@ app.get('/api/crm/properties/:id/brokerage-agreement/status', authenticateUser, 
     console.error('[BrokerageAgreementStatus] Error:', err);
     return res.status(500).json({ error: 'SERVER_ERROR', message: err.message });
   }
+});
+
+// ====================================================================
+// FEATURE: Bulk Spreadsheet Inventory Importer & Dedup Engine
+// ====================================================================
+
+// 1. Preview & Validate Spreadsheet Rows
+app.post('/api/crm/properties/bulk-import/preview', jsonDefault, authenticateUser, requireStaffMember, async (req: Request, res: Response) => {
+  try {
+    const rows = Array.isArray(req.body.rows) ? req.body.rows : [];
+    if (rows.length === 0) {
+      return res.status(400).json({ error: 'EMPTY_PAYLOAD', message: 'No rows provided for import.' });
+    }
+    const preview = await BulkImportService.previewBatch(rows);
+    return res.json({
+      success: true,
+      ...preview
+    });
+  } catch (err: any) {
+    console.error('[BulkImportPreview] Error:', err);
+    return res.status(500).json({ error: 'PREVIEW_FAILED', message: err.message });
+  }
+});
+
+// 2. Execute Bulk Ingestion into Database & Sandbox
+app.post('/api/crm/properties/bulk-import/execute', jsonDefault, authenticateUser, requireStaffMember, async (req: Request, res: Response) => {
+  try {
+    const items = Array.isArray(req.body.items) ? req.body.items : [];
+    if (items.length === 0) {
+      return res.status(400).json({ error: 'EMPTY_PAYLOAD', message: 'No items approved for execution.' });
+    }
+    const staffId = req.user?.id || 'usr-staff-superadmin';
+    const result = await BulkImportService.executeImport(items, staffId);
+    return res.json(result);
+  } catch (err: any) {
+    console.error('[BulkImportExecute] Error:', err);
+    return res.status(500).json({ error: 'IMPORT_FAILED', message: err.message });
+  }
+});
+
+// 3. Download Clean CSV Template
+app.get('/api/crm/properties/bulk-import/template', authenticateUser, (req: Request, res: Response) => {
+  const csvHeaders = 'Project Name,Configurations,Super Buildup Area,Facing,Furnishing Status,Floor,Balcony,Bathrooms,Property age,Possession,Price,Closing Price,Lead Source,Owner Name,Owner Contact,Sellmyghar\n';
+  const sampleRow1 = '"Prestige Meridian Park","3BHK",1387,"North East","Non Furnished","5/31",2,2,"","Jan 2027","1.95 cr","1.85 cr","Whatsapp Blast","Prashanth Chowdry","9845012345",TRUE\n';
+  const sampleRow2 = '"Sobha Dream Acres","2BHK",1200,"East Facing","Semi Furnished","11/18",1,2,"1 year","Ready to Move","95 Lakhs","90 Lakhs","Facebook","Rajesh Kumar","9845067890",TRUE\n';
+  
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', 'attachment; filename="SellMyGhar_Inventory_Import_Template.csv"');
+  return res.send(csvHeaders + sampleRow1 + sampleRow2);
 });
 
 // ====================================================================
