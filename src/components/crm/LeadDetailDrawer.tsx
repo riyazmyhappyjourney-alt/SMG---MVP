@@ -136,33 +136,28 @@ export function LeadDetailDrawer({
               {initialChar}
             </div>
             <div>
-              <div className="flex items-center flex-wrap gap-1.5">
-                <h3 className="text-base font-bold text-[#172033] max-w-[200px] sm:max-w-xs truncate mr-1">
-                  {displayName}
-                </h3>
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-[#0073E6] whitespace-nowrap shrink-0 leading-normal inline-flex items-center">
-                  {lead?.type || 'SELLER'}
+              <h3 className="text-base font-semibold text-slate-900 font-['Poppins',sans-serif] max-w-[240px] truncate">
+                {displayName}
+              </h3>
+              <div className="flex items-center flex-wrap gap-2 mt-0.5 font-['Poppins',sans-serif] text-xs text-slate-500">
+                <span className="font-semibold text-slate-800">
+                  {lead?.type === 'BUYER' ? 'Buyer' : 'Seller'}
                 </span>
-                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold whitespace-nowrap shrink-0 leading-normal inline-flex items-center ${
-                  isFb 
-                    ? 'bg-blue-50 text-[#1877F2] border border-blue-300' 
-                    : isMb 
-                    ? 'bg-rose-50 text-rose-900 border border-rose-300' 
-                    : is99 
-                    ? 'bg-amber-50 text-amber-900 border border-amber-300' 
-                    : isHousing 
-                    ? 'bg-purple-50 text-purple-900 border border-purple-300' 
-                    : 'bg-emerald-50 text-emerald-800 border border-emerald-300'
-                }`}>
+                <span className="text-slate-300">•</span>
+                <span className="text-slate-600 font-medium">
                   {src}
                 </span>
                 {(lead?.lead_status === 'NEW' || lead?.stage === 'NEW') && (
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#0073E6] text-white shadow-xs whitespace-nowrap shrink-0 leading-normal inline-flex items-center">
-                    NEW
-                  </span>
+                  <>
+                    <span className="text-slate-300">•</span>
+                    <span className="text-blue-600 font-semibold text-[11px]">
+                      New Lead
+                    </span>
+                  </>
                 )}
+                <span className="text-slate-300">•</span>
+                <span className="font-mono text-[11px] text-slate-400">{selectedLeadId}</span>
               </div>
-              <span className="font-mono text-[10px] text-slate-400">{selectedLeadId}</span>
             </div>
           </div>
 
@@ -609,21 +604,11 @@ export function LeadDetailDrawer({
 
               {/* Lead Attribution & Platform Metadata */}
               <div className="border-t border-slate-100 pt-5 space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between font-['Poppins',sans-serif]">
                   <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                     Inbound Source & Listing Metadata
                   </h4>
-                  <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
-                    isFb 
-                      ? 'bg-blue-50 text-[#1877F2] border border-blue-300' 
-                      : isMb 
-                      ? 'bg-rose-50 text-rose-900 border border-rose-300' 
-                      : is99 
-                      ? 'bg-amber-50 text-amber-900 border border-amber-300' 
-                      : isHousing 
-                      ? 'bg-purple-50 text-purple-900 border border-purple-300' 
-                      : 'bg-emerald-50 text-emerald-800 border border-emerald-300'
-                  }`}>
+                  <span className="text-xs font-semibold text-slate-700">
                     {isFb 
                       ? 'Facebook Lead Ads Webhook' 
                       : isMb 

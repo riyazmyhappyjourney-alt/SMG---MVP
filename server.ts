@@ -4941,14 +4941,21 @@ app.get('/api/crm/leads', authenticateUser, requireStaffMember, async (req: Requ
         listingIntent: r.listing_intent,
         stage: r.lead_status,
         status: r.lead_status,
+        lead_status: r.lead_status,
         assignedStaffId: r.assigned_staff_id,
+        assigned_staff_id: r.assigned_staff_id,
         assignedStaffName: r.assigned_staff_name || null,
+        assigned_staff_name: r.assigned_staff_name || null,
         assignedStaffPhone: r.assigned_staff_phone || null,
         assignedTo: r.assigned_staff_name || (r.assigned_staff_id ? 'Assigned' : 'Unassigned'),
         assignedAt: r.assigned_at,
+        assigned_at: r.assigned_at,
         propertyId: r.property_id,
+        property_id: r.property_id,
         nextFollowUpAt: r.next_follow_up_at,
+        next_follow_up_at: r.next_follow_up_at,
         followUpNotes: r.follow_up_notes,
+        follow_up_notes: r.follow_up_notes,
         notes: r.notes,
         email: r.email || r.attribution?.email || null,
         attribution: r.attribution || null,
@@ -4961,7 +4968,9 @@ app.get('/api/crm/leads', authenticateUser, requireStaffMember, async (req: Requ
         externalListingId: r.attribution?.externalListingId || null,
         isOverdue,
         createdAt: r.created_at,
-        updatedAt: r.updated_at
+        created_at: r.created_at,
+        updatedAt: r.updated_at,
+        updated_at: r.updated_at
       };
     });
 
@@ -5750,9 +5759,11 @@ app.patch('/api/crm/leads/:id/assign', jsonDefault, authenticateUser, requirePer
 const followUpHandler = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { nextFollowUpAt, followUpNotes } = req.body;
+    const { nextFollowUpAt, followUpNotes, completed, clearFollowUp } = req.body;
 
-    if (!nextFollowUpAt || isNaN(Date.parse(nextFollowUpAt))) {
+    const shouldClear = Boolean(completed || clearFollowUp || nextFollowUpAt === null || nextFollowUpAt === '');
+
+    if (!shouldClear && (!nextFollowUpAt || isNaN(Date.parse(nextFollowUpAt)))) {
       return res.status(400).json({ error: 'Valid nextFollowUpAt ISO date string is required.' });
     }
 
@@ -5769,28 +5780,54 @@ const followUpHandler = async (req: Request, res: Response) => {
     }
 
     let updatedLead: any = null;
-    if (isSeller) {
-      const updateRes = await executeQuery(`
-        UPDATE seller_leads
-        SET next_follow_up_at = $1,
-            follow_up_notes = $2,
-            lead_status = CASE WHEN lead_status = 'NEW' THEN 'CONTACTED' ELSE lead_status END,
-            updated_at = NOW()
-        WHERE id = $3
-        RETURNING *;
-      `, [nextFollowUpAt, followUpNotes || null, id]);
-      updatedLead = updateRes.rows[0];
+    if (shouldClear) {
+      if (isSeller) {
+        const updateRes = await executeQuery(`
+          UPDATE seller_leads
+          SET next_follow_up_at = NULL,
+              follow_up_notes = NULL,
+              lead_status = CASE WHEN lead_status = 'NEW' THEN 'CONTACTED' ELSE lead_status END,
+              updated_at = NOW()
+          WHERE id = $1
+          RETURNING *;
+        `, [id]);
+        updatedLead = updateRes.rows[0];
+      } else {
+        const updateRes = await executeQuery(`
+          UPDATE buyer_enquiries
+          SET next_follow_up_at = NULL,
+              follow_up_notes = NULL,
+              lead_status = CASE WHEN lead_status = 'NEW' THEN 'CONTACTED' ELSE lead_status END,
+              updated_at = NOW()
+          WHERE id = $1
+          RETURNING *;
+        `, [id]);
+        updatedLead = updateRes.rows[0];
+      }
     } else {
-      const updateRes = await executeQuery(`
-        UPDATE buyer_enquiries
-        SET next_follow_up_at = $1,
-            follow_up_notes = $2,
-            lead_status = CASE WHEN lead_status = 'NEW' THEN 'CONTACTED' ELSE lead_status END,
-            updated_at = NOW()
-        WHERE id = $3
-        RETURNING *;
-      `, [nextFollowUpAt, followUpNotes || null, id]);
-      updatedLead = updateRes.rows[0];
+      if (isSeller) {
+        const updateRes = await executeQuery(`
+          UPDATE seller_leads
+          SET next_follow_up_at = $1,
+              follow_up_notes = $2,
+              lead_status = CASE WHEN lead_status = 'NEW' THEN 'CONTACTED' ELSE lead_status END,
+              updated_at = NOW()
+          WHERE id = $3
+          RETURNING *;
+        `, [nextFollowUpAt, followUpNotes || null, id]);
+        updatedLead = updateRes.rows[0];
+      } else {
+        const updateRes = await executeQuery(`
+          UPDATE buyer_enquiries
+          SET next_follow_up_at = $1,
+              follow_up_notes = $2,
+              lead_status = CASE WHEN lead_status = 'NEW' THEN 'CONTACTED' ELSE lead_status END,
+              updated_at = NOW()
+          WHERE id = $3
+          RETURNING *;
+        `, [nextFollowUpAt, followUpNotes || null, id]);
+        updatedLead = updateRes.rows[0];
+      }
     }
 
     await recordAuditEvent({
@@ -6756,7 +6793,7 @@ app.get('/api/crm/tasks', authenticateUser, requireModule('TASKS'), async (req: 
     const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
     const endOfToday = new Date(); endOfToday.setHours(23, 59, 59, 999);
 
-    const overdue = tasks.filter((t: any) => new Date(t.next_follow_up_at).getTime() < now);
+    const overdue = tasks.filter((t: any) => new Date(t.next_follow_up_at).getTime() < startOfToday.getTime());
     const dueToday = tasks.filter((t: any) => {
       const time = new Date(t.next_follow_up_at).getTime();
       return time >= startOfToday.getTime() && time <= endOfToday.getTime();

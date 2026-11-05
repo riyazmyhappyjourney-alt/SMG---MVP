@@ -28,6 +28,7 @@ interface TasksKanbanModuleProps {
   onOpenLead: (leadId: string) => void;
   onRescheduleLead?: (leadId: string, newDate: string, newTime: string) => Promise<void>;
   onMarkLeadContacted?: (leadId: string) => Promise<void>;
+  onCompleteTask?: (leadId: string) => Promise<void>;
 }
 
 export const TasksKanbanModule: React.FC<TasksKanbanModuleProps> = ({
@@ -35,7 +36,8 @@ export const TasksKanbanModule: React.FC<TasksKanbanModuleProps> = ({
   leads = [],
   onOpenLead,
   onRescheduleLead,
-  onMarkLeadContacted
+  onMarkLeadContacted,
+  onCompleteTask
 }) => {
   const [viewMode, setViewMode] = useState<'table' | 'kanban'>('table');
   const [searchQuery, setSearchQuery] = useState('');
@@ -51,9 +53,13 @@ export const TasksKanbanModule: React.FC<TasksKanbanModuleProps> = ({
   const [optimisticOverrides, setOptimisticOverrides] = useState<Record<string, 'OVERDUE' | 'TODAY' | 'UPCOMING' | 'COMPLETED'>>({});
   const [actionError, setActionError] = useState<string | null>(null);
 
-  // Completed items from leads (leads with lead_status === 'CONTACTED' or 'CONVERTED' or null next_follow_up_at)
+  // Completed items from leads (leads with lead_status in contacted/converted/site_visit or follow-up cleared)
   const completedLeads = useMemo(() => {
-    return (leads || []).filter((l) => ['CONTACTED', 'CONVERTED', 'SITE_VISIT'].includes(l.lead_status) && !l.next_follow_up_at);
+    return (leads || []).filter((l) => {
+      const st = l.lead_status || l.stage || l.status;
+      const followUp = l.next_follow_up_at || l.nextFollowUpAt;
+      return ['CONTACTED', 'CONVERTED', 'SITE_VISIT', 'NEGOTIATION'].includes(st) && !followUp;
+    });
   }, [leads]);
 
   // Unified item partitioning taking optimistic moves into account
@@ -152,14 +158,18 @@ export const TasksKanbanModule: React.FC<TasksKanbanModuleProps> = ({
 
       if (targetCol === 'TODAY') {
         if (onRescheduleLead) {
-          await onRescheduleLead(leadId, todayStr, '11:00');
+          let targetHour = Math.max(now.getHours() + 2, 17);
+          if (targetHour > 20) targetHour = 20;
+          await onRescheduleLead(leadId, todayStr, `${String(targetHour).padStart(2, '0')}:00`);
         }
       } else if (targetCol === 'UPCOMING') {
         if (onRescheduleLead) {
           await onRescheduleLead(leadId, tomorrowStr, '11:00');
         }
       } else if (targetCol === 'COMPLETED') {
-        if (onMarkLeadContacted) {
+        if (onCompleteTask) {
+          await onCompleteTask(leadId);
+        } else if (onMarkLeadContacted) {
           await onMarkLeadContacted(leadId);
         }
       }

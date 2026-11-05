@@ -1665,8 +1665,11 @@ class DevSandboxStore {
           lead.assigned_at = new Date().toISOString();
           if (lead.lead_status === 'NEW') lead.lead_status = 'CONTACTED';
         }
-        if (cleanSql.includes('next_follow_up_at = $1')) {
-          lead.next_follow_up_at = params[0];
+        if (cleanSql.includes('next_follow_up_at = NULL')) {
+          lead.next_follow_up_at = null;
+          lead.follow_up_notes = null;
+        } else if (cleanSql.includes('next_follow_up_at = $1')) {
+          lead.next_follow_up_at = params[0] || null;
           lead.follow_up_notes = params[1] || null;
           if (lead.lead_status === 'NEW') lead.lead_status = 'CONTACTED';
         }
@@ -1934,8 +1937,11 @@ class DevSandboxStore {
           be.assigned_at = new Date().toISOString();
           if (be.lead_status === 'NEW') be.lead_status = 'CONTACTED';
         }
-        if (cleanSql.includes('next_follow_up_at = $1')) {
-          be.next_follow_up_at = params[0];
+        if (cleanSql.includes('next_follow_up_at = NULL')) {
+          be.next_follow_up_at = null;
+          be.follow_up_notes = null;
+        } else if (cleanSql.includes('next_follow_up_at = $1')) {
+          be.next_follow_up_at = params[0] || null;
           be.follow_up_notes = params[1] || null;
           if (be.lead_status === 'NEW') be.lead_status = 'CONTACTED';
         }

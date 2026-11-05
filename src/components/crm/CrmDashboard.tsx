@@ -98,22 +98,30 @@ export interface CrmLead {
   listingIntent?: string;
   stage: LeadStatus;
   status?: LeadStatus;
+  lead_status?: LeadStatus;
   assignedStaffId?: string | null;
   assignedStaffName?: string | null;
   assignedStaffPhone?: string | null;
+  assigned_staff_id?: string | null;
+  assigned_staff_name?: string | null;
   assignedTo?: string;
   assignedAt?: string | null;
   propertyId?: string | null;
   nextFollowUpAt?: string | null;
+  next_follow_up_at?: string | null;
   followUpNotes?: string | null;
+  follow_up_notes?: string | null;
   notes?: string | null;
   isOverdue?: boolean;
   source?: string;
   attribution?: any;
+  apartment_society_name?: string;
   externalEnquiryId?: string | null;
   externalListingId?: string | null;
   createdAt: string;
+  created_at?: string;
   updatedAt?: string;
+  updated_at?: string;
 }
 
 export interface CrmProperty {
@@ -556,6 +564,11 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
   const [leadDetailData, setLeadDetailData] = useState<any>(null);
   const [leadDetailLoading, setLeadDetailLoading] = useState<boolean>(false);
   const [leadDetailError, setLeadDetailError] = useState<string | null>(null);
+  const [leadDetailRefreshCounter, setLeadDetailRefreshCounter] = useState<number>(0);
+
+  const refreshLeadDetail = useCallback(() => {
+    setLeadDetailRefreshCounter((c) => c + 1);
+  }, []);
 
   // Deep-link support: Automatically select lead and switch to LEADS section if leadId is in URL
   useEffect(() => {
@@ -910,7 +923,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
     refreshAll();
   }, [refreshAll]);
 
-  // Load Lead Detail when selected
+  // Load Lead Detail when selected or refreshed
   useEffect(() => {
     if (!selectedLeadId) {
       setLeadDetailData(null);
@@ -933,7 +946,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
         setLeadDetailError(err.message || 'Network error retrieving lead details');
       })
       .finally(() => setLeadDetailLoading(false));
-  }, [selectedLeadId]);
+  }, [selectedLeadId, leadDetailRefreshCounter]);
 
   // Load Property Detail when selected (Fixes loading bug properly: handles 200, 404, network error)
   useEffect(() => {
@@ -966,6 +979,15 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
   // 1. Update Lead Status
   const handleUpdateLeadStatus = async (leadId: string, newStatus: LeadStatus) => {
     try {
+      // Optimistic update in leads state
+      setLeads((prev) =>
+        prev.map((l) =>
+          l.id === leadId
+            ? { ...l, stage: newStatus, status: newStatus, lead_status: newStatus }
+            : l
+        )
+      );
+
       const res = await crmFetch(`/api/crm/leads/${leadId}/status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -974,16 +996,63 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
       const data = await res.json();
       if (res.ok && data.success) {
         showToast(`Lead status updated to ${newStatus}`, 'success');
-        refreshAll();
         if (selectedLeadId === leadId) {
-          setSelectedLeadId(null);
-          setTimeout(() => setSelectedLeadId(leadId), 50);
+          refreshLeadDetail();
         }
+        refreshAll();
       } else {
         showToast(data.message || 'Failed to update lead status', 'error');
+        refreshAll();
       }
     } catch {
       showToast('Network error updating status', 'error');
+      refreshAll();
+    }
+  };
+
+  // Complete Task (clears next follow-up and advances stage from NEW if needed)
+  const handleCompleteTask = async (leadId: string) => {
+    try {
+      // Optimistic local update
+      setLeads((prev) =>
+        prev.map((l) =>
+          l.id === leadId
+            ? {
+                ...l,
+                next_follow_up_at: null,
+                nextFollowUpAt: null,
+                lead_status: l.lead_status === 'NEW' ? 'CONTACTED' : l.lead_status,
+                stage: l.stage === 'NEW' ? 'CONTACTED' : l.stage
+              }
+            : l
+        )
+      );
+      setTasks((prev) => ({
+        ...prev,
+        overdue: prev.overdue.filter((t) => t.id !== leadId),
+        dueToday: prev.dueToday.filter((t) => t.id !== leadId),
+        upcoming: prev.upcoming.filter((t) => t.id !== leadId)
+      }));
+
+      const res = await crmFetch(`/api/crm/leads/${leadId}/follow-up`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ completed: true })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast('Task marked as completed', 'success');
+        if (selectedLeadId === leadId) {
+          refreshLeadDetail();
+        }
+        refreshAll();
+      } else {
+        showToast(data.message || 'Failed to complete task', 'error');
+        refreshAll();
+      }
+    } catch {
+      showToast('Network error completing task', 'error');
+      refreshAll();
     }
   };
 
@@ -1012,6 +1081,14 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
   // 2. Assign Lead to Staff
   const handleAssignLead = async (leadId: string, staffId: string) => {
     try {
+      setLeads((prev) =>
+        prev.map((l) =>
+          l.id === leadId
+            ? { ...l, assigned_staff_id: staffId || null, assignedStaffId: staffId || null }
+            : l
+        )
+      );
+
       const res = await crmFetch(`/api/crm/leads/${leadId}/assign`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1020,16 +1097,17 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
       const data = await res.json();
       if (res.ok && data.success) {
         showToast('Lead assignment updated', 'success');
-        refreshAll();
         if (selectedLeadId === leadId) {
-          setSelectedLeadId(null);
-          setTimeout(() => setSelectedLeadId(leadId), 50);
+          refreshLeadDetail();
         }
+        refreshAll();
       } else {
         showToast(data.message || 'Failed to assign lead', 'error');
+        refreshAll();
       }
     } catch {
       showToast('Network error assigning lead', 'error');
+      refreshAll();
     }
   };
 
@@ -1053,11 +1131,10 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
         showToast('Follow-up scheduled successfully', 'success');
         setNewFollowUpDate('');
         setNewFollowUpNote('');
-        refreshAll();
         if (selectedLeadId === leadId) {
-          setSelectedLeadId(null);
-          setTimeout(() => setSelectedLeadId(leadId), 50);
+          refreshLeadDetail();
         }
+        refreshAll();
       } else {
         showToast(data.message || 'Failed to schedule follow-up', 'error');
       }
@@ -1094,11 +1171,10 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
         showToast('Follow-up scheduled successfully', 'success');
         setNewFollowUpDate('');
         setNewFollowUpNote('');
-        refreshAll();
         if (selectedLeadId === leadId) {
-          setSelectedLeadId(null);
-          setTimeout(() => setSelectedLeadId(leadId), 50);
+          refreshLeadDetail();
         }
+        refreshAll();
       } else {
         showToast(data.message || 'Failed to schedule follow-up', 'error');
       }
@@ -1123,11 +1199,10 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
       if (res.ok && data.success) {
         showToast('Call note recorded in audit ledger', 'success');
         setNewCallNote('');
-        refreshAll();
         if (selectedLeadId === leadId) {
-          setSelectedLeadId(null);
-          setTimeout(() => setSelectedLeadId(leadId), 50);
+          refreshLeadDetail();
         }
+        refreshAll();
       } else {
         showToast(data.message || 'Failed to record note', 'error');
       }
@@ -2955,17 +3030,17 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                             }`}
                           >
                             {/* Client / Contact */}
-                            <td className="py-3.5 px-4">
+                            <td className="py-3.5 px-4 font-['Poppins',sans-serif]">
                               <div className="flex items-center space-x-3">
-                                <div className={`w-8 h-8 rounded-full border flex items-center justify-center font-bold text-xs shrink-0 ${
+                                <div className={`w-8 h-8 rounded-full border flex items-center justify-center font-semibold text-xs shrink-0 ${
                                   isNewLead
                                     ? 'bg-[#0073E6] text-white border-[#0073E6]'
-                                    : 'bg-blue-50 border-blue-200/60 text-[#0073E6]'
+                                    : 'bg-slate-100 border-slate-200 text-slate-700'
                                 }`}>
                                   {clientName[0] || 'L'}
                                 </div>
                                 <div className="min-w-0">
-                                  <p className="font-bold text-slate-900 group-hover:text-[#0073E6] transition-colors truncate">
+                                  <p className="font-semibold text-slate-900 group-hover:text-[#0073E6] transition-colors truncate text-xs">
                                     {clientName}
                                   </p>
                                   <p className="text-[11px] text-slate-500 font-mono">
@@ -2976,94 +3051,61 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                             </td>
 
                             {/* Inquiry Type */}
-                            <td className="py-3.5 px-4">
-                              <span
-                                className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                                  lead.type === 'SELLER'
-                                    ? 'bg-blue-50 text-[#0073E6] border border-blue-200/60'
-                                    : 'bg-emerald-50 text-emerald-800 border border-emerald-200/60'
-                                }`}
-                              >
-                                {lead.type || 'SELLER'}
+                            <td className="py-3.5 px-4 font-['Poppins',sans-serif]">
+                              <span className="text-xs font-semibold text-slate-800">
+                                {lead.type === 'BUYER' ? 'Buyer' : 'Seller'}
                               </span>
                             </td>
 
                             {/* Lead Source */}
-                            <td className="py-3.5 px-4">
+                            <td className="py-3.5 px-4 font-['Poppins',sans-serif]">
                               {(() => {
                                 const rawSrc = lead.source || lead.attribution?.source || (lead.notes?.includes('99acres') ? '99acres' : (lead.notes?.toLowerCase().includes('magicbricks') ? 'Magicbricks' : (lead.notes?.toLowerCase().includes('facebook') ? 'Facebook Ads' : (lead.type === 'SELLER' ? 'SellMyGhar' : 'Website Portal'))));
-                                const is99 = rawSrc.toLowerCase().includes('99acres');
-                                const isMb = rawSrc.toLowerCase().includes('magicbricks');
-                                const isFb = rawSrc.toLowerCase().includes('facebook') || rawSrc.toLowerCase().includes('meta');
-                                const isWa = rawSrc.toLowerCase().includes('whatsapp');
                                 return (
-                                  <span
-                                    className={`inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold shadow-2xs ${
-                                      isFb
-                                        ? 'bg-blue-50 text-[#1877F2] border border-blue-300'
-                                        : is99
-                                        ? 'bg-amber-50 text-amber-900 border border-amber-300/80'
-                                        : isMb
-                                        ? 'bg-rose-50 text-rose-900 border border-rose-300/80'
-                                        : isWa
-                                        ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
-                                        : 'bg-blue-50 text-[#0073E6] border border-blue-200/60'
-                                    }`}
-                                  >
-                                    <span className={`w-1.5 h-1.5 rounded-full ${isFb ? 'bg-[#1877F2]' : is99 ? 'bg-amber-500' : isMb ? 'bg-rose-600' : isWa ? 'bg-emerald-500' : 'bg-[#0073E6]'}`}></span>
-                                    <span>{rawSrc}</span>
+                                  <span className="text-xs font-medium text-slate-600">
+                                    {rawSrc}
                                   </span>
                                 );
                               })()}
                             </td>
 
                             {/* Property & Locality */}
-                            <td className="py-3.5 px-4 text-slate-700">
-                              <div className="font-semibold text-slate-900 truncate max-w-[180px]">
+                            <td className="py-3.5 px-4 font-['Poppins',sans-serif] text-slate-700">
+                              <div className="font-medium text-slate-900 truncate max-w-[180px] text-xs">
                                 {lead.society || 'Residential Unit'}
                               </div>
-                              <div className="text-[10px] text-slate-400 truncate max-w-[180px]">
+                              <div className="text-[11px] text-slate-400 truncate max-w-[180px]">
                                 {lead.locality}
                               </div>
                             </td>
 
                             {/* BHK & Budget */}
-                            <td className="py-3.5 px-4 text-slate-700">
-                              <div className="font-bold text-slate-900">{lead.bhk || '2 BHK'}</div>
+                            <td className="py-3.5 px-4 font-['Poppins',sans-serif] text-slate-700">
+                              <div className="font-semibold text-slate-900 text-xs">{lead.bhk || '2 BHK'}</div>
                               <div className="text-[11px] text-slate-500 font-medium">{lead.expectedPrice || 'Market'}</div>
                             </td>
 
                             {/* Lifecycle Stage */}
-                            <td className="py-3.5 px-4">
-                              <span
-                                className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                                  isNewLead
-                                    ? 'bg-[#0073E6] text-white font-extrabold tracking-wide shadow-xs'
-                                    : lead.stage === 'CONTACTED'
-                                    ? 'bg-indigo-50 text-indigo-700'
-                                    : lead.stage === 'FOLLOW_UP'
-                                    ? 'bg-amber-50 text-amber-800'
-                                    : lead.stage === 'SITE_VISIT'
-                                    ? 'bg-sky-50 text-sky-800'
-                                    : lead.stage === 'NEGOTIATION'
-                                    ? 'bg-purple-50 text-purple-800'
-                                    : lead.stage === 'CONVERTED'
-                                    ? 'bg-emerald-50 text-emerald-800'
-                                    : 'bg-slate-100 text-slate-600'
-                                }`}
-                              >
-                                {lead.stage}
-                              </span>
+                            <td className="py-3.5 px-4 font-['Poppins',sans-serif]">
+                              {isNewLead ? (
+                                <span className="text-xs font-semibold text-[#0073E6]">
+                                  New Lead
+                                </span>
+                              ) : (
+                                <span className="text-xs font-medium text-slate-700">
+                                  {lead.stage}
+                                </span>
+                              )}
                             </td>
 
-                          {/* Assigned Staff */}
-                          <td className="py-3.5 px-4 text-slate-600">
-                            {lead.assignedStaffName ? (
-                              <span className="font-medium text-slate-800">{lead.assignedStaffName}</span>
-                            ) : (
-                              <span className="text-slate-400 italic">Unassigned</span>
-                            )}
-                          </td>
+                            {/* Assigned Staff */}
+                            <td className="py-3.5 px-4 font-['Poppins',sans-serif] text-slate-600">
+                              {lead.assignedStaffName ? (
+                                <span className="text-xs font-medium text-slate-800">{lead.assignedStaffName}</span>
+                              ) : (
+                                <span className="text-xs text-slate-400 italic">Unassigned</span>
+                              )}
+                            </td>
 
                           {/* Follow-up Due */}
                           <td className="py-3.5 px-4">
@@ -4012,6 +4054,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               onMarkLeadContacted={async (leadId) => {
                 await handleUpdateLeadStatus(leadId, 'CONTACTED');
               }}
+              onCompleteTask={handleCompleteTask}
             />
           )}
 
