@@ -1624,10 +1624,20 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
   };
 
   // -------------------------------------------------------------
-  // Filtered Lists & Memos
+  // Accessible Leads & Filtered Lists
+  // Non-admin staff ONLY ever have access to leads assigned directly to them.
   // -------------------------------------------------------------
+  const accessibleLeads = useMemo(() => {
+    if (isAdmin) return leads;
+    const currentStaffId = staffUser?.id || staffUser?.uid;
+    return leads.filter(l => {
+      const assignedId = l.assignedStaffId || (l as any).assigned_staff_id;
+      return Boolean(assignedId && currentStaffId && String(assignedId) === String(currentStaffId));
+    });
+  }, [leads, isAdmin, staffUser]);
+
   const filteredLeads = useMemo(() => {
-    return leads.filter(lead => {
+    return accessibleLeads.filter(lead => {
       const q = (leadSearch.trim() || globalSearch.trim()).toLowerCase();
       if (q) {
         const match =
@@ -1644,14 +1654,10 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
         return false;
       }
 
-      // Assign Filter
-      const assignedId = lead.assignedStaffId || (lead as any).assigned_staff_id;
-      const currentStaffId = staffUser?.id || staffUser?.uid;
-      if (!isAdmin) {
-        if (!assignedId || (currentStaffId && assignedId !== currentStaffId)) {
-          return false;
-        }
-      } else {
+      // Assign Filter (Only admins can switch assignment scope)
+      if (isAdmin) {
+        const assignedId = lead.assignedStaffId || (lead as any).assigned_staff_id;
+        const currentStaffId = staffUser?.id || staffUser?.uid;
         if (leadAssignFilter === 'ASSIGNED') {
           if (!assignedId) return false;
         } else if (leadAssignFilter === 'ME') {
@@ -1907,7 +1913,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     activeSection === 'LEADS' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
                   }`}
                 >
-                  {leads.length}
+                  {accessibleLeads.length}
                 </span>
               </button>
             )}
@@ -2374,7 +2380,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     New Leads
                   </span>
                   <div className="text-2xl font-bold text-slate-900 mt-1">
-                    {overviewMetrics?.metrics?.newLeads ?? leads.filter(l => l.stage === 'NEW').length}
+                    {!isAdmin ? accessibleLeads.filter(l => l.stage === 'NEW').length : (overviewMetrics?.metrics?.newLeads ?? accessibleLeads.filter(l => l.stage === 'NEW').length)}
                   </div>
                   <span className="text-[11px] text-[#0073E6] font-semibold flex items-center mt-1">
                     View New <ChevronRight className="w-3 h-3 ml-0.5" />
@@ -2393,7 +2399,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     Follow-ups Due
                   </span>
                   <div className="text-2xl font-bold text-slate-900 mt-1">
-                    {overviewMetrics?.metrics?.followUpNeeded ?? leads.filter(l => l.stage === 'FOLLOW_UP').length}
+                    {!isAdmin ? accessibleLeads.filter(l => l.stage === 'FOLLOW_UP').length : (overviewMetrics?.metrics?.followUpNeeded ?? accessibleLeads.filter(l => l.stage === 'FOLLOW_UP').length)}
                   </div>
                   <span className="text-[11px] text-[#0073E6] font-semibold flex items-center mt-1">
                     View Queue <ChevronRight className="w-3 h-3 ml-0.5" />
@@ -2469,7 +2475,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     Converted Deals
                   </span>
                   <div className="text-2xl font-bold text-emerald-800 mt-1">
-                    {overviewMetrics?.metrics?.convertedLeads ?? leads.filter(l => l.stage === 'CONVERTED').length}
+                    {!isAdmin ? accessibleLeads.filter(l => l.stage === 'CONVERTED').length : (overviewMetrics?.metrics?.convertedLeads ?? accessibleLeads.filter(l => l.stage === 'CONVERTED').length)}
                   </div>
                   <span className="text-[11px] text-emerald-600 font-semibold flex items-center mt-1">
                     Closed Deals <ChevronRight className="w-3 h-3 ml-0.5" />
@@ -2489,13 +2495,15 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     onClick={() => setActiveSection('LEADS')}
                     className="text-xs font-medium text-[#0176D3] hover:underline flex items-center cursor-pointer"
                   >
-                    View All Leads ({leads.length}) <ChevronRight className="w-3.5 h-3.5 ml-1" />
+                    View All Leads ({accessibleLeads.length}) <ChevronRight className="w-3.5 h-3.5 ml-1" />
                   </button>
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
                   {PIPELINE_STAGES.map((stage) => {
-                    const count = overviewMetrics?.pipeline?.[stage.key] ?? leads.filter(l => l.stage === stage.key).length;
+                    const count = !isAdmin
+                      ? accessibleLeads.filter(l => l.stage === stage.key).length
+                      : (overviewMetrics?.pipeline?.[stage.key] ?? accessibleLeads.filter(l => l.stage === stage.key).length);
                     return (
                       <button
                         key={stage.key}
@@ -2750,11 +2758,11 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     <span>Leads</span>
                   </div>
                   <div className="flex items-center space-x-2 mt-0.5">
-                    <h2 className="text-xl font-bold tracking-tight text-slate-900">All Leads</h2>
+                    <h2 className="text-xl font-bold tracking-tight text-slate-900">{isAdmin ? 'All Leads' : 'My Assigned Leads'}</h2>
                     <ChevronDown className="w-4 h-4 text-slate-500" />
                   </div>
                   <p className="text-xs text-slate-500 font-normal mt-0.5">
-                    {filteredLeads.length} items • Filtered by active criteria • Updated moments ago
+                    {filteredLeads.length} items • {isAdmin ? 'Filtered by active criteria' : 'Assigned exclusively to you'} • Updated moments ago
                   </p>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -2789,8 +2797,8 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   }`}
                 >
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">Total Pipeline</span>
-                  <div className="text-2xl font-bold text-slate-900 mt-0.5 tabular-nums">{leads.length}</div>
-                  <span className="text-[11px] text-slate-500 font-normal mt-0.5 block">All active inquiries</span>
+                  <div className="text-2xl font-bold text-slate-900 mt-0.5 tabular-nums">{accessibleLeads.length}</div>
+                  <span className="text-[11px] text-slate-500 font-normal mt-0.5 block">{isAdmin ? 'All active inquiries' : 'My active leads'}</span>
                 </div>
 
                 <div
@@ -2803,7 +2811,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 >
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">New Inbound</span>
                   <div className="text-2xl font-bold text-slate-900 mt-0.5 tabular-nums">
-                    {leads.filter(l => l.stage === 'NEW').length}
+                    {accessibleLeads.filter(l => l.stage === 'NEW').length}
                   </div>
                   <span className="text-[11px] text-[#0176D3] font-medium mt-0.5 block">Fresh registrations</span>
                 </div>
@@ -2818,7 +2826,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 >
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">Contacted</span>
                   <div className="text-2xl font-bold text-slate-900 mt-0.5 tabular-nums">
-                    {leads.filter(l => l.stage === 'CONTACTED').length}
+                    {accessibleLeads.filter(l => l.stage === 'CONTACTED').length}
                   </div>
                   <span className="text-[11px] text-indigo-700 font-medium mt-0.5 block">Initial outreach</span>
                 </div>
@@ -2833,7 +2841,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 >
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">In Follow-up</span>
                   <div className="text-2xl font-bold text-amber-900 mt-0.5 tabular-nums">
-                    {leads.filter(l => l.stage === 'FOLLOW_UP').length}
+                    {accessibleLeads.filter(l => l.stage === 'FOLLOW_UP').length}
                   </div>
                   <span className="text-[11px] text-amber-700 font-medium mt-0.5 block">Active diligence</span>
                 </div>
@@ -2848,7 +2856,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 >
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">Site Visits</span>
                   <div className="text-2xl font-bold text-sky-900 mt-0.5 tabular-nums">
-                    {leads.filter(l => l.stage === 'SITE_VISIT').length}
+                    {accessibleLeads.filter(l => l.stage === 'SITE_VISIT').length}
                   </div>
                   <span className="text-[11px] text-sky-700 font-medium mt-0.5 block">Physical tours</span>
                 </div>
@@ -2863,7 +2871,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 >
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">Converted</span>
                   <div className="text-2xl font-bold text-emerald-800 mt-0.5 tabular-nums">
-                    {leads.filter(l => l.stage === 'CONVERTED').length}
+                    {accessibleLeads.filter(l => l.stage === 'CONVERTED').length}
                   </div>
                   <span className="text-[11px] text-emerald-700 font-medium mt-0.5 block">Deals closed</span>
                 </div>
@@ -2878,7 +2886,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 >
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-rose-600 block">Lost Leads</span>
                   <div className="text-2xl font-bold text-rose-700 mt-0.5 tabular-nums">
-                    {leads.filter(l => l.stage === 'LOST').length}
+                    {accessibleLeads.filter(l => l.stage === 'LOST').length}
                   </div>
                   <span className="text-[11px] text-rose-600 font-medium mt-0.5 block">Inquiry dropped</span>
                 </div>
@@ -3258,7 +3266,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   <div className="flex items-center space-x-2">
                     <span>
                       Showing <strong className="text-slate-800 tabular-nums">{filteredLeads.length}</strong> of{' '}
-                      <strong className="text-slate-800 tabular-nums">{leads.length}</strong> lead inquiries
+                      <strong className="text-slate-800 tabular-nums">{accessibleLeads.length}</strong> lead inquiries
                     </span>
                   </div>
                   <div className="flex items-center space-x-2">
@@ -4511,7 +4519,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 <div className="bg-white p-5 rounded-2xl border border-slate-200/80 shadow-xs">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Leads</span>
                   <div className="text-3xl font-bold text-slate-900 mt-1">
-                    {reportsData?.totalLeads ?? leads.length}
+                    {reportsData?.totalLeads ?? accessibleLeads.length}
                   </div>
                   <p className="text-xs text-slate-500 mt-1">Verified seller & buyer inquiries</p>
                 </div>
@@ -4538,8 +4546,8 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 <h3 className="text-sm font-bold text-slate-900">Lead Stage Breakdown</h3>
                 <div className="space-y-3">
                   {PIPELINE_STAGES.map(stage => {
-                    const count = reportsData?.stageCounts?.[stage.key] ?? leads.filter(l => l.stage === stage.key).length;
-                    const pct = leads.length > 0 ? ((count / leads.length) * 100).toFixed(1) : '0';
+                    const count = reportsData?.stageCounts?.[stage.key] ?? accessibleLeads.filter(l => l.stage === stage.key).length;
+                    const pct = accessibleLeads.length > 0 ? ((count / accessibleLeads.length) * 100).toFixed(1) : '0';
                     return (
                       <div key={stage.key} className="space-y-1 text-xs">
                         <div className="flex justify-between font-semibold">

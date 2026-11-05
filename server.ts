@@ -4876,7 +4876,7 @@ app.get('/api/crm/leads', authenticateUser, requireStaffMember, async (req: Requ
     const buyerParams: any[] = [];
 
     const userRoles = Array.isArray(req.user?.roles) ? req.user.roles : [];
-    const isAdmin = (userRoles as string[]).some(r => r === 'STAFF_SUPER_ADMIN' || r === 'ADMIN' || r === 'SUPER_ADMIN') || hasPermission(req.user!, 'leads:read_all' as any);
+    const isAdmin = (userRoles as string[]).some(r => r === 'STAFF_SUPER_ADMIN' || r === 'ADMIN' || r === 'SUPER_ADMIN');
 
     // Strict role-based isolation:
     // Non-admin staff users can ONLY see leads assigned to them.
@@ -5628,7 +5628,7 @@ const assignLeadHandler = async (req: Request, res: Response) => {
     const staffId = req.body.staffId || req.body.assignedStaffId;
 
     const userRoles = Array.isArray(req.user?.roles) ? req.user.roles : [];
-    const isAdmin = (userRoles as string[]).some(r => r === 'STAFF_SUPER_ADMIN' || r === 'ADMIN' || r === 'SUPER_ADMIN') || hasPermission(req.user!, 'leads:assign' as any);
+    const isAdmin = (userRoles as string[]).some(r => r === 'STAFF_SUPER_ADMIN' || r === 'ADMIN' || r === 'SUPER_ADMIN');
     if (!isAdmin) {
       return res.status(403).json({ error: 'FORBIDDEN', message: 'Only administrators can assign or reassign leads.' });
     }
@@ -6172,7 +6172,8 @@ app.get('/api/crm/overview-metrics', authenticateUser, requireModule('OVERVIEW')
       return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required for CRM overview.' });
     }
 
-    const canReadAll = hasPermission(req.user!, 'leads:read_all' as any);
+    const userRoles = Array.isArray(req.user?.roles) ? (req.user.roles as string[]) : [];
+    const isAdmin = userRoles.some(r => r === 'STAFF_SUPER_ADMIN' || r === 'ADMIN' || r === 'SUPER_ADMIN');
     const userId = req.user!.uid;
 
     const [leadsRes, buyerRes, propRes, visitsRes, offersRes] = await Promise.all([
@@ -6189,8 +6190,8 @@ app.get('/api/crm/overview-metrics', authenticateUser, requireModule('OVERVIEW')
       ownerName: l.owner_name || l.name || 'Customer',
       owner_name: l.owner_name || l.name || 'Customer'
     }));
-    if (!canReadAll) {
-      allLeads = allLeads.filter(l => l.assigned_staff_id === userId || !l.assigned_staff_id);
+    if (!isAdmin) {
+      allLeads = allLeads.filter(l => l.assigned_staff_id === userId);
     }
 
     const pipeline: Record<string, number> = {
@@ -6219,8 +6220,8 @@ app.get('/api/crm/overview-metrics', authenticateUser, requireModule('OVERVIEW')
     const activeProperties = (propRes.rows || []).filter((p: any) => p.listing_status === 'PUBLISHED').length;
 
     let allVisits = visitsRes.rows || [];
-    if (!canReadAll) {
-      allVisits = allVisits.filter((v: any) => v.assigned_staff_id === userId || !v.assigned_staff_id);
+    if (!isAdmin) {
+      allVisits = allVisits.filter((v: any) => v.assigned_staff_id === userId);
     }
     const visitsScheduled = allVisits.filter((v: any) => v.status === 'SCHEDULED').length;
 
@@ -6240,7 +6241,7 @@ app.get('/api/crm/overview-metrics', authenticateUser, requireModule('OVERVIEW')
       return t >= startOfToday.getTime() && t <= endOfToday.getTime() && l.lead_status !== 'CONVERTED' && l.lead_status !== 'LOST';
     }).slice(0, 5);
     const pendingOffers = allOffers.filter((o: any) => o.status === 'PENDING_REVIEW').slice(0, 5);
-    const assignedToMe = allLeads.filter(l => l.assigned_staff_id === userId || canReadAll);
+    const assignedToMe = allLeads.filter(l => l.assigned_staff_id === userId || isAdmin);
     const recentlyUpdatedAssignedLeads = [...assignedToMe].sort((a, b) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime()).slice(0, 5);
 
     return res.json({
@@ -6274,15 +6275,16 @@ app.get('/api/crm/visits', authenticateUser, requireModule('VISITS'), async (req
     const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_')) || (req.user!.module_permissions && req.user!.module_permissions.length > 0);
     if (!isStaff) return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
 
-    const canReadAll = hasPermission(req.user!, 'leads:read_all' as any);
+    const userRoles = Array.isArray(req.user?.roles) ? (req.user.roles as string[]) : [];
+    const isAdmin = userRoles.some(r => r === 'STAFF_SUPER_ADMIN' || r === 'ADMIN' || r === 'SUPER_ADMIN');
     const { status, propertyId, leadId, assignedStaffId } = req.query;
 
     let query = `SELECT * FROM visits WHERE 1=1`;
     const params: any[] = [];
 
-    if (!canReadAll) {
+    if (!isAdmin) {
       params.push(req.user!.uid);
-      query += ` AND (assigned_staff_id = $${params.length} OR assigned_staff_id IS NULL)`;
+      query += ` AND assigned_staff_id = $${params.length}`;
     } else if (assignedStaffId) {
       params.push(assignedStaffId);
       query += ` AND assigned_staff_id = $${params.length}`;
@@ -6780,7 +6782,8 @@ app.get('/api/crm/tasks', authenticateUser, requireModule('TASKS'), async (req: 
     const isStaff = req.user!.roles.some(r => r.startsWith('STAFF_')) || (req.user!.module_permissions && req.user!.module_permissions.length > 0);
     if (!isStaff) return res.status(403).json({ error: 'FORBIDDEN', message: 'Staff access required.' });
 
-    const canReadAll = hasPermission(req.user!, 'leads:read_all' as any);
+    const userRoles = Array.isArray(req.user?.roles) ? (req.user.roles as string[]) : [];
+    const isAdmin = userRoles.some(r => r === 'STAFF_SUPER_ADMIN' || r === 'ADMIN' || r === 'SUPER_ADMIN');
     const userId = req.user!.uid;
 
     const leadsRes = await executeQuery(`
@@ -6805,7 +6808,7 @@ app.get('/api/crm/tasks', authenticateUser, requireModule('TASKS'), async (req: 
         ownerName: displayName
       };
     });
-    if (!canReadAll) {
+    if (!isAdmin) {
       tasks = tasks.filter((t: any) => t.assigned_staff_id === userId);
     }
 
@@ -7794,7 +7797,7 @@ app.get('/api/crm/leads/:id/details', authenticateUser, requireStaffMember, asyn
     const lead = leadRes.rows[0];
 
     const userRoles = Array.isArray(req.user?.roles) ? req.user.roles : [];
-    const isAdmin = (userRoles as string[]).some(r => r === 'STAFF_SUPER_ADMIN' || r === 'ADMIN' || r === 'SUPER_ADMIN') || hasPermission(req.user!, 'leads:read_all' as any);
+    const isAdmin = (userRoles as string[]).some(r => r === 'STAFF_SUPER_ADMIN' || r === 'ADMIN' || r === 'SUPER_ADMIN');
     if (!isAdmin && lead.assigned_staff_id !== req.user!.uid) {
       return res.status(403).json({ error: 'FORBIDDEN', message: 'Access denied: You can only view leads assigned to you.' });
     }
