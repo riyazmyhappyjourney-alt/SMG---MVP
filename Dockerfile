@@ -9,7 +9,7 @@ FROM node:22-slim AS builder
 WORKDIR /app
 
 # Install build dependencies for Linux x64
-COPY package.json package-lock.json* ./
+COPY package.json ./
 RUN npm install --legacy-peer-deps
 
 # Copy project source
@@ -27,7 +27,7 @@ ENV NODE_ENV=production
 ENV PORT=8080
 
 # Install production dependencies & global tsx runtime engine
-COPY package.json package-lock.json* ./
+COPY package.json ./
 RUN npm install --legacy-peer-deps --omit=dev && npm install -g tsx
 
 # Copy built frontend from builder stage
