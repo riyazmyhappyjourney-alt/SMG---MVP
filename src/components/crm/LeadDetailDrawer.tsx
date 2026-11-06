@@ -816,19 +816,6 @@ export function LeadDetailDrawer({
                         </option>
                       ))}
                     </select>
-                    {(lead.lead_status || lead.stage) !== 'LOST' && !isLostModalOpen && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setIsLostModalOpen(true);
-                        }}
-                        className="mt-1.5 text-[11px] font-semibold text-rose-600 hover:text-rose-800 flex items-center space-x-1 cursor-pointer transition-colors"
-                      >
-                        <AlertTriangle className="w-3 h-3 shrink-0" />
-                        <span>Drop Lead / Mark as Lost...</span>
-                      </button>
-                    )}
                   </div>
 
                   <div>
