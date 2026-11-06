@@ -154,6 +154,11 @@ export function LeadDetailDrawer({
     assignedStaffName: rawLead.assignedStaffName ?? rawLead.assigned_staff_name ?? selectedLead?.assignedStaffName ?? null,
   };
 
+  const hasInitialData = Boolean(
+    (selectedLead && (selectedLead.id || selectedLead.phone || selectedLead.ownerName || selectedLead.displayName || selectedLead.name)) ||
+    (leadDetailData && leadDetailData.lead)
+  );
+
   const visits: any[] = Array.isArray(leadDetailData?.visits) ? leadDetailData.visits : [];
   const documents: any[] = Array.isArray(leadDetailData?.documents) ? leadDetailData.documents : [];
   const offers: any[] = Array.isArray(leadDetailData?.offers) ? leadDetailData.offers : [];
@@ -365,14 +370,21 @@ export function LeadDetailDrawer({
           </div>
         </div>
 
+        {/* Subtle background sync hairline progress indicator */}
+        {leadDetailLoading && hasInitialData && (
+          <div className="h-0.5 w-full bg-blue-100 overflow-hidden shrink-0">
+            <div className="h-full bg-[#0176D3] animate-pulse w-full"></div>
+          </div>
+        )}
+
         {/* Drawer Body */}
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-6 text-xs">
-          {leadDetailLoading ? (
+          {leadDetailLoading && !hasInitialData ? (
             <div className="py-20 text-center text-slate-400 flex flex-col items-center justify-center space-y-3">
               <RefreshCw className="w-6 h-6 animate-spin text-[#0073E6]" />
               <p className="text-xs font-medium">Retrieving customer record from PostgreSQL...</p>
             </div>
-          ) : leadDetailError ? (
+          ) : leadDetailError && !hasInitialData ? (
             <div className="py-16 text-center space-y-3">
               <div className="p-4 bg-rose-50 border border-rose-200 rounded-xl text-rose-700 max-w-sm mx-auto">
                 <p className="font-bold text-xs">Unable to load customer details</p>
@@ -386,10 +398,22 @@ export function LeadDetailDrawer({
                 Retry
               </button>
             </div>
-          ) : !leadDetailData || !leadDetailData.lead ? (
+          ) : !hasInitialData ? (
             <div className="py-16 text-center text-slate-400">Customer record not found.</div>
           ) : (
             <>
+              {leadDetailError && (
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-md text-amber-900 flex items-center justify-between text-xs mb-2">
+                  <span>Background sync notice: {leadDetailError}</span>
+                  <button
+                    type="button"
+                    onClick={() => onRetry(selectedLeadId)}
+                    className="ml-3 px-2 py-0.5 bg-white border border-amber-300 rounded text-[11px] font-semibold hover:bg-amber-100"
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
               {/* 1. Quick Requirements & Contact Strip */}
               <div className="bg-slate-50/80 rounded-md p-3.5 border border-slate-200 space-y-3">
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
@@ -415,7 +439,7 @@ export function LeadDetailDrawer({
                   </div>
                   <div>
                     <span className="text-slate-400 text-[10px] block font-medium">Phone Number</span>
-                    <strong className="text-slate-900 font-mono text-xs block mt-0.5">
+                    <strong className="text-slate-900 font-mono text-xs block mt-0.5 select-text cursor-text">
                       {lead.phone || '—'}
                     </strong>
                   </div>

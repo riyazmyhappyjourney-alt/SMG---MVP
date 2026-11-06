@@ -1016,6 +1016,29 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
       .finally(() => setPropertyDetailLoading(false));
   }, [selectedPropertyId]);
 
+  // Global Escape key shortcut for smooth SaaS UX (closes active drawer or modal)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        const activeTag = document.activeElement?.tagName?.toLowerCase();
+        if (activeTag === 'input' || activeTag === 'textarea') {
+          (document.activeElement as HTMLElement)?.blur();
+          return;
+        }
+        if (selectedLeadId) {
+          setSelectedLeadId(null);
+          return;
+        }
+        if (selectedPropertyId) {
+          setSelectedPropertyId(null);
+          return;
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedLeadId, selectedPropertyId]);
+
   // -------------------------------------------------------------
   // Operational Action Handlers
   // -------------------------------------------------------------
@@ -2004,7 +2027,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
 
 
   return (
-    <div className="crm-surface flex h-screen bg-[#F8FAFC] text-slate-900 font-sans antialiased overflow-hidden select-none">
+    <div className="crm-surface flex h-screen bg-[#F8FAFC] text-slate-900 font-sans antialiased overflow-hidden">
       {/* Toast Notification */}
       {toastMessage && (
         <div
@@ -3355,11 +3378,15 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                         return (
                           <tr
                             key={lead.id}
-                            onClick={() => setSelectedLeadId(lead.id)}
-                            className={`transition-colors cursor-pointer group ${
+                            onClick={() => {
+                              const sel = window.getSelection();
+                              if (sel && sel.toString().trim().length > 0) return;
+                              setSelectedLeadId(lead.id);
+                            }}
+                            className={`transition-colors duration-150 cursor-pointer group ${
                               isNewLead
-                                ? 'bg-blue-50/40 hover:bg-blue-50/70 border-l-3 border-l-[#0176D3]'
-                                : 'hover:bg-slate-50/70'
+                                ? 'bg-blue-50/40 hover:bg-blue-100/60 border-l-3 border-l-[#0176D3]'
+                                : 'hover:bg-slate-100'
                             }`}
                           >
                             {/* Row Index */}
@@ -3373,7 +3400,10 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                                 <p className="font-semibold text-[#0176D3] group-hover:text-[#005fb2] hover:underline transition-colors truncate text-xs">
                                   {clientName}
                                 </p>
-                                <p className="text-[11px] text-slate-500 font-normal mt-0.5">
+                                <p 
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="text-[11px] text-slate-500 font-normal mt-0.5 select-text cursor-text"
+                                >
                                   {lead.phone}
                                 </p>
                               </div>
@@ -3731,8 +3761,12 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                       filteredProperties.map((prop) => (
                         <tr
                           key={prop.id}
-                          onClick={() => setSelectedPropertyId(prop.id)}
-                          className="hover:bg-slate-50/70 transition-colors cursor-pointer group"
+                          onClick={() => {
+                            const sel = window.getSelection();
+                            if (sel && sel.toString().trim().length > 0) return;
+                            setSelectedPropertyId(prop.id);
+                          }}
+                          className="hover:bg-slate-100 transition-colors duration-150 cursor-pointer group"
                         >
                           <td className="py-2.5 px-3.5">
                             <div className="flex items-center space-x-2.5">
@@ -4072,7 +4106,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                       </tr>
                     ) : (
                       filteredVisits.map((visit) => (
-                        <tr key={visit.id} className="hover:bg-slate-50/70 transition-colors group">
+                        <tr key={visit.id} className="hover:bg-slate-100 transition-colors duration-150 group">
                           <td className="py-3.5 px-4">
                             <div className="flex items-center space-x-3">
                               <div className="w-8 h-8 rounded-full bg-blue-50 border border-blue-200/60 text-[#0073E6] flex items-center justify-center font-bold text-xs shrink-0">
@@ -4338,7 +4372,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                       </tr>
                     ) : (
                       filteredOffers.map((offer) => (
-                        <tr key={offer.id} className="hover:bg-slate-50/70 transition-colors group">
+                        <tr key={offer.id} className="hover:bg-slate-100 transition-colors duration-150 group">
                           <td className="py-3.5 px-4">
                             <div className="font-bold text-slate-900 group-hover:text-[#0073E6] transition-colors truncate max-w-[200px]">
                               {offer.property_title || 'Apartment Unit'}
@@ -4657,7 +4691,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                           const roleInfo = roleBadgeConfig[primaryRole] || { label: primaryRole.replace('STAFF_', ''), badge: 'bg-slate-100 text-slate-700 border-slate-200' };
 
                           return (
-                            <tr key={staff.id} className="hover:bg-slate-50/80 transition-colors">
+                            <tr key={staff.id} className="hover:bg-slate-100 transition-colors duration-150">
                               <td className="py-3 px-4">
                                 <div className="flex items-center space-x-3">
                                   <div className="w-7 h-7 rounded-lg bg-[#172033] text-white flex items-center justify-center font-bold text-[11px] shrink-0 font-['Montserrat']">
@@ -4917,7 +4951,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                       </tr>
                     ) : (
                       auditLogs.map((log) => (
-                        <tr key={log.id} className="hover:bg-slate-50/60">
+                        <tr key={log.id} className="hover:bg-slate-100 transition-colors duration-150">
                           <td className="py-3.5 px-4 text-slate-500">
                             {new Date(log.created_at).toLocaleString()}
                           </td>
