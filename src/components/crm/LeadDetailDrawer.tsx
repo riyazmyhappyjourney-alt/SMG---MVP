@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Phone,
   MessageSquare,
@@ -115,6 +115,19 @@ export function LeadDetailDrawer({
   const [isLostModalOpen, setIsLostModalOpen] = useState(false);
   const [lostReason, setLostReason] = useState('Bought elsewhere / Found another property');
   const [lostNote, setLostNote] = useState('');
+
+  // Capture-phase Escape key listener so pressing Escape only closes the Lost modal, not the parent drawer
+  useEffect(() => {
+    if (!isLostModalOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopImmediatePropagation();
+        setIsLostModalOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
+  }, [isLostModalOpen]);
 
   const handleStageSelect = (targetVal: LeadStatus) => {
     if (targetVal === 'LOST') {
@@ -787,10 +800,10 @@ export function LeadDetailDrawer({
                       Lifecycle Stage
                     </label>
                     <select
-                      value={lead.lead_status || lead.stage || 'NEW'}
+                      value={isLostModalOpen ? 'LOST' : (lead.lead_status || lead.stage || 'NEW')}
                       onChange={(e) => handleStageSelect(e.target.value as LeadStatus)}
                       className={`w-full border rounded-xl px-3 py-2 font-bold text-xs shadow-2xs transition-colors ${
-                        (lead.lead_status || lead.stage) === 'LOST'
+                        (isLostModalOpen || (lead.lead_status || lead.stage) === 'LOST')
                           ? 'bg-rose-50 border-rose-300 text-rose-700'
                           : (lead.lead_status || lead.stage) === 'CONVERTED'
                           ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
@@ -803,6 +816,19 @@ export function LeadDetailDrawer({
                         </option>
                       ))}
                     </select>
+                    {(lead.lead_status || lead.stage) !== 'LOST' && !isLostModalOpen && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsLostModalOpen(true);
+                        }}
+                        className="mt-1.5 text-[11px] font-semibold text-rose-600 hover:text-rose-800 flex items-center space-x-1 cursor-pointer transition-colors"
+                      >
+                        <AlertTriangle className="w-3 h-3 shrink-0" />
+                        <span>Drop Lead / Mark as Lost...</span>
+                      </button>
+                    )}
                   </div>
 
                   <div>
@@ -1350,8 +1376,17 @@ export function LeadDetailDrawer({
 
       {/* Lost Lead Reason Modal Popup */}
       {isLostModalOpen && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden font-['Poppins']">
+        <div 
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4 animate-in fade-in duration-150"
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsLostModalOpen(false);
+          }}
+        >
+          <div 
+            className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden font-['Poppins']"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Header */}
             <div className="px-5 py-4 border-b border-rose-100 bg-rose-50/60 flex items-center justify-between">
               <div className="flex items-center space-x-2.5">
@@ -1367,7 +1402,10 @@ export function LeadDetailDrawer({
               </div>
               <button
                 type="button"
-                onClick={() => setIsLostModalOpen(false)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsLostModalOpen(false);
+                }}
                 className="p-1 rounded-lg text-slate-400 hover:text-slate-700 cursor-pointer transition-colors"
               >
                 <X className="w-4 h-4" />
@@ -1375,7 +1413,7 @@ export function LeadDetailDrawer({
             </div>
 
             {/* Body */}
-            <div className="p-5 space-y-3.5 text-xs max-h-[65vh] overflow-y-auto">
+            <div className="p-5 space-y-3.5 text-xs max-h-[65vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-2">
                   Primary Reason *
@@ -1393,7 +1431,10 @@ export function LeadDetailDrawer({
                   ].map((r) => (
                     <label
                       key={r}
-                      onClick={() => setLostReason(r)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setLostReason(r);
+                      }}
                       className={`flex items-center space-x-2.5 p-2.5 rounded-xl border cursor-pointer transition-all ${
                         lostReason === r
                           ? 'border-rose-400 bg-rose-50/70 text-rose-950 font-semibold shadow-2xs ring-1 ring-rose-300'
@@ -1404,6 +1445,7 @@ export function LeadDetailDrawer({
                         type="radio"
                         name="lostReasonGroup"
                         checked={lostReason === r}
+                        onClick={(e) => e.stopPropagation()}
                         onChange={() => setLostReason(r)}
                         className="text-rose-600 focus:ring-rose-500 cursor-pointer"
                       />
@@ -1420,6 +1462,7 @@ export function LeadDetailDrawer({
                 <textarea
                   rows={2}
                   value={lostNote}
+                  onClick={(e) => e.stopPropagation()}
                   onChange={(e) => setLostNote(e.target.value)}
                   placeholder="e.g. Client mentioned closing with Prestige direct sales..."
                   className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
@@ -1428,17 +1471,23 @@ export function LeadDetailDrawer({
             </div>
 
             {/* Footer */}
-            <div className="px-5 py-3.5 border-t border-slate-200 bg-slate-50 flex items-center justify-end space-x-2">
+            <div className="px-5 py-3.5 border-t border-slate-200 bg-slate-50 flex items-center justify-end space-x-2" onClick={(e) => e.stopPropagation()}>
               <button
                 type="button"
-                onClick={() => setIsLostModalOpen(false)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsLostModalOpen(false);
+                }}
                 className="px-3.5 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-xl shadow-2xs cursor-pointer transition-colors"
               >
                 Cancel
               </button>
               <button
                 type="button"
-                onClick={handleConfirmLost}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleConfirmLost();
+                }}
                 disabled={!lostReason}
                 className="px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-2xs cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1.5"
               >
