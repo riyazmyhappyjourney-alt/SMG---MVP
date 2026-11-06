@@ -1004,30 +1004,57 @@ async function initSchemaColumns() {
       console.warn('[SellMyGhar DB] Lead status sync notice:', syncErr);
     }
 
-    // Backfill Facebook leads apartment/society name from Form Answers in notes if currently set to Bengaluru/Bangalore/Blr
+    // Backfill Facebook leads apartment/society name and BHK from Form Answers in notes
     try {
       const fbLeads = await executeQuery(`
-        SELECT id, notes, apartment_society_name 
+        SELECT id, notes, apartment_society_name, bhk_type 
         FROM seller_leads 
-        WHERE (apartment_society_name ILIKE 'Bengaluru%' OR apartment_society_name ILIKE 'Bangalore%' OR apartment_society_name ILIKE 'Blr%')
-          AND (notes ILIKE '%[Form Answers]:%' OR notes ILIKE '%society%' OR notes ILIKE '%project%' OR notes ILIKE '%apartment%');
+        WHERE notes ILIKE '%[Form Answers]:%';
       `);
       if (fbLeads.rows && fbLeads.rows.length > 0) {
         for (const row of fbLeads.rows) {
           const notesText = String(row.notes || '');
-          const match = notesText.match(/(?:society(?:_name)?|project(?:_name)?|apartment(?:_name)?|community|building)\s*:\s*([^|\n,]+)/i);
-          if (match && match[1] && match[1].trim()) {
-            const extractedSociety = match[1].trim();
+
+          // 1. Extract BHK: Look for apartment_configuration or explicit BHK answer
+          let extractedBhk: string | null = null;
+          const bhkMatch = notesText.match(/(?:apartment_configuration|configuration|bhk|bedroom|unit_type)\s*:\s*([^|\n]+)/i);
+          if (bhkMatch && bhkMatch[1] && bhkMatch[1].trim()) {
+            const val = bhkMatch[1].trim();
+            if (/^[1-5]\s*bhk/i.test(val) || /^[1-5]\s*bedroom/i.test(val) || /^[1-5]\s*rk/i.test(val)) {
+              extractedBhk = val;
+            }
+          }
+
+          // 2. Extract Society: Match society/project question, ignoring configuration
+          let extractedSociety: string | null = null;
+          const socMatch = notesText.match(/(?:which[_\s/]+(?:society[_\s/]+project|society|project|apartment)[_\s/]+(?:do[_\s/]+you[_\s/]+live[_\s/]+in)?\??|society(?:_name)?|project(?:_name)?|apartment_name)\s*:\s*([^|\n]+)/i);
+          if (socMatch && socMatch[1] && socMatch[1].trim()) {
+            const candidate = socMatch[1].trim();
+            if (!/^[1-5]\s*bhk/i.test(candidate) && !['bengaluru', 'bangalore', 'blr', 'residential unit'].includes(candidate.toLowerCase())) {
+              extractedSociety = candidate;
+            }
+          }
+
+          // Only update if we extracted real values or if current society is corrupted (e.g., '3BHK' or 'Bengaluru')
+          const currentSoc = String(row.apartment_society_name || '');
+          const isCorrupted = !currentSoc || /^[1-5]\s*bhk/i.test(currentSoc) || ['bengaluru', 'bangalore', 'blr'].includes(currentSoc.toLowerCase());
+
+          if (extractedSociety || extractedBhk) {
+            const finalSoc = (extractedSociety && isCorrupted) ? extractedSociety : (extractedSociety || null);
             await executeQuery(
-              `UPDATE seller_leads SET apartment_society_name = $1, updated_at = NOW() WHERE id = $2;`,
-              [extractedSociety, row.id]
+              `UPDATE seller_leads 
+               SET apartment_society_name = COALESCE($1, apartment_society_name),
+                   bhk_type = COALESCE($2, bhk_type),
+                   updated_at = NOW() 
+               WHERE id = $3;`,
+              [finalSoc, extractedBhk, row.id]
             );
           }
         }
-        console.info('[SellMyGhar DB] Backfilled Facebook leads apartment_society_name from Form Answers.');
+        console.info('[SellMyGhar DB] Repaired Facebook leads apartment_society_name and bhk_type from Form Answers.');
       }
     } catch (fbBackfillErr) {
-      console.warn('[SellMyGhar DB] Facebook lead society backfill notice:', fbBackfillErr);
+      console.warn('[SellMyGhar DB] Facebook lead society repair notice:', fbBackfillErr);
     }
 
     console.info('[SellMyGhar DB] Schema ensured with buyer_enquiries, property_media, and secure staff accounts.');
@@ -8361,10 +8388,15 @@ app.get('/api/crm/leads/:id/details', authenticateUser, requireStaffMember, asyn
       }
     }
 
-    // Fallback: match by society name if specified
-    if (!property && (lead.apartment_society_name || lead.preferred_locality_or_society)) {
+    // Fallback: match by society name if specified (only for BUYER inquiries searching for inventory, NEVER for SELLER leads who own their own unit and never match generic BHK terms)
+    if (!property && leadType === 'BUYER' && (lead.apartment_society_name || lead.preferred_locality_or_society)) {
       const societyTerm = String(lead.apartment_society_name || lead.preferred_locality_or_society).trim();
-      if (societyTerm && societyTerm.length > 3 && !['bengaluru', 'bangalore', 'market'].includes(societyTerm.toLowerCase())) {
+      if (
+        societyTerm &&
+        societyTerm.length >= 4 &&
+        !/^[1-5]\s*bhk$/i.test(societyTerm) &&
+        !['bengaluru', 'bangalore', 'blr', 'market', 'residential unit', 'apartment'].includes(societyTerm.toLowerCase())
+      ) {
         const propRes = await executeQuery(
           `SELECT * FROM properties WHERE LOWER(title) LIKE $1 OR LOWER(public_address) LIKE $1 LIMIT 1;`,
           [`%${societyTerm.toLowerCase()}%`]

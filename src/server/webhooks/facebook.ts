@@ -251,13 +251,20 @@ export class FacebookLeadService {
       const valStr = String(Array.isArray(rawVal) ? rawVal[0] : (rawVal ?? '')).trim();
       if (!valStr) return;
 
-      const isSociety = /society|project|apartment|building|community|flat_name|property_name/i.test(name);
-      const isPhone = !isSociety && /phone|mobile|contact_num/i.test(name);
-      const isEmail = !isSociety && /email/i.test(name);
-      const isBhk = !isSociety && /bhk|bedroom|unit_type|configuration/i.test(name);
-      const isBudget = !isSociety && /price|budget|cost|expected/i.test(name);
-      const isCity = !isSociety && /city|locality|location|area/i.test(name);
-      const isName = !isSociety && (
+      // 1. BHK / Configuration: Check first! Matches if field name contains configuration/bhk/bedroom/unit_type OR value starts with 1BHK-5BHK
+      const isBhk = /bhk|bedroom|unit_type|configuration/i.test(name) || /^[1-5]\s*bhk/i.test(valStr);
+
+      // 2. Society / Project: Must NOT be BHK! Matches society, project, community, building, or apartment (when not configuration)
+      const isSociety = !isBhk && (
+        /society|project|community|building|flat_name|property_name/i.test(name) ||
+        (/apartment/i.test(name) && !/configuration|bhk|bedroom|unit/i.test(name))
+      ) && !/^[1-5]\s*bhk/i.test(valStr);
+
+      const isPhone = !isBhk && !isSociety && /phone|mobile|contact_num/i.test(name);
+      const isEmail = !isBhk && !isSociety && /email/i.test(name);
+      const isBudget = !isBhk && !isSociety && /price|budget|cost|expected/i.test(name);
+      const isCity = !isBhk && !isSociety && /city|locality|location|area/i.test(name);
+      const isName = !isBhk && !isSociety && (
         name === 'full_name' ||
         name === 'name' ||
         name === 'first_name' ||
@@ -268,8 +275,14 @@ export class FacebookLeadService {
         (name.includes('name') && !name.includes('society') && !name.includes('project') && !name.includes('apartment') && !name.includes('building') && !name.includes('form') && !name.includes('campaign') && !name.includes('ad'))
       );
 
-      if (isSociety) {
-        society = society || valStr;
+      if (isBhk) {
+        bhk = valStr;
+        customQuestions.push(`${fieldName}: ${valStr}`);
+      } else if (isSociety) {
+        // If current society is empty or was set to a placeholder/BHK/city, overwrite with actual society
+        if (!society || /^[1-5]\s*bhk/i.test(society) || ['bengaluru', 'bangalore', 'blr', 'residential unit'].includes(society.toLowerCase())) {
+          society = valStr;
+        }
         customQuestions.push(`${fieldName}: ${valStr}`);
       } else if (isName) {
         fullName = fullName || valStr;
@@ -279,9 +292,6 @@ export class FacebookLeadService {
         email = email || valStr.toLowerCase();
       } else if (isCity) {
         city = city || valStr;
-      } else if (isBhk) {
-        bhk = bhk || valStr;
-        customQuestions.push(`${fieldName}: ${valStr}`);
       } else if (isBudget) {
         const num = Number(valStr.replace(/[^0-9.]/g, ''));
         if (!isNaN(num) && num > 0) budget = budget || num;
@@ -614,6 +624,8 @@ export class FacebookLeadService {
     let rawPhone = '';
     let email = null;
     let city = null;
+    let society: string | null = null;
+    let bhk: string | null = null;
     const customQuestions: string[] = [];
 
     for (const field of graphData.field_data) {
@@ -621,16 +633,32 @@ export class FacebookLeadService {
       const val = Array.isArray(field.values) ? field.values[0] : field.value;
       if (!val) continue;
 
-      if (name.includes('name') || name === 'full_name' || name === 'first_name') {
-        fullName = fullName || String(val).trim();
+      const valStr = String(val).trim();
+
+      const isBhk = /bhk|bedroom|unit_type|configuration/i.test(name) || /^[1-5]\s*bhk/i.test(valStr);
+      const isSociety = !isBhk && (
+        /society|project|community|building|flat_name|property_name/i.test(name) ||
+        (/apartment/i.test(name) && !/configuration|bhk|bedroom|unit/i.test(name))
+      ) && !/^[1-5]\s*bhk/i.test(valStr);
+
+      if (isBhk) {
+        bhk = valStr;
+        customQuestions.push(`${field.name}: ${valStr}`);
+      } else if (isSociety) {
+        if (!society || /^[1-5]\s*bhk/i.test(society) || ['bengaluru', 'bangalore', 'blr', 'residential unit'].includes(society.toLowerCase())) {
+          society = valStr;
+        }
+        customQuestions.push(`${field.name}: ${valStr}`);
+      } else if (name.includes('name') || name === 'full_name' || name === 'first_name') {
+        fullName = fullName || valStr;
       } else if (name.includes('phone') || name === 'phone_number') {
-        rawPhone = rawPhone || String(val).trim();
+        rawPhone = rawPhone || valStr;
       } else if (name.includes('email')) {
-        email = email || String(val).trim().toLowerCase();
+        email = email || valStr.toLowerCase();
       } else if (name.includes('city') || name.includes('locality')) {
-        city = city || String(val).trim();
+        city = city || valStr;
       } else {
-        customQuestions.push(`${field.name}: ${val}`);
+        customQuestions.push(`${field.name}: ${valStr}`);
       }
     }
 
@@ -648,11 +676,13 @@ export class FacebookLeadService {
       SET owner_name = COALESCE($1, owner_name),
           phone = COALESCE($2, phone),
           email = COALESCE($3, email),
-          notes = $4,
-          attribution = $5,
+          apartment_society_name = COALESCE($4, apartment_society_name),
+          bhk_type = COALESCE($5, bhk_type),
+          notes = $6,
+          attribution = $7,
           updated_at = NOW()
-      WHERE id = $6;
-    `, [fullName || null, cleanPhone, email, updatedNotes, JSON.stringify(attr), leadId]);
+      WHERE id = $8;
+    `, [fullName || null, cleanPhone, email, society || null, bhk || null, updatedNotes, JSON.stringify(attr), leadId]);
 
     return {
       success: true,
