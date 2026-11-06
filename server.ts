@@ -966,8 +966,22 @@ async function initSchemaColumns() {
         DELETE FROM buyer_enquiries WHERE (attribution->>'source' ILIKE '%facebook%' OR id LIKE 'enq-fb%');
       `);
       console.info('[SellMyGhar DB] Facebook leads verified as Seller leads in seller_leads table.');
-    } catch (fbMigErr) {
-      console.warn('[SellMyGhar DB] Facebook lead migration notice:', fbMigErr);
+    // Normalize any portal leads that were saved with future timestamps due to missing timezone offset
+    try {
+      await executeQuery(`
+        UPDATE buyer_enquiries 
+        SET created_at = created_at - INTERVAL '5 hours 30 minutes',
+            updated_at = NOW()
+        WHERE created_at > NOW();
+
+        UPDATE seller_leads 
+        SET created_at = created_at - INTERVAL '5 hours 30 minutes',
+            updated_at = NOW()
+        WHERE created_at > NOW();
+      `);
+      console.info('[SellMyGhar DB] Normalized future-dated portal lead timestamps to true UTC.');
+    } catch (tzErr) {
+      console.warn('[SellMyGhar DB] Lead timestamp normalization notice:', tzErr);
     }
 
     console.info('[SellMyGhar DB] Schema ensured with buyer_enquiries, property_media, and secure staff accounts.');

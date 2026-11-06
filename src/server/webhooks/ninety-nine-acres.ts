@@ -563,9 +563,30 @@ export class NinetyNineAcresLeadService {
 
     let enquiryDate = new Date().toISOString();
     if (rawDate) {
-      const parsed = new Date(rawDate);
-      if (!isNaN(parsed.getTime())) {
-        enquiryDate = parsed.toISOString();
+      if (rawDate instanceof Date) {
+        enquiryDate = rawDate.getTime() > Date.now() + 60000 ? new Date().toISOString() : rawDate.toISOString();
+      } else {
+        const str = String(rawDate).trim();
+        if (str.endsWith('Z') || /[+-]\d{2}:?\d{2}$/.test(str)) {
+          const d = new Date(str);
+          if (!isNaN(d.getTime())) {
+            enquiryDate = d.getTime() > Date.now() + 60000 ? new Date().toISOString() : d.toISOString();
+          }
+        } else {
+          // Indian portal without timezone offset (IST is UTC+05:30)
+          const withTz = `${str.replace(' ', 'T')}+05:30`;
+          const parsed = new Date(withTz);
+          if (!isNaN(parsed.getTime())) {
+            enquiryDate = parsed.getTime() > Date.now() + 60000 ? new Date().toISOString() : parsed.toISOString();
+          } else {
+            const fallback = new Date(str);
+            if (!isNaN(fallback.getTime())) {
+              enquiryDate = fallback.getTime() > Date.now() + 60000
+                ? new Date(fallback.getTime() - 5.5 * 3600 * 1000).toISOString()
+                : fallback.toISOString();
+            }
+          }
+        }
       }
     }
 

@@ -1822,8 +1822,12 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
       }
 
       return true;
+    }).sort((a, b) => {
+      const timeA = new Date(a.createdAt || (a as any).created_at || 0).getTime();
+      const timeB = new Date(b.createdAt || (b as any).created_at || 0).getTime();
+      return timeB - timeA;
     });
-  }, [leads, leadSearch, globalSearch, leadStatusFilter, leadAssignFilter, leadTypeFilter, leadSourceFilter, leadFollowUpFilter, staffUser]);
+  }, [accessibleLeads, leadSearch, globalSearch, leadStatusFilter, leadAssignFilter, leadTypeFilter, leadSourceFilter, leadFollowUpFilter, staffUser]);
 
   const filteredProperties = useMemo(() => {
     return properties.filter(prop => {
