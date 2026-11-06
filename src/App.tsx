@@ -23,6 +23,7 @@ import { AboutUsPage } from './components/company/AboutUsPage';
 import { FaqPage } from './components/company/FaqPage';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 import { PropertySelfCompletion } from './components/seller/PropertySelfCompletion';
+import { BrokerageSigningPage } from './components/esign/BrokerageSigningPage';
 import { initGA4, trackPageView } from './utils/analytics';
 
 export type AppRoute = 
@@ -43,7 +44,8 @@ export type AppRoute =
   | 'PRIVACY_POLICY'
   | 'COOKIE_POLICY'
   | 'CAREERS'
-  | 'RESET_PASSWORD';
+  | 'RESET_PASSWORD'
+  | 'ESIGN_BROKERAGE';
 
 export const parseLocalitySlug = (path: string, hash: string): string | null => {
   const pathMatch = path.match(/^\/sell-flat-in-([a-zA-Z0-9-]+)-bangalore/i);
@@ -62,6 +64,16 @@ export const parseLocalitySlug = (path: string, hash: string): string | null => 
 };
 
 export function resolveRoute(path: string, hash: string, host: string, search: string = ''): AppRoute {
+  // 0. Brokerage Mandate Aadhaar eSign signing route takes precedence on ALL domains
+  if (
+    hash.startsWith('#/esign/brokerage/') ||
+    path.startsWith('/esign/brokerage/') ||
+    hash.startsWith('#/esign/mandate/') ||
+    path.startsWith('/esign/mandate/')
+  ) {
+    return 'ESIGN_BROKERAGE';
+  }
+
   // 1. Strict CRM Subdomain Isolation (e.g. crm.sellmyghar.in)
   // On the CRM subdomain, public customer routes (LOGIN, HOME, etc.) are strictly prohibited.
   const isCrmSubdomain = host.startsWith('crm.') || host.startsWith('crm-');
@@ -550,6 +562,25 @@ export default function App() {
     return (
       <PasswordResetPage
         onBackToHome={() => navigateTo('HOME')}
+      />
+    );
+  }
+
+  // Dedicated Public Brokerage Agreement Aadhaar eSign Signing Page
+  if (currentRoute === 'ESIGN_BROKERAGE') {
+    const pathPart = window.location.pathname.replace(/^\/esign\/brokerage\//, '').replace(/^\/esign\/mandate\//, '').split('?')[0];
+    const hashPart = (window.location.hash || '').replace(/^#\/esign\/brokerage\//, '').replace(/^#\/esign\/mandate\//, '').split('?')[0];
+    const propertyId = hashPart || pathPart || selectedPropertyId || '';
+    return (
+      <BrokerageSigningPage
+        propertyId={propertyId}
+        onBackToHome={() => {
+          if (window.location.hostname.startsWith('crm.') || window.location.hostname.startsWith('crm-')) {
+            window.location.replace('https://sellmyghar.in');
+          } else {
+            navigateTo('HOME');
+          }
+        }}
       />
     );
   }

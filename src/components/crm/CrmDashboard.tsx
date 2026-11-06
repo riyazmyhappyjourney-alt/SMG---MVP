@@ -615,11 +615,13 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
     displayName: string;
     phone: string;
     isActive: boolean;
+    role: string;
     modules: CrmModule[];
   }>({
     displayName: '',
     phone: '',
     isActive: true,
+    role: 'STAFF_INTAKE_AGENT',
     modules: ['LEADS', 'PROPERTIES', 'VISITS', 'OFFERS', 'TASKS', 'CALENDAR', 'REPORTS']
   });
   const [isUpdatingUser, setIsUpdatingUser] = useState<boolean>(false);
@@ -1019,7 +1021,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
   // -------------------------------------------------------------
 
   // 1. Update Lead Status
-  const handleUpdateLeadStatus = async (leadId: string, newStatus: LeadStatus) => {
+  const handleUpdateLeadStatus = async (leadId: string, newStatus: LeadStatus, note?: string) => {
     try {
       // Optimistic update in leads state
       setLeads((prev) =>
@@ -1047,7 +1049,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
       const res = await crmFetch(`/api/crm/leads/${leadId}/status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus })
+        body: JSON.stringify({ status: newStatus, note })
       });
       const data = await res.json();
       if (res.ok && data.success) {
@@ -1588,10 +1590,12 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
   const handleOpenEditUser = (staff: CrmStaff) => {
     setEditingStaffUser(staff);
     const existingModules = (staff as any).module_permissions || staff.modules || (staff.roles?.includes('STAFF_SUPER_ADMIN') ? ALL_CRM_MODULES : ['LEADS', 'PROPERTIES', 'VISITS', 'OFFERS', 'TASKS', 'CALENDAR', 'REPORTS']);
+    const primaryRole = (Array.isArray(staff.roles) && staff.roles.length > 0 ? staff.roles[0] : 'STAFF_INTAKE_AGENT');
     setEditUserForm({
       displayName: staff.displayName || staff.name || '',
       phone: staff.phone || '',
       isActive: staff.isActive !== false,
+      role: primaryRole,
       modules: Array.isArray(existingModules) ? existingModules : ['LEADS', 'PROPERTIES', 'VISITS', 'OFFERS', 'TASKS', 'CALENDAR', 'REPORTS']
     });
   };
@@ -1601,15 +1605,19 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
     if (!editingStaffUser) return;
     setIsUpdatingUser(true);
     try {
+      const updatePayload: any = {
+        displayName: editUserForm.displayName,
+        phone: editUserForm.phone,
+        isActive: editUserForm.isActive,
+        modules: editUserForm.modules
+      };
+      if (isAdmin) {
+        updatePayload.role = editUserForm.role;
+      }
       const res = await crmFetch(`/api/crm/users/${editingStaffUser.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          displayName: editUserForm.displayName,
-          phone: editUserForm.phone,
-          isActive: editUserForm.isActive,
-          modules: editUserForm.modules
-        })
+        body: JSON.stringify(updatePayload)
       });
       const data = await res.json();
       if (res.ok && data.success) {
@@ -1826,8 +1834,13 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
         if (!match) return false;
       }
 
-      // Stage Filter
-      if (leadStatusFilter !== 'ALL' && lead.stage !== leadStatusFilter) {
+      // Stage Filter: Total Pipeline (ALL) excludes dropped/lost leads.
+      // Lost leads are ONLY visible when explicitly selecting the 'LOST' (Dropped Leads) filter.
+      if (leadStatusFilter === 'ALL') {
+        if (lead.stage === 'LOST' || (lead as any).lead_status === 'LOST') {
+          return false;
+        }
+      } else if (lead.stage !== leadStatusFilter) {
         return false;
       }
 
@@ -3009,7 +3022,9 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   }`}
                 >
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">Total Pipeline</span>
-                  <div className="text-2xl font-bold text-slate-900 mt-0.5 tabular-nums">{accessibleLeads.length}</div>
+                  <div className="text-2xl font-bold text-slate-900 mt-0.5 tabular-nums">
+                    {accessibleLeads.filter(l => l.stage !== 'LOST' && (l as any).lead_status !== 'LOST').length}
+                  </div>
                   <span className="text-[11px] text-slate-500 font-normal mt-0.5 block">{isAdmin ? 'All active inquiries' : 'My active leads'}</span>
                 </div>
 
@@ -3096,9 +3111,9 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                       : 'bg-white border-slate-200 hover:border-rose-300'
                   }`}
                 >
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-rose-600 block">Lost Leads</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-rose-600 block">Dropped Leads</span>
                   <div className="text-2xl font-bold text-rose-700 mt-0.5 tabular-nums">
-                    {accessibleLeads.filter(l => l.stage === 'LOST').length}
+                    {accessibleLeads.filter(l => l.stage === 'LOST' || (l as any).lead_status === 'LOST').length}
                   </div>
                   <span className="text-[11px] text-rose-600 font-medium mt-0.5 block">Inquiry dropped</span>
                 </div>
@@ -4601,6 +4616,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     <thead className="bg-slate-50 text-[11px] font-bold text-slate-500 uppercase tracking-wider font-['Montserrat']">
                       <tr>
                         <th className="py-3 px-4">Relationship Manager</th>
+                        <th className="py-3 px-4">Designation / Role</th>
                         <th className="py-3 px-4">Corporate Email</th>
                         <th className="py-3 px-4">Direct Contact</th>
                         <th className="py-3 px-4">Status</th>
@@ -4611,7 +4627,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     <tbody className="divide-y divide-slate-100">
                       {filteredStaff.length === 0 ? (
                         <tr>
-                          <td colSpan={6} className="py-12 text-center text-slate-400 text-xs">
+                          <td colSpan={7} className="py-12 text-center text-slate-400 text-xs">
                             <Users className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                             <p className="font-semibold text-slate-700">No team members match your criteria.</p>
                             <p className="text-[11px] text-slate-400 mt-0.5">Try adjusting your search query or status filter.</p>
@@ -4629,6 +4645,16 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                             .slice(0, 2)
                             .join('')
                             .toUpperCase();
+                          const primaryRole = (Array.isArray(staff.roles) && staff.roles.length > 0 ? staff.roles[0] : 'STAFF_INTAKE_AGENT');
+                          const roleBadgeConfig: Record<string, { label: string; badge: string }> = {
+                            STAFF_SUPER_ADMIN: { label: 'Super Admin', badge: 'bg-purple-50 text-purple-700 border-purple-200' },
+                            SUPER_ADMIN: { label: 'Super Admin', badge: 'bg-purple-50 text-purple-700 border-purple-200' },
+                            STAFF_INTAKE_AGENT: { label: 'Intake Agent', badge: 'bg-blue-50 text-blue-700 border-blue-200' },
+                            STAFF_VERIFICATION_AGENT: { label: 'Verification Agent', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+                            STAFF_LISTING_MANAGER: { label: 'Listing Manager', badge: 'bg-amber-50 text-amber-700 border-amber-200' },
+                            STAFF_DEAL_CLOSER: { label: 'Deal Closer', badge: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
+                          };
+                          const roleInfo = roleBadgeConfig[primaryRole] || { label: primaryRole.replace('STAFF_', ''), badge: 'bg-slate-100 text-slate-700 border-slate-200' };
 
                           return (
                             <tr key={staff.id} className="hover:bg-slate-50/80 transition-colors">
@@ -4648,6 +4674,11 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                                     )}
                                   </div>
                                 </div>
+                              </td>
+                              <td className="py-3 px-4">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border ${roleInfo.badge}`}>
+                                  {roleInfo.label}
+                                </span>
                               </td>
                               <td className="py-3 px-4 text-slate-600 font-mono text-[11px]">
                                 {staff.email}
@@ -4673,10 +4704,21 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                               </td>
                               <td className="py-3 px-4 text-right">
                                 <div className="flex items-center justify-end space-x-1">
+                                  {isAdmin && (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenEditUser(staff)}
+                                      className="px-2 py-1 text-[11px] font-bold bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-lg transition-colors cursor-pointer border border-purple-200 shadow-2xs"
+                                      title="Edit staff role"
+                                    >
+                                      Edit Role
+                                    </button>
+                                  )}
+
                                   <button
                                     type="button"
                                     onClick={() => handleOpenEditUser(staff)}
-                                    className="px-2.5 py-1 text-[11px] font-bold bg-white hover:bg-slate-100 text-slate-700 rounded-lg transition-colors cursor-pointer border border-slate-200 shadow-2xs"
+                                    className="px-2 py-1 text-[11px] font-bold bg-white hover:bg-slate-100 text-slate-700 rounded-lg transition-colors cursor-pointer border border-slate-200 shadow-2xs"
                                     title="Edit employee details"
                                   >
                                     Edit
@@ -5841,6 +5883,29 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#0073E6]/20 focus:border-[#0073E6]"
                 />
               </div>
+
+              {/* Staff Role Selector (Only Super Admin can view & edit) */}
+              {isAdmin && (
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1 flex items-center justify-between">
+                    <span>Designation / Role *</span>
+                    <span className="text-[10px] text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded font-semibold border border-purple-200">
+                      Super Admin Only
+                    </span>
+                  </label>
+                  <select
+                    value={editUserForm.role}
+                    onChange={(e) => setEditUserForm({ ...editUserForm, role: e.target.value })}
+                    className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 font-bold focus:outline-hidden focus:ring-2 focus:ring-[#0073E6]/20 focus:border-[#0073E6]"
+                  >
+                    <option value="STAFF_SUPER_ADMIN">Super Admin (Full System Control & Settings)</option>
+                    <option value="STAFF_INTAKE_AGENT">Intake Agent (Inbound Lead Qualification)</option>
+                    <option value="STAFF_VERIFICATION_AGENT">Verification Agent (Title Deeds & Legal Due Diligence)</option>
+                    <option value="STAFF_LISTING_MANAGER">Listing Manager (Pricing & Syndication)</option>
+                    <option value="STAFF_DEAL_CLOSER">Deal Closer (Negotiation & Deed Signing)</option>
+                  </select>
+                </div>
+              )}
 
               {/* CRM Module Permissions Selection */}
               <div className="pt-2 border-t border-slate-100">

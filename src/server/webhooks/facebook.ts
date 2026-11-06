@@ -29,6 +29,7 @@ export interface NormalizedFacebookLead {
   fullName: string;
   phone: string; // E.164 normalized: +91XXXXXXXXXX
   email: string | null;
+  society?: string | null;
   city?: string | null;
   locality?: string | null;
   bhk?: string | null;
@@ -238,9 +239,57 @@ export class FacebookLeadService {
     let rawPhone = payload.phone_number || payload.phone || payload.mobile || '';
     let email = payload.email ? String(payload.email).trim().toLowerCase() : null;
     let city = payload.city || payload.locality || null;
+    let society = payload.society || payload.society_name || payload.project || payload.project_name || payload.apartment || payload.apartment_name || payload.building || payload.community || null;
+    let bhk = payload.bhk || payload.bhk_type || null;
+    let budget: number | null = payload.budget ? Number(payload.budget) : null;
     let notes = payload.notes || payload.message || null;
     const customQuestions: string[] = [];
     let graphError: string | undefined = undefined;
+
+    const processField = (fieldName: string, rawVal: any) => {
+      const name = String(fieldName || '').toLowerCase();
+      const valStr = String(Array.isArray(rawVal) ? rawVal[0] : (rawVal ?? '')).trim();
+      if (!valStr) return;
+
+      const isSociety = /society|project|apartment|building|community|flat_name|property_name/i.test(name);
+      const isPhone = !isSociety && /phone|mobile|contact_num/i.test(name);
+      const isEmail = !isSociety && /email/i.test(name);
+      const isBhk = !isSociety && /bhk|bedroom|unit_type|configuration/i.test(name);
+      const isBudget = !isSociety && /price|budget|cost|expected/i.test(name);
+      const isCity = !isSociety && /city|locality|location|area/i.test(name);
+      const isName = !isSociety && (
+        name === 'full_name' ||
+        name === 'name' ||
+        name === 'first_name' ||
+        name === 'customer_name' ||
+        name === 'your_name' ||
+        name === 'owner_name' ||
+        (/^name$/i.test(name)) ||
+        (name.includes('name') && !name.includes('society') && !name.includes('project') && !name.includes('apartment') && !name.includes('building') && !name.includes('form') && !name.includes('campaign') && !name.includes('ad'))
+      );
+
+      if (isSociety) {
+        society = society || valStr;
+        customQuestions.push(`${fieldName}: ${valStr}`);
+      } else if (isName) {
+        fullName = fullName || valStr;
+      } else if (isPhone) {
+        rawPhone = rawPhone || valStr;
+      } else if (isEmail) {
+        email = email || valStr.toLowerCase();
+      } else if (isCity) {
+        city = city || valStr;
+      } else if (isBhk) {
+        bhk = bhk || valStr;
+        customQuestions.push(`${fieldName}: ${valStr}`);
+      } else if (isBudget) {
+        const num = Number(valStr.replace(/[^0-9.]/g, ''));
+        if (!isNaN(num) && num > 0) budget = budget || num;
+        customQuestions.push(`${fieldName}: ${valStr}`);
+      } else {
+        customQuestions.push(`${fieldName}: ${valStr}`);
+      }
+    };
 
     // 1. Check for standard Meta Webhook envelope: entry[].changes[].value
     if (Array.isArray(payload.entry) && payload.entry.length > 0) {
@@ -267,21 +316,7 @@ export class FacebookLeadService {
     const fieldData = payload.field_data || payload.fieldData || payload.entry?.[0]?.changes?.[0]?.value?.field_data;
     if (Array.isArray(fieldData)) {
       for (const field of fieldData) {
-        const name = String(field.name || '').toLowerCase();
-        const val = Array.isArray(field.values) ? field.values[0] : field.value;
-        if (!val) continue;
-
-        if (name.includes('name') || name === 'full_name' || name === 'first_name') {
-          fullName = fullName || String(val).trim();
-        } else if (name.includes('phone') || name === 'phone_number') {
-          rawPhone = rawPhone || String(val).trim();
-        } else if (name.includes('email')) {
-          email = email || String(val).trim().toLowerCase();
-        } else if (name.includes('city') || name.includes('locality')) {
-          city = city || String(val).trim();
-        } else {
-          customQuestions.push(`${field.name}: ${val}`);
-        }
+        processField(field.name, field.values || field.value);
       }
     }
 
@@ -291,21 +326,7 @@ export class FacebookLeadService {
       if (graphResult.data && Array.isArray(graphResult.data.field_data)) {
         formId = formId || graphResult.data.form_id;
         for (const field of graphResult.data.field_data) {
-          const name = String(field.name || '').toLowerCase();
-          const val = Array.isArray(field.values) ? field.values[0] : field.value;
-          if (!val) continue;
-
-          if (name.includes('name') || name === 'full_name') {
-            fullName = fullName || String(val).trim();
-          } else if (name.includes('phone') || name === 'phone_number') {
-            rawPhone = rawPhone || String(val).trim();
-          } else if (name.includes('email')) {
-            email = email || String(val).trim().toLowerCase();
-          } else if (name.includes('city') || name.includes('locality')) {
-            city = city || String(val).trim();
-          } else {
-            customQuestions.push(`${field.name}: ${val}`);
-          }
+          processField(field.name, field.values || field.value);
         }
       } else {
         graphError = graphResult.error;
@@ -356,7 +377,10 @@ export class FacebookLeadService {
       fullName,
       phone,
       email,
+      society,
       city,
+      bhk,
+      budget,
       notes,
       rawPayload: payload,
     };
@@ -477,7 +501,7 @@ export class FacebookLeadService {
           lead.fullName,
           lead.phone,
           lead.email,
-          lead.city || 'Bengaluru',
+          lead.society || lead.city || 'Bengaluru',
           lead.bhk || '2 BHK',
           lead.budget || null,
           finalNotes,

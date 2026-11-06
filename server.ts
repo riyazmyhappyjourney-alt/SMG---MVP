@@ -1004,6 +1004,32 @@ async function initSchemaColumns() {
       console.warn('[SellMyGhar DB] Lead status sync notice:', syncErr);
     }
 
+    // Backfill Facebook leads apartment/society name from Form Answers in notes if currently set to Bengaluru/Bangalore/Blr
+    try {
+      const fbLeads = await executeQuery(`
+        SELECT id, notes, apartment_society_name 
+        FROM seller_leads 
+        WHERE (apartment_society_name ILIKE 'Bengaluru%' OR apartment_society_name ILIKE 'Bangalore%' OR apartment_society_name ILIKE 'Blr%')
+          AND (notes ILIKE '%[Form Answers]:%' OR notes ILIKE '%society%' OR notes ILIKE '%project%' OR notes ILIKE '%apartment%');
+      `);
+      if (fbLeads.rows && fbLeads.rows.length > 0) {
+        for (const row of fbLeads.rows) {
+          const notesText = String(row.notes || '');
+          const match = notesText.match(/(?:society(?:_name)?|project(?:_name)?|apartment(?:_name)?|community|building)\s*:\s*([^|\n,]+)/i);
+          if (match && match[1] && match[1].trim()) {
+            const extractedSociety = match[1].trim();
+            await executeQuery(
+              `UPDATE seller_leads SET apartment_society_name = $1, updated_at = NOW() WHERE id = $2;`,
+              [extractedSociety, row.id]
+            );
+          }
+        }
+        console.info('[SellMyGhar DB] Backfilled Facebook leads apartment_society_name from Form Answers.');
+      }
+    } catch (fbBackfillErr) {
+      console.warn('[SellMyGhar DB] Facebook lead society backfill notice:', fbBackfillErr);
+    }
+
     console.info('[SellMyGhar DB] Schema ensured with buyer_enquiries, property_media, and secure staff accounts.');
   } catch (err: any) {
     if (err.message && err.message.includes('[CONFIGURATION ERROR]')) {
@@ -7901,6 +7927,10 @@ app.patch('/api/crm/users/:id', jsonDefault, authenticateUser, requireStaffMembe
     // Determine updated fields
     let newRoles = targetUser.roles;
     if (role) {
+      const isSuperAdmin = (req.user!.roles as string[]).some((r: string) => r === 'STAFF_SUPER_ADMIN' || r === 'SUPER_ADMIN');
+      if (!isSuperAdmin) {
+        return res.status(403).json({ error: 'FORBIDDEN', message: 'Only Super Admin can modify staff roles.' });
+      }
       newRoles = [role];
     }
 
@@ -8056,7 +8086,7 @@ app.delete('/api/crm/users/:id', jsonDefault, authenticateUser, requireStaffMemb
 // 11f. Super Admin: Update Staff User Role (Legacy alias)
 app.patch('/api/crm/users/:id/role', jsonDefault, authenticateUser, async (req: Request, res: Response) => {
   try {
-    const isSuperAdmin = req.user!.roles.includes('STAFF_SUPER_ADMIN');
+    const isSuperAdmin = (req.user!.roles as string[]).some((r: string) => r === 'STAFF_SUPER_ADMIN' || r === 'SUPER_ADMIN');
     if (!isSuperAdmin) {
       return res.status(403).json({ error: 'FORBIDDEN', message: 'Only Super Admin can modify staff roles.' });
     }
@@ -9050,6 +9080,102 @@ app.get('/api/crm/properties/:id/brokerage-agreement/status', authenticateUser, 
   } catch (err: any) {
     console.error('[BrokerageAgreementStatus] Error:', err);
     return res.status(500).json({ error: 'SERVER_ERROR', message: err.message });
+  }
+});
+
+// PUBLIC Endpoints for Seller Aadhaar eSign Mandate Agreement
+app.get('/api/public/brokerage-agreement/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    // 1. Check properties table
+    const propRes = await executeQuery(
+      `SELECT p.id, p.title, p.project_locality_id, p.asking_price_inr, p.brokerage_agreement_status, p.brokerage_agreement_document_id,
+              u.display_name AS owner_name, u.phone AS owner_phone, u.email AS owner_email
+       FROM properties p
+       LEFT JOIN users u ON u.id = p.owner_id
+       WHERE p.id = $1 LIMIT 1;`,
+      [id]
+    );
+
+    if (propRes.rows && propRes.rows.length > 0) {
+      const p = propRes.rows[0];
+      return res.json({
+        success: true,
+        property: {
+          id: p.id,
+          title: p.title || 'Residential Property',
+          locality: p.project_locality_id || 'Bengaluru',
+          askingPriceInr: Number(p.asking_price_inr || 15000000),
+          commissionPercentage: 1.0,
+          status: p.brokerage_agreement_status || 'PENDING',
+          agreementId: p.brokerage_agreement_document_id || `agr-brk-${p.id}`,
+          ownerName: p.owner_name || 'Property Owner',
+          ownerPhone: p.owner_phone || '+91 99999 99999',
+          ownerEmail: p.owner_email || null,
+        }
+      });
+    }
+
+    // 2. Check seller_leads table fallback
+    const leadRes = await executeQuery(
+      `SELECT id, owner_name, phone, email, apartment_society_name, locality_id, expected_price_inr, lead_status
+       FROM seller_leads WHERE id = $1 LIMIT 1;`,
+      [id]
+    );
+
+    if (leadRes.rows && leadRes.rows.length > 0) {
+      const l = leadRes.rows[0];
+      return res.json({
+        success: true,
+        property: {
+          id: l.id,
+          title: l.apartment_society_name || 'Residential Property',
+          locality: l.locality_id || 'Bengaluru',
+          askingPriceInr: Number(l.expected_price_inr || 12000000),
+          commissionPercentage: 1.0,
+          status: 'PENDING',
+          agreementId: `agr-brk-${l.id}`,
+          ownerName: l.owner_name || 'Property Owner',
+          ownerPhone: l.phone || '+91 99999 99999',
+          ownerEmail: l.email || null,
+        }
+      });
+    }
+
+    return res.status(404).json({ error: 'AGREEMENT_NOT_FOUND', message: 'Brokerage agreement details not found.' });
+  } catch (err: any) {
+    console.error('[PublicBrokerageAgreement] Error:', err);
+    return res.status(500).json({ error: 'SERVER_ERROR', message: err.message });
+  }
+});
+
+app.post('/api/public/brokerage-agreement/:id/sign', jsonDefault, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const agreementId = req.body.agreementId || `agr-brk-${id}`;
+    const signerAadhaarHash = req.body.signerAadhaarHash || `UIDAI-${Date.now().toString(36).toUpperCase()}`;
+
+    const result = await BrokerageEsignService.completeBrokerageAgreement(id, agreementId, signerAadhaarHash);
+
+    // Audit log
+    await executeQuery(
+      `INSERT INTO audit_logs (id, actor_id, actor_role, action, target_entity, target_entity_id, ip_address, diff_summary, timestamp)
+       VALUES ($1, 'seller-esign', 'PUBLIC_SELLER', 'BROKERAGE_AGREEMENT_SIGNED', 'properties', $2, $3, $4, NOW());`,
+      [
+        `audit-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`,
+        id,
+        getClientIp(req),
+        JSON.stringify({ agreementId, signerAadhaarHash, status: 'SIGNED' })
+      ]
+    ).catch(() => {});
+
+    return res.json({
+      ...result,
+      message: 'Brokerage Representation Agreement successfully executed via Aadhaar eSign (Digio ESP).'
+    });
+  } catch (err: any) {
+    console.error('[PublicBrokerageSign] Error:', err);
+    return res.status(400).json({ error: 'ESIGN_COMPLETION_FAILED', message: err.message });
   }
 });
 

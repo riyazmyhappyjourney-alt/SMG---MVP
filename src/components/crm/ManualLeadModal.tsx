@@ -702,7 +702,7 @@ export const ManualLeadModal: React.FC<ManualLeadModalProps> = ({
                     const primaryRole = ((s as any).role || s.roles?.[0] || 'STAFF').replace('STAFF_', '');
                     return (
                       <option key={s.id} value={s.id}>
-                        {label}{isMe ? ' (You)' : ''} ({primaryRole})
+                        {label}{isMe ? ' (You)' : ''}
                       </option>
                     );
                   })}

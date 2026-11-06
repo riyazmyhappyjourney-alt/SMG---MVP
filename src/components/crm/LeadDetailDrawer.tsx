@@ -12,7 +12,8 @@ import {
   MapPin,
   ExternalLink,
   Link2,
-  CheckCircle2
+  CheckCircle2,
+  AlertTriangle
 } from 'lucide-react';
 import { LeadStatus } from '../../core/types/entities';
 import { CrmStaff, CrmProperty } from './CrmDashboard';
@@ -41,7 +42,7 @@ export interface LeadDetailDrawerProps {
   onRetry: (leadId: string) => void;
   staffList: CrmStaff[];
   properties: CrmProperty[];
-  handleUpdateLeadStatus: (leadId: string, status: LeadStatus) => void;
+  handleUpdateLeadStatus: (leadId: string, status: LeadStatus, note?: string) => void;
   handleAssignLead: (leadId: string, staffId: string) => void;
   handleScheduleFollowUp: (leadId: string) => void;
   handleAddCallNote: (leadId: string) => void;
@@ -111,6 +112,24 @@ export function LeadDetailDrawer({
   const [isLinkingPropertyOpen, setIsLinkingPropertyOpen] = useState(false);
   const [selectedPropertyToLink, setSelectedPropertyToLink] = useState('');
   const [isLinkingLoading, setIsLinkingLoading] = useState(false);
+  const [isLostModalOpen, setIsLostModalOpen] = useState(false);
+  const [lostReason, setLostReason] = useState('Bought elsewhere / Found another property');
+  const [lostNote, setLostNote] = useState('');
+
+  const handleStageSelect = (targetVal: LeadStatus) => {
+    if (targetVal === 'LOST') {
+      setIsLostModalOpen(true);
+    } else {
+      handleUpdateLeadStatus(selectedLeadId, targetVal);
+    }
+  };
+
+  const handleConfirmLost = () => {
+    const fullNote = `[Lost Reason]: ${lostReason}${lostNote.trim() ? ` - ${lostNote.trim()}` : ''}`;
+    handleUpdateLeadStatus(selectedLeadId, 'LOST', fullNote);
+    setIsLostModalOpen(false);
+    setLostNote('');
+  };
 
   const rawLead = leadDetailData?.lead || {};
 
@@ -745,7 +764,7 @@ export function LeadDetailDrawer({
                     </label>
                     <select
                       value={lead.lead_status || lead.stage || 'NEW'}
-                      onChange={(e) => handleUpdateLeadStatus(selectedLeadId, e.target.value as LeadStatus)}
+                      onChange={(e) => handleStageSelect(e.target.value as LeadStatus)}
                       className={`w-full border rounded-xl px-3 py-2 font-bold text-xs shadow-2xs transition-colors ${
                         (lead.lead_status || lead.stage) === 'LOST'
                           ? 'bg-rose-50 border-rose-300 text-rose-700'
@@ -778,7 +797,7 @@ export function LeadDetailDrawer({
                         <option value="">Unassigned</option>
                         {staffList.map((s) => (
                           <option key={s.id} value={s.id}>
-                            {s.displayName || s.email} • {Array.isArray(s.roles) ? s.roles.join(', ') : String(s.roles || '')}
+                            {s.displayName || s.email}
                           </option>
                         ))}
                       </select>
@@ -1304,6 +1323,107 @@ export function LeadDetailDrawer({
           </button>
         </div>
       </div>
+
+      {/* Lost Lead Reason Modal Popup */}
+      {isLostModalOpen && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden font-['Poppins']">
+            {/* Header */}
+            <div className="px-5 py-4 border-b border-rose-100 bg-rose-50/60 flex items-center justify-between">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-8 h-8 rounded-xl bg-rose-600 text-white flex items-center justify-center shadow-2xs shrink-0">
+                  <AlertTriangle className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Specify Reason for Dropping Lead</h3>
+                  <p className="text-[11px] text-slate-500 font-normal">
+                    Select the primary reason for marking this lead as LOST.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsLostModalOpen(false)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 cursor-pointer transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-5 space-y-3.5 text-xs max-h-[65vh] overflow-y-auto">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-2">
+                  Primary Reason *
+                </label>
+                <div className="space-y-1.5">
+                  {[
+                    'Bought elsewhere / Found another property',
+                    'Seller asking price not feasible / High expectations',
+                    'Location / Locality mismatch',
+                    'Budget constraints / Financing fell through',
+                    'Unresponsive / Invalid contact number',
+                    'Owner postponed / Cancelled listing',
+                    'Commission / Terms disagreement',
+                    'Other reason'
+                  ].map((r) => (
+                    <label
+                      key={r}
+                      onClick={() => setLostReason(r)}
+                      className={`flex items-center space-x-2.5 p-2.5 rounded-xl border cursor-pointer transition-all ${
+                        lostReason === r
+                          ? 'border-rose-400 bg-rose-50/70 text-rose-950 font-semibold shadow-2xs ring-1 ring-rose-300'
+                          : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="lostReasonGroup"
+                        checked={lostReason === r}
+                        onChange={() => setLostReason(r)}
+                        className="text-rose-600 focus:ring-rose-500 cursor-pointer"
+                      />
+                      <span className="text-xs leading-tight">{r}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                  Additional Context / Remarks (Optional)
+                </label>
+                <textarea
+                  rows={2}
+                  value={lostNote}
+                  onChange={(e) => setLostNote(e.target.value)}
+                  placeholder="e.g. Client mentioned closing with Prestige direct sales..."
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="px-5 py-3.5 border-t border-slate-200 bg-slate-50 flex items-center justify-end space-x-2">
+              <button
+                type="button"
+                onClick={() => setIsLostModalOpen(false)}
+                className="px-3.5 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-xl shadow-2xs cursor-pointer transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmLost}
+                disabled={!lostReason}
+                className="px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl shadow-2xs cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-1.5"
+              >
+                <span>Confirm Lost Lead</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

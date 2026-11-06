@@ -293,7 +293,7 @@ export class BulkImportService {
         // Run Feature 5 dedup check
         try {
           const dedup = await DedupValidationService.checkDuplicateProperty({
-            ownerPhone: parsed.ownerPhone,
+            phone: parsed.ownerPhone,
             locality: parsed.projectName,
             bhkType: parsed.bhkType,
             askingPriceInr: parsed.askingPriceInr
@@ -481,7 +481,7 @@ export class BulkImportService {
           occupancy_status: item.possessionStatus,
           monthly_maintenance_inr: 4500,
           asking_price_inr: item.askingPriceInr,
-          reserve_minimum_price_inr: item.reservePriceInr,
+          reserve_minimum_price_inr: item.reservePriceInr || item.askingPriceInr || 0,
           listing_intent: 'SELL',
           crm_status: 'NEW',
           listing_status: listingStatus,
@@ -505,15 +505,19 @@ export class BulkImportService {
           id: leadId,
           property_id: propertyId,
           phone: item.ownerPhone,
-          name: item.ownerName,
-          lead_source: item.leadSource,
+          owner_name: item.ownerName,
+          apartment_society_name: item.projectName,
+          locality_id: 'Bengaluru',
+          bhk_type: item.bhkType,
           lead_status: 'CONTACTED',
-          stage: 'CONTACTED',
           assigned_staff_id: staffId,
-          asking_price_inr: item.askingPriceInr,
-          reserve_minimum_price_inr: item.reservePriceInr || null,
+          assigned_at: now,
+          expected_price_inr: item.askingPriceInr,
+          listing_intent: 'SELL',
           next_follow_up_at: null,
-          call_notes_history: [],
+          follow_up_notes: null,
+          notes: `Imported via bulk inventory tool. Source: ${item.leadSource}`,
+          consent_record_id: null,
           created_at: now,
           updated_at: now
         };

@@ -499,7 +499,9 @@ export function PropertyDetailDrawer({
                         <button
                           type="button"
                           onClick={() => {
-                            const url = `${typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}/esign/brokerage/${selectedPropertyId}?token=demo`;
+                            const origin = typeof window !== 'undefined' ? window.location.origin : 'https://sellmyghar.in';
+                            const base = origin.includes('crm.') ? 'https://sellmyghar.in' : origin;
+                            const url = `${base}/#/esign/brokerage/${selectedPropertyId}`;
                             navigator.clipboard.writeText(url);
                             setLinkCopied(true);
                             setTimeout(() => setLinkCopied(false), 2500);

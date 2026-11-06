@@ -22,12 +22,14 @@ export const StaffLogin: React.FC<StaffLoginProps> = ({ onSuccess, onBackToHome,
   useEffect(() => {
     try {
       const hashStr = window.location.hash || '';
+      const pathStr = window.location.pathname || '';
       const queryStr = hashStr.includes('?') ? hashStr.split('?')[1] : window.location.search.replace(/^\?/, '');
       const params = new URLSearchParams(queryStr);
       const token = params.get('token');
       const emailParam = params.get('email');
+      const isResetIntent = pathStr.includes('reset') || hashStr.includes('reset') || params.get('mode') === 'reset';
 
-      if (token) {
+      if (token && isResetIntent) {
         setResetToken(token);
         if (emailParam) setEmail(emailParam);
         setMode('RESET');

@@ -38,7 +38,9 @@ export function BrokerageAgreementModal({
 
   const isSigned = property.brokerage_agreement_status === 'SIGNED';
   const agreementId = property.brokerage_agreement_document_id || `agr-brk-${property.id || 'seed'}`;
-  const effectiveUrl = signingUrl || `${typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000'}/esign/brokerage/${property.id}?token=sandbox_demo`;
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://sellmyghar.in';
+  const base = origin.includes('crm.') ? 'https://sellmyghar.in' : origin;
+  const effectiveUrl = signingUrl || `${base}/#/esign/brokerage/${property.id}`;
   const sellerName = owner?.display_name || owner?.displayName || property?.owner_name || 'Property Owner';
   const sellerPhone = owner?.phone || property?.owner_phone || '+91 99999 99999';
   const price = property.asking_price_inr || property.askingPriceInr || 14500000;
