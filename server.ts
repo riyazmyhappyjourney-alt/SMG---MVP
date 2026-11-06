@@ -5086,7 +5086,7 @@ app.get('/api/crm/leads', authenticateUser, requireStaffMember, async (req: Requ
         sl.listing_intent,
         sl.lead_status,
         sl.assigned_staff_id,
-        staff.display_name AS assigned_staff_name,
+        COALESCE(staff.display_name, staff.email) AS assigned_staff_name,
         staff.phone AS assigned_staff_phone,
         sl.assigned_at,
         sl.property_id,
@@ -5118,7 +5118,7 @@ app.get('/api/crm/leads', authenticateUser, requireStaffMember, async (req: Requ
         'BUY' AS listing_intent,
         be.lead_status,
         be.assigned_staff_id,
-        staff.display_name AS assigned_staff_name,
+        COALESCE(staff.display_name, staff.email) AS assigned_staff_name,
         staff.phone AS assigned_staff_phone,
         be.assigned_at,
         be.property_id,
@@ -5892,33 +5892,24 @@ app.post('/api/crm/leads/:id/delete', jsonDefault, authenticateUser, requireStaf
 const assignLeadHandler = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const staffId = req.body.staffId || req.body.assignedStaffId;
+    const rawStaffId = req.body.staffId || req.body.assignedStaffId;
+    const staffId = typeof rawStaffId === 'string' ? rawStaffId.trim() : null;
 
     const userRoles = Array.isArray(req.user?.roles) ? req.user.roles : [];
-    const isAdmin = (userRoles as string[]).some(r => r === 'STAFF_SUPER_ADMIN' || r === 'ADMIN' || r === 'SUPER_ADMIN');
-    if (!isAdmin) {
-      return res.status(403).json({ error: 'FORBIDDEN', message: 'Only administrators can assign or reassign leads.' });
-    }
+    const userModules = Array.isArray(req.user?.module_permissions) ? req.user.module_permissions : [];
+    const canAssign = 
+      userRoles.some(r => r === 'STAFF_SUPER_ADMIN' || r === 'ADMIN' || r === 'SUPER_ADMIN') ||
+      userModules.includes('LEADS') ||
+      userModules.includes('TEAM') ||
+      (Array.isArray(req.user?.permissions) && req.user.permissions.includes('leads:assign'));
 
-    if (!staffId || typeof staffId !== 'string') {
-      return res.status(400).json({ error: 'Valid staffId is required for lead assignment.' });
-    }
-
-    const staffRes = await executeQuery(`SELECT id, display_name, email, roles, is_active FROM users WHERE id = $1 LIMIT 1;`, [staffId]);
-    if (!staffRes.rows || staffRes.rows.length === 0) {
-      return res.status(404).json({ error: 'STAFF_NOT_FOUND', message: 'Assigned staff user does not exist.' });
-    }
-    const staffUser = staffRes.rows[0];
-    if (!staffUser.is_active) {
-      return res.status(400).json({ error: 'STAFF_INACTIVE', message: 'Cannot assign lead to an inactive staff account.' });
-    }
-    const isStaffRole = Array.isArray(staffUser.roles) && staffUser.roles.some((r: string) => r.startsWith('STAFF_'));
-    if (!isStaffRole) {
-      return res.status(400).json({ error: 'STAFF_ROLE_REQUIRED', message: 'Assigned relationship manager must possess an operational staff role.' });
+    if (!canAssign) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Only authorized team members can assign or reassign leads.' });
     }
 
     const clientIp = getClientIp(req);
 
+    // Identify target lead in either seller_leads or buyer_enquiries
     let isSeller = true;
     let sellerCheck = await executeQuery(`SELECT * FROM seller_leads WHERE id = $1 LIMIT 1;`, [id]);
     if (!sellerCheck.rows || sellerCheck.rows.length === 0) {
@@ -5928,6 +5919,89 @@ const assignLeadHandler = async (req: Request, res: Response) => {
         return res.status(404).json({ error: 'LEAD_NOT_FOUND', message: 'Lead not found.' });
       }
     }
+
+    // Branch A: Unassigning lead
+    const isUnassigning = !staffId || staffId === 'unassigned' || staffId === 'none';
+    if (isUnassigning) {
+      let updatedLead: any = null;
+      if (isSeller) {
+        const updateRes = await executeQuery(`
+          UPDATE seller_leads
+          SET assigned_staff_id = NULL,
+              assigned_at = NULL,
+              updated_at = NOW()
+          WHERE id = $1
+          RETURNING *;
+        `, [id]);
+        updatedLead = updateRes.rows[0];
+      } else {
+        const updateRes = await executeQuery(`
+          UPDATE buyer_enquiries
+          SET assigned_staff_id = NULL,
+              assigned_at = NULL,
+              updated_at = NOW()
+          WHERE id = $1
+          RETURNING *;
+        `, [id]);
+        updatedLead = updateRes.rows[0];
+      }
+
+      await recordAuditEvent({
+        actor: req.user!,
+        action: 'LEAD_UNASSIGNED',
+        targetEntity: isSeller ? 'seller_leads' : 'buyer_enquiries',
+        targetEntityId: id,
+        clientIp,
+        diffSummary: {
+          assignedStaffId: null,
+          assignedStaffName: null
+        }
+      });
+
+      return res.json({
+        success: true,
+        message: 'Lead unassigned successfully',
+        lead: {
+          id: updatedLead.id,
+          stage: updatedLead.lead_status,
+          status: updatedLead.lead_status,
+          assignedStaffId: null,
+          assigned_staff_id: null,
+          assignedStaffName: null,
+          assigned_staff_name: null,
+          assignedTo: 'Unassigned',
+          assignedAt: null,
+          assigned_at: null,
+          updatedAt: updatedLead.updated_at
+        },
+        assignedStaff: null
+      });
+    }
+
+    // Branch B: Assigning to a staff member
+    const staffRes = await executeQuery(
+      `SELECT id, display_name, email, phone, roles, module_permissions, is_active FROM users WHERE id = $1 LIMIT 1;`,
+      [staffId]
+    );
+    if (!staffRes.rows || staffRes.rows.length === 0) {
+      return res.status(404).json({ error: 'STAFF_NOT_FOUND', message: 'Assigned staff user does not exist.' });
+    }
+    const staffUser = staffRes.rows[0];
+    if (staffUser.is_active === false) {
+      return res.status(400).json({ error: 'STAFF_INACTIVE', message: 'Cannot assign lead to an inactive staff account.' });
+    }
+
+    const isStaffRole =
+      (Array.isArray(staffUser.roles) && staffUser.roles.some((r: string) =>
+        r.startsWith('STAFF_') || r === 'ADMIN' || r === 'SUPER_ADMIN' || r === 'STAFF' || r === 'STAFF_MEMBER' || r === 'STAFF_USER' || r === 'EMPLOYEE' || r === 'AGENT'
+      )) ||
+      (Array.isArray(staffUser.module_permissions) && staffUser.module_permissions.length > 0);
+
+    if (!isStaffRole) {
+      return res.status(400).json({ error: 'STAFF_ROLE_REQUIRED', message: 'Assigned relationship manager must possess an operational staff role.' });
+    }
+
+    const staffDisplayName = staffUser.display_name || staffUser.email;
 
     let updatedLead: any = null;
     if (isSeller) {
@@ -5970,31 +6044,33 @@ const assignLeadHandler = async (req: Request, res: Response) => {
       clientIp,
       diffSummary: {
         assignedStaffId: staffUser.id,
-        assignedStaffName: staffUser.display_name,
+        assignedStaffName: staffDisplayName,
         newStatus: updatedLead.lead_status
       }
     });
 
-    // Note: Lead assignment email notification disabled per user request
-    // (Email alerts are reserved exclusively for new inbound customer inquiries).
-
     return res.json({
       success: true,
-      message: `Lead assigned to ${staffUser.display_name}`,
+      message: `Lead assigned to ${staffDisplayName}`,
       lead: {
         id: updatedLead.id,
         stage: updatedLead.lead_status,
         status: updatedLead.lead_status,
         assignedStaffId: updatedLead.assigned_staff_id,
-        assignedStaffName: staffUser.display_name,
-        assignedTo: staffUser.display_name,
+        assigned_staff_id: updatedLead.assigned_staff_id,
+        assignedStaffName: staffDisplayName,
+        assigned_staff_name: staffDisplayName,
+        assignedStaffPhone: staffUser.phone || null,
+        assignedTo: staffDisplayName,
         assignedAt: updatedLead.assigned_at,
+        assigned_at: updatedLead.assigned_at,
         updatedAt: updatedLead.updated_at
       },
       assignedStaff: {
         id: staffUser.id,
-        displayName: staffUser.display_name,
+        displayName: staffDisplayName,
         email: staffUser.email,
+        phone: staffUser.phone || null,
         roles: staffUser.roles
       }
     });
@@ -8170,7 +8246,7 @@ app.get('/api/crm/leads/:id/details', authenticateUser, requireStaffMember, asyn
     const { id } = req.params;
 
     let leadRes = await executeQuery(`
-      SELECT sl.*, staff.display_name AS assigned_staff_name, staff.phone AS assigned_staff_phone
+      SELECT sl.*, COALESCE(staff.display_name, staff.email) AS assigned_staff_name, staff.phone AS assigned_staff_phone
       FROM seller_leads sl
       LEFT JOIN users staff ON staff.id = sl.assigned_staff_id
       WHERE sl.id = $1 LIMIT 1;
@@ -8179,7 +8255,7 @@ app.get('/api/crm/leads/:id/details', authenticateUser, requireStaffMember, asyn
     let leadType = 'SELLER';
     if (!leadRes.rows || leadRes.rows.length === 0) {
       leadRes = await executeQuery(`
-        SELECT be.*, staff.display_name AS assigned_staff_name, staff.phone AS assigned_staff_phone
+        SELECT be.*, COALESCE(staff.display_name, staff.email) AS assigned_staff_name, staff.phone AS assigned_staff_phone
         FROM buyer_enquiries be
         LEFT JOIN users staff ON staff.id = be.assigned_staff_id
         WHERE be.id = $1 LIMIT 1;

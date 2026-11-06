@@ -620,7 +620,7 @@ export function LeadDetailDrawer({
                   {/* Step 2: Staff Assignment */}
                   <div className="flex items-start space-x-3">
                     <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5 ${
-                      lead.assigned_staff_id || lead.assignedStaffId
+                      lead.assigned_staff_id || lead.assignedStaffId || assigneeSelect
                         ? 'bg-emerald-100 text-emerald-700'
                         : 'bg-amber-100 text-amber-700'
                     }`}>
@@ -629,7 +629,7 @@ export function LeadDetailDrawer({
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between flex-wrap gap-1">
                         <strong className="text-slate-900 font-semibold text-xs">
-                          {lead.assigned_staff_id || lead.assignedStaffId
+                          {lead.assigned_staff_id || lead.assignedStaffId || assigneeSelect
                             ? 'Relationship Manager Assigned'
                             : 'Pending RM Assignment'}
                         </strong>
@@ -640,8 +640,8 @@ export function LeadDetailDrawer({
                         )}
                       </div>
                       <p className="text-[11px] text-slate-600 mt-0.5">
-                        {lead.assigned_staff_name || staffList.find(s => s.id === (lead.assigned_staff_id || lead.assignedStaffId))?.displayName
-                          ? `Assigned to ${lead.assigned_staff_name || staffList.find(s => s.id === (lead.assigned_staff_id || lead.assignedStaffId))?.displayName}`
+                        {lead.assigned_staff_name || lead.assignedStaffName || staffList.find(s => s.id === (lead.assigned_staff_id || lead.assignedStaffId || assigneeSelect))?.displayName
+                          ? `Assigned to ${lead.assigned_staff_name || lead.assignedStaffName || staffList.find(s => s.id === (lead.assigned_staff_id || lead.assignedStaffId || assigneeSelect))?.displayName}`
                           : 'Awaiting assignment to sales or intake relationship manager'}
                       </p>
                     </div>
@@ -762,7 +762,8 @@ export function LeadDetailDrawer({
                       <div className="w-full bg-slate-50 border border-slate-200/80 rounded-xl px-3 py-2 font-semibold text-xs text-slate-700">
                         {staffList.find((s) => s.id === assigneeSelect)?.displayName ||
                           lead.assigned_staff_name ||
-                          'Assigned to You'}
+                          lead.assignedStaffName ||
+                          (assigneeSelect ? 'Assigned RM' : 'Unassigned')}
                       </div>
                     )}
                     <p className="text-[10px] text-slate-400 mt-1">

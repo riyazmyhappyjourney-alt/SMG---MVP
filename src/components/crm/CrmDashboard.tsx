@@ -1123,10 +1123,20 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
   // 2. Assign Lead to Staff
   const handleAssignLead = async (leadId: string, staffId: string) => {
     try {
+      const selectedStaff = staffList.find((s) => s.id === staffId);
+      const staffName = selectedStaff ? (selectedStaff.displayName || selectedStaff.email) : null;
+
       setLeads((prev) =>
         prev.map((l) =>
           l.id === leadId
-            ? { ...l, assigned_staff_id: staffId || null, assignedStaffId: staffId || null }
+            ? {
+                ...l,
+                assigned_staff_id: staffId || null,
+                assignedStaffId: staffId || null,
+                assigned_staff_name: staffName,
+                assignedStaffName: staffName,
+                assignedTo: staffName || 'Unassigned'
+              }
             : l
         )
       );
@@ -1134,17 +1144,17 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
       const res = await crmFetch(`/api/crm/leads/${leadId}/assign`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ assignedStaffId: staffId || null })
+        body: JSON.stringify({ staffId: staffId || null, assignedStaffId: staffId || null })
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        showToast('Lead assignment updated', 'success');
+        showToast(data.message || (staffId ? `Lead assigned to ${staffName}` : 'Lead unassigned'), 'success');
         if (selectedLeadId === leadId) {
           refreshLeadDetail();
         }
         refreshAll();
       } else {
-        showToast(data.message || 'Failed to assign lead', 'error');
+        showToast(data.message || data.error || 'Failed to assign lead', 'error');
         refreshAll();
       }
     } catch {
@@ -3355,11 +3365,17 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
 
                             {/* Assigned Staff */}
                             <td className="py-2.5 px-3.5 text-slate-600">
-                              {lead.assignedStaffName ? (
-                                <span className="text-xs font-medium text-slate-800">{lead.assignedStaffName}</span>
-                              ) : (
-                                <span className="text-xs text-slate-400 italic">Unassigned</span>
-                              )}
+                              {(() => {
+                                const staffName =
+                                  lead.assignedStaffName ||
+                                  (lead as any).assigned_staff_name ||
+                                  staffList.find((s) => s.id === (lead.assignedStaffId || (lead as any).assigned_staff_id))?.displayName;
+                                return staffName ? (
+                                  <span className="text-xs font-medium text-slate-800">{staffName}</span>
+                                ) : (
+                                  <span className="text-xs text-slate-400 italic">Unassigned</span>
+                                );
+                              })()}
                             </td>
 
                             {/* Follow-up Due */}
