@@ -1030,6 +1030,20 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
         )
       );
 
+      // Optimistic update in drawer state to guarantee immediate synchronization
+      setLeadDetailData((prev: any) => {
+        if (!prev || !prev.lead || prev.lead.id !== leadId) return prev;
+        return {
+          ...prev,
+          lead: {
+            ...prev.lead,
+            stage: newStatus,
+            status: newStatus,
+            lead_status: newStatus
+          }
+        };
+      });
+
       const res = await crmFetch(`/api/crm/leads/${leadId}/status`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1125,6 +1139,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
     try {
       const selectedStaff = staffList.find((s) => s.id === staffId);
       const staffName = selectedStaff ? (selectedStaff.displayName || selectedStaff.email) : null;
+      const willAdvanceToContacted = Boolean(staffId);
 
       setLeads((prev) =>
         prev.map((l) =>
@@ -1135,11 +1150,34 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 assignedStaffId: staffId || null,
                 assigned_staff_name: staffName,
                 assignedStaffName: staffName,
-                assignedTo: staffName || 'Unassigned'
+                assignedTo: staffName || 'Unassigned',
+                stage: (willAdvanceToContacted && (l.stage === 'NEW' || l.lead_status === 'NEW')) ? 'CONTACTED' : l.stage,
+                status: (willAdvanceToContacted && (l.status === 'NEW' || l.lead_status === 'NEW')) ? 'CONTACTED' : l.status,
+                lead_status: (willAdvanceToContacted && (l.lead_status === 'NEW' || l.stage === 'NEW')) ? 'CONTACTED' : l.lead_status
               }
             : l
         )
       );
+
+      setLeadDetailData((prev: any) => {
+        if (!prev || !prev.lead || prev.lead.id !== leadId) return prev;
+        const currentStage = prev.lead.stage || prev.lead.lead_status;
+        const newStage = (willAdvanceToContacted && (currentStage === 'NEW' || !currentStage)) ? 'CONTACTED' : currentStage;
+        return {
+          ...prev,
+          lead: {
+            ...prev.lead,
+            assigned_staff_id: staffId || null,
+            assignedStaffId: staffId || null,
+            assigned_staff_name: staffName,
+            assignedStaffName: staffName,
+            assignedTo: staffName || 'Unassigned',
+            stage: newStage,
+            status: newStage,
+            lead_status: newStage
+          }
+        };
+      });
 
       const res = await crmFetch(`/api/crm/leads/${leadId}/assign`, {
         method: 'POST',
@@ -1149,6 +1187,21 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
       const data = await res.json();
       if (res.ok && data.success) {
         showToast(data.message || (staffId ? `Lead assigned to ${staffName}` : 'Lead unassigned'), 'success');
+        if (data.lead) {
+          setLeadDetailData((prev: any) => {
+            if (!prev || !prev.lead || prev.lead.id !== leadId) return prev;
+            return {
+              ...prev,
+              lead: {
+                ...prev.lead,
+                ...data.lead,
+                stage: data.lead.stage || data.lead.lead_status,
+                status: data.lead.status || data.lead.stage,
+                lead_status: data.lead.lead_status || data.lead.stage
+              }
+            };
+          });
+        }
         if (selectedLeadId === leadId) {
           refreshLeadDetail();
         }
@@ -5087,6 +5140,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
         >
           <LeadDetailDrawer
             selectedLeadId={selectedLeadId}
+            selectedLead={leads.find((l) => l.id === selectedLeadId) || null}
             onClose={() => setSelectedLeadId(null)}
             leadDetailData={leadDetailData}
             leadDetailLoading={leadDetailLoading}

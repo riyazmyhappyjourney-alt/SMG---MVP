@@ -65,6 +65,7 @@ export interface LeadDetailDrawerProps {
   newCallNote: string;
   setNewCallNote: (val: string) => void;
   handleDeleteLead?: (leadId: string) => void;
+  selectedLead?: any;
   isAdmin?: boolean;
   onViewProperty?: (propertyId: string) => void;
   handleLinkProperty?: (leadId: string, propertyId: string) => Promise<void> | void;
@@ -72,6 +73,7 @@ export interface LeadDetailDrawerProps {
 
 export function LeadDetailDrawer({
   selectedLeadId,
+  selectedLead,
   onClose,
   leadDetailData,
   leadDetailLoading,
@@ -110,7 +112,29 @@ export function LeadDetailDrawer({
   const [selectedPropertyToLink, setSelectedPropertyToLink] = useState('');
   const [isLinkingLoading, setIsLinkingLoading] = useState(false);
 
-  const lead = leadDetailData?.lead || {};
+  const rawLead = leadDetailData?.lead || {};
+
+  // Resolve lifecycle stage: prioritize whichever record has progressed furthest beyond 'NEW'
+  const resolvedStage: LeadStatus = (() => {
+    const rawStage = (rawLead.stage || rawLead.lead_status) as LeadStatus | undefined;
+    const tableStage = (selectedLead?.stage || selectedLead?.lead_status) as LeadStatus | undefined;
+    if (rawStage && rawStage !== 'NEW') return rawStage;
+    if (tableStage && tableStage !== 'NEW') return tableStage;
+    return rawStage || tableStage || 'NEW';
+  })();
+
+  const lead = {
+    ...(selectedLead || {}),
+    ...rawLead,
+    stage: resolvedStage,
+    lead_status: resolvedStage,
+    status: resolvedStage,
+    assigned_staff_id: rawLead.assigned_staff_id ?? selectedLead?.assignedStaffId ?? selectedLead?.assigned_staff_id ?? null,
+    assignedStaffId: rawLead.assignedStaffId ?? rawLead.assigned_staff_id ?? selectedLead?.assignedStaffId ?? null,
+    assigned_staff_name: rawLead.assigned_staff_name ?? selectedLead?.assignedStaffName ?? selectedLead?.assigned_staff_name ?? null,
+    assignedStaffName: rawLead.assignedStaffName ?? rawLead.assigned_staff_name ?? selectedLead?.assignedStaffName ?? null,
+  };
+
   const visits: any[] = Array.isArray(leadDetailData?.visits) ? leadDetailData.visits : [];
   const documents: any[] = Array.isArray(leadDetailData?.documents) ? leadDetailData.documents : [];
   const offers: any[] = Array.isArray(leadDetailData?.offers) ? leadDetailData.offers : [];

@@ -966,6 +966,10 @@ async function initSchemaColumns() {
         DELETE FROM buyer_enquiries WHERE (attribution->>'source' ILIKE '%facebook%' OR id LIKE 'enq-fb%');
       `);
       console.info('[SellMyGhar DB] Facebook leads verified as Seller leads in seller_leads table.');
+    } catch (fbErr) {
+      console.warn('[SellMyGhar DB] Facebook leads migration notice:', fbErr);
+    }
+
     // Normalize any portal leads that were saved with future timestamps due to missing timezone offset
     try {
       await executeQuery(`
@@ -982,6 +986,22 @@ async function initSchemaColumns() {
       console.info('[SellMyGhar DB] Normalized future-dated portal lead timestamps to true UTC.');
     } catch (tzErr) {
       console.warn('[SellMyGhar DB] Lead timestamp normalization notice:', tzErr);
+    }
+
+    // Ensure all leads assigned to relationship managers have advanced past NEW (to CONTACTED)
+    try {
+      await executeQuery(`
+        UPDATE seller_leads 
+        SET lead_status = 'CONTACTED', updated_at = NOW() 
+        WHERE assigned_staff_id IS NOT NULL AND (lead_status = 'NEW' OR lead_status IS NULL);
+
+        UPDATE buyer_enquiries 
+        SET lead_status = 'CONTACTED', updated_at = NOW() 
+        WHERE assigned_staff_id IS NOT NULL AND (lead_status = 'NEW' OR lead_status IS NULL);
+      `);
+      console.info('[SellMyGhar DB] Normalized assigned leads lifecycle stages (NEW -> CONTACTED).');
+    } catch (syncErr) {
+      console.warn('[SellMyGhar DB] Lead status sync notice:', syncErr);
     }
 
     console.info('[SellMyGhar DB] Schema ensured with buyer_enquiries, property_media, and secure staff accounts.');
@@ -5912,7 +5932,7 @@ const assignLeadHandler = async (req: Request, res: Response) => {
     const userRoles = Array.isArray(req.user?.roles) ? req.user.roles : [];
     const userModules = Array.isArray(req.user?.module_permissions) ? req.user.module_permissions : [];
     const canAssign = 
-      userRoles.some(r => r === 'STAFF_SUPER_ADMIN' || r === 'ADMIN' || r === 'SUPER_ADMIN') ||
+      (userRoles as string[]).some(r => r === 'STAFF_SUPER_ADMIN' || r === 'ADMIN' || r === 'SUPER_ADMIN') ||
       userModules.includes('LEADS') ||
       userModules.includes('TEAM') ||
       (Array.isArray(req.user?.permissions) && req.user.permissions.includes('leads:assign'));
@@ -8355,15 +8375,25 @@ app.get('/api/crm/leads/:id/details', authenticateUser, requireStaffMember, asyn
     `, [id, lead.property_id || null]);
     const auditLogs = auditRes.rows || [];
 
+    const resolvedLeadStatus = lead.lead_status || 'NEW';
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+
     return res.json({
       success: true,
       lead: {
         ...lead,
+        stage: resolvedLeadStatus,
+        status: resolvedLeadStatus,
+        lead_status: resolvedLeadStatus,
         type: leadType,
         name: lead.name || lead.owner_name || lead.buyer_name || 'Customer',
         ownerName: lead.owner_name || lead.buyer_name || lead.name || 'Customer',
         owner_name: lead.owner_name || lead.buyer_name || lead.name || 'Customer',
         buyer_name: lead.buyer_name || lead.owner_name || lead.name || 'Customer',
+        assigned_staff_id: lead.assigned_staff_id || null,
+        assignedStaffId: lead.assigned_staff_id || null,
+        assigned_staff_name: lead.assigned_staff_name || null,
+        assignedStaffName: lead.assigned_staff_name || null,
         source: lead.attribution?.source || (lead.notes && lead.notes.includes('99acres') ? '99acres' : (lead.notes && lead.notes.toLowerCase().includes('magicbricks') ? 'Magicbricks' : (leadType === 'SELLER' ? 'SellMyGhar' : 'Website Portal'))),
         isOverdue: Boolean(lead.next_follow_up_at && new Date(lead.next_follow_up_at).getTime() < Date.now())
       },
@@ -9052,7 +9082,7 @@ app.post('/api/crm/properties/bulk-import/execute', jsonDefault, authenticateUse
     if (items.length === 0) {
       return res.status(400).json({ error: 'EMPTY_PAYLOAD', message: 'No items approved for execution.' });
     }
-    const staffId = req.user?.id || 'usr-staff-superadmin';
+    const staffId = req.user?.uid || (req.user as any)?.id || 'usr-staff-superadmin';
     const result = await BulkImportService.executeImport(items, staffId);
     return res.json(result);
   } catch (err: any) {
