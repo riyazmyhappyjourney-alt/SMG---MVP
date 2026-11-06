@@ -1790,7 +1790,13 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
 
       // Source Filter
       if (leadSourceFilter !== 'ALL') {
-        const rawSrc = (lead.source || lead.attribution?.source || (lead.notes?.includes('99acres') ? '99acres' : (lead.notes?.toLowerCase().includes('magicbricks') ? 'Magicbricks' : 'SellMyGhar'))).toLowerCase();
+        const rawSrc = (
+          lead.source || 
+          lead.attribution?.source || 
+          (lead.id?.startsWith('lead-fb') || lead.id?.startsWith('enq-fb') || (lead.notes && (lead.notes.toLowerCase().includes('facebook') || lead.notes.toLowerCase().includes('meta'))) ? 'Facebook Ads' :
+          (lead.notes?.includes('99acres') ? '99acres' : 
+          (lead.notes?.toLowerCase().includes('magicbricks') ? 'Magicbricks' : 'SellMyGhar')))
+        ).toLowerCase();
         if (!rawSrc.includes(leadSourceFilter.toLowerCase())) {
           return false;
         }

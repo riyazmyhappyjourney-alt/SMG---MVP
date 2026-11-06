@@ -64,6 +64,7 @@ export function getMetaWebhookVerifyToken(): string {
   return (
     process.env.META_WEBHOOK_VERIFY_TOKEN ||
     process.env.FACEBOOK_WEBHOOK_VERIFY_TOKEN ||
+    process.env.META_LEADGEN_VERIFY_TOKEN ||
     'sellmyghar_meta_leadgen_2026'
   );
 }
@@ -184,25 +185,39 @@ export class FacebookLeadService {
   /**
    * Fetches full lead field data from Meta Graph API using leadgen_id
    */
-  static async fetchLeadFromGraphApi(leadgenId: string): Promise<Record<string, any> | null> {
-    const accessToken = process.env.META_PAGE_ACCESS_TOKEN || process.env.META_SYSTEM_USER_TOKEN || MetaConversionsApiService.getAccessToken();
-    if (!accessToken) {
-      return null;
+  /**
+   * Fetches full lead field data from Meta Graph API using leadgen_id
+   */
+  static async fetchLeadFromGraphApi(leadgenId: string, overrideToken?: string): Promise<{ data: Record<string, any> | null; error?: string }> {
+    const tokens = [
+      overrideToken,
+      process.env.META_PAGE_ACCESS_TOKEN,
+      process.env.META_SYSTEM_USER_TOKEN,
+      MetaConversionsApiService.getAccessToken()
+    ].filter(Boolean) as string[];
+
+    if (tokens.length === 0) {
+      return { data: null, error: 'No Meta Access Token configured in environment' };
     }
 
-    try {
-      const url = `https://graph.facebook.com/v26.0/${encodeURIComponent(leadgenId)}?access_token=${encodeURIComponent(accessToken)}`;
-      const res = await fetch(url, { method: 'GET' });
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        console.warn(`[FacebookLeadService] Could not fetch lead ${leadgenId} from Graph API:`, errJson);
-        return null;
+    let lastError = '';
+    for (const accessToken of tokens) {
+      try {
+        const url = `https://graph.facebook.com/v22.0/${encodeURIComponent(leadgenId)}?access_token=${encodeURIComponent(accessToken)}`;
+        const res = await fetch(url, { method: 'GET' });
+        const json = await res.json().catch(() => ({}));
+        if (res.ok && json.field_data) {
+          return { data: json };
+        }
+        lastError = json.error?.message || `HTTP ${res.status}`;
+        console.warn(`[FacebookLeadService] Graph API error for lead ${leadgenId}:`, json.error || json);
+      } catch (err: any) {
+        lastError = err.message;
+        console.warn(`[FacebookLeadService] Graph API network error for lead ${leadgenId}:`, err.message);
       }
-      return await res.json();
-    } catch (err: any) {
-      console.warn(`[FacebookLeadService] Graph API network error for lead ${leadgenId}:`, err.message);
-      return null;
     }
+
+    return { data: null, error: lastError };
   }
 
   /**
@@ -225,6 +240,7 @@ export class FacebookLeadService {
     let city = payload.city || payload.locality || null;
     let notes = payload.notes || payload.message || null;
     const customQuestions: string[] = [];
+    let graphError: string | undefined = undefined;
 
     // 1. Check for standard Meta Webhook envelope: entry[].changes[].value
     if (Array.isArray(payload.entry) && payload.entry.length > 0) {
@@ -247,7 +263,7 @@ export class FacebookLeadService {
       leadgenId = payload.leadgen_id || payload.lead_id || payload.id || '';
     }
 
-    // 3. If field_data array is provided (directly or nested)
+    // 3. If field_data array is provided (directly or nested from CRM bridge/testing)
     const fieldData = payload.field_data || payload.fieldData || payload.entry?.[0]?.changes?.[0]?.value?.field_data;
     if (Array.isArray(fieldData)) {
       for (const field of fieldData) {
@@ -269,12 +285,12 @@ export class FacebookLeadService {
       }
     }
 
-    // 4. If we have a leadgen_id but missing name or phone, try Graph API
+    // 4. If we have a leadgen_id but missing contact details, fetch from Meta Graph API
     if (leadgenId && (!fullName || !rawPhone || String(rawPhone).includes('test lead'))) {
-      const graphData = await this.fetchLeadFromGraphApi(leadgenId);
-      if (graphData && Array.isArray(graphData.field_data)) {
-        formId = formId || graphData.form_id;
-        for (const field of graphData.field_data) {
+      const graphResult = await this.fetchLeadFromGraphApi(leadgenId);
+      if (graphResult.data && Array.isArray(graphResult.data.field_data)) {
+        formId = formId || graphResult.data.form_id;
+        for (const field of graphResult.data.field_data) {
           const name = String(field.name || '').toLowerCase();
           const val = Array.isArray(field.values) ? field.values[0] : field.value;
           if (!val) continue;
@@ -291,6 +307,8 @@ export class FacebookLeadService {
             customQuestions.push(`${field.name}: ${val}`);
           }
         }
+      } else {
+        graphError = graphResult.error;
       }
     }
 
@@ -299,25 +317,30 @@ export class FacebookLeadService {
       notes = notes ? `${notes}\n[Form Answers]: ${qSummary}` : `[Form Answers]: ${qSummary}`;
     }
 
-    // Handle Meta Developer Portal mock test events (e.g., ID 444444444444 or test lead placeholders)
-    const isMetaTestPing =
+    // Check if this is an explicit test lead created via Developer Portal
+    const isExplicitTestLead =
       String(leadgenId).includes('444444444444') ||
       String(leadgenId).startsWith('test') ||
       String(rawPhone).includes('test lead') ||
-      String(fullName).includes('test lead') ||
-      !rawPhone;
+      String(fullName).includes('test lead');
 
-    if (isMetaTestPing) {
+    if (isExplicitTestLead) {
       if (!rawPhone || String(rawPhone).includes('test lead')) {
         rawPhone = '9999999999';
       }
       if (!fullName || String(fullName).includes('test lead')) {
-        fullName = 'Meta Test Lead (Sellmyflat)';
+        fullName = 'Meta Test Lead (Verified)';
       }
       if (!email || String(email).includes('test lead')) {
         email = email || 'test@meta.com';
       }
       notes = notes ? `${notes} (Meta Verified Test)` : `Meta Lead Ads Test Tool lead verified successfully (Lead ID: ${leadgenId}).`;
+    } else if (!rawPhone) {
+      // Real lead received from Meta webhook, but Graph API token failed to fetch contact info
+      rawPhone = '9999999999';
+      fullName = fullName || `Facebook Lead (${leadgenId})`;
+      const warningNote = `[ACTION REQUIRED]: Meta Graph API token authorization returned: "${graphError || 'API access blocked'}". Update Page Access Token in Settings and click "Sync from Meta" to retrieve contact details.`;
+      notes = notes ? `${notes}\n${warningNote}` : warningNote;
     }
 
     fullName = fullName || 'Facebook Lead';
@@ -540,6 +563,80 @@ export class FacebookLeadService {
         externalEnquiryId,
         metaLeadId: lead.leadgenId,
       },
+    };
+  }
+
+  /**
+   * Re-syncs a Facebook lead from Meta Graph API using current or provided token
+   */
+  static async syncLeadFromMeta(leadId: string, overrideToken?: string) {
+    const leadRes = await executeQuery(`SELECT id, owner_name, phone, email, attribution, notes FROM seller_leads WHERE id = $1 LIMIT 1;`, [leadId]);
+    if (!leadRes.rows || leadRes.rows.length === 0) {
+      throw new Error('Lead not found in seller_leads');
+    }
+    const lead = leadRes.rows[0];
+    const attr = typeof lead.attribution === 'string' ? JSON.parse(lead.attribution) : (lead.attribution || {});
+    const leadgenId = attr.metaLeadId || attr.externalEnquiryId?.replace('FB-', '');
+    if (!leadgenId) {
+      throw new Error('No Meta Lead ID associated with this lead.');
+    }
+
+    const { data: graphData, error } = await this.fetchLeadFromGraphApi(leadgenId, overrideToken);
+    if (!graphData || !Array.isArray(graphData.field_data)) {
+      throw new Error(error || 'Failed to fetch lead data from Meta Graph API. Please check Meta Page Access Token permissions.');
+    }
+
+    let fullName = '';
+    let rawPhone = '';
+    let email = null;
+    let city = null;
+    const customQuestions: string[] = [];
+
+    for (const field of graphData.field_data) {
+      const name = String(field.name || '').toLowerCase();
+      const val = Array.isArray(field.values) ? field.values[0] : field.value;
+      if (!val) continue;
+
+      if (name.includes('name') || name === 'full_name' || name === 'first_name') {
+        fullName = fullName || String(val).trim();
+      } else if (name.includes('phone') || name === 'phone_number') {
+        rawPhone = rawPhone || String(val).trim();
+      } else if (name.includes('email')) {
+        email = email || String(val).trim().toLowerCase();
+      } else if (name.includes('city') || name.includes('locality')) {
+        city = city || String(val).trim();
+      } else {
+        customQuestions.push(`${field.name}: ${val}`);
+      }
+    }
+
+    const cleanPhone = rawPhone ? normalizeIndianPhone(rawPhone) : lead.phone;
+    const cleanNotes = (lead.notes || '').replace(/\[ACTION REQUIRED\]:.*?\. /g, '').trim();
+    const updatedNotes = customQuestions.length > 0 
+      ? `${cleanNotes}\n[Form Answers]: ${customQuestions.join(' | ')}`
+      : cleanNotes;
+
+    attr.syncedFromGraphApiAt = new Date().toISOString();
+    attr.rawGraphData = graphData;
+
+    await executeQuery(`
+      UPDATE seller_leads
+      SET owner_name = COALESCE($1, owner_name),
+          phone = COALESCE($2, phone),
+          email = COALESCE($3, email),
+          notes = $4,
+          attribution = $5,
+          updated_at = NOW()
+      WHERE id = $6;
+    `, [fullName || null, cleanPhone, email, updatedNotes, JSON.stringify(attr), leadId]);
+
+    return {
+      success: true,
+      leadId,
+      name: fullName || lead.owner_name,
+      phone: cleanPhone,
+      email: email || lead.email,
+      notes: updatedNotes
     };
   }
 }

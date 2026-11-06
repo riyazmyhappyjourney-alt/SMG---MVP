@@ -473,11 +473,16 @@ export function LeadDetailDrawer({
                 </div>
 
                 {/* Campaign & Portal Inquiry Context (For Facebook / 99acres) */}
-                {(lead.attribution?.formName || lead.attribution?.campaignName || lead.attribution?.rawPayload?.Query_Info) && (
+                {(lead.attribution?.formName || lead.attribution?.campaignName || lead.attribution?.metaLeadId || lead.attribution?.rawPayload?.Query_Info) && (
                   <div className="bg-slate-50/90 rounded-xl p-2.5 border border-slate-200/60 text-[11px] space-y-1">
                     <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
                       Lead Channel Details:
                     </span>
+                    {lead.attribution?.metaLeadId && (
+                      <div className="text-slate-700">
+                        <strong className="text-slate-900 font-semibold">Meta Lead ID:</strong> <span className="font-mono">{lead.attribution.metaLeadId}</span>
+                      </div>
+                    )}
                     {lead.attribution?.campaignName && (
                       <div className="text-slate-700">
                         <strong className="text-slate-900 font-semibold">Ad Campaign:</strong> {lead.attribution.campaignName}

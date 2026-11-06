@@ -5227,15 +5227,22 @@ app.get('/api/crm/leads', authenticateUser, requireStaffMember, async (req: Requ
         followUpNotes: r.follow_up_notes,
         follow_up_notes: r.follow_up_notes,
         notes: r.notes,
-        email: r.email || r.attribution?.email || null,
-        attribution: r.attribution || null,
-        source: r.attribution?.source || 
-          (r.notes && r.notes.includes('99acres') ? '99acres' : 
-          (r.notes && r.notes.toLowerCase().includes('magicbricks') ? 'Magicbricks' :
-          (r.notes && r.notes.toLowerCase().includes('hero_valuation') ? 'Website Hero' : 
-          (r.lead_type === 'SELLER' ? 'SellMyGhar' : 'Website Portal')))),
-        externalEnquiryId: r.attribution?.externalEnquiryId || null,
-        externalListingId: r.attribution?.externalListingId || null,
+        email: r.email || (typeof r.attribution === 'object' ? r.attribution?.email : null) || null,
+        attribution: (typeof r.attribution === 'string' ? (() => { try { return JSON.parse(r.attribution); } catch { return null; } })() : r.attribution) || null,
+        source: (() => {
+          const attr = typeof r.attribution === 'string' ? (() => { try { return JSON.parse(r.attribution); } catch { return null; } })() : r.attribution;
+          if (attr?.source) return attr.source;
+          const notesStr = String(r.notes || '').toLowerCase();
+          if (r.id?.startsWith('lead-fb') || r.id?.startsWith('enq-fb') || notesStr.includes('facebook') || notesStr.includes('meta')) {
+            return 'Facebook Ads';
+          }
+          if (r.notes && r.notes.includes('99acres')) return '99acres';
+          if (notesStr.includes('magicbricks')) return 'Magicbricks';
+          if (notesStr.includes('hero_valuation')) return 'Website Hero';
+          return r.lead_type === 'SELLER' ? 'SellMyGhar' : 'Website Portal';
+        })(),
+        externalEnquiryId: (typeof r.attribution === 'object' ? r.attribution?.externalEnquiryId : null) || null,
+        externalListingId: (typeof r.attribution === 'object' ? r.attribution?.externalListingId : null) || null,
         isOverdue,
         createdAt: r.created_at,
         created_at: r.created_at,
@@ -10798,6 +10805,21 @@ app.post(
     }
   }
 );
+
+// ====================================================================
+// 10c. Meta Lead Manual Re-Sync Endpoint (CRM Staff Action)
+// ====================================================================
+app.post('/api/crm/leads/:id/sync-meta', authenticateUser, requireStaffMember, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { accessToken } = req.body || {};
+    const result = await FacebookLeadService.syncLeadFromMeta(id, accessToken);
+    return res.json(result);
+  } catch (err: any) {
+    console.error('[SyncMetaLead] Error:', err.message);
+    return res.status(400).json({ error: 'META_SYNC_FAILED', message: err.message });
+  }
+});
 
 // ====================================================================
 // 10c. Meta Conversions API & CRM Conversion Leads Test Endpoint
