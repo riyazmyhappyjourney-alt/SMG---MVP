@@ -18,6 +18,12 @@ import {
 } from 'lucide-react';
 import { formatPhoneNumber, formatReadableDate, formatReadableTime } from '../../utils/formatters';
 import { DateTimePicker } from '../common/DateTimePicker';
+import { LeadStatus } from '../../core/types/entities';
+import {
+  getPipelineStagesForLead,
+  getStageDisplayMeta,
+  LOST_REASON_OPTIONS
+} from '../../constants/leadStages';
 
 interface TasksKanbanModuleProps {
   tasks: {
@@ -28,6 +34,8 @@ interface TasksKanbanModuleProps {
   leads?: any[];
   onOpenLead: (leadId: string) => void;
   onRescheduleLead?: (leadId: string, newDate: string, newTime: string) => Promise<void>;
+  onScheduleFollowUpWithStatus?: (leadId: string, dateStr: string, timeStr: string, note?: string, status?: LeadStatus) => Promise<void>;
+  onUpdateLeadStatus?: (leadId: string, status: LeadStatus, note?: string) => Promise<void> | void;
   onMarkLeadContacted?: (leadId: string) => Promise<void>;
   onCompleteTask?: (leadId: string) => Promise<void>;
 }
@@ -37,6 +45,8 @@ export const TasksKanbanModule: React.FC<TasksKanbanModuleProps> = ({
   leads = [],
   onOpenLead,
   onRescheduleLead,
+  onScheduleFollowUpWithStatus,
+  onUpdateLeadStatus,
   onMarkLeadContacted,
   onCompleteTask
 }) => {
@@ -44,9 +54,15 @@ export const TasksKanbanModule: React.FC<TasksKanbanModuleProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [activeQueueTab, setActiveQueueTab] = useState<'ALL' | 'OVERDUE' | 'TODAY' | 'UPCOMING' | 'COMPLETED'>('ALL');
 
-  // Reschedule state
+  // Reschedule & RNR Calendar state
   const [rescheduleLeadId, setRescheduleLeadId] = useState<string | null>(null);
+  const [rescheduleMode, setRescheduleMode] = useState<'FOLLOW_UP' | 'RNR'>('FOLLOW_UP');
   const [isRescheduleOpen, setIsRescheduleOpen] = useState(false);
+
+  // Lost Reason modal state for inline Table View LOST selection
+  const [lostModalLeadId, setLostModalLeadId] = useState<string | null>(null);
+  const [lostReason, setLostReason] = useState<string>(LOST_REASON_OPTIONS[0]);
+  const [lostNote, setLostNote] = useState<string>('');
 
   // Drag and Drop & Optimistic movement state
   const [draggedLeadId, setDraggedLeadId] = useState<string | null>(null);
@@ -54,12 +70,12 @@ export const TasksKanbanModule: React.FC<TasksKanbanModuleProps> = ({
   const [optimisticOverrides, setOptimisticOverrides] = useState<Record<string, 'OVERDUE' | 'TODAY' | 'UPCOMING' | 'COMPLETED'>>({});
   const [actionError, setActionError] = useState<string | null>(null);
 
-  // Completed items from leads (leads with lead_status in contacted/converted/site_visit or follow-up cleared)
+  // Completed items from leads (leads progressed without pending follow-up)
   const completedLeads = useMemo(() => {
     return (leads || []).filter((l) => {
       const st = l.lead_status || l.stage || l.status;
       const followUp = l.next_follow_up_at || l.nextFollowUpAt;
-      return ['CONTACTED', 'CONVERTED', 'SITE_VISIT', 'NEGOTIATION'].includes(st) && !followUp;
+      return ['CONTACTED', 'CONVERTED', 'SITE_VISIT', 'NEGOTIATION', 'PROPERTY_DETAILS', 'VERIFICATION', 'LISTED'].includes(st) && !followUp;
     });
   }, [leads]);
 
@@ -133,17 +149,53 @@ export const TasksKanbanModule: React.FC<TasksKanbanModuleProps> = ({
     return list;
   }, [activeQueueTab, filteredOverdue, filteredDueToday, filteredUpcoming, filteredCompleted]);
 
-  const handleStartReschedule = (leadId: string) => {
+  const handleStartReschedule = (leadId: string, mode: 'FOLLOW_UP' | 'RNR' = 'FOLLOW_UP') => {
     setRescheduleLeadId(leadId);
+    setRescheduleMode(mode);
     setIsRescheduleOpen(true);
   };
 
-  const handleConfirmReschedule = async (dateStr: string, timeStr: string, combinedIso: string) => {
-    if (rescheduleLeadId && onRescheduleLead) {
-      await onRescheduleLead(rescheduleLeadId, dateStr, timeStr);
+  const handleConfirmReschedule = async (dateStr: string, timeStr: string, _combinedIso: string) => {
+    if (rescheduleLeadId) {
+      if (onScheduleFollowUpWithStatus) {
+        const note = rescheduleMode === 'RNR' ? 'RNR — Retry follow-up call' : undefined;
+        const statusToSave: LeadStatus = rescheduleMode === 'RNR' ? 'RNR' : 'FOLLOW_UP';
+        await onScheduleFollowUpWithStatus(rescheduleLeadId, dateStr, timeStr, note, statusToSave);
+      } else if (onRescheduleLead) {
+        await onRescheduleLead(rescheduleLeadId, dateStr, timeStr);
+      }
     }
     setIsRescheduleOpen(false);
     setRescheduleLeadId(null);
+    setRescheduleMode('FOLLOW_UP');
+  };
+
+  const handleInlineStatusChange = async (leadId: string, nextStatus: LeadStatus) => {
+    if (nextStatus === 'LOST') {
+      setLostModalLeadId(leadId);
+      setLostReason(LOST_REASON_OPTIONS[0]);
+      setLostNote('');
+      return;
+    }
+    if (nextStatus === 'RNR') {
+      if (onUpdateLeadStatus) {
+        await onUpdateLeadStatus(leadId, 'RNR', '[RNR]: Ring Not Received — Follow-up scheduled');
+      }
+      // Automatically open Task Calendar to schedule the RNR retry follow-up
+      handleStartReschedule(leadId, 'RNR');
+      return;
+    }
+    if (onUpdateLeadStatus) {
+      await onUpdateLeadStatus(leadId, nextStatus);
+    }
+  };
+
+  const handleConfirmLostFromTask = async () => {
+    if (!lostModalLeadId || !onUpdateLeadStatus) return;
+    const fullNote = `[Lost Reason]: ${lostReason}${lostNote.trim() ? ` - ${lostNote.trim()}` : ''}`;
+    await onUpdateLeadStatus(lostModalLeadId, 'LOST', fullNote);
+    setLostModalLeadId(null);
+    setLostNote('');
   };
 
   const handleMoveTo = async (leadId: string, targetCol: 'TODAY' | 'UPCOMING' | 'COMPLETED') => {
@@ -401,6 +453,7 @@ export const TasksKanbanModule: React.FC<TasksKanbanModuleProps> = ({
                   <th className="py-3 px-4">Client & Contact</th>
                   <th className="py-3 px-4">Property / Society</th>
                   <th className="py-3 px-4">Queue Status</th>
+                  <th className="py-3 px-4">Lead Status</th>
                   <th className="py-3 px-4">Scheduled Due Date & Time</th>
                   <th className="py-3 px-4">Follow-up Objective & Notes</th>
                   <th className="py-3 px-4">Assigned RM</th>
@@ -410,29 +463,51 @@ export const TasksKanbanModule: React.FC<TasksKanbanModuleProps> = ({
               <tbody className="divide-y divide-slate-100">
                 {allTableRows.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-slate-400">
+                    <td colSpan={8} className="py-12 text-center text-slate-400">
                       No follow-up tasks found in this queue.
                     </td>
                   </tr>
                 ) : (
                   allTableRows.map(({ item, queue }) => {
+                    const matchedLead = leads.find((l) => l.id === item.id);
+                    const leadType = matchedLead?.type || item.lead_type || item.type || 'SELLER';
+                    const currentStage = (matchedLead?.stage || matchedLead?.lead_status || item.lead_status || item.stage || 'NEW') as LeadStatus;
+                    const rowStages = getPipelineStagesForLead(leadType);
+                    const stageMeta = getStageDisplayMeta(currentStage);
+
                     const clientName = item.displayName || item.name || item.owner_name || item.buyer_name || item.client_name || 'Client';
                     const clientPhone = item.phone || '';
                     const society = item.society || item.apartment_society_name || '—';
                     const locality = item.locality || item.locality_id || 'Bengaluru';
                     const notes = item.follow_up_notes || item.notes || 'Routine touchpoint';
-                    const staffName = item.assigned_staff_name || 'Unassigned';
+                    const staffName = matchedLead?.assignedStaffName || item.assigned_staff_name || 'Unassigned';
 
                     return (
                       <tr
                         key={item.id}
-                        className="hover:bg-slate-50/80 transition-colors group cursor-pointer"
-                        onClick={() => onOpenLead(item.id)}
+                        className="hover:bg-slate-100 transition-colors duration-150 group cursor-pointer"
+                        onClick={() => {
+                          const sel = window.getSelection();
+                          if (sel && sel.toString().trim().length > 0) return;
+                          onOpenLead(item.id);
+                        }}
                       >
                         {/* Client & Phone */}
                         <td className="py-3.5 px-4">
-                          <p className="font-bold text-slate-900 text-xs">{clientName}</p>
-                          <p className="text-slate-500 font-medium tabular-nums mt-0.5">
+                          <div className="flex items-center space-x-1.5">
+                            <p className="font-bold text-slate-900 text-xs">{clientName}</p>
+                            <span className={`px-1.5 py-0.2 rounded text-[9px] font-bold uppercase border ${
+                              String(leadType).toUpperCase() === 'BUYER'
+                                ? 'bg-sky-50 text-sky-700 border-sky-200'
+                                : 'bg-slate-100 text-slate-600 border-slate-200'
+                            }`}>
+                              {String(leadType).toUpperCase() === 'BUYER' ? 'Buyer' : 'Seller'}
+                            </span>
+                          </div>
+                          <p
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-slate-500 font-medium tabular-nums mt-0.5 select-text cursor-text"
+                          >
                             {formatPhoneNumber(clientPhone)}
                           </p>
                         </td>
@@ -463,6 +538,31 @@ export const TasksKanbanModule: React.FC<TasksKanbanModuleProps> = ({
                           {queue === 'COMPLETED' && (
                             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-700 border border-slate-200">
                               <CheckCircle2 className="w-2.5 h-2.5 mr-1" /> Completed
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Inline Editable Lead Status */}
+                        <td
+                          className="py-3.5 px-4"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {onUpdateLeadStatus ? (
+                            <select
+                              value={currentStage}
+                              onChange={(e) => handleInlineStatusChange(item.id, e.target.value as LeadStatus)}
+                              aria-label={`Update status for ${clientName}`}
+                              className={`border rounded-lg px-2 py-1 text-[11px] font-bold shadow-2xs cursor-pointer focus:outline-none focus:ring-1 focus:ring-[#0176D3] ${stageMeta.selectClass}`}
+                            >
+                              {rowStages.map((s) => (
+                                <option key={s.key} value={s.key}>
+                                  {s.label}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold border ${stageMeta.badgeClass}`}>
+                              {stageMeta.label}
                             </span>
                           )}
                         </td>
@@ -498,7 +598,7 @@ export const TasksKanbanModule: React.FC<TasksKanbanModuleProps> = ({
                           <div className="flex items-center justify-end space-x-1.5">
                             <button
                               type="button"
-                              onClick={() => handleStartReschedule(item.id)}
+                              onClick={() => handleStartReschedule(item.id, 'FOLLOW_UP')}
                               className="px-2.5 py-1 text-[11px] font-semibold text-[#0073E6] bg-blue-50 hover:bg-blue-100 border border-blue-200/80 rounded-lg cursor-pointer transition-colors"
                             >
                               Reschedule
@@ -915,16 +1015,100 @@ export const TasksKanbanModule: React.FC<TasksKanbanModuleProps> = ({
         </div>
       )}
 
-      {/* Reschedule DateTimePicker Modal */}
+      {/* Reschedule / RNR Follow-up DateTimePicker Modal */}
       <DateTimePicker
         isOpen={isRescheduleOpen}
         onClose={() => {
           setIsRescheduleOpen(false);
           setRescheduleLeadId(null);
+          setRescheduleMode('FOLLOW_UP');
         }}
         onConfirm={handleConfirmReschedule}
-        title="Reschedule Client Follow-up"
+        title={rescheduleMode === 'RNR' ? 'Schedule RNR Follow-up Call' : 'Reschedule Client Follow-up'}
       />
+
+      {/* Lost Lead Reason Modal Popup (triggered from inline Tasks Table View status dropdown) */}
+      {lostModalLeadId && (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-3 sm:p-4"
+          onClick={(e) => {
+            e.stopPropagation();
+            setLostModalLeadId(null);
+          }}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-rose-100 bg-rose-50/60 flex items-center justify-between">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-8 h-8 rounded-xl bg-rose-600 text-white flex items-center justify-center shrink-0">
+                  <AlertTriangle className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Specify Reason for Dropping Lead</h3>
+                  <p className="text-[11px] text-slate-500">Select the reason for marking this lead as LOST.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLostModalLeadId(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-700 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-5 space-y-3 text-xs max-h-[60vh] overflow-y-auto">
+              <div className="space-y-1.5">
+                {LOST_REASON_OPTIONS.map((r) => (
+                  <label
+                    key={r}
+                    onClick={() => setLostReason(r)}
+                    className={`flex items-center space-x-2.5 p-2.5 rounded-xl border cursor-pointer transition-all ${
+                      lostReason === r
+                        ? 'border-rose-400 bg-rose-50/70 text-rose-950 font-semibold ring-1 ring-rose-300'
+                        : 'border-slate-200 hover:bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="taskLostReasonGroup"
+                      checked={lostReason === r}
+                      onChange={() => setLostReason(r)}
+                      className="text-rose-600 cursor-pointer"
+                    />
+                    <span className="text-xs leading-tight">{r}</span>
+                  </label>
+                ))}
+              </div>
+              <textarea
+                rows={2}
+                value={lostNote}
+                onChange={(e) => setLostNote(e.target.value)}
+                placeholder="Additional remarks (optional)..."
+                className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500"
+              />
+            </div>
+            <div className="px-5 py-3.5 border-t border-slate-200 bg-slate-50 flex items-center justify-end space-x-2">
+              <button
+                type="button"
+                onClick={() => setLostModalLeadId(null)}
+                className="px-3.5 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-xl cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmLostFromTask}
+                disabled={!lostReason}
+                className="px-4 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl cursor-pointer disabled:opacity-50"
+              >
+                Confirm Lost Lead
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -371,6 +371,57 @@ export async function runFacebookWebhookTests(): Promise<{ passed: number; faile
     recordFail('13. Meta mock test ping', err);
   }
 
+  // Test 14: Buyer Form ID 936798116037410 routes to buyer_enquiries as BUYER lead
+  try {
+    const buyerLeadgenId = `FB-BUYER-${Date.now()}`;
+    const buyerEnvelope = {
+      object: 'page',
+      entry: [
+        {
+          id: '1037956866071171',
+          time: Math.floor(Date.now() / 1000),
+          changes: [
+            {
+              field: 'leadgen',
+              value: {
+                leadgen_id: buyerLeadgenId,
+                form_id: '936798116037410',
+                field_data: [
+                  { name: 'full_name', values: ['Karthik Buyer'] },
+                  { name: 'phone_number', values: ['+919880112233'] },
+                  { name: 'preferred_locality', values: ['Whitefield'] },
+                  { name: 'apartment_configuration', values: ['3 BHK'] }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    };
+
+    const res = await FacebookLeadService.handleWebhook(buyerEnvelope);
+    assert(res.success === true, 'Buyer form webhook succeeded');
+    assert(res.status === 'CREATED', 'Buyer form status CREATED');
+    assert(res.lead?.type === 'BUYER', `Expected lead type BUYER, got ${res.lead?.type}`);
+
+    const buyerDb = await executeQuery(
+      `SELECT id, buyer_name, phone, bhk_type, lead_status FROM buyer_enquiries WHERE id = $1 LIMIT 1;`,
+      [res.leadId]
+    );
+    assert(buyerDb.rows.length === 1, 'Buyer lead persisted in buyer_enquiries table');
+    assert(buyerDb.rows[0].buyer_name === 'Karthik Buyer', 'Buyer name matches');
+    assert(buyerDb.rows[0].bhk_type === '3 BHK', 'Buyer BHK extracted accurately');
+
+    const sellerDb = await executeQuery(
+      `SELECT id FROM seller_leads WHERE id = $1 LIMIT 1;`,
+      [res.leadId]
+    );
+    assert(sellerDb.rows.length === 0, 'Buyer form lead NOT placed in seller_leads');
+    recordPass('14. Facebook Buyer Form ID 936798116037410 routes to buyer_enquiries with type BUYER');
+  } catch (err) {
+    recordFail('14. Buyer Form ID 936798116037410 routing', err);
+  }
+
   console.log(`\nFacebook Lead Ads Webhook Suite Complete: ${passed} passed, ${failed} failed.`);
   return { passed, failed, results };
 }

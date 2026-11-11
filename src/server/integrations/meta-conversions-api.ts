@@ -53,12 +53,16 @@ export function mapCrmStageToMetaEvent(stage: string): string {
   const s = String(stage || '').toUpperCase();
   switch (s) {
     case 'NEW':
+    case 'RNR':
       return 'Lead';
     case 'CONTACTED':
     case 'FOLLOW_UP':
+    case 'PROPERTY_DETAILS':
       return 'Contacted';
     case 'SITE_VISIT':
       return 'Schedule';
+    case 'VERIFICATION':
+    case 'LISTED':
     case 'NEGOTIATION':
       return 'QualifiedLead';
     case 'CONVERTED':

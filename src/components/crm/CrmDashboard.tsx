@@ -56,6 +56,7 @@ import {
 } from 'lucide-react';
 import { StaffRole, CrmModule, ALL_CRM_MODULES, resolveLegacyModulePermissions } from '../../core/types/auth';
 import { LeadStatus } from '../../core/types/entities';
+import { ALL_PIPELINE_STAGES, getPipelineStagesForLead, getStageDisplayMeta } from '../../constants/leadStages';
 import { AdminErasureQueue } from './AdminErasureQueue';
 import { PropertyEditor } from './PropertyEditor';
 import { PropertyBrochureModal } from './PropertyBrochureModal';
@@ -262,15 +263,7 @@ export type NavSection =
   | 'AUDIT'
   | 'SETTINGS';
 
-const PIPELINE_STAGES: Array<{ key: LeadStatus; label: string; desc: string }> = [
-  { key: 'NEW', label: 'NEW', desc: 'Fresh Inbound' },
-  { key: 'CONTACTED', label: 'CONTACTED', desc: 'Outreach Initiated' },
-  { key: 'FOLLOW_UP', label: 'FOLLOW UP', desc: 'Diligence in Progress' },
-  { key: 'SITE_VISIT', label: 'SITE VISIT', desc: 'Physical Tours' },
-  { key: 'NEGOTIATION', label: 'NEGOTIATION', desc: 'Offer & Pricing' },
-  { key: 'CONVERTED', label: 'CONVERTED', desc: 'Deal Closed' },
-  { key: 'LOST', label: 'LOST', desc: 'Inquiry Dropped' },
-];
+const PIPELINE_STAGES = ALL_PIPELINE_STAGES;
 
 function parseUrlLeadId(): string | null {
   try {
@@ -681,6 +674,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
 
   // Custom DateTimePicker Trigger States
   const [isFollowUpPickerOpen, setIsFollowUpPickerOpen] = useState<boolean>(false);
+  const [pendingFollowUpAutoMode, setPendingFollowUpAutoMode] = useState<'NONE' | 'RNR'>('NONE');
   const [isVisitPickerOpen, setIsVisitPickerOpen] = useState<boolean>(false);
 
   const showToast = (text: string, type: 'success' | 'error' | 'info' = 'success') => {
@@ -1262,24 +1256,71 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
     }
   };
 
-  // 3. Schedule Follow Up
-  const handleScheduleFollowUp = async (leadId: string) => {
-    if (!newFollowUpDate) {
-      showToast('Please select a follow-up date and time', 'error');
-      return;
-    }
+  // 3. Schedule Follow Up (Shared helper updates optimistic state + DB status)
+  const saveFollowUpRequest = async (
+    leadId: string,
+    targetIso: string,
+    noteText: string,
+    explicitStatus?: LeadStatus
+  ) => {
     try {
+      // Optimistically update leads and drawer state
+      const resolveNextStage = (curr?: string): LeadStatus => {
+        if (explicitStatus) return explicitStatus;
+        if (!curr || ['NEW', 'CONTACTED', 'RNR'].includes(curr)) return 'FOLLOW_UP';
+        return curr as LeadStatus;
+      };
+
+      setLeads((prev) =>
+        prev.map((l) =>
+          l.id === leadId
+            ? {
+                ...l,
+                nextFollowUpAt: targetIso,
+                next_follow_up_at: targetIso,
+                followUpNotes: noteText,
+                follow_up_notes: noteText,
+                stage: resolveNextStage(l.stage || (l as any).lead_status),
+                status: resolveNextStage(l.stage || (l as any).lead_status),
+                lead_status: resolveNextStage(l.stage || (l as any).lead_status)
+              }
+            : l
+        )
+      );
+
+      setLeadDetailData((prev: any) => {
+        if (!prev || !prev.lead || prev.lead.id !== leadId) return prev;
+        const nextSt = resolveNextStage(prev.lead.lead_status || prev.lead.stage);
+        return {
+          ...prev,
+          lead: {
+            ...prev.lead,
+            next_follow_up_at: targetIso,
+            follow_up_notes: noteText,
+            stage: nextSt,
+            status: nextSt,
+            lead_status: nextSt
+          }
+        };
+      });
+
       const res = await crmFetch(`/api/crm/leads/${leadId}/follow-up`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          nextFollowUpAt: new Date(newFollowUpDate).toISOString(),
-          followUpNotes: newFollowUpNote || 'Scheduled follow-up call'
+          nextFollowUpAt: targetIso,
+          followUpNotes: noteText,
+          ...(explicitStatus ? { status: explicitStatus } : {})
         })
       });
       const data = await res.json();
       if (res.ok && data.success) {
-        showToast('Follow-up scheduled successfully', 'success');
+        showToast(
+          explicitStatus === 'RNR'
+            ? 'RNR status & retry follow-up scheduled in Task Calendar'
+            : 'Follow-up scheduled successfully',
+          'success'
+        );
         setNewFollowUpDate('');
         setNewFollowUpNote('');
         if (selectedLeadId === leadId) {
@@ -1288,50 +1329,58 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
         refreshAll();
       } else {
         showToast(data.message || 'Failed to schedule follow-up', 'error');
+        refreshAll();
       }
     } catch {
       showToast('Network error scheduling follow-up', 'error');
+      refreshAll();
     }
   };
 
-  const handleScheduleFollowUpWithDateTime = async (leadId: string, dateStr: string, timeStr: string, note?: string) => {
-    try {
-      let hours = 11;
-      let minutes = 0;
-      if (timeStr) {
-        const parts = timeStr.split(':');
-        hours = parseInt(parts[0], 10) || 11;
-        const minPart = parts[1]?.slice(0, 2);
-        minutes = parseInt(minPart, 10) || 0;
-        if (timeStr.toUpperCase().includes('PM') && hours < 12) hours += 12;
-        if (timeStr.toUpperCase().includes('AM') && hours === 12) hours = 0;
-      }
-      const [y, m, d] = dateStr.split('-').map(Number);
-      const targetDate = new Date(y, m - 1, d, hours, minutes, 0);
-
-      const res = await crmFetch(`/api/crm/leads/${leadId}/follow-up`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nextFollowUpAt: targetDate.toISOString(),
-          followUpNotes: note || newFollowUpNote || 'Scheduled diligence follow-up call'
-        })
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        showToast('Follow-up scheduled successfully', 'success');
-        setNewFollowUpDate('');
-        setNewFollowUpNote('');
-        if (selectedLeadId === leadId) {
-          refreshLeadDetail();
-        }
-        refreshAll();
-      } else {
-        showToast(data.message || 'Failed to schedule follow-up', 'error');
-      }
-    } catch {
-      showToast('Network error scheduling follow-up', 'error');
+  const handleScheduleFollowUp = async (
+    leadId: string,
+    overrideIso?: string,
+    overrideNote?: string,
+    overrideStatus?: LeadStatus
+  ) => {
+    const dateVal = overrideIso || newFollowUpDate;
+    if (!dateVal) {
+      showToast('Please select a follow-up date and time', 'error');
+      return;
     }
+    const isoStr = new Date(dateVal).toISOString();
+    const noteStr = overrideNote || newFollowUpNote || 'Scheduled follow-up call';
+    await saveFollowUpRequest(leadId, isoStr, noteStr, overrideStatus);
+  };
+
+  const handleScheduleFollowUpWithDateTime = async (
+    leadId: string,
+    dateStr: string,
+    timeStr: string,
+    note?: string,
+    status?: LeadStatus
+  ) => {
+    let hours = 11;
+    let minutes = 0;
+    if (timeStr) {
+      const parts = timeStr.split(':');
+      hours = parseInt(parts[0], 10) || 11;
+      const minPart = parts[1]?.slice(0, 2);
+      minutes = parseInt(minPart, 10) || 0;
+      if (timeStr.toUpperCase().includes('PM') && hours < 12) hours += 12;
+      if (timeStr.toUpperCase().includes('AM') && hours === 12) hours = 0;
+    }
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const targetDate = new Date(y, m - 1, d, hours, minutes, 0);
+    const noteStr = note || newFollowUpNote || 'Scheduled diligence follow-up call';
+    await saveFollowUpRequest(leadId, targetDate.toISOString(), noteStr, status);
+  };
+
+  const handleTriggerRnrFollowUp = async (leadId: string) => {
+    await handleUpdateLeadStatus(leadId, 'RNR', '[RNR]: Ring Not Received — Follow-up scheduled');
+    setNewFollowUpNote('RNR — Retry follow-up call');
+    setPendingFollowUpAutoMode('RNR');
+    setIsFollowUpPickerOpen(true);
   };
 
   // 4. Add Lead Call Note
@@ -2747,7 +2796,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   </button>
                 </div>
 
-                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2.5">
                   {PIPELINE_STAGES.map((stage) => {
                     const count = !isAdmin
                       ? accessibleLeads.filter(l => l.stage === stage.key).length
@@ -2765,6 +2814,8 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                             ? 'bg-emerald-50/60 border-emerald-300 hover:border-emerald-500'
                             : stage.key === 'LOST'
                             ? 'bg-rose-50/80 border-rose-300 hover:border-rose-500 text-rose-700'
+                            : stage.key === 'RNR'
+                            ? 'bg-orange-50/70 border-orange-300 hover:border-orange-500'
                             : 'bg-white border-slate-200 hover:border-[#0176D3]'
                         }`}
                       >
@@ -3035,7 +3086,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               </div>
 
               {/* Operational KPI Summary Strip */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2.5">
+              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
                 <div
                   onClick={() => setLeadStatusFilter('ALL')}
                   className={`p-3 rounded-md border transition-all cursor-pointer shadow-2xs ${
@@ -3064,6 +3115,21 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     {accessibleLeads.filter(l => l.stage === 'NEW').length}
                   </div>
                   <span className="text-[11px] text-[#0176D3] font-medium mt-0.5 block">Fresh registrations</span>
+                </div>
+
+                <div
+                  onClick={() => setLeadStatusFilter('RNR')}
+                  className={`p-3 rounded-md border transition-all cursor-pointer shadow-2xs ${
+                    leadStatusFilter === 'RNR'
+                      ? 'bg-orange-50/80 border-orange-500 ring-1 ring-orange-500'
+                      : 'bg-white border-slate-200 hover:border-orange-300'
+                  }`}
+                >
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-orange-700 block">RNR</span>
+                  <div className="text-2xl font-bold text-orange-900 mt-0.5 tabular-nums">
+                    {accessibleLeads.filter(l => l.stage === 'RNR').length}
+                  </div>
+                  <span className="text-[11px] text-orange-700 font-medium mt-0.5 block">Ring not received</span>
                 </div>
 
                 <div
@@ -3250,6 +3316,22 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 {/* Filter Controls */}
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="flex items-center space-x-1.5 bg-white border border-slate-300 rounded-md px-2.5 py-1 shadow-2xs">
+                    <span className="text-slate-500 text-[11px] font-medium">Type:</span>
+                    <select
+                      value={leadTypeFilter}
+                      onChange={(e) => {
+                        setLeadTypeFilter(e.target.value as 'ALL' | 'BUYER' | 'SELLER');
+                        setLeadStatusFilter('ALL');
+                      }}
+                      className="bg-transparent text-xs font-medium text-slate-800 focus:outline-none cursor-pointer"
+                    >
+                      <option value="ALL">All Types</option>
+                      <option value="BUYER">Buyer Leads</option>
+                      <option value="SELLER">Seller Leads</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center space-x-1.5 bg-white border border-slate-300 rounded-md px-2.5 py-1 shadow-2xs">
                     <span className="text-slate-500 text-[11px] font-medium">Stage:</span>
                     <select
                       value={leadStatusFilter}
@@ -3257,7 +3339,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                       className="bg-transparent text-xs font-medium text-slate-800 focus:outline-none cursor-pointer"
                     >
                       <option value="ALL">All Stages</option>
-                      {PIPELINE_STAGES.map(s => (
+                      {(leadTypeFilter === 'ALL' ? PIPELINE_STAGES : getPipelineStagesForLead(leadTypeFilter)).map(s => (
                         <option key={s.key} value={s.key}>{s.label}</option>
                       ))}
                     </select>
@@ -3446,23 +3528,14 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
 
                             {/* Lifecycle Stage */}
                             <td className="py-2.5 px-3.5">
-                              {isNewLead ? (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-blue-50 text-[#0176D3] border border-blue-200">
-                                  New Lead
-                                </span>
-                              ) : lead.stage === 'LOST' ? (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
-                                  LOST
-                                </span>
-                              ) : lead.stage === 'CONVERTED' ? (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                  CONVERTED
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200">
-                                  {lead.stage}
-                                </span>
-                              )}
+                              {(() => {
+                                const meta = getStageDisplayMeta(lead.stage || (lead as any).lead_status);
+                                return (
+                                  <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold border ${meta.badgeClass}`}>
+                                    {meta.label}
+                                  </span>
+                                );
+                              })()}
                             </td>
 
                             {/* Assigned Staff */}
@@ -4485,6 +4558,8 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               onRescheduleLead={async (leadId, dateStr, timeStr) => {
                 await handleScheduleFollowUpWithDateTime(leadId, dateStr, timeStr);
               }}
+              onScheduleFollowUpWithStatus={handleScheduleFollowUpWithDateTime}
+              onUpdateLeadStatus={handleUpdateLeadStatus}
               onMarkLeadContacted={async (leadId) => {
                 await handleUpdateLeadStatus(leadId, 'CONTACTED');
               }}
@@ -5230,6 +5305,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
             handleUpdateLeadStatus={handleUpdateLeadStatus}
             handleAssignLead={handleAssignLead}
             handleScheduleFollowUp={handleScheduleFollowUp}
+            onTriggerRnrFollowUp={handleTriggerRnrFollowUp}
             handleAddCallNote={handleAddCallNote}
             handleVerifyDocument={handleVerifyDocument}
             handleSendWhatsAppReminder={handleSendWhatsAppReminder}
@@ -6199,10 +6275,24 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
       {isFollowUpPickerOpen && (
         <DateTimePicker
           isOpen={isFollowUpPickerOpen}
-          onClose={() => setIsFollowUpPickerOpen(false)}
-          title="Schedule Next Follow-Up"
+          onClose={() => {
+            setIsFollowUpPickerOpen(false);
+            setPendingFollowUpAutoMode('NONE');
+          }}
+          title={pendingFollowUpAutoMode === 'RNR' ? 'Schedule RNR Follow-Up Call' : 'Schedule Next Follow-Up'}
           initialDate={newFollowUpDate ? newFollowUpDate.split('T')[0] : undefined}
           onConfirm={(_dateStr, _timeStr, combinedIso) => {
+            if (pendingFollowUpAutoMode === 'RNR' && selectedLeadId) {
+              setIsFollowUpPickerOpen(false);
+              setPendingFollowUpAutoMode('NONE');
+              void handleScheduleFollowUp(
+                selectedLeadId,
+                combinedIso,
+                newFollowUpNote || 'RNR — Retry follow-up call',
+                'RNR'
+              );
+              return;
+            }
             setNewFollowUpDate(combinedIso);
             setIsFollowUpPickerOpen(false);
           }}

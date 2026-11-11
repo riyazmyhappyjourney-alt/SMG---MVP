@@ -35,6 +35,7 @@ export interface UserPrivateRecord {
 // -------------------------------------------------------------
 export type LeadStatus = 
   | 'NEW'
+  | 'RNR'
   | 'CONTACTED'
   | 'FOLLOW_UP'
   | 'SITE_VISIT'

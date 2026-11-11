@@ -16,8 +16,16 @@ import { MetaConversionsApiService } from '../integrations/meta-conversions-api'
  * 5. Phone normalization (E.164 +91), deduplication, and CRM persistence in buyer_enquiries
  */
 
+export const FACEBOOK_BUYER_FORM_IDS = new Set<string>(['936798116037410']);
+
+export function isFacebookBuyerForm(formId?: string | null): boolean {
+  if (!formId) return false;
+  return FACEBOOK_BUYER_FORM_IDS.has(String(formId).trim());
+}
+
 export interface NormalizedFacebookLead {
   leadgenId: string;
+  leadType: 'BUYER' | 'SELLER';
   formId?: string | null;
   formName?: string | null;
   pageId?: string | null;
@@ -376,10 +384,13 @@ export class FacebookLeadService {
 
     fullName = fullName || 'Facebook Lead';
     const phone = normalizeIndianPhone(rawPhone);
+    const resolvedFormId = formId ? String(formId) : null;
+    const leadType: 'BUYER' | 'SELLER' = isFacebookBuyerForm(resolvedFormId) ? 'BUYER' : 'SELLER';
 
     return {
       leadgenId: String(leadgenId),
-      formId: formId ? String(formId) : null,
+      leadType,
+      formId: resolvedFormId,
       formName,
       pageId: pageId ? String(pageId) : null,
       adId: adId ? String(adId) : null,
@@ -455,8 +466,9 @@ export class FacebookLeadService {
       };
     }
 
-    // 3. Generate unique CRM Lead ID (Tag as seller lead)
-    const leadId = `lead-fb-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`;
+    // 3. Generate unique CRM Lead ID (Buyer form ID -> buyer_enquiries, otherwise -> seller_leads)
+    const isBuyer = lead.leadType === 'BUYER';
+    const leadId = `${isBuyer ? 'enq-fb' : 'lead-fb'}-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`;
     const finalNotes = [
       `[Source: Facebook Ads]`,
       `[Meta Lead ID: ${lead.leadgenId}]`,
@@ -476,12 +488,16 @@ export class FacebookLeadService {
       adId: lead.adId,
       campaignName: lead.campaignName,
       email: lead.email,
+      leadType: lead.leadType,
       createdVia: 'WEBHOOK_FACEBOOK',
       clientIp,
       receivedAt: new Date().toISOString(),
     };
 
-    // 4. Atomic Database Persistence into seller_leads
+    const normalizedBhk = String(lead.bhk || '2 BHK').slice(0, 20);
+    const normalizedSociety = lead.society || lead.city || 'Bengaluru';
+
+    // 4. Atomic Database Persistence into buyer_enquiries or seller_leads
     await withTransaction(async (client) => {
       // Record DPDP statutory consent entry
       const consentId = `cst-fb-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`;
@@ -491,34 +507,55 @@ export class FacebookLeadService {
             id, phone, user_id, purpose, notice_version,
             is_consented, consented_at, is_withdrawn,
             ip_hash, user_agent_hash
-          ) VALUES ($1, $2, NULL, 'SELLER_LISTING', 'facebook-leadgen-v1', true, NOW(), false, $3, 'facebook-webhook')
+          ) VALUES ($1, $2, NULL, $3, 'facebook-leadgen-v1', true, NOW(), false, $4, 'facebook-webhook')
           ON CONFLICT DO NOTHING;`,
-          [consentId, lead.phone, clientIp.slice(0, 32)]
+          [consentId, lead.phone, isBuyer ? 'BUYER_ENQUIRY' : 'SELLER_LISTING', clientIp.slice(0, 32)]
         );
       } catch (cstErr: any) {
         console.warn('[FacebookLeadService] Consent notice:', cstErr.message);
       }
 
-      // Insert Lead into seller_leads (Facebook ads target sellers)
-      await client.query(
-        `INSERT INTO seller_leads (
-          id, owner_name, phone, email, apartment_society_name,
-          locality_id, bhk_type, expected_price_inr, listing_intent, lead_status,
-          notes, attribution, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, 'Bangalore', $6, $7, 'SELL', 'NEW', $8, $9, $10, NOW());`,
-        [
-          leadId,
-          lead.fullName,
-          lead.phone,
-          lead.email,
-          lead.society || lead.city || 'Bengaluru',
-          lead.bhk || '2 BHK',
-          lead.budget || null,
-          finalNotes,
-          JSON.stringify(attribution),
-          new Date().toISOString(),
-        ]
-      );
+      if (isBuyer) {
+        await client.query(
+          `INSERT INTO buyer_enquiries (
+            id, buyer_name, phone, email, preferred_locality_or_society,
+            bhk_type, expected_price_inr, lead_status,
+            notes, attribution, created_at, updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'NEW', $8, $9, $10, NOW());`,
+          [
+            leadId,
+            lead.fullName,
+            lead.phone,
+            lead.email,
+            normalizedSociety,
+            normalizedBhk,
+            lead.budget || null,
+            finalNotes,
+            JSON.stringify(attribution),
+            new Date().toISOString(),
+          ]
+        );
+      } else {
+        await client.query(
+          `INSERT INTO seller_leads (
+            id, owner_name, phone, email, apartment_society_name,
+            locality_id, bhk_type, expected_price_inr, listing_intent, lead_status,
+            notes, attribution, created_at, updated_at
+          ) VALUES ($1, $2, $3, $4, $5, 'Bangalore', $6, $7, 'SELL', 'NEW', $8, $9, $10, NOW());`,
+          [
+            leadId,
+            lead.fullName,
+            lead.phone,
+            lead.email,
+            normalizedSociety,
+            normalizedBhk,
+            lead.budget || null,
+            finalNotes,
+            JSON.stringify(attribution),
+            new Date().toISOString(),
+          ]
+        );
+      }
     });
 
     // 5. Audit Log Entry
@@ -526,18 +563,20 @@ export class FacebookLeadService {
       await executeQuery(
         `INSERT INTO audit_logs (
           id, actor_id, actor_role, action, target_entity, target_entity_id, ip_address, diff_summary, timestamp
-        ) VALUES ($1, 'system-webhook-facebook', 'SYSTEM', 'LEAD_CREATED', 'seller_leads', $2, $3, $4, NOW());`,
+        ) VALUES ($1, 'system-webhook-facebook', 'SYSTEM', 'LEAD_CREATED', $2, $3, $4, $5, NOW());`,
         [
           `audit-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`,
+          isBuyer ? 'buyer_enquiries' : 'seller_leads',
           leadId,
           clientIp,
           JSON.stringify({
             source: 'Facebook Ads',
             externalEnquiryId,
             metaLeadId: lead.leadgenId,
+            formId: lead.formId,
             name: lead.fullName,
             phone: maskPhone(lead.phone),
-            type: 'SELLER',
+            type: lead.leadType,
           }),
         ]
       );
@@ -546,7 +585,7 @@ export class FacebookLeadService {
     }
 
     console.info(
-      `[Facebook Webhook] Ingested seller lead ${leadId} (Lead ID: ${lead.leadgenId}, Name: ${lead.fullName}, Phone: ${maskPhone(lead.phone)})`
+      `[Facebook Webhook] Ingested ${lead.leadType.toLowerCase()} lead ${leadId} (Form ID: ${lead.formId || 'N/A'}, Lead ID: ${lead.leadgenId}, Name: ${lead.fullName}, Phone: ${maskPhone(lead.phone)})`
     );
 
     // 6. Email alert to sales desk (non-blocking)
@@ -554,7 +593,7 @@ export class FacebookLeadService {
       void EmailNotificationService.handleNewInboundLeadNotification({
         leadId,
         source: 'Facebook Ads',
-        leadType: 'SELLER',
+        leadType: lead.leadType,
         name: lead.fullName,
         phone: lead.phone,
         email: lead.email,
@@ -586,10 +625,10 @@ export class FacebookLeadService {
       status: 'CREATED',
       leadId,
       externalEnquiryId,
-      message: 'Facebook lead successfully ingested and created as Seller in SellMyGhar CRM.',
+      message: `Facebook lead successfully ingested and created as ${isBuyer ? 'Buyer' : 'Seller'} in SellMyGhar CRM.`,
       lead: {
         id: leadId,
-        type: 'SELLER',
+        type: lead.leadType,
         name: lead.fullName,
         phone: lead.phone,
         stage: 'NEW',
@@ -604,9 +643,14 @@ export class FacebookLeadService {
    * Re-syncs a Facebook lead from Meta Graph API using current or provided token
    */
   static async syncLeadFromMeta(leadId: string, overrideToken?: string) {
-    const leadRes = await executeQuery(`SELECT id, owner_name, phone, email, attribution, notes FROM seller_leads WHERE id = $1 LIMIT 1;`, [leadId]);
+    let leadRes = await executeQuery(`SELECT id, owner_name AS name, phone, email, attribution, notes FROM seller_leads WHERE id = $1 LIMIT 1;`, [leadId]);
+    let isBuyerTable = false;
     if (!leadRes.rows || leadRes.rows.length === 0) {
-      throw new Error('Lead not found in seller_leads');
+      leadRes = await executeQuery(`SELECT id, buyer_name AS name, phone, email, attribution, notes FROM buyer_enquiries WHERE id = $1 LIMIT 1;`, [leadId]);
+      isBuyerTable = true;
+    }
+    if (!leadRes.rows || leadRes.rows.length === 0) {
+      throw new Error('Lead not found in seller_leads or buyer_enquiries');
     }
     const lead = leadRes.rows[0];
     const attr = typeof lead.attribution === 'string' ? JSON.parse(lead.attribution) : (lead.attribution || {});
@@ -642,7 +686,7 @@ export class FacebookLeadService {
       ) && !/^[1-5]\s*bhk/i.test(valStr);
 
       if (isBhk) {
-        bhk = valStr;
+        bhk = valStr.slice(0, 20);
         customQuestions.push(`${field.name}: ${valStr}`);
       } else if (isSociety) {
         if (!society || /^[1-5]\s*bhk/i.test(society) || ['bengaluru', 'bangalore', 'blr', 'residential unit'].includes(society.toLowerCase())) {
@@ -668,26 +712,44 @@ export class FacebookLeadService {
       ? `${cleanNotes}\n[Form Answers]: ${customQuestions.join(' | ')}`
       : cleanNotes;
 
+    if (graphData.form_id && !attr.formId) {
+      attr.formId = String(graphData.form_id);
+    }
     attr.syncedFromGraphApiAt = new Date().toISOString();
     attr.rawGraphData = graphData;
 
-    await executeQuery(`
-      UPDATE seller_leads
-      SET owner_name = COALESCE($1, owner_name),
-          phone = COALESCE($2, phone),
-          email = COALESCE($3, email),
-          apartment_society_name = COALESCE($4, apartment_society_name),
-          bhk_type = COALESCE($5, bhk_type),
-          notes = $6,
-          attribution = $7,
-          updated_at = NOW()
-      WHERE id = $8;
-    `, [fullName || null, cleanPhone, email, society || null, bhk || null, updatedNotes, JSON.stringify(attr), leadId]);
+    if (isBuyerTable) {
+      await executeQuery(`
+        UPDATE buyer_enquiries
+        SET buyer_name = COALESCE($1, buyer_name),
+            phone = COALESCE($2, phone),
+            email = COALESCE($3, email),
+            preferred_locality_or_society = COALESCE($4, preferred_locality_or_society),
+            bhk_type = COALESCE($5, bhk_type),
+            notes = $6,
+            attribution = $7,
+            updated_at = NOW()
+        WHERE id = $8;
+      `, [fullName || null, cleanPhone, email, society || null, bhk || null, updatedNotes, JSON.stringify(attr), leadId]);
+    } else {
+      await executeQuery(`
+        UPDATE seller_leads
+        SET owner_name = COALESCE($1, owner_name),
+            phone = COALESCE($2, phone),
+            email = COALESCE($3, email),
+            apartment_society_name = COALESCE($4, apartment_society_name),
+            bhk_type = COALESCE($5, bhk_type),
+            notes = $6,
+            attribution = $7,
+            updated_at = NOW()
+        WHERE id = $8;
+      `, [fullName || null, cleanPhone, email, society || null, bhk || null, updatedNotes, JSON.stringify(attr), leadId]);
+    }
 
     return {
       success: true,
       leadId,
-      name: fullName || lead.owner_name,
+      name: fullName || lead.name,
       phone: cleanPhone,
       email: email || lead.email,
       notes: updatedNotes

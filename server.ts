@@ -948,24 +948,54 @@ async function initSchemaColumns() {
       }
     }
 
-    // Migrate any Facebook leads in buyer_enquiries to seller_leads (since Facebook leads are Sellers)
+    // Migrate Seller Facebook leads (excluding Buyer Form ID 936798116037410) from buyer_enquiries -> seller_leads
     try {
       await executeQuery(`
         INSERT INTO seller_leads (
           id, owner_name, phone, email, apartment_society_name, locality_id, bhk_type,
-          expected_price_inr, listing_intent, lead_status, notes, attribution, created_at, updated_at
+          expected_price_inr, listing_intent, lead_status, assigned_staff_id, assigned_at,
+          next_follow_up_at, follow_up_notes, notes, attribution, created_at, updated_at
         )
         SELECT 
           id, buyer_name, phone, email, COALESCE(preferred_locality_or_society, 'Bengaluru'),
           'Bangalore', COALESCE(bhk_type, '2 BHK'), expected_price_inr, 'SELL', lead_status,
+          assigned_staff_id, assigned_at, next_follow_up_at, follow_up_notes,
           notes, attribution, created_at, updated_at
         FROM buyer_enquiries
         WHERE (attribution->>'source' ILIKE '%facebook%' OR id LIKE 'enq-fb%')
+          AND COALESCE(attribution->>'formId', '') <> '936798116037410'
+          AND COALESCE(notes, '') NOT ILIKE '%936798116037410%'
         ON CONFLICT (id) DO UPDATE SET listing_intent = 'SELL';
 
-        DELETE FROM buyer_enquiries WHERE (attribution->>'source' ILIKE '%facebook%' OR id LIKE 'enq-fb%');
+        DELETE FROM buyer_enquiries
+        WHERE (attribution->>'source' ILIKE '%facebook%' OR id LIKE 'enq-fb%')
+          AND COALESCE(attribution->>'formId', '') <> '936798116037410'
+          AND COALESCE(notes, '') NOT ILIKE '%936798116037410%';
       `);
-      console.info('[SellMyGhar DB] Facebook leads verified as Seller leads in seller_leads table.');
+
+      // Migrate any existing Buyer Form ID 936798116037410 leads from seller_leads -> buyer_enquiries
+      await executeQuery(`
+        INSERT INTO buyer_enquiries (
+          id, buyer_name, phone, email, preferred_locality_or_society, bhk_type,
+          expected_price_inr, property_id, lead_status, assigned_staff_id, assigned_at,
+          next_follow_up_at, follow_up_notes, notes, attribution, created_at, updated_at
+        )
+        SELECT
+          id, owner_name, phone, email, COALESCE(apartment_society_name, 'Bengaluru'),
+          LEFT(COALESCE(bhk_type, '2 BHK'), 20), expected_price_inr, property_id, lead_status,
+          assigned_staff_id, assigned_at, next_follow_up_at, follow_up_notes,
+          notes, COALESCE(attribution, '{}'::jsonb) || '{"leadType":"BUYER","formId":"936798116037410"}'::jsonb,
+          created_at, updated_at
+        FROM seller_leads
+        WHERE attribution->>'formId' = '936798116037410'
+           OR notes ILIKE '%936798116037410%'
+        ON CONFLICT (id) DO NOTHING;
+
+        DELETE FROM seller_leads
+        WHERE attribution->>'formId' = '936798116037410'
+           OR notes ILIKE '%936798116037410%';
+      `);
+      console.info('[SellMyGhar DB] Facebook Seller & Buyer (936798116037410) leads reconciled.');
     } catch (fbErr) {
       console.warn('[SellMyGhar DB] Facebook leads migration notice:', fbErr);
     }
@@ -5338,6 +5368,7 @@ app.get('/api/crm/leads', authenticateUser, requireStaffMember, async (req: Requ
       };
     });
 
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     return res.json({
       success: true,
       count: leads.length,
@@ -5761,7 +5792,23 @@ const updateLeadStatusHandler = async (req: Request, res: Response) => {
     const { id } = req.params;
     const { status, note } = req.body;
 
-    const ALLOWED_STATUSES = ['NEW', 'CONTACTED', 'FOLLOW_UP', 'SITE_VISIT', 'NEGOTIATION', 'CONVERTED', 'LOST'];
+    const ALLOWED_STATUSES = [
+      'NEW',
+      'RNR',
+      'CONTACTED',
+      'FOLLOW_UP',
+      'PROPERTY_DETAILS',
+      'VERIFICATION',
+      'LISTED',
+      'SITE_VISIT',
+      'NEGOTIATION',
+      'CONVERTED',
+      'LOST',
+      'QUALIFIED',
+      'BUYER_MATCHED',
+      'VISIT',
+      'CLOSED'
+    ];
     const targetStatus = String(status || '').toUpperCase().trim();
 
     if (!ALLOWED_STATUSES.includes(targetStatus)) {
@@ -6209,13 +6256,21 @@ app.patch('/api/crm/leads/:id/property', jsonDefault, authenticateUser, requireS
 const followUpHandler = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { nextFollowUpAt, followUpNotes, completed, clearFollowUp } = req.body;
+    const { nextFollowUpAt, followUpNotes, completed, clearFollowUp, status, followUpStatus } = req.body;
 
     const shouldClear = Boolean(completed || clearFollowUp || nextFollowUpAt === null || nextFollowUpAt === '');
 
     if (!shouldClear && (!nextFollowUpAt || isNaN(Date.parse(nextFollowUpAt)))) {
       return res.status(400).json({ error: 'Valid nextFollowUpAt ISO date string is required.' });
     }
+
+    const ALLOWED_FOLLOWUP_STATUSES = [
+      'NEW', 'RNR', 'CONTACTED', 'FOLLOW_UP',
+      'PROPERTY_DETAILS', 'VERIFICATION', 'LISTED',
+      'SITE_VISIT', 'NEGOTIATION', 'CONVERTED', 'LOST'
+    ];
+    const requestedStatus = String(followUpStatus || status || '').toUpperCase().trim();
+    const explicitStatus = ALLOWED_FOLLOWUP_STATUSES.includes(requestedStatus) ? requestedStatus : null;
 
     const clientIp = getClientIp(req);
 
@@ -6236,22 +6291,22 @@ const followUpHandler = async (req: Request, res: Response) => {
           UPDATE seller_leads
           SET next_follow_up_at = NULL,
               follow_up_notes = NULL,
-              lead_status = CASE WHEN lead_status = 'NEW' THEN 'CONTACTED' ELSE lead_status END,
+              lead_status = COALESCE($2, CASE WHEN lead_status = 'NEW' THEN 'CONTACTED' ELSE lead_status END),
               updated_at = NOW()
           WHERE id = $1
           RETURNING *;
-        `, [id]);
+        `, [id, explicitStatus]);
         updatedLead = updateRes.rows[0];
       } else {
         const updateRes = await executeQuery(`
           UPDATE buyer_enquiries
           SET next_follow_up_at = NULL,
               follow_up_notes = NULL,
-              lead_status = CASE WHEN lead_status = 'NEW' THEN 'CONTACTED' ELSE lead_status END,
+              lead_status = COALESCE($2, CASE WHEN lead_status = 'NEW' THEN 'CONTACTED' ELSE lead_status END),
               updated_at = NOW()
           WHERE id = $1
           RETURNING *;
-        `, [id]);
+        `, [id, explicitStatus]);
         updatedLead = updateRes.rows[0];
       }
     } else {
@@ -6260,22 +6315,22 @@ const followUpHandler = async (req: Request, res: Response) => {
           UPDATE seller_leads
           SET next_follow_up_at = $1,
               follow_up_notes = $2,
-              lead_status = CASE WHEN lead_status = 'NEW' THEN 'CONTACTED' ELSE lead_status END,
+              lead_status = COALESCE($3, CASE WHEN lead_status IN ('NEW', 'CONTACTED', 'RNR') THEN 'FOLLOW_UP' ELSE lead_status END),
               updated_at = NOW()
-          WHERE id = $3
+          WHERE id = $4
           RETURNING *;
-        `, [nextFollowUpAt, followUpNotes || null, id]);
+        `, [nextFollowUpAt, followUpNotes || null, explicitStatus, id]);
         updatedLead = updateRes.rows[0];
       } else {
         const updateRes = await executeQuery(`
           UPDATE buyer_enquiries
           SET next_follow_up_at = $1,
               follow_up_notes = $2,
-              lead_status = CASE WHEN lead_status = 'NEW' THEN 'CONTACTED' ELSE lead_status END,
+              lead_status = COALESCE($3, CASE WHEN lead_status IN ('NEW', 'CONTACTED', 'RNR') THEN 'FOLLOW_UP' ELSE lead_status END),
               updated_at = NOW()
-          WHERE id = $3
+          WHERE id = $4
           RETURNING *;
-        `, [nextFollowUpAt, followUpNotes || null, id]);
+        `, [nextFollowUpAt, followUpNotes || null, explicitStatus, id]);
         updatedLead = updateRes.rows[0];
       }
     }
@@ -6288,7 +6343,8 @@ const followUpHandler = async (req: Request, res: Response) => {
       clientIp,
       diffSummary: {
         nextFollowUpAt,
-        followUpNotes: followUpNotes || null
+        followUpNotes: followUpNotes || null,
+        leadStatus: updatedLead?.lead_status || explicitStatus || null
       }
     });
 
@@ -6641,8 +6697,12 @@ app.get('/api/crm/overview-metrics', authenticateUser, requireModule('OVERVIEW')
 
     const pipeline: Record<string, number> = {
       NEW: 0,
+      RNR: 0,
       CONTACTED: 0,
       FOLLOW_UP: 0,
+      PROPERTY_DETAILS: 0,
+      VERIFICATION: 0,
+      LISTED: 0,
       SITE_VISIT: 0,
       NEGOTIATION: 0,
       CONVERTED: 0,
@@ -6660,7 +6720,7 @@ app.get('/api/crm/overview-metrics', authenticateUser, requireModule('OVERVIEW')
 
     const newLeads = pipeline.NEW;
     const convertedLeads = pipeline.CONVERTED;
-    const followUpNeeded = allLeads.filter(l => l.lead_status === 'FOLLOW_UP' || Boolean(l.next_follow_up_at)).length;
+    const followUpNeeded = allLeads.filter(l => l.lead_status === 'FOLLOW_UP' || l.lead_status === 'RNR' || Boolean(l.next_follow_up_at)).length;
 
     const activeProperties = (propRes.rows || []).filter((p: any) => p.listing_status === 'PUBLISHED').length;
 
@@ -6689,6 +6749,7 @@ app.get('/api/crm/overview-metrics', authenticateUser, requireModule('OVERVIEW')
     const assignedToMe = allLeads.filter(l => l.assigned_staff_id === userId || isAdmin);
     const recentlyUpdatedAssignedLeads = [...assignedToMe].sort((a, b) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime()).slice(0, 5);
 
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     return res.json({
       success: true,
       metrics: {
@@ -7363,11 +7424,16 @@ app.get('/api/crm/tasks', authenticateUser, requireModule('TASKS'), async (req: 
 
     let tasks = (leadsRes.rows || []).map((t: any) => {
       const displayName = String(t.name || t.owner_name || 'Client').trim();
+      const stageVal = t.lead_status || 'NEW';
       return {
         ...t,
         name: displayName,
         owner_name: displayName,
-        ownerName: displayName
+        ownerName: displayName,
+        stage: stageVal,
+        status: stageVal,
+        lead_status: stageVal,
+        type: t.lead_type || 'SELLER'
       };
     });
     if (!isAdmin) {
@@ -7385,6 +7451,7 @@ app.get('/api/crm/tasks', authenticateUser, requireModule('TASKS'), async (req: 
     });
     const upcoming = tasks.filter((t: any) => new Date(t.next_follow_up_at).getTime() > endOfToday.getTime());
 
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
     return res.json({
       success: true,
       count: tasks.length,

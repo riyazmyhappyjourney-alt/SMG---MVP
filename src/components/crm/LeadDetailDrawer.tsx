@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
   Phone,
+  PhoneCall,
+  PhoneMissed,
   MessageSquare,
   X,
   RefreshCw,
@@ -22,16 +24,11 @@ import {
   formatReadableTime,
   formatIndianCurrency
 } from '../../utils/formatters';
-
-const PIPELINE_STAGES: Array<{ key: LeadStatus; label: string; desc: string }> = [
-  { key: 'NEW', label: 'NEW', desc: 'Fresh Inbound' },
-  { key: 'CONTACTED', label: 'CONTACTED', desc: 'Outreach Initiated' },
-  { key: 'FOLLOW_UP', label: 'FOLLOW UP', desc: 'Diligence in Progress' },
-  { key: 'SITE_VISIT', label: 'SITE VISIT', desc: 'Physical Tours' },
-  { key: 'NEGOTIATION', label: 'NEGOTIATION', desc: 'Offer & Pricing' },
-  { key: 'CONVERTED', label: 'CONVERTED', desc: 'Deal Closed' },
-  { key: 'LOST', label: 'LOST', desc: 'Inquiry Dropped' },
-];
+import {
+  getPipelineStagesForLead,
+  getStageDisplayMeta,
+  LOST_REASON_OPTIONS
+} from '../../constants/leadStages';
 
 export interface LeadDetailDrawerProps {
   selectedLeadId: string;
@@ -45,6 +42,7 @@ export interface LeadDetailDrawerProps {
   handleUpdateLeadStatus: (leadId: string, status: LeadStatus, note?: string) => void;
   handleAssignLead: (leadId: string, staffId: string) => void;
   handleScheduleFollowUp: (leadId: string) => void;
+  onTriggerRnrFollowUp?: (leadId: string) => void;
   handleAddCallNote: (leadId: string) => void;
   handleVerifyDocument: (docId: string, action: 'VERIFIED' | 'REJECTED', note?: string) => void | Promise<void>;
   handleSendWhatsAppReminder: (visitId: string) => void;
@@ -85,6 +83,7 @@ export function LeadDetailDrawer({
   handleUpdateLeadStatus,
   handleAssignLead,
   handleScheduleFollowUp,
+  onTriggerRnrFollowUp,
   handleAddCallNote,
   handleVerifyDocument,
   handleSendWhatsAppReminder,
@@ -113,7 +112,7 @@ export function LeadDetailDrawer({
   const [selectedPropertyToLink, setSelectedPropertyToLink] = useState('');
   const [isLinkingLoading, setIsLinkingLoading] = useState(false);
   const [isLostModalOpen, setIsLostModalOpen] = useState(false);
-  const [lostReason, setLostReason] = useState('Bought elsewhere / Found another property');
+  const [lostReason, setLostReason] = useState(LOST_REASON_OPTIONS[0]);
   const [lostNote, setLostNote] = useState('');
 
   // Capture-phase Escape key listener so pressing Escape only closes the Lost modal, not the parent drawer
@@ -129,9 +128,21 @@ export function LeadDetailDrawer({
     return () => window.removeEventListener('keydown', handleKeyDown, true);
   }, [isLostModalOpen]);
 
+  const triggerRnrWorkflow = () => {
+    if (onTriggerRnrFollowUp) {
+      onTriggerRnrFollowUp(selectedLeadId);
+    } else {
+      handleUpdateLeadStatus(selectedLeadId, 'RNR', '[RNR]: Ring Not Received — Follow-up scheduled');
+      setNewFollowUpNote('RNR — Retry follow-up call');
+      setIsFollowUpPickerOpen(true);
+    }
+  };
+
   const handleStageSelect = (targetVal: LeadStatus) => {
     if (targetVal === 'LOST') {
       setIsLostModalOpen(true);
+    } else if (targetVal === 'RNR') {
+      triggerRnrWorkflow();
     } else {
       handleUpdateLeadStatus(selectedLeadId, targetVal);
     }
@@ -146,13 +157,14 @@ export function LeadDetailDrawer({
 
   const rawLead = leadDetailData?.lead || {};
 
-  // Resolve lifecycle stage: prioritize whichever record has progressed furthest beyond 'NEW'
+  // Always trust the freshly loaded detail record when it matches the selected lead, falling back to table state
   const resolvedStage: LeadStatus = (() => {
-    const rawStage = (rawLead.stage || rawLead.lead_status) as LeadStatus | undefined;
-    const tableStage = (selectedLead?.stage || selectedLead?.lead_status) as LeadStatus | undefined;
-    if (rawStage && rawStage !== 'NEW') return rawStage;
-    if (tableStage && tableStage !== 'NEW') return tableStage;
-    return rawStage || tableStage || 'NEW';
+    const rawStage = (rawLead.lead_status || rawLead.stage || rawLead.status) as LeadStatus | undefined;
+    const tableStage = (selectedLead?.lead_status || selectedLead?.stage || selectedLead?.status) as LeadStatus | undefined;
+    if (rawLead?.id === selectedLeadId && rawStage) {
+      return rawStage;
+    }
+    return tableStage || rawStage || 'NEW';
   })();
 
   const lead = {
@@ -166,6 +178,9 @@ export function LeadDetailDrawer({
     assigned_staff_name: rawLead.assigned_staff_name ?? selectedLead?.assignedStaffName ?? selectedLead?.assigned_staff_name ?? null,
     assignedStaffName: rawLead.assignedStaffName ?? rawLead.assigned_staff_name ?? selectedLead?.assignedStaffName ?? null,
   };
+
+  const leadStages = getPipelineStagesForLead(lead?.type || lead?.lead_type);
+  const stageMeta = getStageDisplayMeta(resolvedStage);
 
   const hasInitialData = Boolean(
     (selectedLead && (selectedLead.id || selectedLead.phone || selectedLead.ownerName || selectedLead.displayName || selectedLead.name)) ||
@@ -292,35 +307,10 @@ export function LeadDetailDrawer({
                 <span className="text-slate-600 font-normal">
                   {src}
                 </span>
-                {(lead?.lead_status === 'NEW' || lead?.stage === 'NEW') ? (
-                  <>
-                    <span className="text-slate-300">•</span>
-                    <span className="text-blue-600 font-medium text-[11px]">
-                      New Lead
-                    </span>
-                  </>
-                ) : (lead?.lead_status === 'LOST' || lead?.stage === 'LOST') ? (
-                  <>
-                    <span className="text-slate-300">•</span>
-                    <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
-                      Lost Lead
-                    </span>
-                  </>
-                ) : (lead?.lead_status === 'CONVERTED' || lead?.stage === 'CONVERTED') ? (
-                  <>
-                    <span className="text-slate-300">•</span>
-                    <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      Converted
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <span className="text-slate-300">•</span>
-                    <span className="text-slate-600 font-medium text-[11px]">
-                      {lead?.lead_status || lead?.stage}
-                    </span>
-                  </>
-                )}
+                <span className="text-slate-300">•</span>
+                <span className={`px-1.5 py-0.2 rounded text-[10px] font-semibold border ${stageMeta.badgeClass}`}>
+                  {stageMeta.label}
+                </span>
                 <span className="text-slate-300">•</span>
                 <span className="font-mono text-[11px] text-slate-400">{selectedLeadId}</span>
               </div>
@@ -745,9 +735,11 @@ export function LeadDetailDrawer({
                             ? 'text-rose-700 font-bold'
                             : (lead.lead_status || lead.stage) === 'CONVERTED'
                             ? 'text-emerald-700 font-bold'
+                            : (lead.lead_status || lead.stage) === 'RNR'
+                            ? 'text-orange-700 font-bold'
                             : 'text-slate-900'
                         }`}>
-                          Current Stage: {lead.lead_status || lead.stage || 'NEW'}
+                          Current Stage: {stageMeta.label}
                         </strong>
                         {lead.updated_at && (
                           <span className="text-[10px] text-slate-600 font-mono font-medium">
@@ -758,7 +750,7 @@ export function LeadDetailDrawer({
                       <p className={`text-[11px] mt-0.5 ${
                         (lead.lead_status || lead.stage) === 'LOST' ? 'text-rose-600 font-medium' : 'text-slate-600'
                       }`}>
-                        {PIPELINE_STAGES.find(s => s.key === (lead.lead_status || lead.stage))?.desc || 'Lead active in pipeline'}
+                        {leadStages.find(s => s.key === (lead.lead_status || lead.stage))?.desc || 'Lead active in pipeline'}
                       </p>
                     </div>
                   </div>
@@ -791,9 +783,14 @@ export function LeadDetailDrawer({
 
               {/* 2. Lead Lifecycle Stage & Relationship Manager */}
               <div className="border-t border-slate-100 pt-5 space-y-3">
-                <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                  Lifecycle & Assignment
-                </h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                    Lifecycle & Assignment
+                  </h4>
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-100 text-slate-600">
+                    {lead?.type === 'BUYER' ? 'Buyer Pipeline' : 'Seller Pipeline'}
+                  </span>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block mb-1">
@@ -802,16 +799,12 @@ export function LeadDetailDrawer({
                     <select
                       value={isLostModalOpen ? 'LOST' : (lead.lead_status || lead.stage || 'NEW')}
                       onChange={(e) => handleStageSelect(e.target.value as LeadStatus)}
-                      className={`w-full border rounded-xl px-3 py-2 font-bold text-xs shadow-2xs transition-colors ${
-                        (isLostModalOpen || (lead.lead_status || lead.stage) === 'LOST')
-                          ? 'bg-rose-50 border-rose-300 text-rose-700'
-                          : (lead.lead_status || lead.stage) === 'CONVERTED'
-                          ? 'bg-emerald-50 border-emerald-300 text-emerald-800'
-                          : 'bg-white border-slate-200/80 text-slate-800'
+                      className={`w-full border rounded-xl px-3 py-2 font-bold text-xs shadow-2xs transition-colors cursor-pointer ${
+                        isLostModalOpen ? 'bg-rose-50 border-rose-300 text-rose-700' : stageMeta.selectClass
                       }`}
                     >
-                      {PIPELINE_STAGES.map(s => (
-                        <option key={s.key} value={s.key} className={s.key === 'LOST' ? 'text-rose-600 font-bold' : ''}>
+                      {leadStages.map(s => (
+                        <option key={s.key} value={s.key} className={s.key === 'LOST' ? 'text-rose-600 font-bold' : s.key === 'RNR' ? 'text-orange-700 font-bold' : ''}>
                           {s.label} ({s.desc})
                         </option>
                       ))}
@@ -853,11 +846,11 @@ export function LeadDetailDrawer({
                 </div>
               </div>
 
-              {/* 3. Schedule Next Follow-up */}
+              {/* 3. Call Outcome (Connected / RNR) & Schedule Next Follow-up */}
               <div className="border-t border-slate-100 pt-5 space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                    Schedule Next Follow-up
+                    Call Outcome & Follow-up
                   </h4>
                   {lead.next_follow_up_at && (
                     <span className="text-[10px] font-bold text-[#0073E6] tabular-nums">
@@ -865,6 +858,39 @@ export function LeadDetailDrawer({
                     </span>
                   )}
                 </div>
+
+                {/* 2 Quick Call Outcome Options */}
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextStage: LeadStatus = ['NEW', 'RNR'].includes(resolvedStage) ? 'CONTACTED' : resolvedStage;
+                      handleUpdateLeadStatus(selectedLeadId, nextStage, '[Call Outcome]: Connected with client');
+                    }}
+                    className={`flex items-center justify-center space-x-1.5 px-3 py-2 rounded-xl border text-xs font-bold transition-colors cursor-pointer shadow-2xs ${
+                      resolvedStage === 'CONTACTED'
+                        ? 'bg-indigo-50 border-indigo-300 text-indigo-800'
+                        : 'bg-white border-slate-200/80 text-slate-700 hover:bg-indigo-50/50 hover:border-indigo-300'
+                    }`}
+                  >
+                    <PhoneCall className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                    <span>Connected / Call Done</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={triggerRnrWorkflow}
+                    className={`flex items-center justify-center space-x-1.5 px-3 py-2 rounded-xl border text-xs font-bold transition-colors cursor-pointer shadow-2xs ${
+                      resolvedStage === 'RNR'
+                        ? 'bg-orange-100 border-orange-400 text-orange-900'
+                        : 'bg-orange-50/70 border-orange-200 text-orange-800 hover:bg-orange-100 hover:border-orange-300'
+                    }`}
+                  >
+                    <PhoneMissed className="w-3.5 h-3.5 text-orange-600 shrink-0" />
+                    <span>RNR (Ring Not Received)</span>
+                  </button>
+                </div>
+
                 <div className="space-y-2">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <button
@@ -1406,16 +1432,7 @@ export function LeadDetailDrawer({
                   Primary Reason *
                 </label>
                 <div className="space-y-1.5">
-                  {[
-                    'Bought elsewhere / Found another property',
-                    'Seller asking price not feasible / High expectations',
-                    'Location / Locality mismatch',
-                    'Budget constraints / Financing fell through',
-                    'Unresponsive / Invalid contact number',
-                    'Owner postponed / Cancelled listing',
-                    'Commission / Terms disagreement',
-                    'Other reason'
-                  ].map((r) => (
+                  {LOST_REASON_OPTIONS.map((r) => (
                     <label
                       key={r}
                       onClick={(e) => {

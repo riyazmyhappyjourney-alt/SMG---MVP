@@ -1522,6 +1522,71 @@ class DevSandboxStore {
       };
     }
 
+    // 12b. UNION ALL Tasks / Notifications spanning seller_leads & buyer_enquiries
+    if (cleanSql.includes('UNION ALL') && cleanSql.includes('FROM seller_leads') && cleanSql.includes('FROM buyer_enquiries')) {
+      const requireFollowUp = cleanSql.includes('next_follow_up_at IS NOT NULL');
+      const filterStaffId = cleanSql.includes('assigned_staff_id = $1') && typeof params[0] === 'string' ? params[0] : null;
+
+      let sellers = Array.from(this.sellerLeads.values());
+      let buyers = Array.from(this.buyerEnquiries.values());
+      if (requireFollowUp) {
+        sellers = sellers.filter(l => Boolean(l.next_follow_up_at));
+        buyers = buyers.filter(b => Boolean(b.next_follow_up_at));
+      }
+      if (filterStaffId) {
+        sellers = sellers.filter(l => l.assigned_staff_id === filterStaffId);
+        buyers = buyers.filter(b => b.assigned_staff_id === filterStaffId);
+      }
+
+      const combined = [
+        ...sellers.map(l => {
+          const staff = l.assigned_staff_id ? this.users.get(l.assigned_staff_id) : null;
+          return {
+            id: l.id,
+            name: l.owner_name,
+            owner_name: l.owner_name,
+            phone: l.phone,
+            society: l.apartment_society_name,
+            locality: l.locality_id,
+            context: l.apartment_society_name,
+            lead_status: l.lead_status,
+            assigned_staff_id: l.assigned_staff_id,
+            assigned_staff_name: staff?.display_name || null,
+            next_follow_up_at: l.next_follow_up_at,
+            follow_up_notes: l.follow_up_notes,
+            lead_type: 'SELLER',
+            created_at: l.created_at,
+            updated_at: l.updated_at,
+          };
+        }),
+        ...buyers.map(b => {
+          const staff = b.assigned_staff_id ? this.users.get(b.assigned_staff_id) : null;
+          return {
+            id: b.id,
+            name: b.buyer_name,
+            owner_name: b.buyer_name,
+            phone: b.phone,
+            society: b.preferred_locality_or_society,
+            locality: b.preferred_locality_or_society,
+            context: b.preferred_locality_or_society,
+            lead_status: b.lead_status,
+            assigned_staff_id: b.assigned_staff_id,
+            assigned_staff_name: staff?.display_name || null,
+            next_follow_up_at: b.next_follow_up_at,
+            follow_up_notes: b.follow_up_notes,
+            lead_type: 'BUYER',
+            created_at: b.created_at,
+            updated_at: b.updated_at,
+          };
+        }),
+      ];
+
+      if (cleanSql.includes('ORDER BY next_follow_up_at ASC')) {
+        combined.sort((a, b) => new Date(a.next_follow_up_at || 0).getTime() - new Date(b.next_follow_up_at || 0).getTime());
+      }
+      return { rows: combined };
+    }
+
     // 13. SELLER_LEADS: List query (CRM dashboard)
     if (cleanSql.includes('FROM seller_leads') && !cleanSql.includes('FROM properties')) {
       let leads = Array.from(this.sellerLeads.values());
@@ -1616,10 +1681,19 @@ class DevSandboxStore {
         if (cleanSql.includes('next_follow_up_at = NULL')) {
           lead.next_follow_up_at = null;
           lead.follow_up_notes = null;
+          if (params[1] && cleanSql.includes('COALESCE($2')) {
+            lead.lead_status = params[1];
+          } else if (lead.lead_status === 'NEW') {
+            lead.lead_status = 'CONTACTED';
+          }
         } else if (cleanSql.includes('next_follow_up_at = $1')) {
           lead.next_follow_up_at = params[0] || null;
           lead.follow_up_notes = params[1] || null;
-          if (lead.lead_status === 'NEW') lead.lead_status = 'CONTACTED';
+          if (params[2] && cleanSql.includes('COALESCE($3')) {
+            lead.lead_status = params[2];
+          } else if (['NEW', 'CONTACTED', 'RNR'].includes(lead.lead_status)) {
+            lead.lead_status = 'FOLLOW_UP';
+          }
         }
         if (cleanSql.includes('notes = CASE') || cleanSql.includes('notes = COALESCE')) {
           const noteText = params[0] || params[1];
@@ -1902,10 +1976,19 @@ class DevSandboxStore {
         if (cleanSql.includes('next_follow_up_at = NULL')) {
           be.next_follow_up_at = null;
           be.follow_up_notes = null;
+          if (params[1] && cleanSql.includes('COALESCE($2')) {
+            be.lead_status = params[1];
+          } else if (be.lead_status === 'NEW') {
+            be.lead_status = 'CONTACTED';
+          }
         } else if (cleanSql.includes('next_follow_up_at = $1')) {
           be.next_follow_up_at = params[0] || null;
           be.follow_up_notes = params[1] || null;
-          if (be.lead_status === 'NEW') be.lead_status = 'CONTACTED';
+          if (params[2] && cleanSql.includes('COALESCE($3')) {
+            be.lead_status = params[2];
+          } else if (['NEW', 'CONTACTED', 'RNR'].includes(be.lead_status)) {
+            be.lead_status = 'FOLLOW_UP';
+          }
         }
         be.updated_at = new Date().toISOString();
         return { rows: [{ ...be }] };
