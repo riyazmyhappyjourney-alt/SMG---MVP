@@ -48,6 +48,7 @@ import { Footer } from '../home/Footer';
 import { isFavoriteProperty, toggleFavoriteProperty } from '../../utils/favoritesStore';
 import { getDistinctCommunityPhoto } from '../../utils/propertyImages';
 import { safeFetch } from '../../utils/safeApi';
+import { useLeadOtp, LeadOtpInlineStep } from '../common/LeadOtpVerification';
 import { AdaptivePropertyImage } from '../common/AdaptivePropertyImage';
 import { FullImageViewerModal } from '../common/FullImageViewerModal';
 import {
@@ -190,6 +191,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
   } | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const leadOtp = useLeadOtp();
 
   const isMobile = typeof window !== 'undefined' ? window.innerWidth < 768 : false;
 
@@ -307,6 +309,19 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
       return;
     }
 
+    if (!leadOtp.isOtpStepOpen) {
+      const otpRes = await leadOtp.sendOtp(cleanPhone);
+      if (!otpRes.ok && otpRes.error) {
+        setFormError(otpRes.error);
+      }
+      return;
+    }
+
+    const leadOtpToken = await leadOtp.verifyOtp(cleanPhone, buyerName.trim());
+    if (!leadOtpToken) {
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -319,6 +334,8 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
         locality: property?.localityName,
         bhkType: property?.bhkType,
         builtUpSqft: property?.superBuiltUpSqft,
+        leadOtpToken,
+        requireOtp: true,
         notes: `Preferred Slot: ${preferredSlot}. Funding: ${fundingMode}. Requested via Public Detail Page.`
       };
 
@@ -330,7 +347,7 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to submit enquiry.');
+        throw new Error(data.message || data.error || 'Failed to submit enquiry.');
       }
 
       setBookingSuccess({
@@ -1102,7 +1119,10 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                         required
                         maxLength={10}
                         value={buyerPhone}
-                        onChange={(e) => setBuyerPhone(e.target.value.replace(/\D/g, ''))}
+                        onChange={(e) => {
+                          setBuyerPhone(e.target.value.replace(/\D/g, ''));
+                          if (leadOtp.isOtpStepOpen) leadOtp.cancelOtp();
+                        }}
                         placeholder="9845012345"
                         className="w-full pl-11 pr-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-[#0073E6] focus:outline-hidden"
                       />
@@ -1158,14 +1178,31 @@ export const PropertyDetailPage: React.FC<PropertyDetailPageProps> = ({
                     </label>
                   </div>
 
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="w-full py-3 bg-[#0073E6] hover:bg-[#005BB5] text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center space-x-2 font-['Montserrat']"
-                  >
-                    <Calendar className="w-4 h-4" />
-                    <span>{isSubmitting ? 'Confirming Request...' : 'Confirm Private Viewing Slot'}</span>
-                  </button>
+                  {leadOtp.isOtpStepOpen ? (
+                    <LeadOtpInlineStep
+                      phoneDigits={buyerPhone}
+                      otpCode={leadOtp.otpCode}
+                      onChangeOtpCode={leadOtp.setOtpCode}
+                      otpSending={leadOtp.otpSending}
+                      otpVerifying={leadOtp.otpVerifying}
+                      isSubmitting={isSubmitting}
+                      otpError={leadOtp.otpError}
+                      resendTimer={leadOtp.resendTimer}
+                      devHint={leadOtp.devHint}
+                      onResend={() => leadOtp.sendOtp(buyerPhone)}
+                      onCancel={leadOtp.cancelOtp}
+                      submitLabel="Verify OTP & Confirm Viewing"
+                    />
+                  ) : (
+                    <button
+                      type="submit"
+                      disabled={isSubmitting || leadOtp.otpSending}
+                      className="w-full py-3 bg-[#0073E6] hover:bg-[#005BB5] text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center space-x-2 font-['Montserrat']"
+                    >
+                      <Calendar className="w-4 h-4" />
+                      <span>{leadOtp.otpSending ? 'Sending OTP...' : isSubmitting ? 'Confirming Request...' : 'Confirm Private Viewing Slot'}</span>
+                    </button>
+                  )}
 
                   <p className="text-[10px] text-slate-400 text-center">
                     Zero broker spam. Unit identity confirmed on escorted visit day.

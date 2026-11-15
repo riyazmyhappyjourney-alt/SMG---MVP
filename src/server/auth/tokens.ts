@@ -73,3 +73,38 @@ export async function verifySessionToken(token: string): Promise<TokenPayload> {
     tokenVersion: typeof payload.tokenVersion === 'number' ? payload.tokenVersion : undefined,
   };
 }
+
+/**
+ * Signs a short-lived scoped token proving OTP possession for a specific phone
+ * during public website form submission without altering auth cookies.
+ */
+export async function signLeadOtpToken(phone: string): Promise<string> {
+  const config = getValidatedConfig();
+  const { issuer, audience } = getJwtIssuerAudience();
+
+  return await new SignJWT({
+    purpose: 'lead_otp_verified',
+    phone,
+  })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setIssuedAt()
+    .setIssuer(issuer)
+    .setAudience(audience)
+    .setExpirationTime('15m')
+    .sign(config.jwtSecret);
+}
+
+/**
+ * Verifies a lead form OTP verification token matches the submitted normalized phone.
+ */
+export async function verifyLeadOtpToken(token: string, expectedPhone: string): Promise<boolean> {
+  const config = getValidatedConfig();
+  const { issuer, audience } = getJwtIssuerAudience();
+
+  const { payload } = await jwtVerify(token, config.jwtSecret, {
+    issuer,
+    audience,
+  });
+
+  return payload.purpose === 'lead_otp_verified' && payload.phone === expectedPhone;
+}

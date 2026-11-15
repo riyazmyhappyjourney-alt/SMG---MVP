@@ -3,6 +3,7 @@ import { X, Search, MapPin, IndianRupee, Phone, User, CheckCircle2, ArrowRight }
 import { motion, AnimatePresence } from 'motion/react';
 import { BENGALURU_LOCALITIES } from '../../data/bengaluruData';
 import { safeFetch } from '../../utils/safeApi';
+import { useLeadOtp, LeadOtpInlineStep } from '../common/LeadOtpVerification';
 
 interface BuyerSearchPopupModalProps {
   isOpen: boolean;
@@ -23,6 +24,7 @@ export const BuyerSearchPopupModal: React.FC<BuyerSearchPopupModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const leadOtp = useLeadOtp();
 
   if (!isOpen) return null;
 
@@ -45,6 +47,19 @@ export const BuyerSearchPopupModal: React.FC<BuyerSearchPopupModalProps> = ({
       return;
     }
 
+    if (!leadOtp.isOtpStepOpen) {
+      const otpRes = await leadOtp.sendOtp(cleanPhone);
+      if (!otpRes.ok && otpRes.error) {
+        setErrorMsg(otpRes.error);
+      }
+      return;
+    }
+
+    const leadOtpToken = await leadOtp.verifyOtp(cleanPhone, fullName.trim());
+    if (!leadOtpToken) {
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const res = await safeFetch('/api/leads', {
@@ -57,6 +72,8 @@ export const BuyerSearchPopupModal: React.FC<BuyerSearchPopupModalProps> = ({
           societyName: `${selectedBhk} in ${selectedLocality === 'ALL' ? 'Bengaluru' : selectedLocality}`,
           bhkType: selectedBhk,
           intent: 'BUY',
+          leadOtpToken,
+          requireOtp: true,
           notes: `Budget: ${budgetBand}`,
         }),
       });
@@ -65,7 +82,7 @@ export const BuyerSearchPopupModal: React.FC<BuyerSearchPopupModalProps> = ({
       if (res.ok && data.success) {
         setIsSuccess(true);
       } else {
-        setErrorMsg(data.error || 'Failed to submit enquiry. Please try again.');
+        setErrorMsg(data.message || data.error || 'Failed to submit enquiry. Please try again.');
       }
     } catch {
       setErrorMsg('Network error. Please try again.');
@@ -243,19 +260,39 @@ export const BuyerSearchPopupModal: React.FC<BuyerSearchPopupModalProps> = ({
                       placeholder="10-digit Mobile"
                       maxLength={10}
                       value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
+                      onChange={(e) => {
+                        setPhone(e.target.value.replace(/\D/g, ''));
+                        if (leadOtp.isOtpStepOpen) leadOtp.cancelOtp();
+                      }}
                       className="px-3 py-2 text-xs border border-slate-300 rounded-lg focus:border-[#0073E6] focus:outline-hidden font-medium"
                     />
                   </div>
 
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="w-full py-2.5 rounded-xl bg-[#0073E6] hover:bg-[#005BB5] disabled:opacity-50 text-white font-bold text-xs shadow-md transition-all cursor-pointer flex items-center justify-center space-x-1.5"
-                  >
-                    <span>{isSubmitting ? 'Requesting...' : 'Get Verified Shortlist on WhatsApp'}</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
+                  {leadOtp.isOtpStepOpen ? (
+                    <LeadOtpInlineStep
+                      phoneDigits={phone}
+                      otpCode={leadOtp.otpCode}
+                      onChangeOtpCode={leadOtp.setOtpCode}
+                      otpSending={leadOtp.otpSending}
+                      otpVerifying={leadOtp.otpVerifying}
+                      isSubmitting={isSubmitting}
+                      otpError={leadOtp.otpError}
+                      resendTimer={leadOtp.resendTimer}
+                      devHint={leadOtp.devHint}
+                      onResend={() => leadOtp.sendOtp(phone)}
+                      onCancel={leadOtp.cancelOtp}
+                      submitLabel="Verify OTP & Get Shortlist"
+                    />
+                  ) : (
+                    <button
+                      type="submit"
+                      disabled={isSubmitting || leadOtp.otpSending}
+                      className="w-full py-2.5 rounded-xl bg-[#0073E6] hover:bg-[#005BB5] disabled:opacity-50 text-white font-bold text-xs shadow-md transition-all cursor-pointer flex items-center justify-center space-x-1.5"
+                    >
+                      <span>{leadOtp.otpSending ? 'Sending OTP...' : isSubmitting ? 'Requesting...' : 'Get Verified Shortlist on WhatsApp'}</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </form>
               </div>
             )}

@@ -643,7 +643,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
     clientName: '',
     clientPhone: '',
     visitDate: new Date(Date.now() + 86400000).toISOString().slice(0, 10),
-    visitTime: '11:00',
+    visitTime: '11:00 AM',
     assignedStaffId: '',
     notes: ''
   });
@@ -1414,8 +1414,8 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
   // 5. Schedule Visit Submit
   const handleCreateVisit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!scheduleVisitForm.propertyId || !scheduleVisitForm.clientName || !scheduleVisitForm.clientPhone) {
-      showToast('Property, client name, and phone are required', 'error');
+    if (!scheduleVisitForm.propertyId || !scheduleVisitForm.clientName || !scheduleVisitForm.clientPhone || !scheduleVisitForm.visitDate || !scheduleVisitForm.visitTime) {
+      showToast('Property, client name, phone, and visit date/time are required', 'error');
       return;
     }
     try {
@@ -1434,13 +1434,13 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
           clientName: '',
           clientPhone: '',
           visitDate: new Date(Date.now() + 86400000).toISOString().slice(0, 10),
-          visitTime: '11:00',
+          visitTime: '11:00 AM',
           assignedStaffId: '',
           notes: ''
         });
         refreshAll();
       } else {
-        showToast(data.message || 'Failed to schedule visit', 'error');
+        showToast(data.message || data.error || 'Failed to schedule visit', 'error');
       }
     } catch {
       showToast('Network error scheduling visit', 'error');
@@ -5480,14 +5480,14 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
                   Visit Schedule (Date & Time) *
                 </label>
                 <button
                   type="button"
                   onClick={() => setIsVisitPickerOpen(true)}
-                  className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-300 hover:border-[#0073E6] rounded-xl px-3 py-2 text-xs text-left font-semibold text-slate-800 flex items-center justify-between cursor-pointer transition-colors shadow-2xs"
+                  className="w-full bg-slate-50 hover:bg-slate-100 border border-slate-300 hover:border-[#0073E6] rounded-xl px-3 py-2.5 text-xs text-left font-semibold text-slate-800 flex items-center justify-between cursor-pointer transition-colors shadow-2xs"
                 >
                   <span className="tabular-nums">
                     {scheduleVisitForm.visitDate
@@ -5496,28 +5496,6 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   </span>
                   <Calendar className="w-4 h-4 text-[#0073E6] shrink-0" />
                 </button>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <span className="block text-[10px] text-slate-500 font-medium mb-0.5">Date</span>
-                    <input
-                      type="date"
-                      required
-                      value={scheduleVisitForm.visitDate}
-                      onChange={(e) => setScheduleVisitForm({ ...scheduleVisitForm, visitDate: e.target.value })}
-                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900"
-                    />
-                  </div>
-                  <div>
-                    <span className="block text-[10px] text-slate-500 font-medium mb-0.5">Time Slot</span>
-                    <input
-                      type="time"
-                      required
-                      value={scheduleVisitForm.visitTime}
-                      onChange={(e) => setScheduleVisitForm({ ...scheduleVisitForm, visitTime: e.target.value })}
-                      className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900"
-                    />
-                  </div>
-                </div>
               </div>
 
               <div>

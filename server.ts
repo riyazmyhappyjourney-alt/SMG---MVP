@@ -9,7 +9,7 @@ dotenv.config({ path: '.env.local' });
 
 import { getValidatedConfig } from './src/server/config/env';
 import { executeQuery, getDbPool, withTransaction } from './src/server/db/pool';
-import { signSessionToken, verifySessionToken } from './src/server/auth/tokens';
+import { signSessionToken, verifySessionToken, signLeadOtpToken, verifyLeadOtpToken } from './src/server/auth/tokens';
 import { decodeJwt, jwtVerify } from 'jose';
 import { 
   authenticateUser, 
@@ -703,6 +703,8 @@ async function initSchemaColumns() {
       CREATE INDEX IF NOT EXISTS idx_visits_property ON visits (property_id);
       CREATE INDEX IF NOT EXISTS idx_visits_status ON visits (status);
       CREATE INDEX IF NOT EXISTS idx_visits_staff ON visits (assigned_staff_id);
+      ALTER TABLE visits DROP CONSTRAINT IF EXISTS visits_lead_id_fkey;
+      ALTER TABLE property_offers DROP CONSTRAINT IF EXISTS property_offers_lead_id_fkey;
 
       CREATE TABLE IF NOT EXISTS property_offers (
         id VARCHAR(64) PRIMARY KEY,
@@ -1637,6 +1639,74 @@ app.post('/api/auth/otp/verify', jsonDefault, rateLimit('otp-verify', 10, 900), 
   }
 });
 
+// API: Public Website Form OTP Request & Verification (SMS / WhatsApp without overriding login cookies)
+app.post('/api/leads/otp/request', jsonDefault, rateLimit('leads-otp-req', 10, 900), async (req, res) => {
+  try {
+    const { phone, channel } = req.body || {};
+    const cleanPhone = String(phone || '').replace(/\D/g, '').slice(-10);
+    if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
+      return res.status(400).json({ success: false, error: 'Valid 10-digit Indian mobile number is required.' });
+    }
+
+    const clientIp = getClientIp(req);
+    const otpRes = await OtpService.requestOtp(`+91${cleanPhone}`, clientIp, channel || 'AUTO');
+    const isDev = process.env.NODE_ENV !== 'production' && process.env.ALLOW_DEV_FALLBACKS === 'true';
+    const devCode = isDev ? getLastDevOtp(`+91${cleanPhone}`) : undefined;
+    return res.json({
+      ...otpRes,
+      ...(devCode ? { devOtp: devCode } : {}),
+    });
+  } catch (err: any) {
+    return res.status(400).json({ success: false, error: err.message || 'Failed to send OTP.' });
+  }
+});
+
+app.post('/api/leads/otp/verify', jsonDefault, rateLimit('leads-otp-verify', 10, 900), async (req, res) => {
+  try {
+    const { phone, otp, name } = req.body || {};
+    const cleanPhone = String(phone || '').replace(/\D/g, '').slice(-10);
+    if (!/^[6-9]\d{9}$/.test(cleanPhone)) {
+      return res.status(400).json({ success: false, error: 'Valid 10-digit Indian mobile number is required.' });
+    }
+    if (!otp || typeof otp !== 'string' || !/^\d{4,6}$/.test(otp.trim())) {
+      return res.status(400).json({ success: false, error: 'Please enter the 6-digit OTP sent to your mobile.' });
+    }
+
+    const clientIp = getClientIp(req);
+    const normalizedPhone = `+91${cleanPhone}`;
+    await OtpService.verifyOtp(normalizedPhone, otp.trim(), clientIp, name);
+
+    const leadOtpToken = await signLeadOtpToken(normalizedPhone);
+    return res.json({
+      success: true,
+      verifiedPhone: normalizedPhone,
+      leadOtpToken,
+    });
+  } catch (err: any) {
+    return res.status(400).json({ success: false, error: err.message || 'Invalid or expired OTP.' });
+  }
+});
+
+async function validateFormOtpSubmission(body: any, normalizedPhone: string): Promise<{ valid: boolean; error?: string }> {
+  const token = typeof body?.leadOtpToken === 'string' ? body.leadOtpToken.trim() : '';
+  const shouldRequireOtp = (process.env.NODE_ENV === 'production' && process.env.RUNNING_TESTS !== 'true') || Boolean(body?.requireOtp) || Boolean(token);
+  if (!shouldRequireOtp) {
+    return { valid: true };
+  }
+  if (!token) {
+    return { valid: false, error: 'Please verify your mobile number via OTP before submitting.' };
+  }
+  try {
+    const ok = await verifyLeadOtpToken(token, normalizedPhone);
+    if (!ok) {
+      return { valid: false, error: 'OTP verification does not match this mobile number. Please verify again.' };
+    }
+    return { valid: true };
+  } catch {
+    return { valid: false, error: 'OTP verification expired. Please request and verify a new OTP.' };
+  }
+}
+
 // API: Customer Password Login (Disabled: customer auth is strictly Mobile OTP / Social)
 app.post('/api/auth/customer-login', jsonDefault, rateLimit('cust-login', 10, 900), async (req, res) => {
   return res.status(400).json({
@@ -2284,6 +2354,11 @@ app.post('/api/contact', jsonDefault, rateLimit('contact-submit', 5, 900), async
     const normalizedPhone = `+91${cleanPhone}`;
     const clientIp = getClientIp(req);
 
+    const otpCheck = await validateFormOtpSubmission(req.body, normalizedPhone);
+    if (!otpCheck.valid) {
+      return res.status(400).json({ error: 'OTP_VERIFICATION_REQUIRED', message: otpCheck.error });
+    }
+
 
     const consentId = `cst-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
     await executeQuery(
@@ -2381,6 +2456,11 @@ app.post('/api/leads', jsonDefault, rateLimit('leads-submit', 5, 900), async (re
     const isSeller = intent === 'SELL' || intent === 'SELLER';
     const normalizedPhone = `+91${cleanPhone}`;
     const clientIp = getClientIp(req);
+
+    const otpCheck = await validateFormOtpSubmission(req.body, normalizedPhone);
+    if (!otpCheck.valid) {
+      return res.status(400).json({ error: 'OTP_VERIFICATION_REQUIRED', message: otpCheck.error });
+    }
 
     const randomNum = Math.floor(1000 + Math.random() * 9000);
     const referenceId = `SMG-${new Date().getFullYear()}-${randomNum}`;
@@ -6959,17 +7039,49 @@ app.post('/api/crm/visits', jsonDefault, authenticateUser, requireModule('VISITS
       return res.status(400).json({ error: 'INVALID_INPUT', message: 'Property ID, client name, and phone are required.' });
     }
 
+    const propCheck = await executeQuery(`SELECT id FROM properties WHERE id = $1 LIMIT 1;`, [resolvedPropId]);
+    if (!propCheck.rows || propCheck.rows.length === 0) {
+      return res.status(400).json({ error: 'PROPERTY_NOT_FOUND', message: 'Selected target property was not found in inventory.' });
+    }
+
+    let safeStaffId = resolvedStaffId;
+    if (safeStaffId && safeStaffId !== req.user!.uid) {
+      const staffCheck = await executeQuery(`SELECT id FROM users WHERE id = $1 LIMIT 1;`, [safeStaffId]);
+      if (!staffCheck.rows || staffCheck.rows.length === 0) {
+        safeStaffId = req.user!.uid;
+      }
+    }
+
     const visitId = `vis-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
-    const insertRes = await executeQuery(`
-      INSERT INTO visits (id, property_id, lead_id, client_name, client_phone, visit_date, visit_time, status, assigned_staff_id, notes, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, 'SCHEDULED', $8, $9, NOW(), NOW())
-      RETURNING *;
-    `, [visitId, resolvedPropId, resolvedLeadId, resolvedName, resolvedPhone, resolvedDate, resolvedTime, resolvedStaffId, notes || null]);
+    let insertRes;
+    try {
+      insertRes = await executeQuery(`
+        INSERT INTO visits (id, property_id, lead_id, client_name, client_phone, visit_date, visit_time, status, assigned_staff_id, notes, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, 'SCHEDULED', $8, $9, NOW(), NOW())
+        RETURNING *;
+      `, [visitId, resolvedPropId, resolvedLeadId, resolvedName, resolvedPhone, resolvedDate, resolvedTime, safeStaffId, notes || null]);
+    } catch (insertErr: any) {
+      if (String(insertErr?.message || '').includes('visits_lead_id_fkey')) {
+        await executeQuery(`ALTER TABLE visits DROP CONSTRAINT IF EXISTS visits_lead_id_fkey;`).catch(() => {});
+        insertRes = await executeQuery(`
+          INSERT INTO visits (id, property_id, lead_id, client_name, client_phone, visit_date, visit_time, status, assigned_staff_id, notes, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, 'SCHEDULED', $8, $9, NOW(), NOW())
+          RETURNING *;
+        `, [visitId, resolvedPropId, resolvedLeadId, resolvedName, resolvedPhone, resolvedDate, resolvedTime, safeStaffId, notes || null]);
+      } else {
+        throw insertErr;
+      }
+    }
 
     if (resolvedLeadId) {
       await executeQuery(`
-        UPDATE seller_leads SET lead_status = 'SITE_VISIT', updated_at = NOW() WHERE id = $1 AND lead_status IN ('NEW', 'CONTACTED', 'FOLLOW_UP');
+        UPDATE seller_leads SET lead_status = 'SITE_VISIT', updated_at = NOW()
+        WHERE id = $1 AND lead_status IN ('NEW', 'RNR', 'CONTACTED', 'FOLLOW_UP');
       `, [resolvedLeadId]);
+      await executeQuery(`
+        UPDATE buyer_enquiries SET lead_status = 'SITE_VISIT', updated_at = NOW()
+        WHERE id = $1 AND lead_status IN ('NEW', 'RNR', 'CONTACTED', 'FOLLOW_UP');
+      `, [resolvedLeadId]).catch(() => {});
     }
 
     const clientIp = getClientIp(req);
@@ -7000,6 +7112,13 @@ app.post('/api/crm/visits', jsonDefault, authenticateUser, requireModule('VISITS
         } catch {}
       }
 
+      if (!resolvedClientEmail && resolvedLeadId) {
+        try {
+          const bRes = await executeQuery(`SELECT attribution->>'email' AS email FROM buyer_enquiries WHERE id = $1 LIMIT 1;`, [resolvedLeadId]);
+          if (bRes.rows && bRes.rows[0]?.email) resolvedClientEmail = bRes.rows[0].email;
+        } catch {}
+      }
+
       if (!resolvedClientEmail && resolvedPropId) {
         try {
           const pRes = await executeQuery(`SELECT u.email FROM properties p JOIN users u ON p.owner_id = u.id WHERE p.id = $1 LIMIT 1;`, [resolvedPropId]);
@@ -7016,7 +7135,7 @@ app.post('/api/crm/visits', jsonDefault, authenticateUser, requireModule('VISITS
         clientEmail: resolvedClientEmail || null,
         visitDate: resolvedDate,
         visitTime: resolvedTime,
-        staffId: resolvedStaffId,
+        staffId: safeStaffId,
         notes: notes || undefined,
       }, req.user);
     } catch (meetingEmailErr: any) {
@@ -7030,7 +7149,7 @@ app.post('/api/crm/visits', jsonDefault, authenticateUser, requireModule('VISITS
     });
   } catch (err: any) {
     console.error('[CrmVisitCreate] Error:', err);
-    return res.status(500).json({ error: 'Failed to schedule visit' });
+    return res.status(500).json({ error: 'FAILED_TO_SCHEDULE_VISIT', message: err?.message || 'Failed to schedule visit' });
   }
 });
 

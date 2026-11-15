@@ -1964,6 +1964,8 @@ class DevSandboxStore {
         if (cleanSql.includes('lead_status = $1')) {
           be.lead_status = params[0];
           if (params[1]) be.notes = be.notes ? `${be.notes}\n${params[1]}` : params[1];
+        } else if (cleanSql.includes("lead_status = 'SITE_VISIT'") && ['NEW', 'RNR', 'CONTACTED', 'FOLLOW_UP'].includes(be.lead_status)) {
+          be.lead_status = 'SITE_VISIT';
         }
         if (cleanSql.includes('assigned_staff_id = $1')) {
           be.assigned_staff_id = params[0];
@@ -2580,7 +2582,7 @@ class DevSandboxStore {
         if (propId) list = list.filter(v => v.property_id === propId);
       }
       if (cleanSql.includes('lead_id = $')) {
-        const leadId = params.find(p => typeof p === 'string' && p.startsWith('lead-'));
+        const leadId = params.find(p => typeof p === 'string' && (p.startsWith('lead-') || p.startsWith('enq-')));
         if (leadId) list = list.filter(v => v.lead_id === leadId);
       }
       if (cleanSql.includes('status = $')) {

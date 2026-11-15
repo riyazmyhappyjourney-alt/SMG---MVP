@@ -206,7 +206,7 @@ export const MobileHomeView: React.FC<MobileHomeViewProps> = ({
 
           {/* Headline */}
           <h1 className="text-xl sm:text-2xl font-extrabold text-white tracking-tight leading-snug">
-            Sell your flat in 45 days.
+            Sell your flat in 45 days*.
           </h1>
 
           {/* Subtitle */}

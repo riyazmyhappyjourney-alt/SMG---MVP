@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { trackEnquirySubmitted } from '../../utils/analytics';
 import { safeFetch } from '../../utils/safeApi';
+import { useLeadOtp, LeadOtpInlineStep } from '../common/LeadOtpVerification';
 
 interface ContactPageProps {
   onNavigate: (route: 'HOME' | 'CRM' | 'CONSENT' | 'SELLER_ASSISTED' | 'CONTACT') => void;
@@ -42,6 +43,7 @@ export const ContactPage: React.FC<ContactPageProps> = ({
     referenceId: string;
     message: string;
   } | null>(null);
+  const leadOtp = useLeadOtp();
 
   const handleTabClick = (tab: 'BUY' | 'SELL' | 'ABOUT' | 'CONTACT') => {
     if (tab === 'SELL') {
@@ -95,6 +97,19 @@ export const ContactPage: React.FC<ContactPageProps> = ({
       return;
     }
 
+    if (!leadOtp.isOtpStepOpen) {
+      const otpRes = await leadOtp.sendOtp(cleanPhone);
+      if (!otpRes.ok && otpRes.error) {
+        setErrorMessage(otpRes.error);
+      }
+      return;
+    }
+
+    const leadOtpToken = await leadOtp.verifyOtp(cleanPhone, trimmedName);
+    if (!leadOtpToken) {
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -113,7 +128,9 @@ export const ContactPage: React.FC<ContactPageProps> = ({
           phone: cleanPhone,
           email: trimmedEmail,
           subject: subjectMap[subject] || 'General Enquiry',
-          message: message.trim()
+          message: message.trim(),
+          leadOtpToken,
+          requireOtp: true,
         })
       });
 
@@ -420,7 +437,10 @@ export const ContactPage: React.FC<ContactPageProps> = ({
                               required
                               maxLength={10}
                               value={phone}
-                              onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+                              onChange={(e) => {
+                                setPhone(e.target.value.replace(/\D/g, ''));
+                                if (leadOtp.isOtpStepOpen) leadOtp.cancelOtp();
+                              }}
                               placeholder="9845012345"
                               aria-label="10-digit mobile number"
                               className="w-full pl-12 pr-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium focus:ring-2 focus:ring-[#0073E6] focus:outline-hidden font-['Poppins']"
@@ -483,14 +503,31 @@ export const ContactPage: React.FC<ContactPageProps> = ({
 
                       {/* Submit Button */}
                       <div>
-                        <button
-                          type="submit"
-                          disabled={isSubmitting}
-                          className="w-full py-3 px-6 bg-[#0073E6] hover:bg-[#005BB5] text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center space-x-2 font-['Montserrat']"
-                        >
-                          <Send className={`w-3.5 h-3.5 ${isSubmitting ? 'animate-paper-plane' : ''}`} />
-                          <span>{isSubmitting ? 'Sending Enquiry...' : 'Submit Enquiry'}</span>
-                        </button>
+                        {leadOtp.isOtpStepOpen ? (
+                          <LeadOtpInlineStep
+                            phoneDigits={phone}
+                            otpCode={leadOtp.otpCode}
+                            onChangeOtpCode={leadOtp.setOtpCode}
+                            otpSending={leadOtp.otpSending}
+                            otpVerifying={leadOtp.otpVerifying}
+                            isSubmitting={isSubmitting}
+                            otpError={leadOtp.otpError}
+                            resendTimer={leadOtp.resendTimer}
+                            devHint={leadOtp.devHint}
+                            onResend={() => leadOtp.sendOtp(phone)}
+                            onCancel={leadOtp.cancelOtp}
+                            submitLabel="Verify OTP & Submit Enquiry"
+                          />
+                        ) : (
+                          <button
+                            type="submit"
+                            disabled={isSubmitting || leadOtp.otpSending}
+                            className="w-full py-3 px-6 bg-[#0073E6] hover:bg-[#005BB5] text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center space-x-2 font-['Montserrat']"
+                          >
+                            <Send className={`w-3.5 h-3.5 ${isSubmitting || leadOtp.otpSending ? 'animate-paper-plane' : ''}`} />
+                            <span>{leadOtp.otpSending ? 'Sending OTP...' : isSubmitting ? 'Sending Enquiry...' : 'Submit Enquiry'}</span>
+                          </button>
+                        )}
                       </div>
 
                       <p className="text-[11px] text-slate-400 text-center font-['Poppins']">

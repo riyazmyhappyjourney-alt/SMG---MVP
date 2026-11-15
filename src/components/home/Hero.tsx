@@ -14,6 +14,7 @@ import {
 import { searchSocieties, SocietyItem } from '../../data/bengaluruData';
 import { trackEvent } from '../../utils/analytics';
 import { safeFetch } from '../../utils/safeApi';
+import { useLeadOtp, LeadOtpInlineStep } from '../common/LeadOtpVerification';
 
 interface HeroProps {
   onSellClick: () => void;
@@ -123,6 +124,7 @@ export const Hero: React.FC<HeroProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const societyBoxRef = useRef<HTMLDivElement | null>(null);
+  const leadOtp = useLeadOtp();
 
   // Dynamic CMS Slides Fetching (satisfies Suite 16 tests)
   useEffect(() => {
@@ -188,7 +190,7 @@ export const Hero: React.FC<HeroProps> = ({
     e.preventDefault();
     setFormError('');
 
-    const cleanPhone = mobileNumber.replace(/\D/g, '');
+    const cleanPhone = mobileNumber.replace(/\D/g, '').slice(-10);
     if (!cleanPhone || cleanPhone.length !== 10 || !/^[6-9]/.test(cleanPhone)) {
       setFormError('Please enter a valid 10-digit Indian mobile number');
       return;
@@ -196,6 +198,19 @@ export const Hero: React.FC<HeroProps> = ({
 
     if (!societyQuery.trim()) {
       setFormError('Please select or enter your apartment / society name');
+      return;
+    }
+
+    if (!leadOtp.isOtpStepOpen) {
+      const otpRes = await leadOtp.sendOtp(cleanPhone);
+      if (!otpRes.ok && otpRes.error) {
+        setFormError(otpRes.error);
+      }
+      return;
+    }
+
+    const leadOtpToken = await leadOtp.verifyOtp(cleanPhone, customerName.trim());
+    if (!leadOtpToken) {
       return;
     }
 
@@ -220,6 +235,8 @@ export const Hero: React.FC<HeroProps> = ({
           intent: 'SELL',
           listing_intent: 'SELL',
           source: 'hero_valuation_form',
+          leadOtpToken,
+          requireOtp: true,
           notes: `Free Resale Valuation Request for ${societyQuery.trim()} (${bhk || 'Not specified'})`
         }),
       });
@@ -286,7 +303,7 @@ export const Hero: React.FC<HeroProps> = ({
                     >
                       {animatedDays}
                     </span>
-                    <span className="ml-1.5">days.</span>
+                    <span className="ml-1.5">days*.</span>
                   </span>
                 </span>
               </h1>
@@ -392,7 +409,10 @@ export const Hero: React.FC<HeroProps> = ({
                           data-form-type="other"
                           maxLength={10}
                           value={mobileNumber}
-                          onChange={(e) => setMobileNumber(e.target.value.replace(/\D/g, ''))}
+                          onChange={(e) => {
+                            setMobileNumber(e.target.value.replace(/\D/g, ''));
+                            if (leadOtp.isOtpStepOpen) leadOtp.cancelOtp();
+                          }}
                           placeholder="Mobile Number"
                           className="w-full pl-9 pr-3.5 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#0073E6] transition-all"
                         />
@@ -403,15 +423,31 @@ export const Hero: React.FC<HeroProps> = ({
                         <p className="text-xs text-rose-500 font-medium px-1 text-left">{formError}</p>
                       )}
 
-                      {/* Primary Button */}
-                      <button
-                        type="submit"
-                        disabled={isSubmitting}
-                        className="w-full py-3.5 rounded-xl bg-[#0073E6] hover:bg-[#005BB5] text-white font-bold text-xs sm:text-sm shadow-xs hover:shadow-md transition-all cursor-pointer flex items-center justify-center space-x-2 disabled:opacity-75"
-                      >
-                        <span>{isSubmitting ? 'Calculating...' : 'Get My Free Valuation'}</span>
-                        <ArrowRight className="w-4 h-4" />
-                      </button>
+                      {leadOtp.isOtpStepOpen ? (
+                        <LeadOtpInlineStep
+                          phoneDigits={mobileNumber}
+                          otpCode={leadOtp.otpCode}
+                          onChangeOtpCode={leadOtp.setOtpCode}
+                          otpSending={leadOtp.otpSending}
+                          otpVerifying={leadOtp.otpVerifying}
+                          isSubmitting={isSubmitting}
+                          otpError={leadOtp.otpError}
+                          resendTimer={leadOtp.resendTimer}
+                          devHint={leadOtp.devHint}
+                          onResend={() => leadOtp.sendOtp(mobileNumber)}
+                          onCancel={leadOtp.cancelOtp}
+                          submitLabel="Verify OTP & Get Valuation"
+                        />
+                      ) : (
+                        <button
+                          type="submit"
+                          disabled={isSubmitting || leadOtp.otpSending}
+                          className="w-full py-3.5 rounded-xl bg-[#0073E6] hover:bg-[#005BB5] text-white font-bold text-xs sm:text-sm shadow-xs hover:shadow-md transition-all cursor-pointer flex items-center justify-center space-x-2 disabled:opacity-75"
+                        >
+                          <span>{leadOtp.otpSending ? 'Sending OTP...' : isSubmitting ? 'Calculating...' : 'Get My Free Valuation'}</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </button>
+                      )}
 
                       {/* Supporting Text */}
                       <div className="pt-1 flex items-center justify-center space-x-1.5 text-[11px] text-slate-500">
@@ -513,7 +549,7 @@ export const Hero: React.FC<HeroProps> = ({
               <span className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight tabular-nums">
                 {animatedDays}
               </span>
-              <span className="text-lg sm:text-xl font-bold text-[#0073E6]">days</span>
+              <span className="text-lg sm:text-xl font-bold text-[#0073E6]">days*</span>
             </div>
             <div className="text-[11px] sm:text-xs font-semibold tracking-wider text-slate-500 uppercase mt-1">
               Average selling time

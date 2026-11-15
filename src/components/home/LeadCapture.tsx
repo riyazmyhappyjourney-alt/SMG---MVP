@@ -18,6 +18,7 @@ import {
   Award
 } from 'lucide-react';
 import { safeFetch } from '../../utils/safeApi';
+import { useLeadOtp, LeadOtpInlineStep } from '../common/LeadOtpVerification';
 
 export type BHKOption = 
   | '1BHK' 
@@ -51,6 +52,7 @@ export const LeadCapture: React.FC<LeadCaptureProps> = ({
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [copiedRef, setCopiedRef] = useState(false);
+  const leadOtp = useLeadOtp();
 
   const [confirmationData, setConfirmationData] = useState<{
     referenceId: string;
@@ -103,16 +105,28 @@ export const LeadCapture: React.FC<LeadCaptureProps> = ({
       return;
     }
 
+    if (!leadOtp.isOtpStepOpen) {
+      const otpRes = await leadOtp.sendOtp(cleanPhone);
+      if (!otpRes.ok && otpRes.error) {
+        setErrorMessage(otpRes.error);
+      }
+      return;
+    }
+
+    const leadOtpToken = await leadOtp.verifyOtp(cleanPhone, trimmedName);
+    if (!leadOtpToken) {
+      return;
+    }
+
     setLoading(true);
 
-    // Generate reliable reference ID immediately
     const fallbackRef = `SMG-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
     const formattedPhone = `+91 ${cleanPhone.slice(0, 5)} ${cleanPhone.slice(5)}`;
     const areaVal = builtUpSqft.trim() || null;
 
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4500);
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
 
       const response = await safeFetch('/api/leads', {
         method: 'POST',
@@ -127,15 +141,19 @@ export const LeadCapture: React.FC<LeadCaptureProps> = ({
           builtUpSqft: areaVal,
           intent,
           listing_intent: intent === 'SELL' ? 'SELL' : 'RENT',
+          leadOtpToken,
+          requireOtp: true,
         }),
       });
 
       clearTimeout(timeoutId);
       const data = await response.json().catch(() => null);
+      if (!response.ok || !data?.success) {
+        throw new Error(data?.message || data?.error || 'Failed to submit details. Please try again.');
+      }
 
-      const finalRef = (data && data.referenceId) ? data.referenceId : fallbackRef;
+      const finalRef = data?.referenceId ? data.referenceId : fallbackRef;
 
-      // Transition immediately to Thank You confirmation
       setConfirmationData({
         referenceId: finalRef,
         clientName: trimmedName,
@@ -147,7 +165,6 @@ export const LeadCapture: React.FC<LeadCaptureProps> = ({
         intentType: intent === 'SELL' ? 'SELLER' : 'BUYER',
       });
 
-      // Smooth scroll to confirmation card so user sees it right away
       setTimeout(() => {
         const el = document.getElementById('lead-capture');
         if (el) {
@@ -156,25 +173,7 @@ export const LeadCapture: React.FC<LeadCaptureProps> = ({
       }, 50);
 
     } catch (err: any) {
-      console.warn('Network notice during lead save, showing immediate confirmation:', err);
-      // Fast graceful path: ensure user is NEVER blocked by network hiccup
-      setConfirmationData({
-        referenceId: fallbackRef,
-        clientName: trimmedName,
-        societyName: trimmedSociety,
-        locality: trimmedLocality,
-        bhkType,
-        builtUpSqft: areaVal,
-        phone: formattedPhone,
-        intentType: intent === 'SELL' ? 'SELLER' : 'BUYER',
-      });
-
-      setTimeout(() => {
-        const el = document.getElementById('lead-capture');
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-      }, 50);
+      setErrorMessage(err?.message || 'Unable to submit your details. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -419,7 +418,10 @@ export const LeadCapture: React.FC<LeadCaptureProps> = ({
                       maxLength={10}
                       placeholder="9845012345"
                       value={phone}
-                      onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+                      onChange={(e) => {
+                        setPhone(e.target.value.replace(/\D/g, ''));
+                        if (leadOtp.isOtpStepOpen) leadOtp.cancelOtp();
+                      }}
                       className="w-full pl-12 pr-3.5 py-2.5 sm:py-3 rounded-lg border border-slate-300 text-sm focus:outline-hidden focus:ring-2 focus:ring-[#0073E6]/30 focus:border-[#0073E6] bg-white text-slate-800 font-['Poppins'] tracking-wider"
                     />
                   </div>
@@ -534,25 +536,42 @@ export const LeadCapture: React.FC<LeadCaptureProps> = ({
 
                 {/* Submit Action */}
                 <div className="pt-2">
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full py-3.5 px-6 rounded-md text-sm font-bold text-white bg-[#0073E6] hover:bg-[#005BB5] transition-colors cursor-pointer font-['Montserrat'] tracking-wide flex items-center justify-center space-x-2 disabled:opacity-60"
-                  >
-                    {loading ? (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin" />
-                        <span>Submitting Your Details...</span>
-                      </>
-                    ) : (
-                      <>
-                        <PhoneCall className="w-4 h-4 mr-1.5" />
-                        <span>
-                          {intent === 'SELL' ? 'Get Resale Valuation & Schedule Call' : 'Request Verified Resale Matches'}
-                        </span>
-                      </>
-                    )}
-                  </button>
+                  {leadOtp.isOtpStepOpen ? (
+                    <LeadOtpInlineStep
+                      phoneDigits={phone}
+                      otpCode={leadOtp.otpCode}
+                      onChangeOtpCode={leadOtp.setOtpCode}
+                      otpSending={leadOtp.otpSending}
+                      otpVerifying={leadOtp.otpVerifying}
+                      isSubmitting={loading}
+                      otpError={leadOtp.otpError}
+                      resendTimer={leadOtp.resendTimer}
+                      devHint={leadOtp.devHint}
+                      onResend={() => leadOtp.sendOtp(phone)}
+                      onCancel={leadOtp.cancelOtp}
+                      submitLabel={intent === 'SELL' ? 'Verify OTP & Get Valuation' : 'Verify OTP & Request Matches'}
+                    />
+                  ) : (
+                    <button
+                      type="submit"
+                      disabled={loading || leadOtp.otpSending}
+                      className="w-full py-3.5 px-6 rounded-md text-sm font-bold text-white bg-[#0073E6] hover:bg-[#005BB5] transition-colors cursor-pointer font-['Montserrat'] tracking-wide flex items-center justify-center space-x-2 disabled:opacity-60"
+                    >
+                      {loading || leadOtp.otpSending ? (
+                        <>
+                          <Loader2 className="w-5 h-5 animate-spin" />
+                          <span>{leadOtp.otpSending ? 'Sending OTP...' : 'Submitting Your Details...'}</span>
+                        </>
+                      ) : (
+                        <>
+                          <PhoneCall className="w-4 h-4 mr-1.5" />
+                          <span>
+                            {intent === 'SELL' ? 'Get Resale Valuation & Schedule Call' : 'Request Verified Resale Matches'}
+                          </span>
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-center space-x-1.5 text-[11px] text-slate-500 text-center font-['Poppins'] pt-1">
