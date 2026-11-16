@@ -74,6 +74,21 @@ export function resolveRoute(path: string, hash: string, host: string, search: s
     return 'ESIGN_BROKERAGE';
   }
 
+  // 0. Tokenized Seller Self-Completion Link (Takes absolute precedence - NEVER redirects to CRM login)
+  if (
+    hash.startsWith('#/seller/complete') ||
+    path.startsWith('/seller/complete') ||
+    hash.startsWith('#/sell/complete') ||
+    path.startsWith('/sell/complete')
+  ) {
+    if (typeof window !== 'undefined' && (host.startsWith('crm.') || host.startsWith('crm-'))) {
+      const publicTarget = `https://sellmyghar.in${path}${search}${hash}`;
+      window.location.replace(publicTarget);
+      return 'SELLER_COMPLETE';
+    }
+    return 'SELLER_COMPLETE';
+  }
+
   // 1. Strict CRM Subdomain Isolation (e.g. crm.sellmyghar.in)
   // On the CRM subdomain, public customer routes (LOGIN, HOME, etc.) are strictly prohibited.
   const isCrmSubdomain = host.startsWith('crm.') || host.startsWith('crm-');
@@ -96,7 +111,7 @@ export function resolveRoute(path: string, hash: string, host: string, search: s
   if (hash === '#/consent') return 'CONSENT';
   if (hash === '#/dashboard' || hash === '#/seller-dashboard') return 'DASHBOARD';
   if (hash === '#/seller-assisted' || hash === '#/post-property') return 'SELLER_ASSISTED';
-  if (hash.startsWith('#/seller/complete') || path.startsWith('/seller/complete')) return 'SELLER_COMPLETE';
+  if (hash.startsWith('#/seller/complete') || path.startsWith('/seller/complete') || hash.startsWith('#/sell/complete') || path.startsWith('/sell/complete')) return 'SELLER_COMPLETE';
 
   // 2b. Hidden CRM route: accessible via direct link (#/crm, /crm, or query param)
   if (hash === '#/crm' || hash.startsWith('#/crm?') || hash.startsWith('#/crm/') || path === '/crm' || path.startsWith('/crm/')) {
@@ -648,13 +663,16 @@ export default function App() {
 
   // If on Tokenized Self-Completion Link (Feature 4)
   if (currentRoute === 'SELLER_COMPLETE') {
-    const rawPath = window.location.pathname.startsWith('/seller/complete')
-      ? window.location.pathname
-      : window.location.hash.replace(/^#/, '');
-    const pathParts = rawPath.replace(/^\/seller\/complete\/?/, '').split('?')[0].split('/');
+    const pathname = window.location.pathname;
+    const hash = window.location.hash.replace(/^#/, '');
+    const activePath = pathname.includes('/complete') ? pathname : hash;
+    const cleanPath = activePath.replace(/^\/?(?:seller|sell)\/complete\/?/, '');
+    const pathParts = cleanPath.split('?')[0].split('/');
     const completionPropId = pathParts[0] || '';
-    const urlParams = new URLSearchParams(window.location.search || (window.location.hash.includes('?') ? window.location.hash.split('?')[1] : ''));
-    const completionToken = urlParams.get('token') || '';
+    const urlParams = new URLSearchParams(
+      window.location.search || (window.location.hash.includes('?') ? window.location.hash.split('?')[1] : '')
+    );
+    const completionToken = urlParams.get('token') || pathParts[1] || '';
 
     return (
       <PropertySelfCompletion

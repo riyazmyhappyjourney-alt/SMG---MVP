@@ -15,7 +15,13 @@ import {
   ExternalLink,
   Link2,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  Copy,
+  Send,
+  Flame,
+  Zap,
+  Snowflake,
+  ArrowLeftRight
 } from 'lucide-react';
 import { LeadStatus } from '../../core/types/entities';
 import { CrmStaff, CrmProperty } from './CrmDashboard';
@@ -68,6 +74,9 @@ export interface LeadDetailDrawerProps {
   isAdmin?: boolean;
   onViewProperty?: (propertyId: string) => void;
   handleLinkProperty?: (leadId: string, propertyId: string) => Promise<void> | void;
+  handleUpdateTemperature?: (leadId: string, temperature: 'HOT' | 'WARM' | 'COLD') => void;
+  handleConvertLeadType?: (leadId: string, targetType: 'BUYER' | 'SELLER') => void;
+  handleGenerateCompletionLink?: (leadId: string) => Promise<string | null>;
 }
 
 export function LeadDetailDrawer({
@@ -106,7 +115,10 @@ export function LeadDetailDrawer({
   handleDeleteLead,
   isAdmin = false,
   onViewProperty,
-  handleLinkProperty
+  handleLinkProperty,
+  handleUpdateTemperature,
+  handleConvertLeadType,
+  handleGenerateCompletionLink
 }: LeadDetailDrawerProps) {
   const [isLinkingPropertyOpen, setIsLinkingPropertyOpen] = useState(false);
   const [selectedPropertyToLink, setSelectedPropertyToLink] = useState('');
@@ -311,6 +323,16 @@ export function LeadDetailDrawer({
                 <span className={`px-1.5 py-0.2 rounded text-[10px] font-semibold border ${stageMeta.badgeClass}`}>
                   {stageMeta.label}
                 </span>
+                {(() => {
+                  const temp = (lead?.temperature || 'WARM').toUpperCase();
+                  if (temp === 'HOT') {
+                    return <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">🔥 HOT</span>;
+                  }
+                  if (temp === 'COLD') {
+                    return <span className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-200">❄️ COLD</span>;
+                  }
+                  return <span className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200">⚡ WARM</span>;
+                })()}
                 <span className="text-slate-300">•</span>
                 <span className="font-mono text-[11px] text-slate-400">{selectedLeadId}</span>
               </div>
@@ -844,7 +866,121 @@ export function LeadDetailDrawer({
                     </p>
                   </div>
                 </div>
+
+                {/* Lead Temperature Classification (Hot / Warm / Cold) */}
+                <div className="pt-3 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <label className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">
+                      Lead Priority / Temperature
+                    </label>
+                    <p className="text-[10px] text-slate-400">Classify urgency & buying/selling intent</p>
+                  </div>
+                  <div className="inline-flex rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-xs">
+                    {(['HOT', 'WARM', 'COLD'] as const).map((temp) => {
+                      const currentTemp = (lead.temperature || 'WARM').toUpperCase();
+                      const isSelected = currentTemp === temp;
+                      return (
+                        <button
+                          key={temp}
+                          type="button"
+                          onClick={() => handleUpdateTemperature && handleUpdateTemperature(selectedLeadId, temp)}
+                          className={`px-3 py-1 rounded-md font-semibold text-xs transition-all cursor-pointer flex items-center space-x-1 ${
+                            isSelected
+                              ? temp === 'HOT'
+                                ? 'bg-rose-600 text-white shadow-2xs'
+                                : temp === 'WARM'
+                                ? 'bg-amber-500 text-white shadow-2xs'
+                                : 'bg-blue-600 text-white shadow-2xs'
+                              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                          }`}
+                        >
+                          {temp === 'HOT' && <Flame className="w-3.5 h-3.5" />}
+                          {temp === 'WARM' && <Zap className="w-3.5 h-3.5" />}
+                          {temp === 'COLD' && <Snowflake className="w-3.5 h-3.5" />}
+                          <span>{temp}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Superadmin Lead Conversion (Seller <-> Buyer) */}
+                {isAdmin && handleConvertLeadType && (
+                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between bg-slate-50/70 p-2.5 rounded-lg border border-slate-200/80">
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-700 uppercase tracking-wider block">
+                        Superadmin Action: Convert Lead Type
+                      </span>
+                      <span className="text-[11px] text-slate-500">
+                        Currently: <strong className="text-slate-800">{lead?.type === 'BUYER' ? 'Buyer Lead' : 'Seller Lead'}</strong>
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const target = lead?.type === 'BUYER' ? 'SELLER' : 'BUYER';
+                        if (window.confirm(`Are you sure you want to convert this lead to a ${target} lead? This will move the lead to the ${target === 'BUYER' ? 'Buyer Enquiries' : 'Seller Leads'} pipeline.`)) {
+                          handleConvertLeadType(selectedLeadId, target);
+                        }
+                      }}
+                      className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-800 text-xs font-semibold rounded-md shadow-2xs flex items-center space-x-1.5 cursor-pointer"
+                    >
+                      <ArrowLeftRight className="w-3.5 h-3.5 text-[#0176D3]" />
+                      <span>Convert to {lead?.type === 'BUYER' ? 'Seller Lead' : 'Buyer Lead'}</span>
+                    </button>
+                  </div>
+                )}
               </div>
+
+              {/* Dedicated Shareable Seller Link Section */}
+              {lead?.type === 'SELLER' && (
+                <div className="border-t border-slate-100 pt-5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center space-x-1.5">
+                      <ExternalLink className="w-3.5 h-3.5 text-[#0176D3]" />
+                      <span>Dedicated Seller Self-Completion Form</span>
+                    </h4>
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-blue-50 text-[#0176D3] border border-blue-200">
+                      7-Day Tokenized Link
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Send the 6-step guided property completion form directly to the seller. Submissions land immediately into the <strong>Inventories</strong> ledger with draft listing status.
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (handleGenerateCompletionLink) {
+                          await handleGenerateCompletionLink(selectedLeadId);
+                        }
+                      }}
+                      className="px-3 py-2 bg-[#0176D3] hover:bg-[#005fb2] text-white rounded-md text-xs font-semibold shadow-2xs flex items-center space-x-1.5 cursor-pointer"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      <span>Copy Seller Form Link</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        let linkUrl = '';
+                        if (handleGenerateCompletionLink) {
+                          linkUrl = (await handleGenerateCompletionLink(selectedLeadId)) || '';
+                        }
+                        if (linkUrl && lead?.phone) {
+                          const cleanPhone = String(lead.phone).replace(/[^0-9]/g, '');
+                          const text = encodeURIComponent(`Hi ${lead.displayName || lead.owner_name || 'there'}, please complete your property details for SellMyGhar using your secure link:\n${linkUrl}\n\nOur team is on standby to assist you.`);
+                          window.open(`https://wa.me/${cleanPhone}?text=${text}`, '_blank');
+                        }
+                      }}
+                      className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-xs font-semibold shadow-2xs flex items-center space-x-1.5 cursor-pointer"
+                    >
+                      <MessageSquare className="w-3.5 h-3.5" />
+                      <span>Send on WhatsApp</span>
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* 3. Call Outcome (Connected / RNR) & Schedule Next Follow-up */}
               <div className="border-t border-slate-100 pt-5 space-y-3">

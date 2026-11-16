@@ -101,6 +101,7 @@ export interface CrmLead {
   stage: LeadStatus;
   status?: LeadStatus;
   lead_status?: LeadStatus;
+  temperature?: 'HOT' | 'WARM' | 'COLD' | string;
   assignedStaffId?: string | null;
   assignedStaffName?: string | null;
   assignedStaffPhone?: string | null;
@@ -164,6 +165,11 @@ export interface CrmProperty {
   brokerage_agreement_status?: string | null;
   brokerage_agreement_signed_at?: string | null;
   status: PropertyListingStatus;
+  listingStatus?: string;
+  sellerLeadId?: string | null;
+  sellerLeadName?: string | null;
+  sellerLeadPhone?: string | null;
+  sellerLeadStatus?: string | null;
   updatedAt?: string;
   createdAt?: string;
 }
@@ -253,6 +259,7 @@ interface CrmDashboardProps {
 export type NavSection =
   | 'OVERVIEW'
   | 'LEADS'
+  | 'INVENTORIES'
   | 'PROPERTIES'
   | 'VISITS'
   | 'OFFERS'
@@ -377,6 +384,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
     return [
       'OVERVIEW',
       'LEADS',
+      'INVENTORIES',
       'PROPERTIES',
       'VISITS',
       'OFFERS',
@@ -398,6 +406,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
     const sectionToModuleMap: Record<NavSection, CrmModule> = {
       OVERVIEW: 'OVERVIEW',
       LEADS: 'LEADS',
+      INVENTORIES: 'INVENTORIES',
       PROPERTIES: 'PROPERTIES',
       VISITS: 'VISITS',
       OFFERS: 'OFFERS',
@@ -411,7 +420,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
     const requiredModule = sectionToModuleMap[activeSection];
     if (requiredModule && !hasAccess(requiredModule)) {
       const allowedSections: NavSection[] = [
-        'OVERVIEW', 'LEADS', 'PROPERTIES', 'VISITS', 'OFFERS', 'TASKS', 'CALENDAR', 'TEAM', 'REPORTS', 'AUDIT', 'SETTINGS'
+        'OVERVIEW', 'LEADS', 'INVENTORIES', 'PROPERTIES', 'VISITS', 'OFFERS', 'TASKS', 'CALENDAR', 'TEAM', 'REPORTS', 'AUDIT', 'SETTINGS'
       ];
       const fallback = allowedSections.find(s => hasAccess(sectionToModuleMap[s]));
       if (fallback) {
@@ -520,12 +529,16 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
     }
   }, [isAdmin, leadAssignFilter]);
   const [leadTypeFilter, setLeadTypeFilter] = useState<'ALL' | 'SELLER' | 'BUYER'>('ALL');
+  const [leadTempFilter, setLeadTempFilter] = useState<string>('ALL');
   const [leadSourceFilter, setLeadSourceFilter] = useState<string>('ALL');
   const [leadFollowUpFilter, setLeadFollowUpFilter] = useState<'ALL' | 'OVERDUE' | 'TODAY' | 'UPCOMING'>('ALL');
 
   const [propSearch, setPropSearch] = useState<string>('');
   const [propStatusFilter, setPropStatusFilter] = useState<string>('ALL');
   const [propBhkFilter, setPropBhkFilter] = useState<string>('ALL');
+  const [inventoryListingFilter, setInventoryListingFilter] = useState<'ALL' | 'NOT_LISTED' | 'LISTED'>('ALL');
+  const [linkLeadModalProp, setLinkLeadModalProp] = useState<CrmProperty | null>(null);
+  const [linkLeadSelectId, setLinkLeadSelectId] = useState<string>('');
 
   const [visitSearch, setVisitSearch] = useState<string>('');
   const [visitStatusFilter, setVisitStatusFilter] = useState<string>('ALL');
@@ -690,7 +703,8 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
         body: JSON.stringify({})
       });
       const data = await res.json();
-      const completionUrl = data.completionUrl || (data.url ? `${window.location.origin}${data.url}` : '');
+      const publicOrigin = (window.location.origin || 'https://sellmyghar.in').replace('://crm.', '://');
+      const completionUrl = data.completionUrl || (data.url ? `${publicOrigin}${data.url}` : '');
       if (res.ok && data.success && completionUrl) {
         if (navigator.clipboard) {
           try {
@@ -698,11 +712,125 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
           } catch {}
         }
         showToast('Self-completion link generated & copied to clipboard! Valid for 7 days.', 'success');
+        return completionUrl;
       } else {
         showToast(`Failed to generate link: ${data.message || data.error || 'Server error'}`, 'error');
+        return null;
       }
     } catch (err: any) {
       showToast(`Error generating completion link: ${err?.message || 'Network error'}`, 'error');
+      return null;
+    }
+  };
+
+  const handleGenerateLeadCompletionLink = async (leadId: string) => {
+    try {
+      const res = await crmFetch(`/api/crm/leads/${leadId}/completion-link`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      const publicOrigin = (window.location.origin || 'https://sellmyghar.in').replace('://crm.', '://');
+      const completionUrl = data.completionUrl || (data.url ? `${publicOrigin}${data.url}` : '');
+      if (res.ok && data.success && completionUrl) {
+        if (navigator.clipboard) {
+          try {
+            await navigator.clipboard.writeText(completionUrl);
+          } catch {}
+        }
+        showToast('Seller form link generated & copied to clipboard! Valid for 7 days.', 'success');
+        refreshAll();
+        return completionUrl;
+      } else {
+        showToast(`Failed to generate link: ${data.message || data.error || 'Server error'}`, 'error');
+        return null;
+      }
+    } catch (err: any) {
+      showToast(`Error generating link: ${err?.message || 'Network error'}`, 'error');
+      return null;
+    }
+  };
+
+  const handleUpdateLeadTemperature = async (leadId: string, temperature: 'HOT' | 'WARM' | 'COLD') => {
+    try {
+      const res = await crmFetch(`/api/crm/leads/${leadId}/temperature`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ temperature })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(`Lead classified as ${temperature}`, 'success');
+        setLeads(prev => prev.map(l => l.id === leadId ? { ...l, temperature } : l));
+        setLeadDetailData((prev: any) => {
+          if (!prev || !prev.lead || prev.lead.id !== leadId) return prev;
+          return { ...prev, lead: { ...prev.lead, temperature } };
+        });
+      } else {
+        showToast(data.message || 'Failed to update lead temperature', 'error');
+      }
+    } catch (err: any) {
+      showToast(`Error updating temperature: ${err?.message || 'Network error'}`, 'error');
+    }
+  };
+
+  const handleConvertLeadType = async (leadId: string, targetType: 'BUYER' | 'SELLER') => {
+    try {
+      const res = await crmFetch(`/api/crm/leads/${leadId}/convert-type`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetType })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(data.message || `Lead converted to ${targetType}.`, 'success');
+        setSelectedLeadId(null);
+        setLeadDetailData(null);
+        refreshAll();
+      } else {
+        showToast(data.message || data.error || 'Failed to convert lead type', 'error');
+      }
+    } catch (err: any) {
+      showToast(`Error converting lead: ${err?.message || 'Network error'}`, 'error');
+    }
+  };
+
+  const handleToggleListingStatus = async (propertyId: string, currentStatus?: string) => {
+    try {
+      const res = await crmFetch(`/api/crm/properties/${propertyId}/toggle-listing`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({})
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(data.message || 'Listing status updated.', 'success');
+        setProperties(prev => prev.map(p => p.id === propertyId ? { ...p, listingStatus: data.listingStatus, status: data.listingStatus } : p));
+      } else {
+        showToast(data.message || data.error || 'Failed to update listing status', 'error');
+      }
+    } catch (err: any) {
+      showToast(`Error updating listing status: ${err?.message || 'Network error'}`, 'error');
+    }
+  };
+
+  const handleLinkPropertyLead = async (propertyId: string, leadId: string | null) => {
+    try {
+      const res = await crmFetch(`/api/crm/properties/${propertyId}/link-lead`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId })
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        showToast(data.message || 'Inventory lead linkage updated.', 'success');
+        refreshAll();
+      } else {
+        showToast(data.message || data.error || 'Failed to link lead', 'error');
+      }
+    } catch (err: any) {
+      showToast(`Error linking lead: ${err?.message || 'Network error'}`, 'error');
     }
   };
 
@@ -802,6 +930,11 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               brokerage_agreement_status: p.brokerage_agreement_status || null,
               brokerage_agreement_signed_at: p.brokerage_agreement_signed_at || null,
               status: (p.listingStatus || 'PUBLISHED') as PropertyListingStatus,
+              listingStatus: p.listingStatus || (p.status === 'PUBLISHED' ? 'PUBLISHED' : 'DRAFT'),
+              sellerLeadId: p.sellerLeadId || p.seller_lead_id || null,
+              sellerLeadName: p.sellerLeadName || p.seller_lead_name || null,
+              sellerLeadPhone: p.sellerLeadPhone || p.seller_lead_phone || null,
+              sellerLeadStatus: p.sellerLeadStatus || p.seller_lead_status || null,
               updatedAt: p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : 'Recently',
               createdAt: p.createdAt
             };
@@ -838,6 +971,11 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 : [{ id: 'img-0', url: primaryImg, is_featured: true }],
               verificationBadge: item.verificationBadge || 'VERIFIED',
               status: 'PUBLISHED' as PropertyListingStatus,
+              listingStatus: 'PUBLISHED',
+              sellerLeadId: null,
+              sellerLeadName: null,
+              sellerLeadPhone: null,
+              sellerLeadStatus: null,
               updatedAt: 'Recently'
             };
           });
@@ -1950,6 +2088,12 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
         }
       }
 
+      // Temperature Filter
+      if (leadTempFilter !== 'ALL') {
+        const temp = (lead.temperature || 'WARM').toUpperCase();
+        if (temp !== leadTempFilter) return false;
+      }
+
       // Follow-up Filter
       if (leadFollowUpFilter === 'OVERDUE' && !lead.isOverdue) return false;
       if (leadFollowUpFilter === 'TODAY') {
@@ -1965,10 +2109,41 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
       const timeB = new Date(b.createdAt || (b as any).created_at || 0).getTime();
       return timeB - timeA;
     });
-  }, [accessibleLeads, leadSearch, globalSearch, leadStatusFilter, leadAssignFilter, leadTypeFilter, leadSourceFilter, leadFollowUpFilter, staffUser]);
+  }, [accessibleLeads, leadSearch, globalSearch, leadStatusFilter, leadAssignFilter, leadTypeFilter, leadTempFilter, leadSourceFilter, leadFollowUpFilter, staffUser]);
+
+  const filteredInventories = useMemo(() => {
+    return properties.filter(prop => {
+      const q = (propSearch.trim() || globalSearch.trim()).toLowerCase();
+      if (q) {
+        const match =
+          (prop.projectName || '').toLowerCase().includes(q) ||
+          (prop.localityName || '').toLowerCase().includes(q) ||
+          (prop.title || '').toLowerCase().includes(q) ||
+          (prop.developerName || '').toLowerCase().includes(q) ||
+          (prop.ownerName || '').toLowerCase().includes(q) ||
+          (prop.ownerPhone || '').toLowerCase().includes(q) ||
+          (prop.sellerLeadName || '').toLowerCase().includes(q);
+        if (!match) return false;
+      }
+
+      const isListed = prop.listingStatus === 'PUBLISHED' || prop.status === 'PUBLISHED';
+      if (inventoryListingFilter === 'LISTED' && !isListed) return false;
+      if (inventoryListingFilter === 'NOT_LISTED' && isListed) return false;
+
+      if (propBhkFilter !== 'ALL' && !prop.bhkType.includes(propBhkFilter)) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [properties, propSearch, globalSearch, inventoryListingFilter, propBhkFilter]);
 
   const filteredProperties = useMemo(() => {
     return properties.filter(prop => {
+      // Must be listed on BuyMyGhar marketplace
+      const isListed = prop.listingStatus === 'PUBLISHED' || prop.status === 'PUBLISHED';
+      if (!isListed) return false;
+
       const q = (propSearch.trim() || globalSearch.trim()).toLowerCase();
       if (q) {
         const match =
@@ -2190,7 +2365,32 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               </button>
             )}
 
-            {/* 3. Properties */}
+            {/* 2b. Inventories (Master Property Inventory & Tokenized Link) */}
+            {hasAccess('INVENTORIES') && (
+              <button
+                type="button"
+                onClick={() => handleSelectSection('INVENTORIES')}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                  activeSection === 'INVENTORIES'
+                    ? 'bg-[#0176D3] text-white shadow-2xs font-semibold'
+                    : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                <div className="flex items-center space-x-2.5">
+                  <Layers className="w-4 h-4 shrink-0" />
+                  <span>Inventories</span>
+                </div>
+                <span
+                  className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${
+                    activeSection === 'INVENTORIES' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                  }`}
+                >
+                  {properties.length}
+                </span>
+              </button>
+            )}
+
+            {/* 3. Properties (BuyMyGhar Listed) */}
             {hasAccess('PROPERTIES') && (
               <button
                 type="button"
@@ -2200,6 +2400,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     ? 'bg-[#0176D3] text-white shadow-2xs font-semibold'
                     : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                 }`}
+                title="Properties listed and visible on BuyMyGhar marketplace"
               >
                 <div className="flex items-center space-x-2.5">
                   <Building2 className="w-4 h-4 shrink-0" />
@@ -2210,7 +2411,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     activeSection === 'PROPERTIES' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
                   }`}
                 >
-                  {properties.length}
+                  {properties.filter(p => p.listingStatus === 'PUBLISHED' || p.status === 'PUBLISHED').length}
                 </span>
               </button>
             )}
@@ -3378,6 +3579,20 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   </div>
 
                   <div className="flex items-center space-x-1.5 bg-white border border-slate-300 rounded-md px-2.5 py-1 shadow-2xs">
+                    <span className="text-slate-500 text-[11px] font-medium">Priority:</span>
+                    <select
+                      value={leadTempFilter}
+                      onChange={(e) => setLeadTempFilter(e.target.value)}
+                      className="bg-transparent text-xs font-medium text-slate-800 focus:outline-none cursor-pointer"
+                    >
+                      <option value="ALL">All Priorities</option>
+                      <option value="HOT">🔥 HOT</option>
+                      <option value="WARM">⚡ WARM</option>
+                      <option value="COLD">❄️ COLD</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center space-x-1.5 bg-white border border-slate-300 rounded-md px-2.5 py-1 shadow-2xs">
                     <span className="text-slate-500 text-[11px] font-medium">Source:</span>
                     <select
                       value={leadSourceFilter}
@@ -3407,13 +3622,14 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     </select>
                   </div>
 
-                  {(leadStatusFilter !== 'ALL' || leadAssignFilter !== 'ALL' || leadTypeFilter !== 'ALL' || leadSourceFilter !== 'ALL' || leadFollowUpFilter !== 'ALL' || leadSearch) && (
+                  {(leadStatusFilter !== 'ALL' || leadAssignFilter !== 'ALL' || leadTypeFilter !== 'ALL' || leadTempFilter !== 'ALL' || leadSourceFilter !== 'ALL' || leadFollowUpFilter !== 'ALL' || leadSearch) && (
                     <button
                       type="button"
                       onClick={() => {
                         setLeadStatusFilter('ALL');
                         setLeadAssignFilter('ALL');
                         setLeadTypeFilter('ALL');
+                        setLeadTempFilter('ALL');
                         setLeadSourceFilter('ALL');
                         setLeadFollowUpFilter('ALL');
                         setLeadSearch('');
@@ -3479,9 +3695,21 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                             {/* Client / Contact */}
                             <td className="py-2.5 px-3.5">
                               <div className="min-w-0">
-                                <p className="font-semibold text-[#0176D3] group-hover:text-[#005fb2] hover:underline transition-colors truncate text-xs">
-                                  {clientName}
-                                </p>
+                                <div className="flex items-center space-x-1.5">
+                                  <p className="font-semibold text-[#0176D3] group-hover:text-[#005fb2] hover:underline transition-colors truncate text-xs">
+                                    {clientName}
+                                  </p>
+                                  {(() => {
+                                    const temp = (lead.temperature || 'WARM').toUpperCase();
+                                    if (temp === 'HOT') {
+                                      return <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">🔥 HOT</span>;
+                                    }
+                                    if (temp === 'COLD') {
+                                      return <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-200">❄️ COLD</span>;
+                                    }
+                                    return <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200">⚡ WARM</span>;
+                                  })()}
+                                </div>
                                 <p 
                                   onClick={(e) => e.stopPropagation()}
                                   className="text-[11px] text-slate-500 font-normal mt-0.5 select-text cursor-text"
@@ -3578,7 +3806,21 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                             </td>
 
                             {/* Actions */}
-                            <td className="py-2.5 px-3.5 text-right">
+                            <td className="py-2.5 px-3.5 text-right space-x-1">
+                              {lead.type === 'SELLER' && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleGenerateLeadCompletionLink(lead.id);
+                                  }}
+                                  className="px-2 py-1 rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs transition-colors cursor-pointer shadow-2xs inline-flex items-center space-x-1"
+                                  title="Copy 7-day tokenized seller completion form link"
+                                >
+                                  <Copy className="w-3 h-3 text-slate-500" />
+                                  <span>Form Link</span>
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 onClick={(e) => {
@@ -3622,7 +3864,396 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
           )}
 
           {/* ============================================================== */}
-          {/* VIEW 3: PROPERTIES INVENTORY                                   */}
+          {/* VIEW: INVENTORIES (MASTER LEDGER & INTAKE)                     */}
+          {/* ============================================================== */}
+          {activeSection === 'INVENTORIES' && (
+            <div className="space-y-4">
+              {/* Module Header & Operational Context */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <div className="flex items-center space-x-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+                    <Layers className="w-3.5 h-3.5 text-[#0176D3]" />
+                    <span>Property Inventories</span>
+                  </div>
+                  <div className="flex items-center space-x-2 mt-0.5">
+                    <h2 className="text-xl font-bold tracking-tight text-slate-900">Master Inventory Ledger</h2>
+                    <ChevronDown className="w-4 h-4 text-slate-500" />
+                  </div>
+                  <p className="text-xs text-slate-500 font-normal mt-0.5">
+                    {filteredInventories.length} items • Units submitted by sellers & direct intake catalog
+                  </p>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => handleExportCsv('properties')}
+                    className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-md bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-medium shadow-2xs transition-colors cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Export CSV</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsBulkImportOpen(true)}
+                    className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-md bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-medium shadow-2xs transition-colors cursor-pointer"
+                    title="Bulk import inventory directly from Google Sheets or Excel"
+                  >
+                    <Upload className="w-3.5 h-3.5 text-[#0176D3]" />
+                    <span>Import Spreadsheet</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingProperty(null);
+                      setIsPropertyEditorOpen(true);
+                    }}
+                    className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-md bg-[#0176D3] text-white text-xs font-semibold shadow-2xs hover:bg-[#005fb2] cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Inventory Item</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Operational KPI Summary Strip */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div
+                  onClick={() => setInventoryListingFilter('ALL')}
+                  className={`p-3 rounded-md border transition-all cursor-pointer shadow-2xs ${
+                    inventoryListingFilter === 'ALL'
+                      ? 'bg-blue-50/50 border-[#0176D3] ring-1 ring-[#0176D3]'
+                      : 'bg-white border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">Total Inventory</span>
+                  <div className="text-2xl font-bold text-slate-900 mt-0.5 tabular-nums">{properties.length}</div>
+                  <span className="text-[11px] text-slate-500 font-normal mt-0.5 block">All registered units</span>
+                </div>
+
+                <div
+                  onClick={() => setInventoryListingFilter('NOT_LISTED')}
+                  className={`p-3 rounded-md border transition-all cursor-pointer shadow-2xs ${
+                    inventoryListingFilter === 'NOT_LISTED'
+                      ? 'bg-amber-50/50 border-amber-500 ring-1 ring-amber-500'
+                      : 'bg-white border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">Not Listed</span>
+                  <div className="text-2xl font-bold text-amber-800 mt-0.5 tabular-nums">
+                    {properties.filter(p => p.listingStatus !== 'PUBLISHED' && p.status !== 'PUBLISHED').length}
+                  </div>
+                  <span className="text-[11px] text-amber-700 font-medium mt-0.5 block">Draft / Seller Intake</span>
+                </div>
+
+                <div
+                  onClick={() => setInventoryListingFilter('LISTED')}
+                  className={`p-3 rounded-md border transition-all cursor-pointer shadow-2xs ${
+                    inventoryListingFilter === 'LISTED'
+                      ? 'bg-emerald-50/50 border-emerald-500 ring-1 ring-emerald-500'
+                      : 'bg-white border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">Listed on BuyMyGhar</span>
+                  <div className="text-2xl font-bold text-emerald-800 mt-0.5 tabular-nums">
+                    {properties.filter(p => p.listingStatus === 'PUBLISHED' || p.status === 'PUBLISHED').length}
+                  </div>
+                  <span className="text-[11px] text-emerald-700 font-medium mt-0.5 block">Live in marketplace</span>
+                </div>
+
+                <div className="p-3 rounded-md border bg-white border-slate-200 shadow-2xs">
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">Linked Seller Leads</span>
+                  <div className="text-2xl font-bold text-indigo-700 mt-0.5 tabular-nums">
+                    {properties.filter(p => Boolean(p.sellerLeadId)).length}
+                  </div>
+                  <span className="text-[11px] text-indigo-600 font-medium mt-0.5 block">Connected with CRM lead</span>
+                </div>
+              </div>
+
+              {/* Dedicated Search & Filter Control Bar */}
+              <div className="p-2.5 bg-white rounded-md border border-slate-200 shadow-2xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 text-xs">
+                {/* Search Input */}
+                <div className="relative flex-1 max-w-md">
+                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search inventories by project, locality, owner, seller lead..."
+                    value={propSearch}
+                    onChange={(e) => setPropSearch(e.target.value)}
+                    className="w-full bg-white border border-slate-300 rounded-md pl-8 pr-7 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:border-[#0176D3] focus:ring-1 focus:ring-[#0176D3] focus:outline-none shadow-2xs"
+                  />
+                  {propSearch && (
+                    <button
+                      type="button"
+                      onClick={() => setPropSearch('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Filter Controls */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center space-x-1.5 bg-white border border-slate-300 rounded-md px-2.5 py-1 shadow-2xs">
+                    <span className="text-slate-500 text-[11px] font-medium">Status:</span>
+                    <select
+                      value={inventoryListingFilter}
+                      onChange={(e) => setInventoryListingFilter(e.target.value as any)}
+                      className="bg-transparent text-xs font-medium text-slate-800 focus:outline-none cursor-pointer"
+                    >
+                      <option value="ALL">All Inventories</option>
+                      <option value="NOT_LISTED">Not Listed (Draft)</option>
+                      <option value="LISTED">Listed on BuyMyGhar</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center space-x-1.5 bg-white border border-slate-300 rounded-md px-2.5 py-1 shadow-2xs">
+                    <span className="text-slate-500 text-[11px] font-medium">BHK:</span>
+                    <select
+                      value={propBhkFilter}
+                      onChange={(e) => setPropBhkFilter(e.target.value)}
+                      className="bg-transparent text-xs font-medium text-slate-800 focus:outline-none cursor-pointer"
+                    >
+                      <option value="ALL">All BHK</option>
+                      <option value="1BHK">1 BHK</option>
+                      <option value="2BHK">2 BHK</option>
+                      <option value="3BHK">3 BHK</option>
+                      <option value="4BHK">4 BHK+</option>
+                    </select>
+                  </div>
+
+                  {(inventoryListingFilter !== 'ALL' || propBhkFilter !== 'ALL' || propSearch) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInventoryListingFilter('ALL');
+                        setPropBhkFilter('ALL');
+                        setPropSearch('');
+                      }}
+                      className="text-[#0176D3] hover:underline text-xs font-semibold px-2 py-1 cursor-pointer"
+                    >
+                      Reset Filters
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Inventories Table */}
+              <div className="bg-white rounded-md border border-slate-200 shadow-2xs overflow-x-auto">
+                <table className="w-full min-w-[860px] text-left text-xs border-collapse">
+                  <thead className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-600 uppercase tracking-wider">
+                    <tr>
+                      <th className="py-2.5 px-3.5">Property / Unit</th>
+                      <th className="py-2.5 px-3.5">Locality</th>
+                      <th className="py-2.5 px-3.5">BHK & Area</th>
+                      <th className="py-2.5 px-3.5">Asking Price</th>
+                      <th className="py-2.5 px-3.5">Status</th>
+                      <th className="py-2.5 px-3.5">Linked Seller Lead</th>
+                      <th className="py-2.5 px-3.5">Assigned RM</th>
+                      <th className="py-2.5 px-3.5 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {filteredInventories.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="py-16 text-center text-slate-400 text-xs">
+                          <Layers className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                          <p className="font-semibold text-slate-700">No inventory items match your filter criteria.</p>
+                          <p className="text-[11px] text-slate-400 mt-0.5">Try resetting the filter or search term.</p>
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredInventories.map((prop) => {
+                        const isListed = prop.listingStatus === 'PUBLISHED' || prop.status === 'PUBLISHED';
+                        return (
+                          <tr
+                            key={prop.id}
+                            onClick={() => {
+                              const sel = window.getSelection();
+                              if (sel && sel.toString().trim().length > 0) return;
+                              setSelectedPropertyId(prop.id);
+                            }}
+                            className="hover:bg-slate-100 transition-colors duration-150 cursor-pointer group"
+                          >
+                            <td className="py-2.5 px-3.5">
+                              <div className="flex items-center space-x-2.5">
+                                <img
+                                  src={prop.image}
+                                  alt={prop.projectName}
+                                  className="w-9 h-9 rounded-md object-cover border border-slate-200 shrink-0 shadow-2xs"
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement;
+                                    if (!target.dataset.hasFallback) {
+                                      target.dataset.hasFallback = 'true';
+                                      target.src = getDistinctCommunityPhoto(prop.id || prop.projectName, 800);
+                                    }
+                                  }}
+                                />
+                                <div className="min-w-0">
+                                  <p className="font-semibold text-[#0176D3] group-hover:text-[#005fb2] hover:underline transition-colors truncate text-xs">
+                                    {prop.projectName}
+                                  </p>
+                                  <p className="text-[10px] text-slate-500 truncate">{prop.title || prop.id}</p>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="py-2.5 px-3.5 text-slate-600 truncate max-w-[150px]">
+                              {prop.localityName}
+                            </td>
+                            <td className="py-2.5 px-3.5 text-slate-700">
+                              <div className="font-medium text-slate-900 text-xs">{prop.bhkType}</div>
+                              <div className="text-[10px] text-slate-500">{prop.superBuiltUpSqft} sq.ft</div>
+                            </td>
+                            <td className="py-2.5 px-3.5 font-medium text-slate-900">
+                              ₹{(prop.askingPriceInr / 10000000).toFixed(2)} Cr
+                              <div className="text-[10px] text-slate-500 font-normal">
+                                ₹{prop.pricePerSqft}/sqft
+                              </div>
+                            </td>
+                            <td className="py-2.5 px-3.5">
+                              {isListed ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                                  <span>Listed on BuyMyGhar</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                                  <Clock className="w-3 h-3 text-amber-600 shrink-0" />
+                                  <span>Not Listed (Draft)</span>
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3.5">
+                              {prop.sellerLeadId || prop.sellerLeadName ? (
+                                <div className="space-y-0.5">
+                                  <div className="font-semibold text-slate-900 text-xs truncate max-w-[140px]">
+                                    {prop.sellerLeadName || 'Lead ' + prop.sellerLeadId}
+                                  </div>
+                                  <div className="text-[10px] text-slate-500 font-mono">
+                                    {prop.sellerLeadPhone || '—'}
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleLinkPropertyLead(prop.id, null);
+                                    }}
+                                    className="text-[10px] text-rose-600 hover:underline font-medium cursor-pointer"
+                                  >
+                                    Unlink
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setLinkLeadModalProp(prop);
+                                    setLinkLeadSelectId('');
+                                  }}
+                                  className="inline-flex items-center space-x-1 px-2 py-0.5 rounded text-[11px] font-medium bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200 cursor-pointer"
+                                >
+                                  <Plus className="w-3 h-3" />
+                                  <span>Link Lead</span>
+                                </button>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3.5 text-slate-600">
+                              {prop.assignedRm ? (
+                                <span className="font-medium text-slate-800">{prop.assignedRm}</span>
+                              ) : (
+                                <span className="text-slate-400 italic">Unassigned</span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-3.5 text-right space-x-1 whitespace-nowrap">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleGenerateCompletionLink(prop.id);
+                                }}
+                                className="px-2 py-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-medium rounded-md transition-colors cursor-pointer shadow-2xs inline-flex items-center space-x-1"
+                                title="Copy 7-day tokenized seller completion form link"
+                              >
+                                <Copy className="w-3 h-3 text-slate-500" />
+                                <span>Seller Link</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  const url = await handleGenerateCompletionLink(prop.id);
+                                  if (url && (prop.sellerLeadPhone || prop.ownerPhone)) {
+                                    const phone = String(prop.sellerLeadPhone || prop.ownerPhone).replace(/[^0-9]/g, '');
+                                    const text = encodeURIComponent(`Hi ${prop.sellerLeadName || prop.ownerName || 'there'}, please complete your property details for SellMyGhar:\n${url}`);
+                                    window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
+                                  }
+                                }}
+                                className="px-2 py-1 bg-white hover:bg-emerald-50 text-emerald-700 border border-emerald-300 text-xs font-medium rounded-md transition-colors cursor-pointer shadow-2xs inline-flex items-center space-x-1"
+                                title="Send link on WhatsApp"
+                              >
+                                <MessageSquare className="w-3 h-3 text-emerald-600" />
+                                <span>WhatsApp</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleToggleListingStatus(prop.id, prop.listingStatus);
+                                }}
+                                className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer shadow-2xs inline-flex items-center space-x-1 ${
+                                  isListed
+                                    ? 'bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300'
+                                    : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                }`}
+                                title={isListed ? 'Unlist from BuyMyGhar marketplace' : 'Publish and list on BuyMyGhar marketplace'}
+                              >
+                                <span>{isListed ? 'Unlist' : 'List on BuyMyGhar'}</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingProperty(prop);
+                                  setIsPropertyEditorOpen(true);
+                                }}
+                                className="px-2 py-1 bg-white hover:bg-slate-50 text-slate-700 text-xs font-medium rounded-md border border-slate-300 transition-colors cursor-pointer shadow-2xs"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedPropertyId(prop.id);
+                                }}
+                                className="px-2.5 py-1 bg-[#0176D3] text-white text-xs font-medium rounded-md hover:bg-[#005fb2] transition-colors cursor-pointer shadow-2xs"
+                              >
+                                Details
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+
+                {/* Table Footer */}
+                <div className="px-4 py-2.5 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500">
+                  <div className="flex items-center space-x-2">
+                    <span>
+                      Showing <strong className="text-slate-800 font-semibold tabular-nums">{filteredInventories.length}</strong> of{' '}
+                      <strong className="text-slate-800 font-semibold tabular-nums">{properties.length}</strong> inventory units
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ============================================================== */}
+          {/* VIEW 3: PROPERTIES (BUYMYGHAR LISTED)                          */}
           {/* ============================================================== */}
           {activeSection === 'PROPERTIES' && (
             <div className="space-y-4">
@@ -3630,14 +4261,15 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <div className="flex items-center space-x-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                    <span>Properties</span>
+                    <Building2 className="w-3.5 h-3.5 text-[#0176D3]" />
+                    <span>BuyMyGhar Marketplace</span>
                   </div>
                   <div className="flex items-center space-x-2 mt-0.5">
-                    <h2 className="text-xl font-bold tracking-tight text-slate-900">All Properties</h2>
+                    <h2 className="text-xl font-bold tracking-tight text-slate-900">Listed Properties</h2>
                     <ChevronDown className="w-4 h-4 text-slate-500" />
                   </div>
                   <p className="text-xs text-slate-500 font-normal mt-0.5">
-                    {filteredProperties.length} items • Managed inventory catalog
+                    {filteredProperties.length} active marketplace properties currently published on BuyMyGhar
                   </p>
                 </div>
                 <div className="flex items-center space-x-2">
@@ -3930,18 +4562,17 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                               <span className="text-slate-400 italic">Unassigned</span>
                             )}
                           </td>
-                          <td className="py-2.5 px-3.5 text-right space-x-1">
+                          <td className="py-2.5 px-3.5 text-right space-x-1 whitespace-nowrap">
                             <button
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleGenerateCompletionLink(prop.id);
+                                handleToggleListingStatus(prop.id, prop.listingStatus);
                               }}
-                              className="px-2.5 py-1 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-medium rounded-md transition-colors cursor-pointer shadow-2xs inline-flex items-center space-x-1"
-                              title="Generate & copy 7-day tokenized self-completion link for seller"
+                              className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 text-xs font-medium rounded-md transition-colors cursor-pointer shadow-2xs"
+                              title="Unlist property from BuyMyGhar marketplace (moves to unlisted inventories)"
                             >
-                              <Copy className="w-3 h-3 text-slate-500" />
-                              <span>Link</span>
+                              Unlist
                             </button>
                             <button
                               type="button"
@@ -5333,6 +5964,9 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               setSelectedPropertyId(pid);
             }}
             handleLinkProperty={handleLinkLeadProperty}
+            handleUpdateTemperature={handleUpdateLeadTemperature}
+            handleConvertLeadType={handleConvertLeadType}
+            handleGenerateCompletionLink={handleGenerateLeadCompletionLink}
           />
         </ErrorBoundary>
       )}
@@ -6374,6 +7008,77 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
           propertyData={propertyDetailData}
           currentUser={staffUser}
         />
+      )}
+
+      {/* ============================================================== */}
+      {/* MODAL: LINK INVENTORY TO SELLER LEAD                           */}
+      {/* ============================================================== */}
+      {linkLeadModalProp && (
+        <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-5 border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Link Inventory to Seller Lead</h3>
+                <p className="text-[11px] text-slate-500 mt-0.5 truncate max-w-[280px]">
+                  {linkLeadModalProp.projectName} • {linkLeadModalProp.localityName}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setLinkLeadModalProp(null)}
+                className="p-1 rounded-md text-slate-400 hover:text-slate-600 hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+                  Select Seller Lead
+                </label>
+                <select
+                  value={linkLeadSelectId}
+                  onChange={(e) => setLinkLeadSelectId(e.target.value)}
+                  className="w-full bg-white border border-slate-300 rounded-md p-2 text-xs font-medium text-slate-900 focus:border-[#0176D3] focus:outline-none"
+                >
+                  <option value="">-- Choose a Seller Lead --</option>
+                  {leads.filter(l => l.type === 'SELLER').map((lead) => (
+                    <option key={lead.id} value={lead.id}>
+                      {lead.displayName || lead.ownerName || lead.name} ({lead.phone}) — {lead.society || lead.locality}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  Connecting this inventory unit with a seller lead ensures form submissions and diligence are tracked under the same client.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setLinkLeadModalProp(null)}
+                className="px-3 py-1.5 bg-white border border-slate-300 text-slate-700 rounded-md text-xs font-semibold hover:bg-slate-50 cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={!linkLeadSelectId}
+                onClick={async () => {
+                  if (linkLeadModalProp && linkLeadSelectId) {
+                    await handleLinkPropertyLead(linkLeadModalProp.id, linkLeadSelectId);
+                    setLinkLeadModalProp(null);
+                  }
+                }}
+                className="px-3.5 py-1.5 bg-[#0176D3] hover:bg-[#005fb2] disabled:opacity-50 text-white rounded-md text-xs font-semibold shadow-2xs cursor-pointer"
+              >
+                Link Seller Lead
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ============================================================== */}

@@ -69,6 +69,7 @@ export type Permission =
 export type CrmModule = 
   | 'OVERVIEW'
   | 'LEADS'
+  | 'INVENTORIES'
   | 'PROPERTIES'
   | 'VISITS'
   | 'OFFERS'
@@ -88,7 +89,8 @@ export interface CrmModuleMetadata {
 export const ALL_CRM_MODULES: CrmModuleMetadata[] = [
   { key: 'OVERVIEW', label: 'Overview', description: 'Real-time KPI cards, workbench & pipeline summaries' },
   { key: 'LEADS', label: 'Leads', description: 'Seller listings and buyer inquiry intake & progression' },
-  { key: 'PROPERTIES', label: 'Properties', description: 'Inventory management, specifications & title documents' },
+  { key: 'INVENTORIES', label: 'Inventories', description: 'Master property inventories submitted by sellers, linked leads & listing status' },
+  { key: 'PROPERTIES', label: 'Properties', description: 'Active properties listed on BuyMyGhar & marketplace showcase' },
   { key: 'VISITS', label: 'Visits', description: 'Physical site tour scheduling, status & WhatsApp reminders' },
   { key: 'OFFERS', label: 'Offers', description: 'Purchase offers, counter-negotiations & deal records' },
   { key: 'TASKS', label: 'Tasks', description: 'Daily follow-up queue, workbench & Kanban board' },
@@ -101,10 +103,11 @@ export const ALL_CRM_MODULES: CrmModuleMetadata[] = [
 
 export function resolveLegacyModulePermissions(roles: string[]): CrmModule[] {
   if (roles.includes('STAFF_SUPER_ADMIN') || roles.includes('SUPER_ADMIN')) {
-    return ['OVERVIEW', 'LEADS', 'PROPERTIES', 'VISITS', 'OFFERS', 'TASKS', 'CALENDAR', 'REPORTS', 'TEAM', 'AUDIT_LOGS', 'SETTINGS'];
+    return ['OVERVIEW', 'LEADS', 'INVENTORIES', 'PROPERTIES', 'VISITS', 'OFFERS', 'TASKS', 'CALENDAR', 'REPORTS', 'TEAM', 'AUDIT_LOGS', 'SETTINGS'];
   }
   const set = new Set<CrmModule>(['OVERVIEW']);
   if (roles.includes('STAFF_LISTING_MANAGER')) {
+    set.add('INVENTORIES');
     set.add('PROPERTIES');
     set.add('LEADS');
     set.add('VISITS');

@@ -545,7 +545,9 @@ async function initSchemaColumns() {
       ALTER TABLE seller_leads ADD COLUMN IF NOT EXISTS follow_up_notes TEXT;
       ALTER TABLE seller_leads ADD COLUMN IF NOT EXISTS notes TEXT;
       ALTER TABLE seller_leads ADD COLUMN IF NOT EXISTS email VARCHAR(255);
+      ALTER TABLE seller_leads ADD COLUMN IF NOT EXISTS temperature VARCHAR(20) DEFAULT 'WARM';
       ALTER TABLE properties ADD COLUMN IF NOT EXISTS listing_intent VARCHAR(20) NOT NULL DEFAULT 'SELL';
+      ALTER TABLE properties ADD COLUMN IF NOT EXISTS seller_lead_id VARCHAR(64);
       ALTER TABLE properties ADD COLUMN IF NOT EXISTS crm_status VARCHAR(30) NOT NULL DEFAULT 'NEW';
       ALTER TABLE properties ADD COLUMN IF NOT EXISTS listing_status VARCHAR(30) NOT NULL DEFAULT 'DRAFT';
       ALTER TABLE properties ADD COLUMN IF NOT EXISTS title VARCHAR(255);
@@ -671,6 +673,7 @@ async function initSchemaColumns() {
       ALTER TABLE buyer_enquiries ADD COLUMN IF NOT EXISTS attribution JSONB;
       ALTER TABLE buyer_enquiries ADD COLUMN IF NOT EXISTS expected_price_inr BIGINT;
       ALTER TABLE buyer_enquiries ADD COLUMN IF NOT EXISTS email VARCHAR(255);
+      ALTER TABLE buyer_enquiries ADD COLUMN IF NOT EXISTS temperature VARCHAR(20) DEFAULT 'WARM';
       CREATE INDEX IF NOT EXISTS idx_buyer_enquiries_phone ON buyer_enquiries (phone);
       CREATE INDEX IF NOT EXISTS idx_buyer_enquiries_status ON buyer_enquiries (lead_status);
       CREATE INDEX IF NOT EXISTS idx_buyer_enquiries_staff ON buyer_enquiries (assigned_staff_id);
@@ -5292,6 +5295,7 @@ app.get('/api/crm/leads', authenticateUser, requireStaffMember, async (req: Requ
         sl.notes,
         sl.attribution,
         sl.email,
+        COALESCE(sl.temperature, 'WARM') AS temperature,
         sl.created_at,
         sl.updated_at
       FROM seller_leads sl
@@ -5324,6 +5328,7 @@ app.get('/api/crm/leads', authenticateUser, requireStaffMember, async (req: Requ
         be.notes,
         be.attribution,
         be.email,
+        COALESCE(be.temperature, 'WARM') AS temperature,
         be.created_at,
         be.updated_at
       FROM buyer_enquiries be
@@ -5409,6 +5414,7 @@ app.get('/api/crm/leads', authenticateUser, requireStaffMember, async (req: Requ
         stage: r.lead_status,
         status: r.lead_status,
         lead_status: r.lead_status,
+        temperature: r.temperature || 'WARM',
         assignedStaffId: r.assigned_staff_id,
         assigned_staff_id: r.assigned_staff_id,
         assignedStaffName: r.assigned_staff_name || null,
@@ -5843,6 +5849,7 @@ app.get('/api/crm/leads/:id', authenticateUser, requireStaffMember, async (req: 
         listingIntent: leadRow.listing_intent || 'BUY',
         stage: leadRow.lead_status,
         status: leadRow.lead_status,
+        temperature: leadRow.temperature || 'WARM',
         assignedStaffId: leadRow.assigned_staff_id,
         assignedStaffName: leadRow.assigned_staff_name,
         assignedStaffPhone: leadRow.assigned_staff_phone,
@@ -5863,6 +5870,204 @@ app.get('/api/crm/leads/:id', authenticateUser, requireStaffMember, async (req: 
   } catch (err: any) {
     console.error('[CrmLeadDetail] Error:', err);
     return res.status(500).json({ error: 'Failed to retrieve lead details' });
+  }
+});
+
+// API: Classify Lead Priority Temperature (HOT, WARM, COLD)
+app.post('/api/crm/leads/:id/temperature', jsonDefault, authenticateUser, requireStaffMember, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const temp = String(req.body.temperature || '').toUpperCase();
+    if (!['HOT', 'WARM', 'COLD'].includes(temp)) {
+      return res.status(400).json({ error: 'INVALID_TEMPERATURE', message: 'Temperature must be HOT, WARM, or COLD.' });
+    }
+
+    let updated = false;
+    try {
+      const sRes = await executeQuery(`UPDATE seller_leads SET temperature = $1, updated_at = NOW() WHERE id = $2 RETURNING id;`, [temp, id]);
+      if (sRes.rows && sRes.rows.length > 0) updated = true;
+      if (!updated) {
+        const bRes = await executeQuery(`UPDATE buyer_enquiries SET temperature = $1, updated_at = NOW() WHERE id = $2 RETURNING id;`, [temp, id]);
+        if (bRes.rows && bRes.rows.length > 0) updated = true;
+      }
+    } catch (err) {
+      console.warn('[UpdateTemperature] DB error:', err);
+    }
+
+    if (devSandboxStore) {
+      if (devSandboxStore.sellerLeads.has(id)) {
+        (devSandboxStore.sellerLeads.get(id) as any).temperature = temp;
+        updated = true;
+      } else if (devSandboxStore.buyerEnquiries.has(id)) {
+        (devSandboxStore.buyerEnquiries.get(id) as any).temperature = temp;
+        updated = true;
+      }
+    }
+
+    return res.json({
+      success: true,
+      leadId: id,
+      temperature: temp,
+      message: `Lead priority classified as ${temp}.`
+    });
+  } catch (err: any) {
+    console.error('[UpdateTemperature] Error:', err);
+    return res.status(500).json({ error: 'FAILED_TO_UPDATE_TEMPERATURE', message: err.message });
+  }
+});
+
+// API: Convert Lead between Seller and Buyer (Superadmins Only)
+app.post('/api/crm/leads/:id/convert-type', jsonDefault, authenticateUser, async (req: Request, res: Response) => {
+  try {
+    const userRoles = Array.isArray(req.user?.roles) ? req.user.roles : [];
+    const isSuperAdmin = userRoles.includes('STAFF_SUPER_ADMIN') || (userRoles as string[]).includes('SUPER_ADMIN');
+    if (!isSuperAdmin) {
+      return res.status(403).json({ error: 'FORBIDDEN', message: 'Converting lead type is restricted to Superadmins only.' });
+    }
+
+    const { id } = req.params;
+    const targetType = String(req.body.targetType || '').toUpperCase();
+    if (!['BUYER', 'SELLER'].includes(targetType)) {
+      return res.status(400).json({ error: 'INVALID_TARGET_TYPE', message: 'targetType must be BUYER or SELLER.' });
+    }
+
+    if (targetType === 'BUYER') {
+      let sLead: any = null;
+      try {
+        const r = await executeQuery(`SELECT * FROM seller_leads WHERE id = $1 LIMIT 1;`, [id]);
+        if (r.rows && r.rows.length > 0) sLead = r.rows[0];
+      } catch {}
+      if (!sLead && devSandboxStore && devSandboxStore.sellerLeads.has(id)) {
+        sLead = devSandboxStore.sellerLeads.get(id);
+      }
+      if (!sLead) {
+        return res.status(404).json({ error: 'NOT_FOUND', message: 'Seller lead not found.' });
+      }
+
+      const newBuyerId = `enq-conv-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`;
+      const buyerName = sLead.owner_name || sLead.name || 'Client';
+      const locality = sLead.apartment_society_name || sLead.locality_id || 'Bengaluru';
+      const bhk = sLead.bhk_type || '2 BHK';
+      const status = sLead.lead_status || 'NEW';
+      const staffId = sLead.assigned_staff_id || null;
+      const price = sLead.expected_price_inr || null;
+      const notes = `[Converted from Seller Lead #${sLead.id}] ${sLead.notes || ''}`.trim();
+      const temp = sLead.temperature || 'WARM';
+
+      try {
+        await executeQuery(`
+          INSERT INTO buyer_enquiries (
+            id, buyer_name, phone, preferred_locality_or_society, bhk_type, lead_status,
+            assigned_staff_id, assigned_at, expected_price_inr, notes, email, attribution, temperature, created_at, updated_at
+          ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW()
+          );
+        `, [newBuyerId, buyerName, sLead.phone, locality, bhk, status, staffId, sLead.assigned_at, price, notes, sLead.email, sLead.attribution ? JSON.stringify(sLead.attribution) : null, temp]);
+
+        await executeQuery(`DELETE FROM seller_leads WHERE id = $1;`, [id]);
+      } catch (dbErr) {
+        console.warn('[ConvertLead] DB insert error, using sandbox:', dbErr);
+      }
+
+      if (devSandboxStore) {
+        devSandboxStore.buyerEnquiries.set(newBuyerId, {
+          id: newBuyerId,
+          buyer_name: buyerName,
+          phone: sLead.phone,
+          preferred_locality_or_society: locality,
+          bhk_type: bhk,
+          lead_status: status,
+          assigned_staff_id: staffId,
+          assigned_at: sLead.assigned_at,
+          expected_price_inr: price,
+          notes,
+          email: sLead.email,
+          attribution: sLead.attribution,
+          temperature: temp,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        } as any);
+        devSandboxStore.sellerLeads.delete(id);
+      }
+
+      return res.json({
+        success: true,
+        oldLeadId: id,
+        newLeadId: newBuyerId,
+        leadType: 'BUYER',
+        message: `Lead successfully converted to Buyer Lead (#${newBuyerId}).`
+      });
+    } else {
+      let bLead: any = null;
+      try {
+        const r = await executeQuery(`SELECT * FROM buyer_enquiries WHERE id = $1 LIMIT 1;`, [id]);
+        if (r.rows && r.rows.length > 0) bLead = r.rows[0];
+      } catch {}
+      if (!bLead && devSandboxStore && devSandboxStore.buyerEnquiries.has(id)) {
+        bLead = devSandboxStore.buyerEnquiries.get(id);
+      }
+      if (!bLead) {
+        return res.status(404).json({ error: 'NOT_FOUND', message: 'Buyer lead not found.' });
+      }
+
+      const newSellerId = `lead-conv-${Date.now().toString(36)}-${crypto.randomBytes(3).toString('hex')}`;
+      const ownerName = bLead.buyer_name || 'Client';
+      const society = bLead.preferred_locality_or_society || 'Society';
+      const bhk = bLead.bhk_type || '2 BHK';
+      const status = bLead.lead_status || 'NEW';
+      const staffId = bLead.assigned_staff_id || null;
+      const price = bLead.expected_price_inr || null;
+      const notes = `[Converted from Buyer Lead #${bLead.id}] ${bLead.notes || ''}`.trim();
+      const temp = bLead.temperature || 'WARM';
+
+      try {
+        await executeQuery(`
+          INSERT INTO seller_leads (
+            id, owner_name, phone, apartment_society_name, locality_id, bhk_type, expected_price_inr,
+            lead_status, assigned_staff_id, assigned_at, notes, email, attribution, temperature, created_at, updated_at
+          ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW(), NOW()
+          );
+        `, [newSellerId, ownerName, bLead.phone, society, 'Bengaluru', bhk, price, status, staffId, bLead.assigned_at, notes, bLead.email, bLead.attribution ? JSON.stringify(bLead.attribution) : null, temp]);
+
+        await executeQuery(`DELETE FROM buyer_enquiries WHERE id = $1;`, [id]);
+      } catch (dbErr) {
+        console.warn('[ConvertLead] DB insert error, using sandbox:', dbErr);
+      }
+
+      if (devSandboxStore) {
+        devSandboxStore.sellerLeads.set(newSellerId, {
+          id: newSellerId,
+          owner_name: ownerName,
+          phone: bLead.phone,
+          apartment_society_name: society,
+          locality_id: 'Bengaluru',
+          bhk_type: bhk,
+          expected_price_inr: price,
+          lead_status: status,
+          assigned_staff_id: staffId,
+          assigned_at: bLead.assigned_at,
+          notes,
+          email: bLead.email,
+          attribution: bLead.attribution,
+          temperature: temp,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        } as any);
+        devSandboxStore.buyerEnquiries.delete(id);
+      }
+
+      return res.json({
+        success: true,
+        oldLeadId: id,
+        newLeadId: newSellerId,
+        leadType: 'SELLER',
+        message: `Lead successfully converted to Seller Lead (#${newSellerId}).`
+      });
+    }
+  } catch (err: any) {
+    console.error('[ConvertLeadType] Error:', err);
+    return res.status(500).json({ error: 'FAILED_TO_CONVERT_LEAD', message: err.message });
   }
 });
 
@@ -9050,9 +9255,10 @@ app.post('/api/crm/properties/:id/completion-link', jsonDefault, authenticateUse
     }
 
     const completionLink = await TokenizedLinkService.generateCompletionLink(id, req.user!.uid, 7);
-    const protocol = req.protocol || 'http';
-    const host = req.get('host') || 'sellmyghar.in';
-    const fullUrl = `${protocol}://${host}${completionLink.url}`;
+    const cleanHost = (req.get('host') || 'sellmyghar.in').replace(/^crm\./i, '');
+    const protocol = req.secure || req.headers['x-forwarded-proto'] === 'https' ? 'https' : (req.protocol === 'https' ? 'https' : 'https');
+    const appUrl = (process.env.APP_URL || `${protocol}://${cleanHost}`).replace(/\/+$/, '');
+    const fullUrl = `${appUrl}${completionLink.url}`;
 
     return res.json({
       success: true,
@@ -9066,6 +9272,198 @@ app.post('/api/crm/properties/:id/completion-link', jsonDefault, authenticateUse
   } catch (err: any) {
     console.error('[GenerateCompletionLink] Error:', err);
     return res.status(500).json({ error: 'FAILED_TO_GENERATE_TOKEN', message: err.message });
+  }
+});
+
+// Staff: Generate tokenized self-completion link directly for a Seller Lead (auto-creates inventory property if not linked)
+app.post('/api/crm/leads/:id/completion-link', jsonDefault, authenticateUser, requireStaffMember, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    // 1. Look up lead in DB or sandbox
+    let lead: any = null;
+    try {
+      const leadRes = await executeQuery(`SELECT * FROM seller_leads WHERE id = $1 LIMIT 1;`, [id]);
+      if (leadRes.rows && leadRes.rows.length > 0) lead = leadRes.rows[0];
+    } catch {}
+
+    if (!lead && devSandboxStore && devSandboxStore.sellerLeads.has(id)) {
+      lead = devSandboxStore.sellerLeads.get(id);
+    }
+
+    if (!lead) {
+      return res.status(404).json({ error: 'NOT_FOUND', message: 'Seller lead not found.' });
+    }
+
+    let propertyId = lead.property_id;
+
+    // 2. If lead doesn't have an inventory property yet, auto-create one
+    if (!propertyId) {
+      propertyId = `prop-lead-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
+      const ownerId = lead.user_id || 'usr-customer-seller-01';
+      const society = lead.apartment_society_name || 'Society';
+      const locality = lead.locality_id || 'Bengaluru';
+      const projectLocality = `${society}, ${locality}`;
+      const bhk = lead.bhk_type || '2 BHK';
+      const price = Number(lead.expected_price_inr) || 10000000;
+      const title = `${society} - ${bhk}`;
+
+      try {
+        await executeQuery(`
+          INSERT INTO properties (
+            id, owner_id, project_locality_id, unit_number, unit_floor, total_floors,
+            bhk_type, super_built_up_sqft, carpet_area_sqft, balconies_count, bathrooms_count,
+            facing, car_parks_count, is_covered_parking, khata_type, encumbrance_status,
+            occupancy_status, asking_price_inr, reserve_minimum_price_inr, listing_intent,
+            crm_status, listing_status, title, seller_lead_id, created_at, updated_at
+          ) VALUES (
+            $1, $2, $3, 'TBD', 1, 10,
+            $4, 1200, 950, 1, 2,
+            'EAST', 1, true, 'A_KHATA', 'CLEAR',
+            'VACANT', $5, $5, 'SELL',
+            'NEW', 'DRAFT', $6, $7, NOW(), NOW()
+          );
+        `, [propertyId, ownerId, projectLocality, bhk, price, title, lead.id]);
+
+        await executeQuery(`UPDATE seller_leads SET property_id = $1 WHERE id = $2;`, [propertyId, lead.id]);
+      } catch (dbErr) {
+        console.warn('[LeadCompletionLink] DB insert fallback to sandbox:', dbErr);
+      }
+
+      if (devSandboxStore) {
+        devSandboxStore.properties.set(propertyId, {
+          id: propertyId,
+          owner_id: ownerId,
+          project_locality_id: projectLocality,
+          unit_number: 'TBD',
+          unit_floor: 1,
+          total_floors: 10,
+          bhk_type: bhk,
+          super_built_up_sqft: 1200,
+          carpet_area_sqft: 950,
+          balconies_count: 1,
+          bathrooms_count: 2,
+          facing: 'EAST',
+          car_parks_count: 1,
+          is_covered_parking: true,
+          khata_type: 'A_KHATA',
+          encumbrance_status: 'CLEAR',
+          occupancy_status: 'VACANT',
+          asking_price_inr: price,
+          reserve_minimum_price_inr: price,
+          listing_intent: 'SELL',
+          crm_status: 'NEW',
+          listing_status: 'DRAFT',
+          title,
+          seller_lead_id: lead.id,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        } as any);
+
+        lead.property_id = propertyId;
+      }
+    }
+
+    // 3. Generate tokenized link
+    const completionLink = await TokenizedLinkService.generateCompletionLink(propertyId, req.user!.uid, 7);
+    const cleanHost = (req.get('host') || 'sellmyghar.in').replace(/^crm\./i, '');
+    const protocol = req.secure || req.headers['x-forwarded-proto'] === 'https' ? 'https' : (req.protocol === 'https' ? 'https' : 'https');
+    const appUrl = (process.env.APP_URL || `${protocol}://${cleanHost}`).replace(/\/+$/, '');
+    const fullUrl = `${appUrl}${completionLink.url}`;
+
+    return res.json({
+      success: true,
+      leadId: lead.id,
+      propertyId,
+      completionUrl: fullUrl,
+      url: completionLink.url,
+      token: completionLink.token,
+      expiresAt: completionLink.expiresAt,
+      ownerName: lead.owner_name || '',
+      ownerPhone: lead.phone || '',
+      message: 'Tokenized completion link generated successfully for seller lead.'
+    });
+  } catch (err: any) {
+    console.error('[LeadCompletionLink] Error:', err);
+    return res.status(500).json({ error: 'FAILED_TO_GENERATE_TOKEN', message: err.message });
+  }
+});
+
+// Staff: Link or Unlink a Seller Lead with an Inventory Property
+app.post('/api/crm/properties/:id/link-lead', jsonDefault, authenticateUser, requireStaffMember, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { leadId } = req.body;
+
+    // Update property's seller_lead_id
+    try {
+      await executeQuery(`UPDATE properties SET seller_lead_id = $1, updated_at = NOW() WHERE id = $2;`, [leadId || null, id]);
+      if (leadId) {
+        await executeQuery(`UPDATE seller_leads SET property_id = $1, updated_at = NOW() WHERE id = $2;`, [id, leadId]);
+      } else {
+        await executeQuery(`UPDATE seller_leads SET property_id = NULL, updated_at = NOW() WHERE property_id = $1;`, [id]);
+      }
+    } catch {}
+
+    if (devSandboxStore) {
+      const prop = devSandboxStore.properties.get(id);
+      if (prop) (prop as any).seller_lead_id = leadId || null;
+      if (leadId) {
+        const lead = devSandboxStore.sellerLeads.get(leadId);
+        if (lead) lead.property_id = id;
+      }
+    }
+
+    return res.json({
+      success: true,
+      propertyId: id,
+      sellerLeadId: leadId || null,
+      message: leadId ? 'Inventory successfully linked to seller lead.' : 'Inventory unlinked from seller lead.'
+    });
+  } catch (err: any) {
+    console.error('[LinkLead] Error:', err);
+    return res.status(500).json({ error: 'FAILED_TO_LINK_LEAD', message: err.message });
+  }
+});
+
+// Staff: Toggle Listing Status between PUBLISHED (BuyMyGhar live) and DRAFT (Unlisted inventory)
+app.post('/api/crm/properties/:id/toggle-listing', jsonDefault, authenticateUser, requireStaffMember, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const targetStatus = req.body.status ? String(req.body.status).toUpperCase() : null;
+
+    let currentStatus = 'DRAFT';
+    try {
+      const checkRes = await executeQuery(`SELECT listing_status FROM properties WHERE id = $1 LIMIT 1;`, [id]);
+      if (checkRes.rows && checkRes.rows.length > 0) {
+        currentStatus = checkRes.rows[0].listing_status || 'DRAFT';
+      }
+    } catch {}
+
+    if (devSandboxStore && devSandboxStore.properties.has(id)) {
+      currentStatus = devSandboxStore.properties.get(id)?.listing_status || currentStatus;
+    }
+
+    const nextStatus = targetStatus || (currentStatus === 'PUBLISHED' ? 'DRAFT' : 'PUBLISHED');
+
+    try {
+      await executeQuery(`UPDATE properties SET listing_status = $1, updated_at = NOW() WHERE id = $2;`, [nextStatus, id]);
+    } catch {}
+
+    if (devSandboxStore && devSandboxStore.properties.has(id)) {
+      devSandboxStore.properties.get(id)!.listing_status = nextStatus as any;
+    }
+
+    return res.json({
+      success: true,
+      propertyId: id,
+      listingStatus: nextStatus,
+      isListed: nextStatus === 'PUBLISHED',
+      message: nextStatus === 'PUBLISHED' ? 'Property is now Listed on BuyMyGhar.' : 'Property is now Unlisted (moved to Draft inventory).'
+    });
+  } catch (err: any) {
+    console.error('[ToggleListing] Error:', err);
+    return res.status(500).json({ error: 'FAILED_TO_TOGGLE_LISTING', message: err.message });
   }
 });
 
@@ -9126,43 +9524,137 @@ app.patch('/api/seller/complete/:propertyId', jsonUpload, async (req: Request, r
 
     const {
       description, superBuiltUpSqft, carpetAreaSqft, unitFloor, totalFloors,
-      bathroomsCount, balconiesCount, facing, amenities
+      bathroomsCount, balconiesCount, facing, amenities, projectName, localityName,
+      unitNumber, wingTower, propertyType, bhkType, askingPriceInr, asking_price_inr,
+      monthlyMaintenanceInr, monthly_maintenance_inr, furnishing, ownerName, ownerPhone,
+      photos, images
     } = req.body;
 
-    const updateRes = await executeQuery(
-      `UPDATE properties
-       SET description = COALESCE($1, description),
-           super_built_up_sqft = COALESCE($2, super_built_up_sqft),
-           carpet_area_sqft = COALESCE($3, carpet_area_sqft),
-           unit_floor = COALESCE($4, unit_floor),
-           total_floors = COALESCE($5, total_floors),
-           bathrooms_count = COALESCE($6, bathrooms_count),
-           balconies_count = COALESCE($7, balconies_count),
-           facing = COALESCE($8, facing),
-           amenities = CASE WHEN $9::jsonb IS NOT NULL THEN $9::jsonb ELSE amenities END,
-           updated_at = NOW()
-       WHERE id = $10
-       RETURNING *;`,
-      [
-        description ? String(description).replace(/<[^>]*>/g, '').trim() : null,
-        superBuiltUpSqft ? Number(superBuiltUpSqft) : null,
-        carpetAreaSqft ? Number(carpetAreaSqft) : null,
-        unitFloor ? Number(unitFloor) : null,
-        totalFloors ? Number(totalFloors) : null,
-        bathroomsCount ? Number(bathroomsCount) : null,
-        balconiesCount ? Number(balconiesCount) : null,
-        facing ? String(facing).trim().toUpperCase() : null,
-        amenities ? JSON.stringify(amenities) : null,
-        propertyId
-      ]
-    );
+    const finalAskingPrice = Number(askingPriceInr || asking_price_inr) || null;
+    const finalMaintenance = Number(monthlyMaintenanceInr || monthly_maintenance_inr) || null;
+    const projectLocality = (projectName && localityName)
+      ? `${projectName}, ${localityName}`
+      : (projectName || localityName || null);
+    const titleVal = projectName ? `${projectName} - ${bhkType || '2 BHK'}` : null;
+
+    let updatedProp: any = null;
+    try {
+      const updateRes = await executeQuery(
+        `UPDATE properties
+         SET description = COALESCE($1, description),
+             super_built_up_sqft = COALESCE($2, super_built_up_sqft),
+             carpet_area_sqft = COALESCE($3, carpet_area_sqft),
+             unit_floor = COALESCE($4, unit_floor),
+             total_floors = COALESCE($5, total_floors),
+             bathrooms_count = COALESCE($6, bathrooms_count),
+             balconies_count = COALESCE($7, balconies_count),
+             facing = COALESCE($8, facing),
+             amenities = CASE WHEN $9::jsonb IS NOT NULL THEN $9::jsonb ELSE amenities END,
+             project_locality_id = COALESCE($10, project_locality_id),
+             unit_number = COALESCE($11, unit_number),
+             wing_tower = COALESCE($12, wing_tower),
+             property_type = COALESCE($13, property_type),
+             bhk_type = COALESCE($14, bhk_type),
+             asking_price_inr = COALESCE($15, asking_price_inr),
+             reserve_minimum_price_inr = COALESCE($15, reserve_minimum_price_inr),
+             monthly_maintenance_inr = COALESCE($16, monthly_maintenance_inr),
+             title = COALESCE($17, title),
+             crm_status = 'COMPLETED',
+             updated_at = NOW()
+         WHERE id = $18
+         RETURNING *;`,
+        [
+          description ? String(description).replace(/<[^>]*>/g, '').trim() : null,
+          superBuiltUpSqft ? Number(superBuiltUpSqft) : null,
+          carpetAreaSqft ? Number(carpetAreaSqft) : null,
+          unitFloor ? Number(unitFloor) : null,
+          totalFloors ? Number(totalFloors) : null,
+          bathroomsCount ? Number(bathroomsCount) : null,
+          balconiesCount ? Number(balconiesCount) : null,
+          facing ? String(facing).trim().toUpperCase() : null,
+          amenities ? JSON.stringify(amenities) : null,
+          projectLocality ? String(projectLocality).trim() : null,
+          unitNumber ? String(unitNumber).trim() : null,
+          wingTower ? String(wingTower).trim() : null,
+          propertyType ? String(propertyType).trim() : null,
+          bhkType ? String(bhkType).trim() : null,
+          finalAskingPrice,
+          finalMaintenance,
+          titleVal,
+          propertyId
+        ]
+      );
+      if (updateRes.rows && updateRes.rows.length > 0) {
+        updatedProp = updateRes.rows[0];
+      }
+
+      // Update linked seller lead if applicable
+      await executeQuery(
+        `UPDATE seller_leads
+         SET lead_status = CASE WHEN lead_status IN ('NEW', 'RNR') THEN 'CONTACTED' ELSE lead_status END,
+             updated_at = NOW()
+         WHERE property_id = $1 OR id = (SELECT seller_lead_id FROM properties WHERE id = $1 LIMIT 1);`,
+        [propertyId]
+      ).catch(() => {});
+
+      // Insert photos into property_media if provided
+      const photoList = Array.isArray(photos) ? photos : (Array.isArray(images) ? images : []);
+      for (let i = 0; i < photoList.length; i++) {
+        const p = photoList[i];
+        const pUrl = typeof p === 'string' ? p : p?.url;
+        if (pUrl && typeof pUrl === 'string' && pUrl.trim().length > 5) {
+          const mediaId = `media-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
+          await executeQuery(
+            `INSERT INTO property_media (id, property_id, url, is_featured, display_order, checksum, created_at)
+             VALUES ($1, $2, $3, $4, $5, $6, NOW())
+             ON CONFLICT DO NOTHING;`,
+            [mediaId, propertyId, pUrl.trim(), i === 0, i, `chk-${mediaId}`]
+          ).catch(() => {});
+        }
+      }
+    } catch (dbErr) {
+      console.warn('[SellerCompletePatch] DB error, using sandbox fallback:', dbErr);
+    }
+
+    if (devSandboxStore && devSandboxStore.properties.has(propertyId)) {
+      const p = devSandboxStore.properties.get(propertyId)!;
+      if (description) p.description = String(description);
+      if (superBuiltUpSqft) p.super_built_up_sqft = Number(superBuiltUpSqft);
+      if (carpetAreaSqft) p.carpet_area_sqft = Number(carpetAreaSqft);
+      if (unitFloor) p.unit_floor = Number(unitFloor);
+      if (totalFloors) p.total_floors = Number(totalFloors);
+      if (bathroomsCount) p.bathrooms_count = Number(bathroomsCount);
+      if (balconiesCount) p.balconies_count = Number(balconiesCount);
+      if (facing) p.facing = String(facing).trim().toUpperCase();
+      if (projectLocality) p.project_locality_id = projectLocality;
+      if (unitNumber) p.unit_number = unitNumber;
+      if (wingTower) (p as any).wing_tower = wingTower;
+      if (bhkType) p.bhk_type = bhkType;
+      if (finalAskingPrice) {
+        p.asking_price_inr = finalAskingPrice;
+        p.reserve_minimum_price_inr = finalAskingPrice;
+      }
+      p.crm_status = 'COMPLETED';
+      p.updated_at = new Date().toISOString();
+      updatedProp = p;
+
+      // Update sandbox seller lead
+      for (const lead of devSandboxStore.sellerLeads.values()) {
+        if (lead.property_id === propertyId || (p as any).seller_lead_id === lead.id) {
+          if (lead.lead_status === 'NEW' || lead.lead_status === 'RNR') {
+            lead.lead_status = 'CONTACTED';
+          }
+          break;
+        }
+      }
+    }
 
     await TokenizedLinkService.markTokenUsed(propertyId, rawToken);
 
     return res.json({
       success: true,
       message: 'Property details completed and saved successfully.',
-      property: updateRes.rows[0]
+      property: updatedProp
     });
   } catch (err: any) {
     console.error('[SellerCompletePatch] Error:', err);
@@ -9609,6 +10101,7 @@ app.get(
         p.developer_logo_url,
         p.developer_rera_id,
         p.developer_launch_year,
+        p.seller_lead_id,
         p.description,
         p.amenities,
         p.landmarks,
@@ -9623,16 +10116,21 @@ app.get(
         p.updated_at,
         u.display_name AS owner_name,
         u.phone AS owner_phone,
+        sl.id AS sl_id,
+        sl.owner_name AS sl_owner_name,
+        sl.phone AS sl_phone,
+        sl.lead_status AS sl_lead_status,
         staff.display_name AS rm_name,
         staff.phone AS rm_phone
       FROM properties p
       LEFT JOIN users u ON u.id = p.owner_id
       LEFT JOIN LATERAL (
-        SELECT sl.id, sl.assigned_staff_id, sl.lead_status, sl.created_at
+        SELECT sl.id, sl.owner_name, sl.phone, sl.assigned_staff_id, sl.lead_status, sl.created_at
         FROM seller_leads sl
         WHERE sl.property_id = p.id
+           OR sl.id = p.seller_lead_id
            OR (sl.property_id IS NULL AND sl.phone IS NOT NULL AND u.phone IS NOT NULL AND sl.phone = u.phone)
-        ORDER BY (CASE WHEN sl.property_id = p.id THEN 0 ELSE 1 END), sl.created_at DESC
+        ORDER BY (CASE WHEN sl.property_id = p.id OR sl.id = p.seller_lead_id THEN 0 ELSE 1 END), sl.created_at DESC
         LIMIT 1
       ) sl ON true
       LEFT JOIN users staff ON staff.id = sl.assigned_staff_id
@@ -9696,6 +10194,10 @@ app.get(
           listingStatus: row.listing_status,
           crmStatus: row.crm_status || 'NEW',
           verificationTier: row.verification_tier || 'LEVEL_1_OWNER_DECLARED',
+          sellerLeadId: row.seller_lead_id || row.sl_id || null,
+          sellerLeadName: row.sl_owner_name || null,
+          sellerLeadPhone: row.sl_phone || null,
+          sellerLeadStatus: row.sl_lead_status || null,
           ownerId: row.owner_id,
           ownerName: row.owner_name || 'Owner',
           ownerPhone: row.owner_phone || '+919800000000',
