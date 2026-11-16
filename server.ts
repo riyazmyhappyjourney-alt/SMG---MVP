@@ -8983,11 +8983,12 @@ app.get('/api/crm/properties/:id/insights', authenticateUser, requireStaffMember
     }
     const property = propRes.rows[0];
 
-    // Count matching buyer inquiries (by BHK or society/locality)
+    // Count & fetch matching buyer inquiries (by BHK or society/locality)
     const bhk = property.bhk_type || '2 BHK';
     const localityOrSoc = property.title?.split('-')[0]?.trim() || property.project_locality_id?.split(',')[0]?.trim() || '';
     
     let matchingEnquiries = 0;
+    let matchingBuyersList: any[] = [];
     try {
       const enqCountRes = await executeQuery(`
         SELECT COUNT(*) as cnt FROM buyer_enquiries 
@@ -8997,20 +8998,72 @@ app.get('/api/crm/properties/:id/insights', authenticateUser, requireStaffMember
         );
       `, [`%${bhk.replace(/\s+/g, '')}%`, `%${localityOrSoc}%`]);
       matchingEnquiries = Number(enqCountRes.rows?.[0]?.cnt || 0);
+
+      const enqListRes = await executeQuery(`
+        SELECT id, buyer_name, phone, email, preferred_locality_or_society, bhk_type, expected_price_inr, lead_status, temperature, created_at
+        FROM buyer_enquiries 
+        WHERE lead_status != 'LOST' AND (
+          bhk_type ILIKE $1 
+          OR preferred_locality_or_society ILIKE $2
+        )
+        ORDER BY created_at DESC
+        LIMIT 10;
+      `, [`%${bhk.replace(/\s+/g, '')}%`, `%${localityOrSoc}%`]);
+      matchingBuyersList = enqListRes.rows || [];
     } catch {}
 
-    // Visits count
+    // Fallback if matching pool is small: retrieve active qualified buyers
+    if (matchingBuyersList.length < 3) {
+      try {
+        const fallbackRes = await executeQuery(`
+          SELECT id, buyer_name, phone, email, preferred_locality_or_society, bhk_type, expected_price_inr, lead_status, temperature, created_at
+          FROM buyer_enquiries
+          WHERE lead_status != 'LOST'
+          ORDER BY created_at DESC
+          LIMIT 6;
+        `);
+        const existingIds = new Set(matchingBuyersList.map(b => b.id));
+        for (const fb of (fallbackRes.rows || [])) {
+          if (!existingIds.has(fb.id)) {
+            matchingBuyersList.push(fb);
+            existingIds.add(fb.id);
+          }
+        }
+      } catch {}
+    }
+
+    // Visits count & drill-down lists
     let scheduledVisits = 0;
     let completedVisits = 0;
+    let scheduledVisitsList: any[] = [];
+    let completedVisitsList: any[] = [];
     try {
       const vRes = await executeQuery(`
-        SELECT status, COUNT(*) as cnt FROM visits 
-        WHERE property_id = $1 
-        GROUP BY status;
+        SELECT 
+          v.id,
+          v.property_id,
+          v.lead_id,
+          COALESCE(v.client_name, be.buyer_name, 'Client Tour') AS client_name,
+          COALESCE(v.client_phone, be.phone, '') AS client_phone,
+          v.visit_date,
+          v.visit_time,
+          v.status,
+          v.notes,
+          staff.display_name AS assigned_staff_name
+        FROM visits v
+        LEFT JOIN buyer_enquiries be ON be.id = v.lead_id
+        LEFT JOIN users staff ON staff.id = v.assigned_staff_id
+        WHERE v.property_id = $1
+        ORDER BY v.visit_date DESC, v.created_at DESC;
       `, [property.id]);
       (vRes.rows || []).forEach((row: any) => {
-        if (row.status === 'SCHEDULED') scheduledVisits = Number(row.cnt);
-        if (row.status === 'COMPLETED') completedVisits = Number(row.cnt);
+        if (row.status === 'SCHEDULED') {
+          scheduledVisits++;
+          scheduledVisitsList.push(row);
+        } else if (row.status === 'COMPLETED') {
+          completedVisits++;
+          completedVisitsList.push(row);
+        }
       });
     } catch {}
 
@@ -9031,15 +9084,19 @@ app.get('/api/crm/properties/:id/insights', authenticateUser, requireStaffMember
     const cleanHost = (req.get('host') || 'sellmyghar.in').replace(/^crm\./i, '');
     const slug = property.slug || property.id;
     const formUrl = `https://${cleanHost}/seller/form/${slug}`;
+    const buyMyGharUrl = `https://buymyghar.in/property/${slug}`;
 
     return res.json({
       success: true,
       propertyId: property.id,
       title: property.title,
       slug: property.slug,
-      matchingEnquiries: Math.max(matchingEnquiries, 3), // Realistic engagement indicator
+      matchingEnquiries: Math.max(matchingEnquiries, matchingBuyersList.length, 3),
+      matchingBuyersList,
       scheduledVisits,
+      scheduledVisitsList,
       completedVisits,
+      completedVisitsList,
       totalVisits: scheduledVisits + completedVisits,
       askingPriceInr: asking,
       closingPriceInr: closing,
@@ -9048,7 +9105,7 @@ app.get('/api/crm/properties/:id/insights', authenticateUser, requireStaffMember
       portals: {
         portal99Acres: Boolean(property.portal_99acres),
         portalMagicBricks: Boolean(property.portal_magicbricks),
-        portalSellMyGhar: property.listing_status === 'PUBLISHED'
+        portalSellMyGhar: property.listing_status === 'PUBLISHED' || Boolean(property.portal_sellmyghar)
       },
       linkedLead: linkedLead ? {
         id: linkedLead.id,
@@ -9058,7 +9115,8 @@ app.get('/api/crm/properties/:id/insights', authenticateUser, requireStaffMember
         stage: linkedLead.lead_status || 'NEW',
         source: property.lead_source || 'Direct'
       } : null,
-      customFormUrl: formUrl
+      customFormUrl: formUrl,
+      buyMyGharUrl
     });
   } catch (err: any) {
     console.error('[PropertyInsights] Error:', err);
@@ -9649,11 +9707,12 @@ app.post('/api/crm/properties/:id/toggle-listing', jsonDefault, authenticateUser
     const nextStatus = targetStatus || (currentStatus === 'PUBLISHED' ? 'DRAFT' : 'PUBLISHED');
 
     try {
-      await executeQuery(`UPDATE properties SET listing_status = $1, updated_at = NOW() WHERE id = $2;`, [nextStatus, id]);
+      await executeQuery(`UPDATE properties SET listing_status = $1, portal_sellmyghar = $2, updated_at = NOW() WHERE id = $3;`, [nextStatus, nextStatus === 'PUBLISHED', id]);
     } catch {}
 
     if (devSandboxStore && devSandboxStore.properties.has(id)) {
       devSandboxStore.properties.get(id)!.listing_status = nextStatus as any;
+      (devSandboxStore.properties.get(id) as any).portal_sellmyghar = nextStatus === 'PUBLISHED';
     }
 
     return res.json({
@@ -9666,6 +9725,65 @@ app.post('/api/crm/properties/:id/toggle-listing', jsonDefault, authenticateUser
   } catch (err: any) {
     console.error('[ToggleListing] Error:', err);
     return res.status(500).json({ error: 'FAILED_TO_TOGGLE_LISTING', message: err.message });
+  }
+});
+
+// Staff: Update Multi-Portal Syndication Checkboxes (BuyMyGhar, 99acres, Magicbricks)
+app.post('/api/crm/properties/:id/portals', jsonDefault, authenticateUser, requireStaffMember, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { portal99Acres, portalMagicBricks, portalSellMyGhar } = req.body || {};
+
+    const updates: string[] = [];
+    const values: any[] = [];
+    let idx = 1;
+
+    if (portal99Acres !== undefined) {
+      updates.push(`portal_99acres = $${idx++}`);
+      values.push(Boolean(portal99Acres));
+    }
+    if (portalMagicBricks !== undefined) {
+      updates.push(`portal_magicbricks = $${idx++}`);
+      values.push(Boolean(portalMagicBricks));
+    }
+    if (portalSellMyGhar !== undefined) {
+      const isLive = Boolean(portalSellMyGhar);
+      updates.push(`portal_sellmyghar = $${idx++}`);
+      values.push(isLive);
+      updates.push(`listing_status = $${idx++}`);
+      values.push(isLive ? 'PUBLISHED' : 'DRAFT');
+    }
+
+    if (updates.length > 0) {
+      updates.push(`updated_at = NOW()`);
+      values.push(id);
+      await executeQuery(
+        `UPDATE properties SET ${updates.join(', ')} WHERE id = $${idx};`,
+        values
+      );
+    }
+
+    // Retrieve fresh status
+    const checkRes = await executeQuery(
+      `SELECT id, listing_status, portal_99acres, portal_magicbricks, portal_sellmyghar FROM properties WHERE id = $1 LIMIT 1;`,
+      [id]
+    );
+    const updated = checkRes.rows?.[0];
+
+    return res.json({
+      success: true,
+      propertyId: id,
+      portals: {
+        portal99Acres: Boolean(updated?.portal_99acres),
+        portalMagicBricks: Boolean(updated?.portal_magicbricks),
+        portalSellMyGhar: updated?.listing_status === 'PUBLISHED' || Boolean(updated?.portal_sellmyghar)
+      },
+      listingStatus: updated?.listing_status || 'DRAFT',
+      message: 'Portal syndication updated successfully.'
+    });
+  } catch (err: any) {
+    console.error('[UpdatePortals] Error:', err);
+    return res.status(500).json({ error: 'FAILED_TO_UPDATE_PORTALS', message: err.message });
   }
 });
 
