@@ -2902,7 +2902,7 @@ app.get('/api/listings/:id', rateLimit('listing-detail', 60, 60), async (req, re
         p.created_at,
         p.updated_at
       FROM properties p
-      WHERE (p.id = $1 OR CONCAT('sgl-', SUBSTRING(p.id, 1, 8)) = $1)
+      WHERE (p.id = $1 OR p.slug = $1 OR CONCAT('sgl-', SUBSTRING(p.id, 1, 8)) = $1)
       LIMIT 1;`,
       [rawId]
     );

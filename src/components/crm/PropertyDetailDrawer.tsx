@@ -81,6 +81,8 @@ export function PropertyDetailDrawer({
 
   const [isAgreementModalOpen, setIsAgreementModalOpen] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [buymygharLinkCopied, setBuymygharLinkCopied] = useState(false);
 
   const displayTitle = property?.title || property?.projectName || property?.apartment_society_name || 'Property Specifications';
   const bhk = property?.bhk_type || property?.bhkType || property?.bhk || '2 BHK';
@@ -99,6 +101,11 @@ export function PropertyDetailDrawer({
   const listingStatus = property?.listing_status || property?.listingStatus || 'ACTIVE';
   const verificationTier = property?.verification_tier || 'LEVEL_1_OWNER_DECLARED';
   const brokerageStatus = property?.brokerage_agreement_status || 'DRAFT';
+
+  const propertySlugOrId = property?.slug || property?.id || selectedPropertyId;
+  const isLocalHost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+  const buymygharBaseUrl = isLocalHost ? window.location.origin : 'https://buymyghar.in';
+  const buymygharViewUrl = `${buymygharBaseUrl}/property/${propertySlugOrId}`;
 
   return (
     <>
@@ -153,6 +160,22 @@ export function PropertyDetailDrawer({
 
           {/* Header Quick Actions */}
           <div className="flex items-center space-x-1 shrink-0">
+            <button
+              type="button"
+              onClick={() => window.open(buymygharViewUrl, '_blank')}
+              title="View on BuyMyGhar Marketplace"
+              className="p-1.5 sm:p-2 rounded-md bg-blue-50 hover:bg-blue-100 text-[#0176D3] transition-colors cursor-pointer"
+            >
+              <ExternalLink className="w-4 h-4 text-[#0176D3]" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsShareModalOpen(true)}
+              title="Share BuyMyGhar Property Listing"
+              className="p-1.5 sm:p-2 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition-colors cursor-pointer"
+            >
+              <Share2 className="w-4 h-4 text-emerald-600" />
+            </button>
             {onGenerateBrochure && (
               <button
                 type="button"
@@ -161,16 +184,6 @@ export function PropertyDetailDrawer({
                 className="p-1.5 sm:p-2 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
               >
                 <FileText className="w-4 h-4 text-[#0176D3]" />
-              </button>
-            )}
-            {onGenerateCompletionLink && (
-              <button
-                type="button"
-                onClick={() => onGenerateCompletionLink(selectedPropertyId)}
-                title="Generate Seller Self-Completion Link (7 Days)"
-                className="p-1.5 sm:p-2 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors cursor-pointer"
-              >
-                <Share2 className="w-4 h-4 text-emerald-600" />
               </button>
             )}
             {onEditInPropertyEditor && property && (
@@ -628,6 +641,14 @@ export function PropertyDetailDrawer({
         {/* Drawer Footer (Exact Match to LeadDetailDrawer) */}
         <div className="px-4 sm:px-6 py-3 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 shrink-0">
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+            <button
+              type="button"
+              onClick={() => window.open(buymygharViewUrl, '_blank')}
+              className="px-3 py-1.5 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-[#0176D3] font-semibold text-xs rounded-md shadow-2xs cursor-pointer flex items-center space-x-1.5"
+            >
+              <ExternalLink className="w-3.5 h-3.5 text-[#0176D3]" />
+              <span>View on BuyMyGhar</span>
+            </button>
             {onGenerateCompletionLink && (
               <button
                 type="button"
@@ -672,6 +693,115 @@ export function PropertyDetailDrawer({
         </div>
       </div>
     </div>
+
+    {/* Modal: Share BuyMyGhar Property Listing */}
+    {isShareModalOpen && (
+      <div 
+        className="fixed inset-0 z-60 overflow-hidden flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-in fade-in duration-150"
+        onClick={() => setIsShareModalOpen(false)}
+      >
+        <div 
+          className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden space-y-4 p-5 animate-in zoom-in-95 duration-150"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div className="flex items-center space-x-2">
+              <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600">
+                <Share2 className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Share BuyMyGhar Listing</h3>
+                <p className="text-[11px] text-slate-500">Live verified property on BuyMyGhar marketplace</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsShareModalOpen(false)}
+              className="p-1 rounded-md text-slate-400 hover:text-slate-700 cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Property Details Pill */}
+          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80">
+            <p className="text-xs font-bold text-slate-900 truncate">{displayTitle}</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">{bhk} • {locality}</p>
+          </div>
+
+          {/* BuyMyGhar Link Input */}
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+              BuyMyGhar Public Property URL
+            </label>
+            <div className="flex items-center space-x-2">
+              <input
+                type="text"
+                readOnly
+                value={buymygharViewUrl}
+                className="flex-1 bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono text-slate-700 select-all focus:outline-none"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(buymygharViewUrl);
+                  setBuymygharLinkCopied(true);
+                  setTimeout(() => setBuymygharLinkCopied(false), 2000);
+                }}
+                className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs cursor-pointer flex items-center space-x-1"
+              >
+                {buymygharLinkCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                <span>{buymygharLinkCopied ? 'Copied!' : 'Copy'}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Actions Grid */}
+          <div className="grid grid-cols-2 gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => {
+                window.open(buymygharViewUrl, '_blank');
+                setIsShareModalOpen(false);
+              }}
+              className="w-full px-3 py-2 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 rounded-lg text-xs font-semibold flex items-center justify-center space-x-1.5 cursor-pointer shadow-2xs"
+            >
+              <ExternalLink className="w-3.5 h-3.5 text-[#0176D3]" />
+              <span>View on BuyMyGhar</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                const text = encodeURIComponent(`Take a look at this property on BuyMyGhar:\n${displayTitle} (${bhk})\n${buymygharViewUrl}`);
+                window.open(`https://wa.me/?text=${text}`, '_blank');
+              }}
+              className="w-full px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold flex items-center justify-center space-x-1.5 cursor-pointer shadow-2xs"
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span>Share WhatsApp</span>
+            </button>
+          </div>
+
+          {/* Optional Seller Self-Completion Link */}
+          {onGenerateCompletionLink && (
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+              <span className="text-[11px]">Need seller intake completion link?</span>
+              <button
+                type="button"
+                onClick={() => {
+                  onGenerateCompletionLink(selectedPropertyId);
+                  setIsShareModalOpen(false);
+                }}
+                className="text-xs font-semibold text-[#0176D3] hover:underline cursor-pointer"
+              >
+                Copy Seller Link →
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    )}
 
     {/* Brokerage Agreement Viewer & Simulation Modal */}
     {isAgreementModalOpen && (
