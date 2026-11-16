@@ -326,12 +326,27 @@ export function LeadDetailDrawer({
                 {(() => {
                   const temp = (lead?.temperature || 'WARM').toUpperCase();
                   if (temp === 'HOT') {
-                    return <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">🔥 HOT</span>;
+                    return (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 mr-1"></span>
+                        Hot
+                      </span>
+                    );
                   }
                   if (temp === 'COLD') {
-                    return <span className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-200">❄️ COLD</span>;
+                    return (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mr-1"></span>
+                        Cold
+                      </span>
+                    );
                   }
-                  return <span className="px-1.5 py-0.2 rounded text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200">⚡ WARM</span>;
+                  return (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                      <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1"></span>
+                      Warm
+                    </span>
+                  );
                 })()}
                 <span className="text-slate-300">•</span>
                 <span className="font-mono text-[11px] text-slate-400">{selectedLeadId}</span>
@@ -879,12 +894,14 @@ export function LeadDetailDrawer({
                     {(['HOT', 'WARM', 'COLD'] as const).map((temp) => {
                       const currentTemp = (lead.temperature || 'WARM').toUpperCase();
                       const isSelected = currentTemp === temp;
+                      const label = temp === 'HOT' ? 'Hot' : temp === 'WARM' ? 'Warm' : 'Cold';
+                      const dotColor = temp === 'HOT' ? 'bg-rose-500' : temp === 'WARM' ? 'bg-amber-500' : 'bg-blue-500';
                       return (
                         <button
                           key={temp}
                           type="button"
                           onClick={() => handleUpdateTemperature && handleUpdateTemperature(selectedLeadId, temp)}
-                          className={`px-3 py-1 rounded-md font-semibold text-xs transition-all cursor-pointer flex items-center space-x-1 ${
+                          className={`px-3 py-1 rounded-md font-semibold text-xs transition-all cursor-pointer flex items-center space-x-1.5 ${
                             isSelected
                               ? temp === 'HOT'
                                 ? 'bg-rose-600 text-white shadow-2xs'
@@ -894,10 +911,8 @@ export function LeadDetailDrawer({
                               : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
                           }`}
                         >
-                          {temp === 'HOT' && <Flame className="w-3.5 h-3.5" />}
-                          {temp === 'WARM' && <Zap className="w-3.5 h-3.5" />}
-                          {temp === 'COLD' && <Snowflake className="w-3.5 h-3.5" />}
-                          <span>{temp}</span>
+                          <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : dotColor}`} />
+                          <span>{label}</span>
                         </button>
                       );
                     })}

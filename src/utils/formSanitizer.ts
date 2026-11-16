@@ -244,3 +244,67 @@ export function sanitizeDescription(raw: string): ValidationResult<string> {
   const cleaned = stripHtmlAndScripts(raw).slice(0, 1000);
   return { value: cleaned, isValid: true };
 }
+
+/**
+ * Compresses an image file client-side using HTML5 Canvas:
+ * - Resizes to max dimensions (default 1600x1600px)
+ * - Converts to optimized JPEG (quality 0.82)
+ * - Strips EXIF / GPS / device metadata for security and privacy
+ * - Validates file size and image mime type
+ */
+export async function compressAndSanitizeImage(
+  file: File,
+  maxWidth = 1600,
+  maxHeight = 1600,
+  quality = 0.82
+): Promise<{ dataUrl: string; sizeBytes: number; name: string }> {
+  const validMimes = ['image/jpeg', 'image/png', 'image/webp'];
+  const hasValidExt = /\.(jpe?g|png|webp)$/i.test(file.name);
+  if (!validMimes.includes(file.type.toLowerCase()) && !hasValidExt) {
+    throw new Error('Only JPG, PNG, and WebP images are supported.');
+  }
+
+  if (file.size > 15 * 1024 * 1024) {
+    throw new Error('Image file is too large (maximum 15MB before compression).');
+  }
+
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Failed to read image file.'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('Invalid image file or format cannot be decoded.'));
+      img.onload = () => {
+        let width = img.naturalWidth || img.width;
+        let height = img.naturalHeight || img.height;
+
+        if (width > maxWidth || height > maxHeight) {
+          const ratio = Math.min(maxWidth / width, maxHeight / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          return reject(new Error('Canvas context not available for compression.'));
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+        const dataUrl = canvas.toDataURL('image/jpeg', quality);
+        const approxBytes = Math.round((dataUrl.length * 3) / 4);
+
+        resolve({
+          dataUrl,
+          sizeBytes: approxBytes,
+          name: sanitizeText(file.name.replace(/\.[^/.]+$/, ''), 40) + '.jpg'
+        });
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+

@@ -24,6 +24,18 @@ import {
   Trash2
 } from 'lucide-react';
 import { BENGALURU_SOCIETIES, searchSocieties } from '../../data/bengaluruData';
+import {
+  compressAndSanitizeImage,
+  sanitizeOwnerName,
+  sanitizeIndianPhone,
+  sanitizeEmail,
+  sanitizeSociety,
+  sanitizeLocality,
+  sanitizeSBUA,
+  sanitizeCarpetArea,
+  sanitizePrice,
+  sanitizeDescription
+} from '../../utils/formSanitizer';
 
 interface PropertySelfCompletionProps {
   propertyId: string;
@@ -163,15 +175,49 @@ export const PropertySelfCompletion: React.FC<PropertySelfCompletionProps> = ({
       }
     }
 
-    if (propertyId && token) {
+    if (propertyId) {
       loadData();
     } else {
-      setError('Missing property ID or access token.');
+      setError('Missing property reference.');
       setLoading(false);
     }
 
     return () => { isMounted = false; };
   }, [propertyId, token]);
+
+  const [compressingPhotos, setCompressingPhotos] = useState(false);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    setCompressingPhotos(true);
+    setStepError(null);
+    try {
+      const remainingSlots = 12 - photoUrls.length;
+      if (remainingSlots <= 0) {
+        setStepError('Maximum 12 photos allowed per property.');
+        return;
+      }
+      const filesToProcess = Array.from(files).slice(0, remainingSlots);
+      const compressed: string[] = [];
+      for (const file of filesToProcess) {
+        try {
+          const res = await compressAndSanitizeImage(file);
+          compressed.push(res.dataUrl);
+        } catch (imgErr: any) {
+          setStepError(imgErr.message || 'Error processing photo');
+        }
+      }
+      if (compressed.length > 0) {
+        setPhotoUrls(prev => [...prev, ...compressed]);
+      }
+    } catch (err: any) {
+      setStepError(err.message || 'Error uploading photos');
+    } finally {
+      setCompressingPhotos(false);
+      e.target.value = '';
+    }
+  };
 
   const toggleAmenity = (amenity: string) => {
     setSelectedAmenities(prev =>
@@ -193,27 +239,46 @@ export const PropertySelfCompletion: React.FC<PropertySelfCompletionProps> = ({
   const validateStep = (step: number): boolean => {
     setStepError(null);
     if (step === 1) {
-      if (!ownerName.trim()) {
-        setStepError('Please enter owner full name.');
+      const nameRes = sanitizeOwnerName(ownerName);
+      if (!nameRes.isValid) {
+        setStepError(nameRes.error || 'Please enter valid owner full name.');
         return false;
       }
-      if (!ownerPhone.trim() || ownerPhone.replace(/\D/g, '').length < 10) {
-        setStepError('Valid 10-digit mobile number is required.');
+      const phoneRes = sanitizeIndianPhone(ownerPhone);
+      if (!phoneRes.isValid) {
+        setStepError(phoneRes.error || 'Valid 10-digit mobile number starting with 6, 7, 8, or 9 is required.');
         return false;
+      }
+      if (ownerEmail.trim()) {
+        const emailRes = sanitizeEmail(ownerEmail);
+        if (!emailRes.isValid) {
+          setStepError(emailRes.error || 'Please enter a valid email address.');
+          return false;
+        }
       }
     } else if (step === 2) {
-      if (!projectName.trim()) {
-        setStepError('Apartment or Society name is required.');
+      const socRes = sanitizeSociety(projectName);
+      if (!socRes.isValid) {
+        setStepError(socRes.error || 'Apartment or Society name is required.');
         return false;
       }
-      if (!localityName.trim()) {
-        setStepError('Locality name is required.');
+      const locRes = sanitizeLocality(localityName);
+      if (!locRes.isValid) {
+        setStepError(locRes.error || 'Locality name is required.');
         return false;
       }
     } else if (step === 3) {
-      if (!superBuiltUpSqft || Number(superBuiltUpSqft) < 300) {
-        setStepError('Please enter valid Super Built-up Area (minimum 300 sq.ft.).');
+      const sbuaRes = sanitizeSBUA(superBuiltUpSqft);
+      if (!sbuaRes.isValid) {
+        setStepError(sbuaRes.error || 'Please enter valid Super Built-up Area (minimum 250 sq.ft.).');
         return false;
+      }
+      if (carpetAreaSqft) {
+        const carpetRes = sanitizeCarpetArea(carpetAreaSqft, Number(superBuiltUpSqft));
+        if (!carpetRes.isValid) {
+          setStepError(carpetRes.error || 'Carpet area cannot exceed Super Built-up Area.');
+          return false;
+        }
       }
     } else if (step === 4) {
       if (unitFloor !== '' && totalFloors !== '' && Number(unitFloor) > Number(totalFloors)) {
@@ -221,9 +286,17 @@ export const PropertySelfCompletion: React.FC<PropertySelfCompletionProps> = ({
         return false;
       }
     } else if (step === 5) {
-      if (!askingPriceInr || Number(askingPriceInr) < 500000) {
-        setStepError('Please enter valid asking price (minimum ₹5 Lakhs).');
+      const priceRes = sanitizePrice(askingPriceInr, false);
+      if (!priceRes.isValid) {
+        setStepError(priceRes.error || 'Please enter a valid asking price (minimum ₹5 Lakhs).');
         return false;
+      }
+      if (description.trim()) {
+        const descRes = sanitizeDescription(description);
+        if (!descRes.isValid) {
+          setStepError(descRes.error || 'Description exceeds character limits.');
+          return false;
+        }
       }
     }
     return true;
@@ -892,44 +965,98 @@ export const PropertySelfCompletion: React.FC<PropertySelfCompletionProps> = ({
                 </p>
               </div>
 
-              {/* Photo Link Input */}
-              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-                <label className="block text-xs font-semibold text-slate-700">
-                  Add Property Photo Links (or Cloud Drive Link)
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="url"
-                    value={newPhotoInput}
-                    onChange={(e) => setNewPhotoInput(e.target.value)}
-                    placeholder="https://images.example.com/flat-photo.jpg"
-                    className="flex-1 px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-800 focus:border-[#0176D3] focus:ring-1 focus:ring-[#0176D3]"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddPhoto}
-                    className="px-4 py-2 bg-[#0176D3] text-white text-xs font-semibold rounded-lg hover:bg-[#005fb2] transition-colors"
-                  >
-                    Add
-                  </button>
+              {/* Compressed Photo Upload Zone */}
+              <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-800">
+                      Upload Photos from Device (Camera or Gallery)
+                    </label>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Photos are automatically compressed (max 1600px) & sanitized (EXIF/GPS metadata stripped for security).
+                    </p>
+                  </div>
+                  <span className="text-[11px] font-semibold text-slate-500">
+                    {photoUrls.length} / 12 photos
+                  </span>
                 </div>
 
+                {/* File Upload Box */}
+                <label className={`border-2 border-dashed rounded-xl p-5 flex flex-col items-center justify-center cursor-pointer transition-all ${
+                  compressingPhotos 
+                    ? 'bg-blue-50/50 border-[#0176D3]' 
+                    : 'border-slate-300 hover:border-[#0176D3] bg-white hover:bg-blue-50/20'
+                }`}>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    multiple
+                    disabled={compressingPhotos || photoUrls.length >= 12}
+                    onChange={handleFileUpload}
+                    className="hidden"
+                  />
+                  {compressingPhotos ? (
+                    <div className="flex flex-col items-center space-y-2 py-2">
+                      <Loader2 className="w-6 h-6 text-[#0176D3] animate-spin" />
+                      <p className="text-xs font-medium text-slate-700">Compressing & sanitizing photos...</p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center space-y-1.5 py-1">
+                      <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-[#0176D3]">
+                        <Upload className="w-5 h-5" />
+                      </div>
+                      <p className="text-xs font-semibold text-slate-800">
+                        {photoUrls.length >= 12 ? 'Photo Limit Reached' : 'Click to Upload Photos'}
+                      </p>
+                      <p className="text-[10px] text-slate-400">JPG, PNG, WebP up to 15MB each</p>
+                    </div>
+                  )}
+                </label>
+
+                {/* Photo Previews Grid */}
                 {photoUrls.length > 0 && (
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
                     {photoUrls.map((url, i) => (
-                      <div key={i} className="relative group rounded-lg overflow-hidden border border-slate-200 bg-white">
-                        <img src={url} alt={`Photo ${i + 1}`} className="w-full h-20 object-cover" />
+                      <div key={i} className="relative group rounded-lg overflow-hidden border border-slate-200 bg-white aspect-4/3 shadow-2xs">
+                        <img src={url} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
+                        <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/60 text-white text-[9px] font-medium">
+                          Photo {i + 1}
+                        </span>
                         <button
                           type="button"
                           onClick={() => handleRemovePhoto(i)}
-                          className="absolute top-1 right-1 p-1 bg-black/60 hover:bg-rose-600 text-white rounded transition-colors"
+                          className="absolute top-1 right-1 p-1.5 bg-black/70 hover:bg-rose-600 text-white rounded-md transition-colors"
+                          title="Remove photo"
                         >
-                          <Trash2 className="w-3 h-3" />
+                          <Trash2 className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     ))}
                   </div>
                 )}
+
+                {/* Optional Web Link Input */}
+                <div className="pt-2 border-t border-slate-200/80">
+                  <span className="block text-[11px] font-medium text-slate-600 mb-1.5">
+                    Or paste an image web link:
+                  </span>
+                  <div className="flex gap-2">
+                    <input
+                      type="url"
+                      value={newPhotoInput}
+                      onChange={(e) => setNewPhotoInput(e.target.value)}
+                      placeholder="https://example.com/property-photo.jpg"
+                      className="flex-1 px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-800 focus:border-[#0176D3] focus:ring-1 focus:ring-[#0176D3]"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddPhoto}
+                      className="px-4 py-2 bg-slate-800 text-white text-xs font-semibold rounded-lg hover:bg-slate-900 transition-colors"
+                    >
+                      Add URL
+                    </button>
+                  </div>
+                </div>
               </div>
 
               {/* Summary Review Card */}
@@ -967,14 +1094,14 @@ export const PropertySelfCompletion: React.FC<PropertySelfCompletionProps> = ({
             </div>
           )}
 
-          {/* Stepper Navigation Buttons */}
-          <div className="mt-8 pt-4 border-t border-slate-100 flex items-center justify-between">
+          {/* Stepper Navigation Buttons (Desktop + Mobile Sticky Bar) */}
+          <div className="mt-8 pt-4 border-t border-slate-100 flex items-center justify-between pb-20 sm:pb-0">
             {currentStep > 1 ? (
               <button
                 type="button"
                 onClick={handlePrev}
                 disabled={saving}
-                className="inline-flex items-center space-x-1.5 px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-semibold transition-colors cursor-pointer"
+                className="inline-flex items-center space-x-1.5 px-4 py-2.5 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-semibold transition-colors cursor-pointer"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
                 <span>Previous</span>
@@ -985,7 +1112,7 @@ export const PropertySelfCompletion: React.FC<PropertySelfCompletionProps> = ({
               <button
                 type="button"
                 onClick={handleNext}
-                className="inline-flex items-center space-x-1.5 px-5 py-2 rounded-lg bg-[#0176D3] hover:bg-[#005fb2] text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+                className="inline-flex items-center space-x-1.5 px-6 py-2.5 rounded-lg bg-[#0176D3] hover:bg-[#005fb2] text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
               >
                 <span>Continue</span>
                 <ArrowRight className="w-3.5 h-3.5" />
@@ -994,7 +1121,7 @@ export const PropertySelfCompletion: React.FC<PropertySelfCompletionProps> = ({
               <button
                 type="button"
                 onClick={() => handleSubmit()}
-                disabled={saving}
+                disabled={saving || compressingPhotos}
                 className="inline-flex items-center space-x-1.5 px-6 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer disabled:opacity-50"
               >
                 {saving ? (
@@ -1008,6 +1135,41 @@ export const PropertySelfCompletion: React.FC<PropertySelfCompletionProps> = ({
                     <span>Submit Property Details</span>
                   </>
                 )}
+              </button>
+            )}
+          </div>
+
+          {/* Mobile Sticky Action Bar */}
+          <div className="sm:hidden fixed bottom-0 left-0 right-0 p-3 bg-white/95 backdrop-blur-md border-t border-slate-200 z-50 flex items-center justify-between shadow-lg">
+            {currentStep > 1 ? (
+              <button
+                type="button"
+                onClick={handlePrev}
+                disabled={saving}
+                className="inline-flex items-center space-x-1 px-3 py-2 rounded-lg border border-slate-300 text-slate-700 text-xs font-semibold"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Back</span>
+              </button>
+            ) : <div className="text-[11px] text-slate-400 font-medium">Step {currentStep} of 6</div>}
+
+            {currentStep < 6 ? (
+              <button
+                type="button"
+                onClick={handleNext}
+                className="inline-flex items-center space-x-1.5 px-5 py-2 rounded-lg bg-[#0176D3] text-white text-xs font-semibold shadow-xs"
+              >
+                <span>Next Step</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => handleSubmit()}
+                disabled={saving || compressingPhotos}
+                className="inline-flex items-center space-x-1.5 px-5 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold shadow-xs disabled:opacity-50"
+              >
+                {saving ? 'Submitting...' : 'Submit Details'}
               </button>
             )}
           </div>

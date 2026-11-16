@@ -74,12 +74,16 @@ export function resolveRoute(path: string, hash: string, host: string, search: s
     return 'ESIGN_BROKERAGE';
   }
 
-  // 0. Tokenized Seller Self-Completion Link (Takes absolute precedence - NEVER redirects to CRM login)
+  // 0. Tokenized Seller Self-Completion Link & Branded Custom Form Links (Takes absolute precedence - NEVER redirects to CRM login)
   if (
     hash.startsWith('#/seller/complete') ||
     path.startsWith('/seller/complete') ||
     hash.startsWith('#/sell/complete') ||
-    path.startsWith('/sell/complete')
+    path.startsWith('/sell/complete') ||
+    hash.startsWith('#/seller/form') ||
+    path.startsWith('/seller/form') ||
+    hash.startsWith('#/sell/form') ||
+    path.startsWith('/sell/form')
   ) {
     if (typeof window !== 'undefined' && (host.startsWith('crm.') || host.startsWith('crm-'))) {
       const publicTarget = `https://sellmyghar.in${path}${search}${hash}`;
@@ -111,7 +115,12 @@ export function resolveRoute(path: string, hash: string, host: string, search: s
   if (hash === '#/consent') return 'CONSENT';
   if (hash === '#/dashboard' || hash === '#/seller-dashboard') return 'DASHBOARD';
   if (hash === '#/seller-assisted' || hash === '#/post-property') return 'SELLER_ASSISTED';
-  if (hash.startsWith('#/seller/complete') || path.startsWith('/seller/complete') || hash.startsWith('#/sell/complete') || path.startsWith('/sell/complete')) return 'SELLER_COMPLETE';
+  if (
+    hash.startsWith('#/seller/complete') || path.startsWith('/seller/complete') ||
+    hash.startsWith('#/sell/complete') || path.startsWith('/sell/complete') ||
+    hash.startsWith('#/seller/form') || path.startsWith('/seller/form') ||
+    hash.startsWith('#/sell/form') || path.startsWith('/sell/form')
+  ) return 'SELLER_COMPLETE';
 
   // 2b. Hidden CRM route: accessible via direct link (#/crm, /crm, or query param)
   if (hash === '#/crm' || hash.startsWith('#/crm?') || hash.startsWith('#/crm/') || path === '/crm' || path.startsWith('/crm/')) {
@@ -665,14 +674,14 @@ export default function App() {
   if (currentRoute === 'SELLER_COMPLETE') {
     const pathname = window.location.pathname;
     const hash = window.location.hash.replace(/^#/, '');
-    const activePath = pathname.includes('/complete') ? pathname : hash;
-    const cleanPath = activePath.replace(/^\/?(?:seller|sell)\/complete\/?/, '');
+    const activePath = (pathname.includes('/complete') || pathname.includes('/form')) ? pathname : hash;
+    const cleanPath = activePath.replace(/^\/?(?:seller|sell)\/(?:complete|form)\/?/, '');
     const pathParts = cleanPath.split('?')[0].split('/');
     const completionPropId = pathParts[0] || '';
     const urlParams = new URLSearchParams(
       window.location.search || (window.location.hash.includes('?') ? window.location.hash.split('?')[1] : '')
     );
-    const completionToken = urlParams.get('token') || pathParts[1] || '';
+    const completionToken = urlParams.get('token') || (pathParts[1] && pathParts[1].length > 15 ? pathParts[1] : '');
 
     return (
       <PropertySelfCompletion

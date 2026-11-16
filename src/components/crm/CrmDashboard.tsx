@@ -69,6 +69,7 @@ import { ManualLeadModal } from './ManualLeadModal';
 import { LeadDetailDrawer } from './LeadDetailDrawer';
 import { PropertyDetailDrawer } from './PropertyDetailDrawer';
 import { BulkPropertyImporterModal } from './BulkPropertyImporterModal';
+import { InventoryInsightsDrawer } from './InventoryInsightsDrawer';
 import { DateTimePicker } from '../common/DateTimePicker';
 import { ErrorBoundary } from '../common/ErrorBoundary';
 import { getCsrfTokenFromCookie, ensureCsrfToken } from '../../utils/safeApi';
@@ -166,10 +167,22 @@ export interface CrmProperty {
   brokerage_agreement_signed_at?: string | null;
   status: PropertyListingStatus;
   listingStatus?: string;
+  slug?: string;
+  closingPriceInr?: number | null;
+  propertyAge?: string | null;
+  possessionStatus?: string | null;
+  leadSource?: string;
+  portal99Acres?: boolean;
+  portalMagicBricks?: boolean;
+  portalSellMyGhar?: boolean;
+  furnishing?: string;
+  balconiesCount?: number;
+  bathroomsCount?: number;
   sellerLeadId?: string | null;
   sellerLeadName?: string | null;
   sellerLeadPhone?: string | null;
   sellerLeadStatus?: string | null;
+  sellerLeadTemperature?: string | null;
   updatedAt?: string;
   createdAt?: string;
 }
@@ -582,6 +595,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
   }, []);
 
   const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(null);
+  const [selectedInventoryInsightsProp, setSelectedInventoryInsightsProp] = useState<any | null>(null);
   const [propertyDetailData, setPropertyDetailData] = useState<any>(null);
   const [propertyDetailLoading, setPropertyDetailLoading] = useState<boolean>(false);
   const [propertyDetailError, setPropertyDetailError] = useState<string | null>(null);
@@ -1178,11 +1192,23 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
   // 1. Update Lead Status
   const handleUpdateLeadStatus = async (leadId: string, newStatus: LeadStatus, note?: string) => {
     try {
-      // Optimistic update in leads state
+      const currentStaffId = staffUser?.id || staffUser?.uid;
+      const currentStaffName = staffUser?.displayName || staffUser?.name || staffUser?.email || 'Assigned Agent';
+
+      // Optimistic update in leads state (auto-assigns to updating agent)
       setLeads((prev) =>
         prev.map((l) =>
           l.id === leadId
-            ? { ...l, stage: newStatus, status: newStatus, lead_status: newStatus }
+            ? {
+                ...l,
+                stage: newStatus,
+                status: newStatus,
+                lead_status: newStatus,
+                assignedStaffId: currentStaffId || l.assignedStaffId,
+                assignedStaffName: currentStaffName || l.assignedStaffName,
+                assigned_staff_id: currentStaffId || (l as any).assigned_staff_id,
+                assigned_staff_name: currentStaffName || (l as any).assigned_staff_name
+              }
             : l
         )
       );
@@ -1196,7 +1222,11 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
             ...prev.lead,
             stage: newStatus,
             status: newStatus,
-            lead_status: newStatus
+            lead_status: newStatus,
+            assignedStaffId: currentStaffId || prev.lead.assignedStaffId,
+            assignedStaffName: currentStaffName || prev.lead.assignedStaffName,
+            assigned_staff_id: currentStaffId || prev.lead.assigned_staff_id,
+            assigned_staff_name: currentStaffName || prev.lead.assigned_staff_name
           }
         };
       });
@@ -2044,12 +2074,16 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
         if (!match) return false;
       }
 
-      // Stage Filter: Total Pipeline (ALL) excludes dropped/lost leads.
-      // Lost leads are ONLY visible when explicitly selecting the 'LOST' (Dropped Leads) filter.
-      if (leadStatusFilter === 'ALL') {
+      // Stage Filter:
+      // 'TOTAL': All leads including lost/dropped.
+      // 'ACTIVE' or 'ALL': Active pipeline, strictly EXCLUDES dropped/lost leads.
+      // Specific stage: matches exact stage.
+      if (leadStatusFilter === 'ACTIVE' || leadStatusFilter === 'ALL') {
         if (lead.stage === 'LOST' || (lead as any).lead_status === 'LOST') {
           return false;
         }
+      } else if (leadStatusFilter === 'TOTAL') {
+        // Show all leads including lost
       } else if (lead.stage !== leadStatusFilter) {
         return false;
       }
@@ -2864,20 +2898,58 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 <h2 className="text-xl font-bold tracking-tight text-[#172033]">Overview</h2>
               </div>
 
-              {/* 6 Clickable Real KPI Cards */}
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5">
-                {/* 1. New Leads */}
+              {/* 8 Clickable Real KPI Cards */}
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
+                {/* 1. Total Leads */}
+                <div
+                  onClick={() => {
+                    setLeadStatusFilter('TOTAL');
+                    setActiveSection('LEADS');
+                  }}
+                  className="bg-white p-3.5 rounded-2xl border border-slate-200/80 hover:border-[#0073E6] transition-all cursor-pointer shadow-xs group"
+                >
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 group-hover:text-[#0073E6]">
+                    Total Leads
+                  </span>
+                  <div className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
+                    {accessibleLeads.length}
+                  </div>
+                  <span className="text-[11px] text-[#0073E6] font-semibold flex items-center mt-1">
+                    All Leads <ChevronRight className="w-3 h-3 ml-0.5" />
+                  </span>
+                </div>
+
+                {/* 2. Active Leads (Excludes LOST) */}
+                <div
+                  onClick={() => {
+                    setLeadStatusFilter('ACTIVE');
+                    setActiveSection('LEADS');
+                  }}
+                  className="bg-white p-3.5 rounded-2xl border border-slate-200/80 hover:border-emerald-600 transition-all cursor-pointer shadow-xs group"
+                >
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 group-hover:text-emerald-600">
+                    Active Leads
+                  </span>
+                  <div className="text-2xl font-bold text-emerald-800 mt-1 tabular-nums">
+                    {accessibleLeads.filter(l => l.stage !== 'LOST' && (l as any).lead_status !== 'LOST').length}
+                  </div>
+                  <span className="text-[11px] text-emerald-600 font-semibold flex items-center mt-1">
+                    Active Pipeline <ChevronRight className="w-3 h-3 ml-0.5" />
+                  </span>
+                </div>
+
+                {/* 3. New Leads */}
                 <div
                   onClick={() => {
                     setLeadStatusFilter('NEW');
                     setActiveSection('LEADS');
                   }}
-                  className="bg-white p-4 rounded-2xl border border-slate-200/80 hover:border-[#0073E6] transition-all cursor-pointer shadow-xs group"
+                  className="bg-white p-3.5 rounded-2xl border border-slate-200/80 hover:border-[#0073E6] transition-all cursor-pointer shadow-xs group"
                 >
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 group-hover:text-[#0073E6]">
                     New Leads
                   </span>
-                  <div className="text-2xl font-bold text-slate-900 mt-1">
+                  <div className="text-2xl font-bold text-slate-900 mt-1 tabular-nums">
                     {!isAdmin ? accessibleLeads.filter(l => l.stage === 'NEW').length : (overviewMetrics?.metrics?.newLeads ?? accessibleLeads.filter(l => l.stage === 'NEW').length)}
                   </div>
                   <span className="text-[11px] text-[#0073E6] font-semibold flex items-center mt-1">
@@ -3287,20 +3359,35 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               </div>
 
               {/* Operational KPI Summary Strip */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2.5">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-9 gap-2">
                 <div
-                  onClick={() => setLeadStatusFilter('ALL')}
+                  onClick={() => setLeadStatusFilter('TOTAL')}
                   className={`p-3 rounded-md border transition-all cursor-pointer shadow-2xs ${
-                    leadStatusFilter === 'ALL'
+                    leadStatusFilter === 'TOTAL'
                       ? 'bg-blue-50/50 border-[#0176D3] ring-1 ring-[#0176D3]'
                       : 'bg-white border-slate-200 hover:border-slate-300'
                   }`}
                 >
-                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">Total Pipeline</span>
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">Total Leads</span>
                   <div className="text-2xl font-bold text-slate-900 mt-0.5 tabular-nums">
+                    {accessibleLeads.length}
+                  </div>
+                  <span className="text-[11px] text-slate-500 font-normal mt-0.5 block">All recorded leads</span>
+                </div>
+
+                <div
+                  onClick={() => setLeadStatusFilter('ACTIVE')}
+                  className={`p-3 rounded-md border transition-all cursor-pointer shadow-2xs ${
+                    leadStatusFilter === 'ACTIVE' || leadStatusFilter === 'ALL'
+                      ? 'bg-emerald-50/50 border-emerald-500 ring-1 ring-emerald-500'
+                      : 'bg-white border-slate-200 hover:border-slate-300'
+                  }`}
+                >
+                  <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700 block">Active Leads</span>
+                  <div className="text-2xl font-bold text-emerald-900 mt-0.5 tabular-nums">
                     {accessibleLeads.filter(l => l.stage !== 'LOST' && (l as any).lead_status !== 'LOST').length}
                   </div>
-                  <span className="text-[11px] text-slate-500 font-normal mt-0.5 block">{isAdmin ? 'All active inquiries' : 'My active leads'}</span>
+                  <span className="text-[11px] text-emerald-600 font-normal mt-0.5 block">Excludes lost leads</span>
                 </div>
 
                 <div
@@ -3586,9 +3673,9 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                       className="bg-transparent text-xs font-medium text-slate-800 focus:outline-none cursor-pointer"
                     >
                       <option value="ALL">All Priorities</option>
-                      <option value="HOT">🔥 HOT</option>
-                      <option value="WARM">⚡ WARM</option>
-                      <option value="COLD">❄️ COLD</option>
+                      <option value="HOT">Hot</option>
+                      <option value="WARM">Warm</option>
+                      <option value="COLD">Cold</option>
                     </select>
                   </div>
 
@@ -3649,6 +3736,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     <tr>
                       <th className="py-2.5 px-3.5 w-10 text-slate-400 font-normal">#</th>
                       <th className="py-2.5 px-3.5">Client / Contact</th>
+                      <th className="py-2.5 px-3.5">Priority</th>
                       <th className="py-2.5 px-3.5">Inquiry Type</th>
                       <th className="py-2.5 px-3.5">Lead Source</th>
                       <th className="py-2.5 px-3.5">Property / Society</th>
@@ -3662,7 +3750,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   <tbody className="divide-y divide-slate-100">
                     {filteredLeads.length === 0 ? (
                       <tr>
-                        <td colSpan={10} className="py-16 text-center text-slate-400 text-xs">
+                        <td colSpan={11} className="py-16 text-center text-slate-400 text-xs">
                           <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2 opacity-80" />
                           <p className="font-semibold text-slate-700">No leads match the specified filter criteria.</p>
                           <p className="text-[11px] text-slate-400 mt-0.5">Try clearing your filters or search query to see all records.</p>
@@ -3695,21 +3783,9 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                             {/* Client / Contact */}
                             <td className="py-2.5 px-3.5">
                               <div className="min-w-0">
-                                <div className="flex items-center space-x-1.5">
-                                  <p className="font-semibold text-[#0176D3] group-hover:text-[#005fb2] hover:underline transition-colors truncate text-xs">
-                                    {clientName}
-                                  </p>
-                                  {(() => {
-                                    const temp = (lead.temperature || 'WARM').toUpperCase();
-                                    if (temp === 'HOT') {
-                                      return <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">🔥 HOT</span>;
-                                    }
-                                    if (temp === 'COLD') {
-                                      return <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-200">❄️ COLD</span>;
-                                    }
-                                    return <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200">⚡ WARM</span>;
-                                  })()}
-                                </div>
+                                <p className="font-semibold text-[#0176D3] group-hover:text-[#005fb2] hover:underline transition-colors truncate text-xs">
+                                  {clientName}
+                                </p>
                                 <p 
                                   onClick={(e) => e.stopPropagation()}
                                   className="text-[11px] text-slate-500 font-normal mt-0.5 select-text cursor-text"
@@ -3717,6 +3793,35 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                                   {lead.phone}
                                 </p>
                               </div>
+                            </td>
+
+                            {/* Priority / Temperature */}
+                            <td className="py-2.5 px-3.5">
+                              {(() => {
+                                const temp = (lead.temperature || 'WARM').toUpperCase();
+                                if (temp === 'HOT') {
+                                  return (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500 mr-1.5"></span>
+                                      Hot
+                                    </span>
+                                  );
+                                }
+                                if (temp === 'COLD') {
+                                  return (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-blue-500 mr-1.5"></span>
+                                      Cold
+                                    </span>
+                                  );
+                                }
+                                return (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mr-1.5"></span>
+                                    Warm
+                                  </span>
+                                );
+                              })()}
                             </td>
 
                             {/* Inquiry Type */}
@@ -4044,19 +4149,18 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   <thead className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-600 uppercase tracking-wider">
                     <tr>
                       <th className="py-2.5 px-3.5">Property / Unit</th>
-                      <th className="py-2.5 px-3.5">Locality</th>
-                      <th className="py-2.5 px-3.5">BHK & Area</th>
-                      <th className="py-2.5 px-3.5">Asking Price</th>
-                      <th className="py-2.5 px-3.5">Status</th>
+                      <th className="py-2.5 px-3.5">Locality & Specs</th>
+                      <th className="py-2.5 px-3.5">Pricing</th>
+                      <th className="py-2.5 px-3.5">Marketplace & Portals</th>
+                      <th className="py-2.5 px-3.5">Owner & Source</th>
                       <th className="py-2.5 px-3.5">Linked Seller Lead</th>
-                      <th className="py-2.5 px-3.5">Assigned RM</th>
                       <th className="py-2.5 px-3.5 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {filteredInventories.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="py-16 text-center text-slate-400 text-xs">
+                        <td colSpan={7} className="py-16 text-center text-slate-400 text-xs">
                           <Layers className="w-8 h-8 text-slate-300 mx-auto mb-2" />
                           <p className="font-semibold text-slate-700">No inventory items match your filter criteria.</p>
                           <p className="text-[11px] text-slate-400 mt-0.5">Try resetting the filter or search term.</p>
@@ -4075,12 +4179,13 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                             }}
                             className="hover:bg-slate-100 transition-colors duration-150 cursor-pointer group"
                           >
+                            {/* Property / Project */}
                             <td className="py-2.5 px-3.5">
                               <div className="flex items-center space-x-2.5">
                                 <img
                                   src={prop.image}
                                   alt={prop.projectName}
-                                  className="w-9 h-9 rounded-md object-cover border border-slate-200 shrink-0 shadow-2xs"
+                                  className="w-10 h-10 rounded-md object-cover border border-slate-200 shrink-0 shadow-2xs"
                                   onError={(e) => {
                                     const target = e.target as HTMLImageElement;
                                     if (!target.dataset.hasFallback) {
@@ -4093,36 +4198,75 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                                   <p className="font-semibold text-[#0176D3] group-hover:text-[#005fb2] hover:underline transition-colors truncate text-xs">
                                     {prop.projectName}
                                   </p>
-                                  <p className="text-[10px] text-slate-500 truncate">{prop.title || prop.id}</p>
+                                  <p className="text-[10px] text-slate-500 truncate">{prop.floorBand || `Floor ${prop.unitFloor || 1} of ${prop.totalFloors || 10}`}</p>
                                 </div>
                               </div>
                             </td>
-                            <td className="py-2.5 px-3.5 text-slate-600 truncate max-w-[150px]">
-                              {prop.localityName}
-                            </td>
+
+                            {/* Locality & Specs */}
                             <td className="py-2.5 px-3.5 text-slate-700">
-                              <div className="font-medium text-slate-900 text-xs">{prop.bhkType}</div>
-                              <div className="text-[10px] text-slate-500">{prop.superBuiltUpSqft} sq.ft</div>
+                              <div className="font-semibold text-slate-900 text-xs truncate max-w-[150px]">{prop.localityName}</div>
+                              <div className="text-[11px] text-slate-600 font-medium">{prop.bhkType} • {prop.superBuiltUpSqft} sq.ft</div>
+                              <div className="text-[10px] text-slate-400">{prop.facing || 'East'} • {prop.furnishing || 'Semi-Furnished'}</div>
                             </td>
+
+                            {/* Pricing */}
                             <td className="py-2.5 px-3.5 font-medium text-slate-900">
-                              ₹{(prop.askingPriceInr / 10000000).toFixed(2)} Cr
-                              <div className="text-[10px] text-slate-500 font-normal">
-                                ₹{prop.pricePerSqft}/sqft
-                              </div>
-                            </td>
-                            <td className="py-2.5 px-3.5">
-                              {isListed ? (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
-                                  <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
-                                  <span>Listed on BuyMyGhar</span>
-                                </span>
+                              <div className="font-bold text-slate-900 text-xs">₹{(prop.askingPriceInr / 10000000).toFixed(2)} Cr</div>
+                              {prop.closingPriceInr ? (
+                                <div className="text-[10px] text-emerald-700 font-medium">
+                                  Close: ₹{(prop.closingPriceInr / 10000000).toFixed(2)} Cr
+                                </div>
                               ) : (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
-                                  <Clock className="w-3 h-3 text-amber-600 shrink-0" />
-                                  <span>Not Listed (Draft)</span>
-                                </span>
+                                <div className="text-[10px] text-slate-400 font-normal">
+                                  ₹{prop.pricePerSqft}/sqft
+                                </div>
                               )}
                             </td>
+
+                            {/* Portals Syndication Matrix */}
+                            <td className="py-2.5 px-3.5">
+                              <div className="flex flex-col gap-1 text-[10px]">
+                                {isListed ? (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 w-fit">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                    BuyMyGhar Listed
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded font-medium bg-amber-50 text-amber-800 border border-amber-200 w-fit">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                    BuyMyGhar Draft
+                                  </span>
+                                )}
+                                <div className="flex items-center space-x-1.5">
+                                  <span className={`px-1 rounded text-[9px] font-semibold border ${
+                                    prop.portal99Acres ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-50 text-slate-400 border-slate-200'
+                                  }`}>
+                                    99acres
+                                  </span>
+                                  <span className={`px-1 rounded text-[9px] font-semibold border ${
+                                    prop.portalMagicBricks ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-50 text-slate-400 border-slate-200'
+                                  }`}>
+                                    Magicbricks
+                                  </span>
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Owner & Lead Source */}
+                            <td className="py-2.5 px-3.5 text-slate-700">
+                              <div className="font-semibold text-slate-900 text-xs truncate max-w-[130px]">
+                                {prop.ownerName || '—'}
+                              </div>
+                              <div className="text-[10px] text-slate-500 font-mono">
+                                {prop.ownerPhone || '—'}
+                              </div>
+                              <div className="text-[9px] text-slate-400">
+                                {prop.leadSource || 'Direct Intake'}
+                              </div>
+                            </td>
+
+                            {/* Linked Seller Lead */}
                             <td className="py-2.5 px-3.5">
                               {prop.sellerLeadId || prop.sellerLeadName ? (
                                 <div className="space-y-0.5">
@@ -4158,14 +4302,21 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                                 </button>
                               )}
                             </td>
-                            <td className="py-2.5 px-3.5 text-slate-600">
-                              {prop.assignedRm ? (
-                                <span className="font-medium text-slate-800">{prop.assignedRm}</span>
-                              ) : (
-                                <span className="text-slate-400 italic">Unassigned</span>
-                              )}
-                            </td>
+
+                            {/* Actions Column */}
                             <td className="py-2.5 px-3.5 text-right space-x-1 whitespace-nowrap">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedInventoryInsightsProp(prop);
+                                }}
+                                className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-[#0176D3] border border-blue-200 text-xs font-semibold rounded-md transition-colors cursor-pointer shadow-2xs inline-flex items-center space-x-1"
+                                title="View buyer inquiries, visits, pricing spread and performance insights"
+                              >
+                                <TrendingUp className="w-3 h-3 text-[#0176D3]" />
+                                <span>Insights</span>
+                              </button>
                               <button
                                 type="button"
                                 onClick={(e) => {
@@ -6045,6 +6196,23 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
             isAdmin={isAdmin}
           />
         </ErrorBoundary>
+      )}
+
+      {/* ============================================================== */}
+      {/* SLIDE-OVER DRAWER: INVENTORY PERFORMANCE & DEMAND INSIGHTS      */}
+      {/* ============================================================== */}
+      {selectedInventoryInsightsProp && (
+        <InventoryInsightsDrawer
+          property={selectedInventoryInsightsProp}
+          isOpen={Boolean(selectedInventoryInsightsProp)}
+          onClose={() => setSelectedInventoryInsightsProp(null)}
+          onToggleListingStatus={handleToggleListingStatus}
+          onGenerateCompletionLink={handleGenerateCompletionLink}
+          onViewLead={(lid) => {
+            setSelectedInventoryInsightsProp(null);
+            setSelectedLeadId(lid);
+          }}
+        />
       )}
 
       {/* ============================================================== */}
