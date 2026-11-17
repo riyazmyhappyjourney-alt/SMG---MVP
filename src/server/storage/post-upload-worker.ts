@@ -116,28 +116,53 @@ export class HeuristicMalwareScanner {
       }
     }
 
-    // 2. String-level deep token inspection for script injection, polyglots, and exploits
+    // 2. Identify if the payload is a valid raster image (JPEG, PNG, WebP)
+    const isRasterImage = (
+      // JPEG: FF D8 FF
+      (buffer.length >= 3 && buffer[0] === 0xFF && buffer[1] === 0xD8 && buffer[2] === 0xFF) ||
+      // PNG: 89 50 4E 47
+      (buffer.length >= 4 && buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47) ||
+      // WebP: RIFF .... WEBP
+      (buffer.length >= 12 && buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46 && buffer[8] === 0x57 && buffer[9] === 0x45 && buffer[10] === 0x42 && buffer[11] === 0x50) ||
+      fileType === 'jpg' || fileType === 'jpeg' || fileType === 'png' || fileType === 'webp'
+    );
+
+    // 3. String-level token inspection for script injection, polyglots, and exploits
+    // IMPORTANT: In compressed binary raster images (JPEG, PNG, WebP), binary entropy contains
+    // random 2-byte sequences like '<%' (0x3C 0x25) or random byte collisions with words like 'eval('
+    // which occur naturally in virtually all smartphone and WhatsApp photos.
+    // Images cannot execute server-side commands or shell scripts, so only check for HTML script polyglots.
     const rawBinary = buffer.toString('binary');
     const lowerRaw = rawBinary.toLowerCase();
 
-    const universalExploits = [
-      '<script',
-      '</script>',
-      '<?php',
-      '<%',
-      'javascript:',
-      'vbscript:',
-      'data:text/html',
-      'powershell',
-      'cmd.exe',
-      '/bin/sh',
-      '/bin/bash',
-      'eval(',
-      'base64_decode',
-      'system(',
-      'passthru(',
-      'shell_exec(',
-    ];
+    const universalExploits = isRasterImage
+      ? [
+          '<script',
+          '</script>',
+          'javascript:',
+          'vbscript:',
+          'data:text/html',
+        ]
+      : [
+          '<script',
+          '</script>',
+          '<?php',
+          '<%eval',
+          '<%execute',
+          '<%@',
+          'javascript:',
+          'vbscript:',
+          'data:text/html',
+          'powershell',
+          'cmd.exe',
+          '/bin/sh',
+          '/bin/bash',
+          'eval(',
+          'base64_decode',
+          'system(',
+          'passthru(',
+          'shell_exec(',
+        ];
 
     for (const token of universalExploits) {
       if (lowerRaw.includes(token)) {
