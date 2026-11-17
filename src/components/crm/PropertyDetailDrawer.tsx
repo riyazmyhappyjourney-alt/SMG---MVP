@@ -104,8 +104,8 @@ export function PropertyDetailDrawer({
 
   const propertySlugOrId = property?.slug || property?.id || selectedPropertyId;
   const isLocalHost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-  const buymygharBaseUrl = isLocalHost ? window.location.origin : 'https://buymyghar.in';
-  const buymygharViewUrl = `${buymygharBaseUrl}/property/${propertySlugOrId}`;
+  const sellmygharBaseUrl = isLocalHost ? window.location.origin : 'https://sellmyghar.in';
+  const sellmygharViewUrl = `${sellmygharBaseUrl}/property/${propertySlugOrId}`;
 
   return (
     <>
@@ -162,8 +162,8 @@ export function PropertyDetailDrawer({
           <div className="flex items-center space-x-1 shrink-0">
             <button
               type="button"
-              onClick={() => window.open(buymygharViewUrl, '_blank')}
-              title="View on BuyMyGhar Marketplace"
+              onClick={() => window.open(sellmygharViewUrl, '_blank')}
+              title="View on SellMyGhar Public Page"
               className="p-1.5 sm:p-2 rounded-md bg-blue-50 hover:bg-blue-100 text-[#0176D3] transition-colors cursor-pointer"
             >
               <ExternalLink className="w-4 h-4 text-[#0176D3]" />
@@ -171,7 +171,7 @@ export function PropertyDetailDrawer({
             <button
               type="button"
               onClick={() => setIsShareModalOpen(true)}
-              title="Share BuyMyGhar Property Listing"
+              title="Share SellMyGhar Property Listing"
               className="p-1.5 sm:p-2 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition-colors cursor-pointer"
             >
               <Share2 className="w-4 h-4 text-emerald-600" />
@@ -643,11 +643,11 @@ export function PropertyDetailDrawer({
           <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
             <button
               type="button"
-              onClick={() => window.open(buymygharViewUrl, '_blank')}
+              onClick={() => window.open(sellmygharViewUrl, '_blank')}
               className="px-3 py-1.5 bg-blue-50 border border-blue-200 hover:bg-blue-100 text-[#0176D3] font-semibold text-xs rounded-md shadow-2xs cursor-pointer flex items-center space-x-1.5"
             >
               <ExternalLink className="w-3.5 h-3.5 text-[#0176D3]" />
-              <span>View on BuyMyGhar</span>
+              <span>View on SellMyGhar</span>
             </button>
             {onGenerateCompletionLink && (
               <button
@@ -694,7 +694,7 @@ export function PropertyDetailDrawer({
       </div>
     </div>
 
-    {/* Modal: Share BuyMyGhar Property Listing */}
+    {/* Modal: Share SellMyGhar Property Listing */}
     {isShareModalOpen && (
       <div 
         className="fixed inset-0 z-60 overflow-hidden flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-in fade-in duration-150"
@@ -706,12 +706,12 @@ export function PropertyDetailDrawer({
         >
           <div className="flex items-center justify-between pb-3 border-b border-slate-100">
             <div className="flex items-center space-x-2">
-              <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600">
+              <div className="p-2 rounded-lg bg-blue-50 text-[#0176D3]">
                 <Share2 className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-sm font-bold text-slate-900">Share BuyMyGhar Listing</h3>
-                <p className="text-[11px] text-slate-500">Live verified property on BuyMyGhar marketplace</p>
+                <h3 className="text-sm font-bold text-slate-900">Share SellMyGhar Listing</h3>
+                <p className="text-[11px] text-slate-500">Live verified buyer presentation on SellMyGhar</p>
               </div>
             </div>
             <button
@@ -729,26 +729,26 @@ export function PropertyDetailDrawer({
             <p className="text-[11px] text-slate-500 mt-0.5">{bhk} • {locality}</p>
           </div>
 
-          {/* BuyMyGhar Link Input */}
+          {/* SellMyGhar Link Input */}
           <div className="space-y-1.5">
             <label className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-              BuyMyGhar Public Property URL
+              SellMyGhar Buyer Property URL
             </label>
             <div className="flex items-center space-x-2">
               <input
                 type="text"
                 readOnly
-                value={buymygharViewUrl}
+                value={sellmygharViewUrl}
                 className="flex-1 bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono text-slate-700 select-all focus:outline-none"
               />
               <button
                 type="button"
                 onClick={() => {
-                  navigator.clipboard.writeText(buymygharViewUrl);
+                  navigator.clipboard.writeText(sellmygharViewUrl);
                   setBuymygharLinkCopied(true);
                   setTimeout(() => setBuymygharLinkCopied(false), 2000);
                 }}
-                className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold shadow-xs cursor-pointer flex items-center space-x-1"
+                className="px-3 py-2 bg-[#0176D3] hover:bg-[#005fb2] text-white rounded-lg text-xs font-bold shadow-xs cursor-pointer flex items-center space-x-1"
               >
                 {buymygharLinkCopied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                 <span>{buymygharLinkCopied ? 'Copied!' : 'Copy'}</span>
@@ -761,19 +761,19 @@ export function PropertyDetailDrawer({
             <button
               type="button"
               onClick={() => {
-                window.open(buymygharViewUrl, '_blank');
+                window.open(sellmygharViewUrl, '_blank');
                 setIsShareModalOpen(false);
               }}
               className="w-full px-3 py-2 bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 rounded-lg text-xs font-semibold flex items-center justify-center space-x-1.5 cursor-pointer shadow-2xs"
             >
               <ExternalLink className="w-3.5 h-3.5 text-[#0176D3]" />
-              <span>View on BuyMyGhar</span>
+              <span>View on SellMyGhar</span>
             </button>
 
             <button
               type="button"
               onClick={() => {
-                const text = encodeURIComponent(`Take a look at this property on BuyMyGhar:\n${displayTitle} (${bhk})\n${buymygharViewUrl}`);
+                const text = encodeURIComponent(`Take a look at this property on SellMyGhar:\n${displayTitle} (${bhk})\n${sellmygharViewUrl}`);
                 window.open(`https://wa.me/?text=${text}`, '_blank');
               }}
               className="w-full px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold flex items-center justify-center space-x-1.5 cursor-pointer shadow-2xs"

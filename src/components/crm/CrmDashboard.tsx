@@ -22,6 +22,7 @@ import {
   X,
   ChevronRight,
   ChevronDown,
+  ChevronUp,
   LogOut,
   ArrowLeft,
   ExternalLink,
@@ -541,9 +542,11 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
       setLeadAssignFilter('ME');
     }
   }, [isAdmin, leadAssignFilter]);
-  const [leadTypeFilter, setLeadTypeFilter] = useState<'ALL' | 'SELLER' | 'BUYER'>('ALL');
+  const [leadTypeFilter, setLeadTypeFilter] = useState<'ALL' | 'SELLER' | 'BUYER'>('BUYER');
   const [leadTempFilter, setLeadTempFilter] = useState<string>('ALL');
   const [leadSourceFilter, setLeadSourceFilter] = useState<string>('ALL');
+  const [leadDateFilter, setLeadDateFilter] = useState<'ALL' | 'TODAY' | 'YESTERDAY' | 'LAST_7_DAYS' | 'LAST_30_DAYS' | 'THIS_MONTH' | 'LAST_MONTH'>('ALL');
+  const [showMoreLeadFilters, setShowMoreLeadFilters] = useState<boolean>(false);
   const [leadFollowUpFilter, setLeadFollowUpFilter] = useState<'ALL' | 'OVERDUE' | 'TODAY' | 'UPCOMING'>('ALL');
 
   const [propSearch, setPropSearch] = useState<string>('');
@@ -1406,6 +1409,23 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
   // Link Property to Lead
   const handleLinkLeadProperty = async (leadId: string, propertyId: string) => {
     try {
+      // Optimistically update lead row in Leads module table
+      const targetProp = properties.find(p => p.id === propertyId);
+      if (targetProp) {
+        setLeads(prev => prev.map(l => {
+          if (l.id !== leadId) return l;
+          return {
+            ...l,
+            propertyId,
+            property_id: propertyId,
+            society: targetProp.projectName || targetProp.title || l.society,
+            locality: targetProp.localityName || l.locality,
+            bhk: targetProp.bhkType || l.bhk,
+            expectedPrice: targetProp.askingPriceInr ? formatIndianCurrency(targetProp.askingPriceInr) : l.expectedPrice
+          };
+        }));
+      }
+
       const res = await crmFetch(`/api/crm/leads/${leadId}/property`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1418,9 +1438,11 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
         loadLeads();
       } else {
         showToast(data.message || 'Failed to link property to lead', 'error');
+        loadLeads();
       }
     } catch {
       showToast('Network error linking property', 'error');
+      loadLeads();
     }
   };
 
@@ -2063,15 +2085,81 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
 
   const filteredLeads = useMemo(() => {
     return accessibleLeads.filter(lead => {
-      const q = (leadSearch.trim() || globalSearch.trim()).toLowerCase();
-      if (q) {
-        const match =
-          (lead.ownerName || '').toLowerCase().includes(q) ||
-          (lead.phone || '').toLowerCase().includes(q) ||
-          (lead.society || '').toLowerCase().includes(q) ||
-          (lead.locality || '').toLowerCase().includes(q) ||
-          (lead.id || '').toLowerCase().includes(q);
-        if (!match) return false;
+      const q = leadSearch.trim().toLowerCase();
+      const gq = globalSearch.trim().toLowerCase();
+      const searchTerm = q || gq;
+
+      if (searchTerm) {
+        // Strip non-digits for phone searching
+        const qDigits = searchTerm.replace(/\D/g, '');
+        const phoneDigits = (lead.phone || '').replace(/\D/g, '');
+        const phoneMatches = qDigits.length >= 3 && phoneDigits.includes(qDigits);
+
+        const clientName = (lead.displayName || lead.ownerName || lead.name || (lead as any).buyer_name || (lead as any).client_name || '').toLowerCase();
+        const society = (lead.society || '').toLowerCase();
+        const locality = (lead.locality || '').toLowerCase();
+        const leadId = (lead.id || '').toLowerCase();
+        const bhk = (lead.bhk || '').toLowerCase();
+        const budget = (lead.expectedPrice || '').toLowerCase();
+        const staffName = (
+          lead.assignedStaffName ||
+          (lead as any).assigned_staff_name ||
+          staffList.find((s) => s.id === (lead.assignedStaffId || (lead as any).assigned_staff_id))?.displayName ||
+          ''
+        ).toLowerCase();
+        const notes = ((lead.notes || '') + ' ' + ((lead as any).follow_up_notes || '')).toLowerCase();
+        const source = (lead.source || (lead as any).attribution?.source || '').toLowerCase();
+        const stage = (lead.stage || (lead as any).lead_status || '').toLowerCase();
+
+        const textMatches =
+          clientName.includes(searchTerm) ||
+          (lead.phone || '').toLowerCase().includes(searchTerm) ||
+          society.includes(searchTerm) ||
+          locality.includes(searchTerm) ||
+          leadId.includes(searchTerm) ||
+          bhk.includes(searchTerm) ||
+          budget.includes(searchTerm) ||
+          staffName.includes(searchTerm) ||
+          notes.includes(searchTerm) ||
+          source.includes(searchTerm) ||
+          stage.includes(searchTerm);
+
+        if (!phoneMatches && !textMatches) {
+          return false;
+        }
+      }
+
+      // Date Range Filter:
+      if (leadDateFilter !== 'ALL') {
+        const rawDate = lead.createdAt || (lead as any).created_at;
+        if (!rawDate) return false;
+        const leadTime = new Date(rawDate).getTime();
+        if (isNaN(leadTime)) return false;
+
+        const now = new Date();
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+        const endOfToday = startOfToday + 86400000 - 1;
+
+        if (leadDateFilter === 'TODAY') {
+          if (leadTime < startOfToday || leadTime > endOfToday) return false;
+        } else if (leadDateFilter === 'YESTERDAY') {
+          const startOfYesterday = startOfToday - 86400000;
+          const endOfYesterday = startOfToday - 1;
+          if (leadTime < startOfYesterday || leadTime > endOfYesterday) return false;
+        } else if (leadDateFilter === 'LAST_7_DAYS') {
+          const sevenDaysAgo = startOfToday - (6 * 86400000);
+          if (leadTime < sevenDaysAgo || leadTime > endOfToday) return false;
+        } else if (leadDateFilter === 'LAST_30_DAYS') {
+          const thirtyDaysAgo = startOfToday - (29 * 86400000);
+          if (leadTime < thirtyDaysAgo || leadTime > endOfToday) return false;
+        } else if (leadDateFilter === 'THIS_MONTH') {
+          const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+          if (leadTime < startOfMonth || leadTime > endOfToday) return false;
+        } else if (leadDateFilter === 'LAST_MONTH') {
+          const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime();
+          const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999).getTime();
+          if (leadTime < startOfLastMonth || leadTime > endOfLastMonth) return false;
+        }
       }
 
       // Stage Filter:
@@ -2143,7 +2231,47 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
       const timeB = new Date(b.createdAt || (b as any).created_at || 0).getTime();
       return timeB - timeA;
     });
-  }, [accessibleLeads, leadSearch, globalSearch, leadStatusFilter, leadAssignFilter, leadTypeFilter, leadTempFilter, leadSourceFilter, leadFollowUpFilter, staffUser]);
+  }, [accessibleLeads, leadSearch, globalSearch, leadDateFilter, leadStatusFilter, leadAssignFilter, leadTypeFilter, leadTempFilter, leadSourceFilter, leadFollowUpFilter, isAdmin, staffUser, staffList]);
+
+  // Scoped leads based on active section (BUYER vs SELLER vs ALL)
+  const scopedLeads = useMemo(() => {
+    if (leadTypeFilter === 'BUYER') return accessibleLeads.filter(l => l.type === 'BUYER');
+    if (leadTypeFilter === 'SELLER') return accessibleLeads.filter(l => l.type === 'SELLER');
+    return accessibleLeads;
+  }, [accessibleLeads, leadTypeFilter]);
+
+  // Active filter count for badge
+  const activeLeadFilterCount = useMemo(() => {
+    let count = 0;
+    if (leadDateFilter !== 'ALL') count++;
+    if (leadTempFilter !== 'ALL') count++;
+    if (leadSourceFilter !== 'ALL') count++;
+    if (leadFollowUpFilter !== 'ALL') count++;
+    if (isAdmin && leadAssignFilter !== 'ALL') count++;
+    if (leadStatusFilter !== 'ACTIVE') count++;
+    return count;
+  }, [leadDateFilter, leadTempFilter, leadSourceFilter, leadFollowUpFilter, isAdmin, leadAssignFilter, leadStatusFilter]);
+
+  // Check if search matches leads that were excluded because stage was set to ACTIVE (i.e. lead is LOST)
+  const potentialMatchesInTotalLeads = useMemo(() => {
+    const q = leadSearch.trim().toLowerCase();
+    if (!q || leadStatusFilter !== 'ACTIVE') return 0;
+    const qDigits = q.replace(/\D/g, '');
+    return accessibleLeads.filter(lead => {
+      const isLost = lead.stage === 'LOST' || (lead as any).lead_status === 'LOST';
+      if (!isLost) return false;
+      const phoneDigits = (lead.phone || '').replace(/\D/g, '');
+      const phoneMatches = qDigits.length >= 3 && phoneDigits.includes(qDigits);
+      const clientName = (lead.displayName || lead.ownerName || lead.name || (lead as any).buyer_name || (lead as any).client_name || '').toLowerCase();
+      const textMatches =
+        clientName.includes(q) ||
+        (lead.phone || '').toLowerCase().includes(q) ||
+        (lead.society || '').toLowerCase().includes(q) ||
+        (lead.locality || '').toLowerCase().includes(q) ||
+        (lead.id || '').toLowerCase().includes(q);
+      return phoneMatches || textMatches;
+    }).length;
+  }, [accessibleLeads, leadSearch, leadStatusFilter]);
 
   const filteredInventories = useMemo(() => {
     return properties.filter(prop => {
@@ -2374,28 +2502,60 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               </button>
             )}
 
-            {/* 2. Leads */}
+            {/* 2a. Buyer Leads (Main) */}
             {hasAccess('LEADS') && (
               <button
                 type="button"
-                onClick={() => handleSelectSection('LEADS')}
+                onClick={() => {
+                  setLeadTypeFilter('BUYER');
+                  handleSelectSection('LEADS');
+                }}
                 className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-medium transition-colors cursor-pointer ${
-                  activeSection === 'LEADS'
+                  activeSection === 'LEADS' && leadTypeFilter === 'BUYER'
                     ? 'bg-[#0176D3] text-white shadow-2xs font-semibold'
                     : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                 }`}
               >
                 <div className="flex items-center space-x-2.5">
                   <Users className="w-4 h-4 shrink-0" />
-                  <span>Leads</span>
+                  <span>Buyer Leads</span>
                 </div>
                 <span
                   className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${
-                    activeSection === 'LEADS' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                    activeSection === 'LEADS' && leadTypeFilter === 'BUYER' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
                   }`}
-                  title="Active Pipeline Leads (excludes Lost)"
+                  title="Active Buyer Enquiries (Main Pipeline)"
                 >
-                  {accessibleLeads.filter(l => l.stage !== 'LOST' && (l as any).lead_status !== 'LOST').length}
+                  {accessibleLeads.filter(l => l.type === 'BUYER' && l.stage !== 'LOST' && (l as any).lead_status !== 'LOST').length}
+                </span>
+              </button>
+            )}
+
+            {/* 2b. Seller Leads */}
+            {hasAccess('LEADS') && (
+              <button
+                type="button"
+                onClick={() => {
+                  setLeadTypeFilter('SELLER');
+                  handleSelectSection('LEADS');
+                }}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded-md text-xs font-medium transition-colors cursor-pointer ${
+                  activeSection === 'LEADS' && leadTypeFilter === 'SELLER'
+                    ? 'bg-[#0176D3] text-white shadow-2xs font-semibold'
+                    : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
+                }`}
+              >
+                <div className="flex items-center space-x-2.5">
+                  <Building2 className="w-4 h-4 shrink-0" />
+                  <span>Seller Leads</span>
+                </div>
+                <span
+                  className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${
+                    activeSection === 'LEADS' && leadTypeFilter === 'SELLER' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                  }`}
+                  title="Active Seller Leads"
+                >
+                  {accessibleLeads.filter(l => l.type === 'SELLER' && l.stage !== 'LOST' && (l as any).lead_status !== 'LOST').length}
                 </span>
               </button>
             )}
@@ -3324,15 +3484,78 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
           {/* ============================================================== */}
           {activeSection === 'LEADS' && (
             <div className="space-y-4">
+              {/* Buyer / Seller Pipeline Switcher Tabs */}
+              <div className="flex items-center space-x-1.5 p-1 bg-slate-100 rounded-lg w-fit border border-slate-200/80">
+                <button
+                  type="button"
+                  onClick={() => setLeadTypeFilter('BUYER')}
+                  className={`flex items-center space-x-2 px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                    leadTypeFilter === 'BUYER'
+                      ? 'bg-white text-[#0176D3] shadow-xs ring-1 ring-slate-200/60'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Users className="w-3.5 h-3.5" />
+                  <span>Buyer Enquiries (Main)</span>
+                  <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
+                    leadTypeFilter === 'BUYER' ? 'bg-blue-50 text-[#0176D3]' : 'bg-slate-200/70 text-slate-600'
+                  }`}>
+                    {accessibleLeads.filter(l => l.type === 'BUYER').length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setLeadTypeFilter('SELLER')}
+                  className={`flex items-center space-x-2 px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                    leadTypeFilter === 'SELLER'
+                      ? 'bg-white text-[#0176D3] shadow-xs ring-1 ring-slate-200/60'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Building2 className="w-3.5 h-3.5" />
+                  <span>Seller Leads</span>
+                  <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
+                    leadTypeFilter === 'SELLER' ? 'bg-blue-50 text-[#0176D3]' : 'bg-slate-200/70 text-slate-600'
+                  }`}>
+                    {accessibleLeads.filter(l => l.type === 'SELLER').length}
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setLeadTypeFilter('ALL')}
+                  className={`flex items-center space-x-2 px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                    leadTypeFilter === 'ALL'
+                      ? 'bg-white text-slate-900 shadow-xs ring-1 ring-slate-200/60'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <span>All Pipeline</span>
+                  <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
+                    leadTypeFilter === 'ALL' ? 'bg-slate-900 text-white' : 'bg-slate-200/70 text-slate-600'
+                  }`}>
+                    {accessibleLeads.length}
+                  </span>
+                </button>
+              </div>
+
               {/* Module Header & Operational Context */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
                   <div className="flex items-center space-x-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
-                    <span>Leads</span>
+                    <span>
+                      {leadTypeFilter === 'BUYER' ? 'Buyer Pipeline (Main)' : leadTypeFilter === 'SELLER' ? 'Seller Pipeline' : 'Unified Leads Pipeline'}
+                    </span>
                   </div>
                   <div className="flex items-center space-x-2 mt-0.5">
-                    <h2 className="text-xl font-bold tracking-tight text-slate-900">{isAdmin ? 'All Leads' : 'My Assigned Leads'}</h2>
-                    <ChevronDown className="w-4 h-4 text-slate-500" />
+                    <h2 className="text-xl font-bold tracking-tight text-slate-900">
+                      {leadTypeFilter === 'BUYER'
+                        ? (isAdmin ? 'Buyer Enquiries (Main Pipeline)' : 'My Assigned Buyer Enquiries')
+                        : leadTypeFilter === 'SELLER'
+                        ? (isAdmin ? 'Seller Leads Pipeline' : 'My Assigned Seller Leads')
+                        : (isAdmin ? 'All Leads Pipeline' : 'My Assigned Leads')}
+                    </h2>
                   </div>
                   <p className="text-xs text-slate-500 font-normal mt-0.5">
                     {filteredLeads.length} items • {isAdmin ? 'Filtered by active criteria' : 'Assigned exclusively to you'} • Updated moments ago
@@ -3350,11 +3573,11 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   </button>
                   <button
                     type="button"
-                    onClick={() => handleOpenAddLead('SellMyGhar Portal', 'BUYER')}
+                    onClick={() => handleOpenAddLead('SellMyGhar Portal', leadTypeFilter === 'SELLER' ? 'SELLER' : 'BUYER')}
                     className="inline-flex items-center space-x-1.5 px-3.5 py-1.5 rounded-md bg-[#0176D3] hover:bg-[#005fb2] text-white text-xs font-semibold shadow-2xs transition-all cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>Add Lead</span>
+                    <span>{leadTypeFilter === 'SELLER' ? 'Add Seller Lead' : 'Add Buyer Enquiry'}</span>
                   </button>
                 </div>
               </div>
@@ -3371,7 +3594,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 >
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">Total Leads</span>
                   <div className="text-2xl font-bold text-slate-900 mt-0.5 tabular-nums">
-                    {accessibleLeads.length}
+                    {scopedLeads.length}
                   </div>
                   <span className="text-[11px] text-slate-500 font-normal mt-0.5 block">All recorded leads</span>
                 </div>
@@ -3386,7 +3609,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 >
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-emerald-700 block">Active Leads</span>
                   <div className="text-2xl font-bold text-emerald-900 mt-0.5 tabular-nums">
-                    {accessibleLeads.filter(l => l.stage !== 'LOST' && (l as any).lead_status !== 'LOST').length}
+                    {scopedLeads.filter(l => l.stage !== 'LOST' && (l as any).lead_status !== 'LOST').length}
                   </div>
                   <span className="text-[11px] text-emerald-600 font-normal mt-0.5 block">Excludes lost leads</span>
                 </div>
@@ -3401,7 +3624,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 >
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">New Inbound</span>
                   <div className="text-2xl font-bold text-slate-900 mt-0.5 tabular-nums">
-                    {accessibleLeads.filter(l => l.stage === 'NEW').length}
+                    {scopedLeads.filter(l => l.stage === 'NEW').length}
                   </div>
                   <span className="text-[11px] text-[#0176D3] font-medium mt-0.5 block">Fresh registrations</span>
                 </div>
@@ -3416,7 +3639,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 >
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-orange-700 block">RNR</span>
                   <div className="text-2xl font-bold text-orange-900 mt-0.5 tabular-nums">
-                    {accessibleLeads.filter(l => l.stage === 'RNR').length}
+                    {scopedLeads.filter(l => l.stage === 'RNR').length}
                   </div>
                   <span className="text-[11px] text-orange-700 font-medium mt-0.5 block">Ring not received</span>
                 </div>
@@ -3431,7 +3654,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 >
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">Contacted</span>
                   <div className="text-2xl font-bold text-slate-900 mt-0.5 tabular-nums">
-                    {accessibleLeads.filter(l => l.stage === 'CONTACTED').length}
+                    {scopedLeads.filter(l => l.stage === 'CONTACTED').length}
                   </div>
                   <span className="text-[11px] text-indigo-700 font-medium mt-0.5 block">Initial outreach</span>
                 </div>
@@ -3446,7 +3669,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 >
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">In Follow-up</span>
                   <div className="text-2xl font-bold text-amber-900 mt-0.5 tabular-nums">
-                    {accessibleLeads.filter(l => l.stage === 'FOLLOW_UP').length}
+                    {scopedLeads.filter(l => l.stage === 'FOLLOW_UP').length}
                   </div>
                   <span className="text-[11px] text-amber-700 font-medium mt-0.5 block">Active diligence</span>
                 </div>
@@ -3461,7 +3684,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 >
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">Site Visits</span>
                   <div className="text-2xl font-bold text-sky-900 mt-0.5 tabular-nums">
-                    {accessibleLeads.filter(l => l.stage === 'SITE_VISIT').length}
+                    {scopedLeads.filter(l => l.stage === 'SITE_VISIT').length}
                   </div>
                   <span className="text-[11px] text-sky-700 font-medium mt-0.5 block">Physical tours</span>
                 </div>
@@ -3476,7 +3699,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 >
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 block">Converted</span>
                   <div className="text-2xl font-bold text-emerald-800 mt-0.5 tabular-nums">
-                    {accessibleLeads.filter(l => l.stage === 'CONVERTED').length}
+                    {scopedLeads.filter(l => l.stage === 'CONVERTED').length}
                   </div>
                   <span className="text-[11px] text-emerald-700 font-medium mt-0.5 block">Deals closed</span>
                 </div>
@@ -3491,7 +3714,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 >
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-rose-600 block">Dropped Leads</span>
                   <div className="text-2xl font-bold text-rose-700 mt-0.5 tabular-nums">
-                    {accessibleLeads.filter(l => l.stage === 'LOST' || (l as any).lead_status === 'LOST').length}
+                    {scopedLeads.filter(l => l.stage === 'LOST' || (l as any).lead_status === 'LOST').length}
                   </div>
                   <span className="text-[11px] text-rose-600 font-medium mt-0.5 block">Inquiry dropped</span>
                 </div>
@@ -3513,7 +3736,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     <span className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${
                       leadAssignFilter === 'ALL' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
                     }`}>
-                      {leads.length}
+                      {scopedLeads.length}
                     </span>
                   </button>
 
@@ -3530,7 +3753,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     <span className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${
                       leadAssignFilter === 'ASSIGNED' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
                     }`}>
-                      {leads.filter(l => Boolean(l.assignedStaffId)).length}
+                      {scopedLeads.filter(l => Boolean(l.assignedStaffId)).length}
                     </span>
                   </button>
 
@@ -3547,7 +3770,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     <span className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${
                       leadAssignFilter === 'ME' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
                     }`}>
-                      {leads.filter(l => l.assignedStaffId === (staffUser?.id || staffUser?.uid)).length}
+                      {scopedLeads.filter(l => l.assignedStaffId === (staffUser?.id || staffUser?.uid)).length}
                     </span>
                   </button>
 
@@ -3564,7 +3787,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     <span className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${
                       leadAssignFilter === 'UNASSIGNED' ? 'bg-white/20 text-white' : 'bg-amber-50 text-amber-700'
                     }`}>
-                      {leads.filter(l => !l.assignedStaffId).length}
+                      {scopedLeads.filter(l => !l.assignedStaffId).length}
                     </span>
                   </button>
                 </div>
@@ -3580,155 +3803,297 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
               )}
 
               {/* Dedicated Search & Filter Control Bar */}
-              <div className="p-2.5 bg-white rounded-md border border-slate-200 shadow-2xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5 text-xs">
-                {/* Search Input */}
-                <div className="relative flex-1 max-w-md">
-                  <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="text"
-                    placeholder="Search this list by name, phone, society, locality..."
-                    value={leadSearch}
-                    onChange={(e) => setLeadSearch(e.target.value)}
-                    className="w-full bg-white border border-slate-300 rounded-md pl-8 pr-7 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:border-[#0176D3] focus:ring-1 focus:ring-[#0176D3] focus:outline-none shadow-2xs"
-                  />
-                  {leadSearch && (
-                    <button
-                      type="button"
-                      onClick={() => setLeadSearch('')}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  )}
-                </div>
-
-                {/* Filter Controls */}
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="flex items-center space-x-1.5 bg-white border border-slate-300 rounded-md px-2.5 py-1 shadow-2xs">
-                    <span className="text-slate-500 text-[11px] font-medium">Type:</span>
-                    <select
-                      value={leadTypeFilter}
-                      onChange={(e) => {
-                        setLeadTypeFilter(e.target.value as 'ALL' | 'BUYER' | 'SELLER');
-                        setLeadStatusFilter('ACTIVE');
-                      }}
-                      className="bg-transparent text-xs font-medium text-slate-800 focus:outline-none cursor-pointer"
-                    >
-                      <option value="ALL">All Types</option>
-                      <option value="BUYER">Buyer Leads</option>
-                      <option value="SELLER">Seller Leads</option>
-                    </select>
+              <div className="bg-white rounded-md border border-slate-200 shadow-2xs divide-y divide-slate-100 text-xs">
+                {/* Primary Row: Search, Date Filter, Stage, and More Filters Toggle */}
+                <div className="p-2.5 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-2.5">
+                  {/* Search Input */}
+                  <div className="relative flex-1 min-w-[260px] sm:min-w-[340px] max-w-md">
+                    <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Search by name, phone (e.g. 98458), project, RM..."
+                      value={leadSearch}
+                      onChange={(e) => setLeadSearch(e.target.value)}
+                      className="w-full bg-white border border-slate-300 rounded-md pl-8 pr-7 py-1.5 text-xs text-slate-800 placeholder-slate-400 focus:bg-white focus:border-[#0176D3] focus:ring-1 focus:ring-[#0176D3] focus:outline-none shadow-2xs"
+                    />
+                    {leadSearch && (
+                      <button
+                        type="button"
+                        onClick={() => setLeadSearch('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                        title="Clear search"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                   </div>
 
-                  <div className="flex items-center space-x-1.5 bg-white border border-slate-300 rounded-md px-2.5 py-1 shadow-2xs">
-                    <span className="text-slate-500 text-[11px] font-medium">Stage:</span>
-                    <select
-                      value={leadStatusFilter}
-                      onChange={(e) => setLeadStatusFilter(e.target.value)}
-                      className="bg-transparent text-xs font-medium text-slate-800 focus:outline-none cursor-pointer"
-                    >
-                      <option value="ACTIVE">Active Pipeline (Excludes Lost)</option>
-                      <option value="TOTAL">Total Leads (All Recorded)</option>
-                      {(leadTypeFilter === 'ALL' ? PIPELINE_STAGES : getPipelineStagesForLead(leadTypeFilter)).map(s => (
-                        <option key={s.key} value={s.key}>{s.label}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {isAdmin && (
+                  {/* Primary Filter Controls */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {/* Date Range Filter */}
                     <div className="flex items-center space-x-1.5 bg-white border border-slate-300 rounded-md px-2.5 py-1 shadow-2xs">
-                      <span className="text-slate-500 text-[11px] font-medium">Assigned:</span>
+                      <Calendar className="w-3.5 h-3.5 text-slate-500" />
+                      <span className="text-slate-500 text-[11px] font-medium">Date:</span>
                       <select
-                        value={leadAssignFilter}
-                        onChange={(e) => setLeadAssignFilter(e.target.value)}
+                        value={leadDateFilter}
+                        onChange={(e) => setLeadDateFilter(e.target.value as any)}
                         className="bg-transparent text-xs font-medium text-slate-800 focus:outline-none cursor-pointer"
                       >
-                        <option value="ALL">All Pipeline (All Leads)</option>
-                        <option value="ASSIGNED">Assigned Leads Only</option>
-                        <option value="ME">Assigned to Me</option>
-                        <option value="UNASSIGNED">Unassigned Only</option>
-                        {staffList.map(s => (
-                          <option key={s.id} value={s.id}>{s.displayName}</option>
+                        <option value="ALL">All Time</option>
+                        <option value="TODAY">Today</option>
+                        <option value="YESTERDAY">Yesterday</option>
+                        <option value="LAST_7_DAYS">Last 7 Days</option>
+                        <option value="LAST_30_DAYS">Last 30 Days</option>
+                        <option value="THIS_MONTH">This Month</option>
+                        <option value="LAST_MONTH">Last Month</option>
+                      </select>
+                    </div>
+
+                    {/* Stage Filter */}
+                    <div className="flex items-center space-x-1.5 bg-white border border-slate-300 rounded-md px-2.5 py-1 shadow-2xs">
+                      <span className="text-slate-500 text-[11px] font-medium">Stage:</span>
+                      <select
+                        value={leadStatusFilter}
+                        onChange={(e) => setLeadStatusFilter(e.target.value)}
+                        className="bg-transparent text-xs font-medium text-slate-800 focus:outline-none cursor-pointer"
+                      >
+                        <option value="ACTIVE">Active Pipeline (Excludes Lost)</option>
+                        <option value="TOTAL">Total Leads (All Recorded)</option>
+                        {(leadTypeFilter === 'ALL' ? PIPELINE_STAGES : getPipelineStagesForLead(leadTypeFilter)).map(s => (
+                          <option key={s.key} value={s.key}>{s.label}</option>
                         ))}
                       </select>
                     </div>
-                  )}
 
-                  <div className="flex items-center space-x-1.5 bg-white border border-slate-300 rounded-md px-2.5 py-1 shadow-2xs">
-                    <span className="text-slate-500 text-[11px] font-medium">Type:</span>
-                    <select
-                      value={leadTypeFilter}
-                      onChange={(e) => setLeadTypeFilter(e.target.value as any)}
-                      className="bg-transparent text-xs font-medium text-slate-800 focus:outline-none cursor-pointer"
+                    {/* More Filters Toggle Button */}
+                    <button
+                      type="button"
+                      onClick={() => setShowMoreLeadFilters(prev => !prev)}
+                      className={`flex items-center space-x-1.5 border rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors cursor-pointer ${
+                        showMoreLeadFilters || activeLeadFilterCount > 0
+                          ? 'bg-blue-50 border-blue-300 text-[#0176D3]'
+                          : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-50'
+                      }`}
                     >
-                      <option value="ALL">All Inquiries</option>
-                      <option value="SELLER">Seller Leads</option>
-                      <option value="BUYER">Buyer Enquiries</option>
-                    </select>
-                  </div>
+                      <Filter className="w-3.5 h-3.5" />
+                      <span>More Filters</span>
+                      {activeLeadFilterCount > 0 && (
+                        <span className="inline-flex items-center justify-center px-1.5 py-0.2 bg-[#0176D3] text-white text-[10px] font-bold rounded-full">
+                          {activeLeadFilterCount}
+                        </span>
+                      )}
+                      {showMoreLeadFilters ? (
+                        <ChevronUp className="w-3.5 h-3.5 ml-0.5 text-slate-500" />
+                      ) : (
+                        <ChevronDown className="w-3.5 h-3.5 ml-0.5 text-slate-500" />
+                      )}
+                    </button>
 
-                  <div className="flex items-center space-x-1.5 bg-white border border-slate-300 rounded-md px-2.5 py-1 shadow-2xs">
-                    <span className="text-slate-500 text-[11px] font-medium">Priority:</span>
-                    <select
-                      value={leadTempFilter}
-                      onChange={(e) => setLeadTempFilter(e.target.value)}
-                      className="bg-transparent text-xs font-medium text-slate-800 focus:outline-none cursor-pointer"
-                    >
-                      <option value="ALL">All Priorities</option>
-                      <option value="HOT">Hot</option>
-                      <option value="WARM">Warm</option>
-                      <option value="COLD">Cold</option>
-                    </select>
+                    {/* Reset Button */}
+                    {(leadStatusFilter !== 'ACTIVE' || (isAdmin && leadAssignFilter !== 'ALL') || (!isAdmin && leadAssignFilter !== 'ME') || leadTypeFilter !== 'ALL' || leadTempFilter !== 'ALL' || leadSourceFilter !== 'ALL' || leadFollowUpFilter !== 'ALL' || leadDateFilter !== 'ALL' || leadSearch) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setLeadStatusFilter('ACTIVE');
+                          setLeadAssignFilter(isAdmin ? 'ALL' : 'ME');
+                          setLeadTypeFilter('ALL');
+                          setLeadTempFilter('ALL');
+                          setLeadSourceFilter('ALL');
+                          setLeadFollowUpFilter('ALL');
+                          setLeadDateFilter('ALL');
+                          setLeadSearch('');
+                        }}
+                        className="text-[#0176D3] hover:underline text-xs font-semibold px-2 py-1 cursor-pointer"
+                      >
+                        Reset All
+                      </button>
+                    )}
                   </div>
+                </div>
 
-                  <div className="flex items-center space-x-1.5 bg-white border border-slate-300 rounded-md px-2.5 py-1 shadow-2xs">
-                    <span className="text-slate-500 text-[11px] font-medium">Source:</span>
-                    <select
-                      value={leadSourceFilter}
-                      onChange={(e) => setLeadSourceFilter(e.target.value)}
-                      className="bg-transparent text-xs font-medium text-slate-800 focus:outline-none cursor-pointer"
-                    >
-                      <option value="ALL">All Sources</option>
-                      <option value="Facebook">Facebook Ads</option>
-                      <option value="99acres">99acres</option>
-                      <option value="Magicbricks">Magicbricks</option>
-                      <option value="SellMyGhar">SellMyGhar</option>
-                      <option value="Website">Website</option>
-                      <option value="WhatsApp">WhatsApp</option>
-                    </select>
+                {/* Secondary Expandable Row: Additional Filters */}
+                {showMoreLeadFilters && (
+                  <div className="p-2.5 bg-slate-50 flex flex-wrap items-center gap-2 text-xs">
+                    {/* Single Type Filter */}
+                    <div className="flex items-center space-x-1.5 bg-white border border-slate-300 rounded-md px-2.5 py-1 shadow-2xs">
+                      <span className="text-slate-500 text-[11px] font-medium">Type:</span>
+                      <select
+                        value={leadTypeFilter}
+                        onChange={(e) => {
+                          setLeadTypeFilter(e.target.value as 'ALL' | 'BUYER' | 'SELLER');
+                        }}
+                        className="bg-transparent text-xs font-medium text-slate-800 focus:outline-none cursor-pointer"
+                      >
+                        <option value="ALL">All Types</option>
+                        <option value="BUYER">Buyer Enquiries</option>
+                        <option value="SELLER">Seller Leads</option>
+                      </select>
+                    </div>
+
+                    {/* Priority Filter */}
+                    <div className="flex items-center space-x-1.5 bg-white border border-slate-300 rounded-md px-2.5 py-1 shadow-2xs">
+                      <span className="text-slate-500 text-[11px] font-medium">Priority:</span>
+                      <select
+                        value={leadTempFilter}
+                        onChange={(e) => setLeadTempFilter(e.target.value)}
+                        className="bg-transparent text-xs font-medium text-slate-800 focus:outline-none cursor-pointer"
+                      >
+                        <option value="ALL">All Priorities</option>
+                        <option value="HOT">Hot</option>
+                        <option value="WARM">Warm</option>
+                        <option value="COLD">Cold</option>
+                      </select>
+                    </div>
+
+                    {/* Source Filter */}
+                    <div className="flex items-center space-x-1.5 bg-white border border-slate-300 rounded-md px-2.5 py-1 shadow-2xs">
+                      <span className="text-slate-500 text-[11px] font-medium">Source:</span>
+                      <select
+                        value={leadSourceFilter}
+                        onChange={(e) => setLeadSourceFilter(e.target.value)}
+                        className="bg-transparent text-xs font-medium text-slate-800 focus:outline-none cursor-pointer"
+                      >
+                        <option value="ALL">All Sources</option>
+                        <option value="Facebook">Facebook Ads</option>
+                        <option value="99acres">99acres</option>
+                        <option value="Magicbricks">Magicbricks</option>
+                        <option value="SellMyGhar">SellMyGhar</option>
+                        <option value="Website">Website</option>
+                        <option value="WhatsApp">WhatsApp</option>
+                      </select>
+                    </div>
+
+                    {/* Assigned Staff Filter (Admins only) */}
+                    {isAdmin && (
+                      <div className="flex items-center space-x-1.5 bg-white border border-slate-300 rounded-md px-2.5 py-1 shadow-2xs">
+                        <span className="text-slate-500 text-[11px] font-medium">Assigned:</span>
+                        <select
+                          value={leadAssignFilter}
+                          onChange={(e) => setLeadAssignFilter(e.target.value)}
+                          className="bg-transparent text-xs font-medium text-slate-800 focus:outline-none cursor-pointer"
+                        >
+                          <option value="ALL">All Pipeline (All Leads)</option>
+                          <option value="ASSIGNED">Assigned Leads Only</option>
+                          <option value="ME">Assigned to Me</option>
+                          <option value="UNASSIGNED">Unassigned Only</option>
+                          {staffList.map(s => (
+                            <option key={s.id} value={s.id}>{s.displayName}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Follow-up Filter */}
+                    <div className="flex items-center space-x-1.5 bg-white border border-slate-300 rounded-md px-2.5 py-1 shadow-2xs">
+                      <span className="text-slate-500 text-[11px] font-medium">Follow-up:</span>
+                      <select
+                        value={leadFollowUpFilter}
+                        onChange={(e) => setLeadFollowUpFilter(e.target.value as any)}
+                        className="bg-transparent text-xs font-medium text-slate-800 focus:outline-none cursor-pointer"
+                      >
+                        <option value="ALL">All Tasks</option>
+                        <option value="OVERDUE">Overdue Only</option>
+                        <option value="TODAY">Due Today</option>
+                      </select>
+                    </div>
                   </div>
+                )}
 
-                  <div className="flex items-center space-x-1.5 bg-white border border-slate-300 rounded-md px-2.5 py-1 shadow-2xs">
-                    <span className="text-slate-500 text-[11px] font-medium">Follow-up:</span>
-                    <select
-                      value={leadFollowUpFilter}
-                      onChange={(e) => setLeadFollowUpFilter(e.target.value as any)}
-                      className="bg-transparent text-xs font-medium text-slate-800 focus:outline-none cursor-pointer"
-                    >
-                      <option value="ALL">All Tasks</option>
-                      <option value="OVERDUE">Overdue Only</option>
-                      <option value="TODAY">Due Today</option>
-                    </select>
-                  </div>
+                {/* Active Filter Chips Summary */}
+                {(leadDateFilter !== 'ALL' || leadTypeFilter !== 'ALL' || leadTempFilter !== 'ALL' || leadSourceFilter !== 'ALL' || leadFollowUpFilter !== 'ALL' || (isAdmin && leadAssignFilter !== 'ALL') || leadStatusFilter !== 'ACTIVE' || leadSearch) && (
+                  <div className="px-3 py-1.5 bg-slate-50/70 flex flex-wrap items-center gap-1.5 text-[11px]">
+                    <span className="text-slate-400 font-medium mr-1">Active Filters:</span>
 
-                  {(leadStatusFilter !== 'ACTIVE' || leadAssignFilter !== 'ALL' || leadTypeFilter !== 'ALL' || leadTempFilter !== 'ALL' || leadSourceFilter !== 'ALL' || leadFollowUpFilter !== 'ALL' || leadSearch) && (
+                    {leadSearch && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 border border-blue-200 text-blue-700">
+                        <span>Search: "{leadSearch}"</span>
+                        <button type="button" onClick={() => setLeadSearch('')} className="hover:text-blue-900 cursor-pointer">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    )}
+
+                    {leadDateFilter !== 'ALL' && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 border border-blue-200 text-blue-700">
+                        <span>Date: {leadDateFilter.replace(/_/g, ' ')}</span>
+                        <button type="button" onClick={() => setLeadDateFilter('ALL')} className="hover:text-blue-900 cursor-pointer">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    )}
+
+                    {leadStatusFilter !== 'ACTIVE' && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 border border-blue-200 text-blue-700">
+                        <span>Stage: {leadStatusFilter}</span>
+                        <button type="button" onClick={() => setLeadStatusFilter('ACTIVE')} className="hover:text-blue-900 cursor-pointer">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    )}
+
+                    {leadTypeFilter !== 'ALL' && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 border border-blue-200 text-blue-700">
+                        <span>Type: {leadTypeFilter}</span>
+                        <button type="button" onClick={() => setLeadTypeFilter('ALL')} className="hover:text-blue-900 cursor-pointer">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    )}
+
+                    {leadTempFilter !== 'ALL' && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 border border-blue-200 text-blue-700">
+                        <span>Priority: {leadTempFilter}</span>
+                        <button type="button" onClick={() => setLeadTempFilter('ALL')} className="hover:text-blue-900 cursor-pointer">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    )}
+
+                    {leadSourceFilter !== 'ALL' && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 border border-blue-200 text-blue-700">
+                        <span>Source: {leadSourceFilter}</span>
+                        <button type="button" onClick={() => setLeadSourceFilter('ALL')} className="hover:text-blue-900 cursor-pointer">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    )}
+
+                    {isAdmin && leadAssignFilter !== 'ALL' && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 border border-blue-200 text-blue-700">
+                        <span>Assigned: {staffList.find(s => s.id === leadAssignFilter)?.displayName || leadAssignFilter}</span>
+                        <button type="button" onClick={() => setLeadAssignFilter('ALL')} className="hover:text-blue-900 cursor-pointer">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    )}
+
+                    {leadFollowUpFilter !== 'ALL' && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-50 border border-blue-200 text-blue-700">
+                        <span>Follow-up: {leadFollowUpFilter}</span>
+                        <button type="button" onClick={() => setLeadFollowUpFilter('ALL')} className="hover:text-blue-900 cursor-pointer">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    )}
+
                     <button
                       type="button"
                       onClick={() => {
                         setLeadStatusFilter('ACTIVE');
-                        setLeadAssignFilter('ALL');
+                        setLeadAssignFilter(isAdmin ? 'ALL' : 'ME');
                         setLeadTypeFilter('ALL');
                         setLeadTempFilter('ALL');
                         setLeadSourceFilter('ALL');
                         setLeadFollowUpFilter('ALL');
+                        setLeadDateFilter('ALL');
                         setLeadSearch('');
                       }}
-                      className="text-[#0176D3] hover:underline text-xs font-semibold px-2 py-1 cursor-pointer"
+                      className="text-[11px] text-slate-500 hover:text-rose-600 underline ml-auto cursor-pointer"
                     >
-                      Reset Filters
+                      Clear all
                     </button>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
 
               {/* Leads Table Container */}
@@ -3755,7 +4120,22 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                         <td colSpan={11} className="py-16 text-center text-slate-400 text-xs">
                           <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto mb-2 opacity-80" />
                           <p className="font-semibold text-slate-700">No leads match the specified filter criteria.</p>
-                          <p className="text-[11px] text-slate-400 mt-0.5">Try clearing your filters or search query to see all records.</p>
+                          {potentialMatchesInTotalLeads > 0 ? (
+                            <div className="mt-3 inline-flex flex-col items-center gap-1.5 p-3 bg-amber-50 border border-amber-200 rounded-md text-amber-800 text-xs">
+                              <span>
+                                Found <strong>{potentialMatchesInTotalLeads}</strong> matching lead(s) in Total Leads (marked as Lost).
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => setLeadStatusFilter('TOTAL')}
+                                className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white font-medium rounded text-[11px] transition-colors cursor-pointer"
+                              >
+                                View in Total Leads
+                              </button>
+                            </div>
+                          ) : (
+                            <p className="text-[11px] text-slate-400 mt-0.5">Try clearing your filters or search query to see all records.</p>
+                          )}
                         </td>
                       </tr>
                     ) : (
@@ -3847,18 +4227,43 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
 
                             {/* Property & Locality */}
                             <td className="py-2.5 px-3.5 text-slate-700">
-                              <div className="font-medium text-slate-900 truncate max-w-[180px] text-xs">
-                                {lead.society || 'Residential Unit'}
-                              </div>
-                              <div className="text-[11px] text-slate-500 truncate max-w-[180px]">
-                                {lead.locality}
-                              </div>
+                              {(() => {
+                                const linkedProp = properties.find(p => p.id === (lead.propertyId || (lead as any).property_id));
+                                const propName = linkedProp?.projectName || linkedProp?.title || lead.society || (lead.type === 'BUYER' ? 'Buyer Requirement' : 'Residential Unit');
+                                const propLocality = linkedProp?.localityName || lead.locality || 'Bengaluru';
+                                return (
+                                  <>
+                                    <div className="flex items-center space-x-1.5 max-w-[200px]">
+                                      {linkedProp && (
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" title="Linked to inventory property" />
+                                      )}
+                                      <div className="font-medium text-slate-900 truncate text-xs">
+                                        {propName}
+                                      </div>
+                                    </div>
+                                    <div className="text-[11px] text-slate-500 truncate max-w-[200px]">
+                                      {propLocality}
+                                    </div>
+                                  </>
+                                );
+                              })()}
                             </td>
 
                             {/* BHK & Budget */}
                             <td className="py-2.5 px-3.5 text-slate-700">
-                              <div className="font-medium text-slate-900 text-xs">{lead.bhk || '2 BHK'}</div>
-                              <div className="text-[11px] text-slate-500">{lead.expectedPrice || 'Market'}</div>
+                              {(() => {
+                                const linkedProp = properties.find(p => p.id === (lead.propertyId || (lead as any).property_id));
+                                const propBhk = linkedProp?.bhkType || lead.bhk || '2 BHK';
+                                const propBudget = linkedProp?.askingPriceInr
+                                  ? formatIndianCurrency(linkedProp.askingPriceInr)
+                                  : (lead.expectedPrice || 'Market');
+                                return (
+                                  <>
+                                    <div className="font-medium text-slate-900 text-xs">{propBhk}</div>
+                                    <div className="text-[11px] text-slate-500">{propBudget}</div>
+                                  </>
+                                );
+                              })()}
                             </td>
 
                             {/* Lifecycle Stage */}

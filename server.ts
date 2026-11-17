@@ -2954,7 +2954,7 @@ app.get('/api/listings/:id', rateLimit('listing-detail', 60, 60), async (req, re
       });
     }
 
-    if (row.listing_status !== 'PUBLISHED' || row.crm_status === 'LOST' || row.crm_status === 'DROPPED') {
+    if (row.listing_status === 'ARCHIVED' || row.listing_status === 'SOLD' || row.crm_status === 'LOST' || row.crm_status === 'DROPPED') {
       return res.status(404).json({
         error: 'NOT_FOUND',
         message: 'Property is not available or is no longer publicly listed.'
@@ -5279,10 +5279,10 @@ app.get('/api/crm/leads', authenticateUser, requireStaffMember, async (req: Requ
         sl.owner_name AS name,
         sl.owner_name,
         sl.phone,
-        sl.apartment_society_name AS society,
-        sl.locality_id AS locality,
-        sl.bhk_type AS bhk,
-        sl.expected_price_inr AS expected_price,
+        COALESCE(p.title, p.project_locality_id, sl.apartment_society_name) AS society,
+        COALESCE(p.public_address, sl.locality_id) AS locality,
+        COALESCE(p.bhk_type, sl.bhk_type) AS bhk,
+        COALESCE(p.asking_price_inr, sl.expected_price_inr) AS expected_price,
         sl.listing_intent,
         sl.lead_status,
         sl.assigned_staff_id,
@@ -5300,6 +5300,7 @@ app.get('/api/crm/leads', authenticateUser, requireStaffMember, async (req: Requ
         sl.updated_at
       FROM seller_leads sl
       LEFT JOIN users staff ON staff.id = sl.assigned_staff_id
+      LEFT JOIN properties p ON p.id = sl.property_id
       WHERE 1=1
     `;
     const sellerParams: any[] = [];
@@ -5312,10 +5313,10 @@ app.get('/api/crm/leads', authenticateUser, requireStaffMember, async (req: Requ
         be.buyer_name AS owner_name,
         be.buyer_name,
         be.phone,
-        be.preferred_locality_or_society AS society,
-        be.preferred_locality_or_society AS locality,
-        be.bhk_type AS bhk,
-        be.expected_price_inr AS expected_price,
+        COALESCE(p.title, p.project_locality_id, be.preferred_locality_or_society) AS society,
+        COALESCE(p.public_address, be.preferred_locality_or_society) AS locality,
+        COALESCE(p.bhk_type, be.bhk_type) AS bhk,
+        COALESCE(p.asking_price_inr, be.expected_price_inr) AS expected_price,
         'BUY' AS listing_intent,
         be.lead_status,
         be.assigned_staff_id,
@@ -5333,6 +5334,7 @@ app.get('/api/crm/leads', authenticateUser, requireStaffMember, async (req: Requ
         be.updated_at
       FROM buyer_enquiries be
       LEFT JOIN users staff ON staff.id = be.assigned_staff_id
+      LEFT JOIN properties p ON p.id = be.property_id
       WHERE 1=1
     `;
     const buyerParams: any[] = [];
@@ -6508,23 +6510,63 @@ const linkLeadPropertyHandler = async (req: Request, res: Response) => {
     const { id } = req.params;
     const propertyId = (req.body.propertyId || req.body.property_id || '').trim() || null;
 
+    let propTitle: string | null = null;
+    let propBhk: string | null = null;
+    let propPrice: any = null;
+
     if (propertyId) {
-      const propCheck = await executeQuery(`SELECT id, title, bhk_type, asking_price_inr FROM properties WHERE id = $1 LIMIT 1;`, [propertyId]);
+      const propCheck = await executeQuery(`SELECT id, title, project_locality_id, bhk_type, asking_price_inr FROM properties WHERE id = $1 LIMIT 1;`, [propertyId]);
       if (!propCheck.rows || propCheck.rows.length === 0) {
         return res.status(404).json({ success: false, error: 'PROPERTY_NOT_FOUND', message: 'Selected property does not exist in inventory.' });
       }
+      const p = propCheck.rows[0];
+      propTitle = p.title || p.project_locality_id;
+      propBhk = p.bhk_type;
+      propPrice = p.asking_price_inr;
     }
 
     // 1. Try seller_leads
-    const sellerRes = await executeQuery(`UPDATE seller_leads SET property_id = $1, updated_at = NOW() WHERE id = $2 RETURNING id;`, [propertyId, id]);
+    const sellerRes = await executeQuery(
+      `UPDATE seller_leads 
+       SET property_id = $1, 
+           apartment_society_name = COALESCE($2, apartment_society_name),
+           bhk_type = COALESCE($3, bhk_type),
+           expected_price_inr = COALESCE($4, expected_price_inr),
+           updated_at = NOW() 
+       WHERE id = $5 
+       RETURNING id, property_id, apartment_society_name, bhk_type, expected_price_inr;`,
+      [propertyId, propTitle, propBhk, propPrice, id]
+    );
     if (sellerRes.rows && sellerRes.rows.length > 0) {
-      return res.json({ success: true, message: propertyId ? 'Property linked to lead.' : 'Property unlinked from lead.', leadId: id, propertyId });
+      return res.json({ 
+        success: true, 
+        message: propertyId ? 'Property linked to lead.' : 'Property unlinked from lead.', 
+        leadId: id, 
+        propertyId,
+        lead: sellerRes.rows[0]
+      });
     }
 
     // 2. Try buyer_enquiries
-    const buyerRes = await executeQuery(`UPDATE buyer_enquiries SET property_id = $1, updated_at = NOW() WHERE id = $2 RETURNING id;`, [propertyId, id]);
+    const buyerRes = await executeQuery(
+      `UPDATE buyer_enquiries 
+       SET property_id = $1, 
+           preferred_locality_or_society = COALESCE($2, preferred_locality_or_society),
+           bhk_type = COALESCE($3, bhk_type),
+           expected_price_inr = COALESCE($4, expected_price_inr),
+           updated_at = NOW() 
+       WHERE id = $5 
+       RETURNING id, property_id, preferred_locality_or_society, bhk_type, expected_price_inr;`,
+      [propertyId, propTitle, propBhk, propPrice, id]
+    );
     if (buyerRes.rows && buyerRes.rows.length > 0) {
-      return res.json({ success: true, message: propertyId ? 'Property linked to lead.' : 'Property unlinked from lead.', leadId: id, propertyId });
+      return res.json({ 
+        success: true, 
+        message: propertyId ? 'Property linked to lead.' : 'Property unlinked from lead.', 
+        leadId: id, 
+        propertyId,
+        lead: buyerRes.rows[0]
+      });
     }
 
     return res.status(404).json({ success: false, error: 'LEAD_NOT_FOUND', message: 'Lead record not found.' });

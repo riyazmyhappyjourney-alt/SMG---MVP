@@ -141,7 +141,7 @@ export function InventoryInsightsDrawer({
                 source: property.leadSource || 'Direct Intake'
               } : null,
               customFormUrl: `https://${cleanHost}/seller/form/${slug}`,
-              buyMyGharUrl: `https://buymyghar.in/property/${slug}`
+              sellMyGharUrl: `https://sellmyghar.in/property/${slug}`
             });
           }
         }
@@ -172,7 +172,7 @@ export function InventoryInsightsDrawer({
               portalSellMyGhar: initialIsListed
             },
             customFormUrl: `https://${cleanHost}/seller/form/${slug}`,
-            buyMyGharUrl: `https://buymyghar.in/property/${slug}`
+            sellMyGharUrl: `https://sellmyghar.in/property/${slug}`
           });
         }
       } finally {
@@ -189,9 +189,9 @@ export function InventoryInsightsDrawer({
   if (!isOpen || !property) return null;
 
   const isListed = portals.portalSellMyGhar;
-  const buyMyGharSlug = property.slug || property.id;
-  const buyMyGharUrl = insights?.buyMyGharUrl || `https://buymyghar.in/property/${buyMyGharSlug}`;
-  const customFormUrl = insights?.customFormUrl || `https://${window.location.host.replace(/^crm\./i, '')}/seller/form/${buyMyGharSlug}`;
+  const propertySlug = property.slug || property.id;
+  const sellMyGharUrl = insights?.sellMyGharUrl || `https://sellmyghar.in/property/${propertySlug}`;
+  const customFormUrl = insights?.customFormUrl || `https://${window.location.host.replace(/^crm\./i, '')}/seller/form/${propertySlug}`;
 
   // Interactive Portal Checkbox Toggle
   const handleTogglePortal = async (portalKey: 'portalSellMyGhar' | 'portal99Acres' | 'portalMagicBricks') => {
@@ -228,9 +228,9 @@ export function InventoryInsightsDrawer({
     }
   };
 
-  const handleCopyBuyMyGharLink = async () => {
+  const handleCopySellMyGharLink = async () => {
     try {
-      await navigator.clipboard.writeText(buyMyGharUrl);
+      await navigator.clipboard.writeText(sellMyGharUrl);
       setCopiedLink(true);
       setTimeout(() => setCopiedLink(false), 2000);
     } catch {}
@@ -240,7 +240,7 @@ export function InventoryInsightsDrawer({
     const cleanPhone = buyerPhone ? String(buyerPhone).replace(/[^0-9]/g, '') : '';
     const askingFormatted = formatIndianCurrency(property.askingPriceInr || property.asking_price_inr || 0);
     const text = encodeURIComponent(
-      `Hello! Here are the verified property details for *${property.projectName || property.title}* (${property.bhkType || 'Apartment'} in ${property.localityName || 'Bangalore'} - Asking ${askingFormatted}):\n\n🔗 View Verified Property Listing:\n${buyMyGharUrl}\n\nKey Highlights:\n• Floor: ${property.floorBand || 'Mid floor'}\n• Super Built-up: ${property.superBuiltUpSqft || ''} sq.ft\n• Facing: ${property.facing || 'East'}\n\n- BuyMyGhar Verified Marketplace`
+      `Hello! Here are the verified property details for *${property.projectName || property.title}* (${property.bhkType || 'Apartment'} in ${property.localityName || 'Bangalore'} - Asking ${askingFormatted}):\n\n🔗 View Verified Property Listing:\n${sellMyGharUrl}\n\nKey Highlights:\n• Floor: ${property.floorBand || 'Mid floor'}\n• Super Built-up: ${property.superBuiltUpSqft || ''} sq.ft\n• Facing: ${property.facing || 'East'}\n\n- SellMyGhar Verified Marketplace`
     );
     if (cleanPhone) {
       window.open(`https://wa.me/${cleanPhone}?text=${text}`, '_blank');
@@ -281,9 +281,9 @@ export function InventoryInsightsDrawer({
                   Inventory Performance Insights
                 </span>
                 {isListed ? (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                    Live on BuyMyGhar
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-50 text-[#0176D3] border border-blue-200">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#0176D3]"></span>
+                    Live on SellMyGhar
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
@@ -331,24 +331,24 @@ export function InventoryInsightsDrawer({
                 </div>
               </div>
 
-              {/* BUYMYGHAR PUBLIC VIEW & SHARE URL (PRIMARY CLIENT LINK) */}
-              <div className="p-4 rounded-xl border border-emerald-200 bg-emerald-50/40 space-y-3">
+              {/* SELLMYGHAR PUBLIC VIEW & SHARE URL (PRIMARY CLIENT LINK) */}
+              <div className="p-4 rounded-xl border border-blue-200 bg-blue-50/40 space-y-3">
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="flex items-center space-x-1.5">
-                      <span className="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
-                      <h4 className="text-xs font-bold text-slate-900">BuyMyGhar Property Listing Link</h4>
+                      <span className="inline-block w-2 h-2 rounded-full bg-[#0176D3]"></span>
+                      <h4 className="text-xs font-bold text-slate-900">SellMyGhar Property Listing Link</h4>
                     </div>
                     <p className="text-[11px] text-slate-600 mt-0.5">
                       Public verified listing URL to share with prospective buyers on WhatsApp or Email
                     </p>
                   </div>
                   <a
-                    href={buyMyGharUrl}
+                    href={sellMyGharUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="p-1.5 rounded-md text-emerald-700 hover:text-emerald-900 hover:bg-emerald-100 transition-colors"
-                    title="Open on BuyMyGhar marketplace in new tab"
+                    className="p-1.5 rounded-md text-[#0176D3] hover:text-[#005fb2] hover:bg-blue-100 transition-colors"
+                    title="Open on SellMyGhar in new tab"
                   >
                     <ExternalLink className="w-4 h-4" />
                   </a>
@@ -358,12 +358,12 @@ export function InventoryInsightsDrawer({
                   <input
                     type="text"
                     readOnly
-                    value={buyMyGharUrl}
-                    className="flex-1 bg-white border border-emerald-300 rounded-lg px-3 py-1.5 text-xs font-mono text-slate-800 select-all focus:outline-none"
+                    value={sellMyGharUrl}
+                    className="flex-1 bg-white border border-blue-300 rounded-lg px-3 py-1.5 text-xs font-mono text-slate-800 select-all focus:outline-none"
                   />
                   <button
                     type="button"
-                    onClick={handleCopyBuyMyGharLink}
+                    onClick={handleCopySellMyGharLink}
                     className="px-3 py-1.5 bg-white hover:bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-700 inline-flex items-center space-x-1 shadow-2xs cursor-pointer"
                   >
                     {copiedLink ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
@@ -381,7 +381,7 @@ export function InventoryInsightsDrawer({
 
                 {!isListed && (
                   <div className="p-2 rounded-lg bg-amber-50 border border-amber-200 text-[11px] text-amber-800 flex items-center justify-between">
-                    <span>⚠️ Property is currently unlisted. Check the <strong>BuyMyGhar</strong> box below to publish it live for buyers.</span>
+                    <span>⚠️ Property is currently unlisted. Check the <strong>SellMyGhar</strong> box below to publish it live for buyers.</span>
                   </div>
                 )}
               </div>
@@ -397,21 +397,21 @@ export function InventoryInsightsDrawer({
                 </div>
                 
                 <div className="grid grid-cols-3 gap-2.5">
-                  {/* BuyMyGhar Marketplace Checkbox */}
+                  {/* SellMyGhar Marketplace Checkbox */}
                   <div
                     onClick={() => handleTogglePortal('portalSellMyGhar')}
                     className={`p-3 rounded-xl border text-left cursor-pointer transition-all ${
                       portals.portalSellMyGhar
-                        ? 'bg-emerald-50/80 border-emerald-300 shadow-2xs'
+                        ? 'bg-blue-50/80 border-blue-300 shadow-2xs'
                         : 'bg-slate-50 border-slate-200 hover:bg-slate-100/70'
                     }`}
                   >
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-900">BuyMyGhar</span>
+                      <span className="text-xs font-bold text-slate-900">SellMyGhar</span>
                       {updatingPortal === 'portalSellMyGhar' ? (
-                        <RefreshCw className="w-4 h-4 text-emerald-600 animate-spin" />
+                        <RefreshCw className="w-4 h-4 text-[#0176D3] animate-spin" />
                       ) : portals.portalSellMyGhar ? (
-                        <CheckSquare className="w-4 h-4 text-emerald-600" />
+                        <CheckSquare className="w-4 h-4 text-[#0176D3]" />
                       ) : (
                         <Square className="w-4 h-4 text-slate-400" />
                       )}
