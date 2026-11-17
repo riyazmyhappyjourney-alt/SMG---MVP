@@ -531,7 +531,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
   // Filters & Search
   const [globalSearch, setGlobalSearch] = useState<string>('');
   const [leadSearch, setLeadSearch] = useState<string>('');
-  const [leadStatusFilter, setLeadStatusFilter] = useState<string>('ALL');
+  const [leadStatusFilter, setLeadStatusFilter] = useState<string>('ACTIVE');
   const [leadAssignFilter, setLeadAssignFilter] = useState<string>(() => {
     return isAdmin ? 'ALL' : 'ME';
   });
@@ -2075,14 +2075,14 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
       }
 
       // Stage Filter:
-      // 'TOTAL': All leads including lost/dropped.
-      // 'ACTIVE' or 'ALL': Active pipeline, strictly EXCLUDES dropped/lost leads.
-      // Specific stage: matches exact stage.
-      if (leadStatusFilter === 'ACTIVE' || leadStatusFilter === 'ALL') {
+      // 'TOTAL' or 'ALL': All recorded leads including lost.
+      // 'ACTIVE': Active pipeline, strictly EXCLUDES lost leads.
+      // Specific stage: matches exact stage (NEW, CONTACTED, LOST, etc.)
+      if (leadStatusFilter === 'ACTIVE') {
         if (lead.stage === 'LOST' || (lead as any).lead_status === 'LOST') {
           return false;
         }
-      } else if (leadStatusFilter === 'TOTAL') {
+      } else if (leadStatusFilter === 'TOTAL' || leadStatusFilter === 'ALL') {
         // Show all leads including lost
       } else if (lead.stage !== leadStatusFilter) {
         return false;
@@ -2393,8 +2393,9 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                   className={`px-1.5 py-0.2 rounded text-[10px] font-semibold ${
                     activeSection === 'LEADS' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
                   }`}
+                  title="Active Pipeline Leads (excludes Lost)"
                 >
-                  {accessibleLeads.length}
+                  {accessibleLeads.filter(l => l.stage !== 'LOST' && (l as any).lead_status !== 'LOST').length}
                 </span>
               </button>
             )}
@@ -3378,7 +3379,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                 <div
                   onClick={() => setLeadStatusFilter('ACTIVE')}
                   className={`p-3 rounded-md border transition-all cursor-pointer shadow-2xs ${
-                    leadStatusFilter === 'ACTIVE' || leadStatusFilter === 'ALL'
+                    leadStatusFilter === 'ACTIVE'
                       ? 'bg-emerald-50/50 border-emerald-500 ring-1 ring-emerald-500'
                       : 'bg-white border-slate-200 hover:border-slate-300'
                   }`}
@@ -3609,7 +3610,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                       value={leadTypeFilter}
                       onChange={(e) => {
                         setLeadTypeFilter(e.target.value as 'ALL' | 'BUYER' | 'SELLER');
-                        setLeadStatusFilter('ALL');
+                        setLeadStatusFilter('ACTIVE');
                       }}
                       className="bg-transparent text-xs font-medium text-slate-800 focus:outline-none cursor-pointer"
                     >
@@ -3626,7 +3627,8 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                       onChange={(e) => setLeadStatusFilter(e.target.value)}
                       className="bg-transparent text-xs font-medium text-slate-800 focus:outline-none cursor-pointer"
                     >
-                      <option value="ALL">All Stages</option>
+                      <option value="ACTIVE">Active Pipeline (Excludes Lost)</option>
+                      <option value="TOTAL">Total Leads (All Recorded)</option>
                       {(leadTypeFilter === 'ALL' ? PIPELINE_STAGES : getPipelineStagesForLead(leadTypeFilter)).map(s => (
                         <option key={s.key} value={s.key}>{s.label}</option>
                       ))}
@@ -3709,11 +3711,11 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
                     </select>
                   </div>
 
-                  {(leadStatusFilter !== 'ALL' || leadAssignFilter !== 'ALL' || leadTypeFilter !== 'ALL' || leadTempFilter !== 'ALL' || leadSourceFilter !== 'ALL' || leadFollowUpFilter !== 'ALL' || leadSearch) && (
+                  {(leadStatusFilter !== 'ACTIVE' || leadAssignFilter !== 'ALL' || leadTypeFilter !== 'ALL' || leadTempFilter !== 'ALL' || leadSourceFilter !== 'ALL' || leadFollowUpFilter !== 'ALL' || leadSearch) && (
                     <button
                       type="button"
                       onClick={() => {
-                        setLeadStatusFilter('ALL');
+                        setLeadStatusFilter('ACTIVE');
                         setLeadAssignFilter('ALL');
                         setLeadTypeFilter('ALL');
                         setLeadTempFilter('ALL');
@@ -7264,7 +7266,7 @@ export function CrmDashboard({ staffUser, onLogout, onExit }: CrmDashboardProps)
           crmFetch={crmFetch}
           onLeadCreated={(newLeadId) => {
             setLeadAssignFilter('ALL');
-            setLeadStatusFilter('ALL');
+            setLeadStatusFilter('ACTIVE');
             loadLeads();
             setSelectedLeadId(newLeadId);
             showToast('Lead created successfully! Reflected in pipeline.', 'success');
